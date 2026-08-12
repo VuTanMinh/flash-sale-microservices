@@ -1,0 +1,1 @@
+dotnet run --project FlashSale.OrderService --migrate-database
