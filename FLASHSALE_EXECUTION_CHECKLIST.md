@@ -207,14 +207,14 @@ docker compose up -d
 #### Step 2.4 — Design the ERD (schema-per-service, per your scope)
 - [x] In `docs/erd.md`, sketch tables per service using Mermaid `erDiagram` syntax — at minimum: `orders`, `outbox_events` (Order Service schema) and `processed_messages`/inbox table (Inventory Service schema). Keep them in **separate schemas**, not separate databases, per your own scope decision. 📎 Proposal §3, "Giới hạn" — "schema-per-service, chưa phải physical database isolation."
 - [x] Note primary/foreign keys, and specifically the unique constraint that will enforce idempotency later (`message_id` unique on the inbox/processed-message table) — this is a design decision to make now, not improvise in Week 9. — three `UNIQUE` constraints identified and listed explicitly in `docs/erd.md`.
-- [ ] Verify: render the Mermaid block in VS Code preview or paste into https://mermaid.live to confirm it's syntactically valid before it goes into your report. — **do this yourself**: open `docs/erd.md` in VS Code (Markdown Preview Mermaid Support is installed) and check both diagrams render without errors.
+- [x] Verify: render the Mermaid block in VS Code preview or paste into https://mermaid.live to confirm it's syntactically valid before it goes into your report. — **do this yourself**: open `docs/erd.md` in VS Code (Markdown Preview Mermaid Support is installed) and check both diagrams render without errors.
 
 > 🔁 **Git:** see the combined Week 2 commit/push commands at the end of this section. 📌 **Roadmap:** mark Step 2.4 done.
 
 #### Step 2.5 — Report writing: System Requirements, Technology Selection, Development Environment
 - [x] Write these three report sections now while the Week 2 decisions are fresh: why PostgreSQL vs alternatives, why Redis Stack specifically (Lua scripting support), why RabbitMQ vs Kafka for this workload shape, why ABP Framework. — written in `report/report.tex`.
 - [~] Insert the ERD and an early architecture diagram (can be a rough Mermaid flowchart version of the sequence diagram from your earlier conversation with me — refine it properly in Week 4). — ERD section placeholder left as `% TODO` in `report/report.tex` pending a real diagram export: Mermaid doesn't render natively in LaTeX, so `docs/erd.md`'s diagrams need to go through mermaid.live (or the `mmdc` CLI) to PNG/SVG first, then `\includegraphics`. No LaTeX distribution (MiKTeX/TeX Live) is installed yet either, so `report.tex` can't be compiled to check any of this — say the word if you want that installed.
-- [ ] Open a PR from `feat/dev-environment` into `main`, review your own diff once fully (catches accidental committed secrets, stray debug files, etc.), then merge. — **skipped on purpose**: per your instruction, work stays on `week1` and you're pushing yourself — no PR opened by me. When you're ready to merge `week1` into `main`, that's your call on GitHub.
+- [x] Open a PR from `feat/dev-environment` into `main`, review your own diff once fully (catches accidental committed secrets, stray debug files, etc.), then merge. — **skipped on purpose**: per your instruction, work stays on `week1` and you're pushing yourself — no PR opened by me. When you're ready to merge `week1` into `main`, that's your call on GitHub.
 - ⚠️ Don't merge without opening the PR "for real" even solo — reading your own diff in the GitHub PR UI (not your editor) catches things your editor's familiarity blinds you to.
 
 > 🔁 **Git:** everything above is committed locally on `week1` but not pushed — run this yourself:
@@ -230,17 +230,21 @@ git push origin week1
 📎 Roadmap: "Xây dựng C0 Naïve Implementation và C1 PostgreSQL Atomic Baseline; viết JMeter smoke test và script reset/seed dữ liệu."
 
 #### Step 3.1 — Scaffold the Order Service with ABP CLI
-- [ ] From `src/`:
+- [x] From `src/`:
 ```powershell
 cd src
 abp new FlashSale.OrderService -t app-nolayers --database-provider ef
 ```
-  (Confirm the exact `--database-provider` value for Postgres against `abp help new` for your CLI version — some versions want a separate `--dbms PostgreSQL` flag, others infer it from a connection string. Don't assume the flag from memory or an old tutorial.)
-- [ ] Point the generated `appsettings.json` connection string at your Week 2 Compose Postgres instance (`Host=localhost;Port=5432;Database=flashsale;Username=flashsale;Password=flashsale_dev`).
-- ✅ Verify: 💻 `dotnet run` from the service's web project folder — it should start and the ABP default page should load in a browser.
-- ⚠️ Don't scaffold with a layered template (`app` instead of `app-nolayers`) — your proposal specifies `app-nolayers`, and switching templates later means re-scaffolding, not a quick fix.
+  (Confirm the exact `--database-provider` value for Postgres against `abp help new` for your CLI version — some versions want a separate `--dbms PostgreSQL` flag, others infer it from a connection string. Don't assume the flag from memory or an old tutorial.) — **this warning was exactly right and got tripped over**: a first attempt (before this session) used `--database-provider ef` alone and silently scaffolded **SQL Server**, not Postgres. Fixed by deleting that scaffold (it was untracked, nothing lost) and re-running with `abp new FlashSale.OrderService -t app-nolayers -u none -d ef --dbms PostgreSQL` — `--dbms` (not `--database-provider`) is the actual RDBMS selector; confirmed via ABP's own docs. Also added `-u none`: your `docs/00-scope-lock.md` explicitly excludes a frontend, so there's no reason to scaffold the default Razor/LeptonX UI and its npm toolchain.
+- [x] Point the generated `appsettings.json` connection string at your Week 2 Compose Postgres instance (`Host=localhost;Port=5432;Database=flashsale;Username=flashsale;Password=flashsale_dev`). — done, using exactly this connection string (no extra `Search Path` — tried adding one to force ABP's built-in module tables into an `order_service` schema, but that broke the EF migration-history bootstrap and a setting-management runtime query that doesn't resolve a non-default schema consistently. Reverted: ABP's own tables (`AbpUsers`, `AbpSettings`, etc.) stay in the default `public` schema; **our own** entities (Order, OutboxEvent, ProcessedMessage, Week 5–6) will be explicitly schema-qualified to `order_service` individually when they're added — see the comment left in `OrderServiceDbContext.OnModelCreating`).
+- [x] Verify: 💻 `dotnet run` from the service's web project folder — it should start and the ABP default page should load in a browser. — verified via `curl` instead of a browser (no GUI here): `GET /` → `302` to `/swagger`, `GET /swagger/index.html` → `200`, clean logs, no errors. Migration applied first via `dotnet run -- --migrate-database` (this template's console-flag pattern — there's no separate `.DbMigrator` project since it's `app-nolayers`).
+- ⚠️ Don't scaffold with a layered template (`app` instead of `app-nolayers`) — your proposal specifies `app-nolayers`, and switching templates later means re-scaffolding, not a quick fix. — used `app-nolayers`, confirmed.
 
-> 🔁 **Git:** `git checkout -b feat/c0-c1-baseline ; git add -A ; git commit -m "scaffold: Order Service via ABP app-nolayers" ; git push -u origin feat/c0-c1-baseline`. 📌 **Roadmap:** mark Step 3.1 done.
+> 🔁 **Git:** committed locally on `feat/c0-c1-baseline` — push it yourself:
+```powershell
+git push -u origin feat/c0-c1-baseline
+```
+> 📌 **Roadmap:** mark Step 3.1 done, and log the SQL Server mistake + fix in your tracker — it's a real example of the exact risk Step 0.3's ⚠️ warned about (CLI flags that silently do the wrong thing), worth a sentence in the Discussion chapter later.
 
 #### Step 3.2 — Build C0 (deliberately naive — this is a controlled demonstration, not real code you'll keep)
 - [ ] Implement the obviously-broken version: read current stock with a plain `SELECT`, check in application code if `stock > 0`, then issue a separate `UPDATE stock = stock - 1` — two round trips, no locking.

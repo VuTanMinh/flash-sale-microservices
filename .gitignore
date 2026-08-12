@@ -8,6 +8,11 @@ obj/
 
 # ABP CLI
 *.rej
+**/node_modules/
+**/wwwroot/libs/
+**/Logs/*.txt
+**/appsettings.secrets.json
+*.pfx
 
 # Terraform (used by setup-week1.ps1 for local infra provisioning)
 **/.terraform/*
@@ -38,3 +43,7 @@ tests/jmeter/*-results/
 # OS
 Thumbs.db
 .DS_Store
+
+#Powershell script
+setup.ps1
+setup-week1.ps1
