@@ -1,0 +1,40 @@
+# .NET / Visual Studio (matches GitHub's "VisualStudio" .gitignore template,
+# picked in Step 2.1 — added here since the repo was created without one)
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# ABP CLI
+*.rej
+
+# Terraform (used by setup-week1.ps1 for local infra provisioning)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!environments/*.tfvars.example
+crash.log
+crash.*.log
+
+# LaTeX build artifacts (report/report.tex)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/*.pdf
+
+# JMeter run artifacts
+tests/jmeter/*.jtl
+tests/jmeter/*-results/
+
+# Local tool config — not project source
+.claude/
+
+# OS
+Thumbs.db
+.DS_Store

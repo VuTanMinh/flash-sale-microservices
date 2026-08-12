@@ -1,0 +1,359 @@
+% ============================================================
+% Flash-Sale Microservices Capstone — Report Skeleton
+% Student: Vu Dinh Kiet (523V0011) — Class 23K50201 — TDTU
+% Week 1 skeleton per FLASHSALE_EXECUTION_CHECKLIST.md Step 1.4.
+%
+% DRAFT NOTICE: Introduction, Problem Statement, Objectives, Scope
+% and Limitations below are first-draft text written from the
+% checklist's own quoted excerpts of the proposal (de-cuong-cap-nhat.md /
+% the LaTeX proposal), NOT from the proposal's original wording, because
+% that source file is not present in this repo/session. Per Step 1.4's
+% own warning, do not leave this as a silent copy of the proposal's
+% pitch-register text either way -- reread against your actual proposal
+% and reword into report register (documents what WAS built/found,
+% not what SHOULD be approved) before this is considered final.
+% ============================================================
+
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc} % Vietnamese text support; swap for polyglossia+xelatex if compiling with XeLaTeX/LuaLaTeX instead
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{caption}
+
+% NOTE on diagrams: Mermaid blocks used throughout docs/*.md (state machine,
+% ERD, sequence diagrams) do NOT render directly in LaTeX like they do in
+% Markdown/GitHub. Export each one as an image (mermaid.live -> PNG/SVG, or
+% the mermaid-cli `mmdc`) into report/figures/ and \includegraphics it where
+% noted below. Budget time for this conversion step before each week's
+% report-writing task, not just at the end.
+
+\title{Thiết kế và Đánh giá hiệu năng hệ thống Microservices \\
+xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
+\author{Vũ Đình Kiệt (523V0011) \\ Class 23K50201 \\ Ton Duc Thang University}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+% ============================================================
+\chapter{Introduction}
+% ============================================================
+
+Flash-sale events -- short, fixed-duration promotional windows in which a large
+volume of buyers compete for a much smaller pool of inventory -- are a deliberately
+adversarial workload for backend systems: request volume spikes by orders of
+magnitude in seconds, and correctness (never selling stock that does not exist)
+must hold even as throughput far exceeds normal operating conditions.
+
+This project designs, implements, and experimentally evaluates a microservices-based
+order-and-inventory system built specifically to survive this workload shape. Rather
+than treating "handle high traffic" as a single monolithic goal, the work isolates
+two mechanisms that are conflated in most informal Flash-sale discussions: how the
+system stays \emph{correct} under concurrency (Section~\ref{sec:problem}), and how it
+stays \emph{responsive} under overload it cannot fully absorb (load shedding,
+Week 12). Both are evaluated through controlled, repeatable JMeter-driven experiments
+against multiple architectural configurations (C0 through the final resilient
+design), not through a single end-to-end demo.
+
+% ============================================================
+\chapter{Problem Statement}
+\label{sec:problem}
+% ============================================================
+
+Under concurrent access to a shared, finite inventory count, a naively implemented
+order path exhibits a classic read-then-write race: two concurrent requests can each
+observe available stock, both decide independently that a reservation is valid, and
+both commit -- overselling the product. This is demonstrated directly and
+deliberately in this project (the C0 baseline, Week 3) before being solved.
+
+Beyond single-request correctness, a Flash-sale system built as a set of
+independently-deployed services introduces a second class of problem: partial
+failure. A service can crash between updating its own state and notifying another
+service of that update (the dual-write problem, addressed by the Transactional
+Outbox pattern, Week 6); a message can be delivered more than once by the broker
+(addressed by idempotent consumers and the Inbox pattern, Week 9); and the system as
+a whole can receive more concurrent requests than it is provisioned to process
+correctly, in which case naive behavior degrades unpredictably rather than
+predictably (addressed by load shedding, Week 12).
+
+The problem this project addresses, precisely: \emph{design and build an
+order-and-inventory subsystem that provably avoids overselling under concurrent
+load, remains correct despite partial service failure and at-least-once message
+delivery, and degrades predictably rather than catastrophically once load exceeds
+provisioned capacity -- then measure, with controlled experiments, what that
+correctness and resilience cost in throughput and latency compared to a simpler
+baseline.}
+
+% ============================================================
+\chapter{Objectives}
+% ============================================================
+
+\begin{enumerate}
+  \item Implement and empirically compare at least two inventory-reservation
+    strategies -- a synchronous PostgreSQL atomic-update baseline (C1) and an
+    asynchronous, event-driven Redis-backed design -- under identical experimental
+    conditions.
+  \item Guarantee, and experimentally validate, the four correctness invariants
+    defined in \texttt{docs/00-scope-lock.md}: bounded reservations, controlled
+    overload response, replica scalability, and traceable state.
+  \item Implement the resilience mechanisms a production event-driven system
+    requires -- Transactional Outbox, idempotent/Inbox-pattern consumers, bounded
+    retry with a Dead-Letter Queue, and a reconciliation safety net -- and
+    demonstrate each one specifically defeats the failure mode it targets.
+  \item Measure system behavior (throughput, p50/p95/p99 latency, correctness
+    violation rate) across the full range from normal load through deliberate
+    overload, and report the point at which -- and the mechanism by which -- the
+    system sheds load rather than failing uncontrolled.
+\end{enumerate}
+
+% ============================================================
+\chapter{Scope}
+% ============================================================
+
+See \texttt{docs/00-scope-lock.md} for the authoritative, frozen scope statement.
+Summary for report readers:
+
+\textbf{In scope:} Order Service and Inventory Service (ABP Framework,
+app-nolayers), a Process Worker simulating downstream processing, PostgreSQL
+(schema-per-service) and Redis (Lua-scripted atomic reservation) for state,
+RabbitMQ for asynchronous messaging with Transactional Outbox and Inbox patterns,
+Nginx-based load shedding, and a JMeter-driven experimental protocol comparing
+multiple configurations (C0 naive, C1 synchronous baseline, and the full
+asynchronous design) under normal and overload traffic.
+
+\textbf{Out of scope:} frontend UI, product catalog/cart/promotions, user
+management and authentication/authorization, and any clustered/replicated
+deployment of Redis, RabbitMQ, or PostgreSQL (single-instance only). Payment
+processing and failure-compensation logic beyond the Process Worker's deterministic
+simulated success path are explicitly excluded.
+
+% ============================================================
+\chapter{Limitations}
+% ============================================================
+
+The following are acknowledged, deliberate limitations of the experimental design
+and system, not oversights to correct later within this project's timeline:
+
+\begin{itemize}
+  \item Single-instance infrastructure (Redis, RabbitMQ, PostgreSQL) means this
+    project does not evaluate behavior under infrastructure-level failure
+    (node loss, network partition, replica failover) -- only application- and
+    service-level failure modes are covered.
+  \item The Process Worker simulates downstream processing with a deterministic
+    delay and a successful outcome; it does not model realistic downstream failure
+    rates, so the \texttt{ProcessingFailed} state's real-world frequency is not
+    experimentally characterized (see the open question in
+    \texttt{docs/order-state-machine.md}).
+  \item Experiments run in a single local/cloud environment (Week 13's AWS EC2
+    deployment) rather than across a distributed/multi-region topology, so
+    network-latency effects representative of real multi-region Flash-sale traffic
+    are out of scope.
+  \item Load-shedding thresholds (Nginx rate limits, application-level concurrency
+    caps) are tuned empirically against this project's specific hardware and
+    workload shape; they are not claimed to generalize to arbitrary deployment
+    scale without re-tuning.
+\end{itemize}
+
+% ============================================================
+\chapter{System Requirements}
+% ============================================================
+
+\section{Functional Requirements}
+\begin{itemize}
+  \item Accept an order request for a single product/quantity and return
+    immediately with a pending state, without blocking on inventory confirmation.
+  \item Allow a client to query an order's current state and full transition
+    history at any time after submission.
+  \item Reserve inventory such that concurrent requests for the same product can
+    never together reserve more than the available stock.
+  \item Detect and reject duplicate order submissions (client-level) and duplicate
+    message deliveries (broker-level) without double-processing either.
+  \item Recover automatically from a crashed consumer, a temporarily unreachable
+    broker, or a message that repeatedly fails processing, without operator
+    intervention for the common cases.
+  \item Shed excess load predictably (explicit rejection) once request rate
+    exceeds provisioned capacity, rather than degrading unpredictably.
+\end{itemize}
+
+\section{Non-Functional Requirements}
+\begin{itemize}
+  \item \textbf{Correctness under concurrency} takes priority over latency — see
+    the four guarantees in \texttt{docs/00-scope-lock.md}.
+  \item \textbf{Observability}: every order's lifecycle must be reconstructable
+    end-to-end from logs via a single correlation ID (Week 11).
+  \item \textbf{Horizontal scalability}: no service may depend on in-memory-only
+    state that would break when running more than one replica.
+  \item \textbf{Reproducibility}: every experiment run must be preceded by a
+    deterministic reset/seed step (\texttt{scripts/reset-and-seed.ps1}, Week 3) so
+    results are comparable across configurations and across repeated runs.
+\end{itemize}
+
+% ============================================================
+\chapter{Technology Selection}
+% ============================================================
+
+\begin{description}
+  \item[PostgreSQL 16] Chosen for the durable, transactional side of the system
+    (orders, outbox, inbox) specifically because the Transactional Outbox pattern
+    (Week 6) requires the business write and the event write to commit atomically
+    in one transaction — a relational engine with real ACID transactions is a
+    prerequisite for that pattern, not just a convenient default.
+  \item[Redis Stack] Chosen over plain Redis specifically for its bundled Lua
+    scripting support: the inventory reservation check-and-decrement
+    (\texttt{scripts/redis/reserve.lua}, Week 7) must execute as one atomic
+    operation server-side, which Lua's single-threaded execution inside Redis
+    guarantees without needing external locking.
+  \item[RabbitMQ vs. Kafka] RabbitMQ was chosen over Kafka for this workload
+    shape: the system needs per-message routing, retry, and dead-lettering
+    semantics (Week 10) that map directly onto RabbitMQ's exchange/queue/DLX
+    model, whereas this project doesn't need Kafka's log-retention/replay
+    strengths (no consumer ever needs to replay historical events from scratch).
+  \item[ABP Framework (\texttt{app-nolayers})] Chosen for built-in event bus
+    abstractions (\texttt{Volo.Abp.EventBus.RabbitMQ}) and EF Core integration
+    that reduce boilerplate around the parts of the system that aren't the actual
+    research question (reservation correctness, resilience, load shedding). The
+    \texttt{app-nolayers} template specifically — not the default layered
+    template — to keep each service's codebase proportional to its actual
+    complexity for a project this scoped.
+  \item[Nginx] Chosen as the load-shedding entry point (Week 12) for its mature,
+    well-documented \texttt{limit\_req} rate-limiting module, which is sufficient
+    for this project's single-node local/EC2 deployment without needing a full
+    API gateway.
+\end{description}
+
+% ============================================================
+\chapter{Development Environment}
+% ============================================================
+
+\section{Local infrastructure (Docker Compose)}
+
+\texttt{infra/docker-compose.yml} defines four local dependencies, brought up with
+\texttt{docker compose up -d} from \texttt{infra/}:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Service & Image & Ports \\
+\midrule
+PostgreSQL & \texttt{postgres:16} & 5432 \\
+Redis Stack & \texttt{redis/redis-stack:latest} & 6379 (data), 8001 (RedisInsight UI) \\
+RabbitMQ & \texttt{rabbitmq:3-management} & 5672 (AMQP), 15672 (management UI) \\
+Nginx & \texttt{nginx:latest} & 8080 (host) $\to$ 80 (container) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Dev credentials (\texttt{flashsale} / \texttt{flashsale\_dev}) are local-only —
+never reused for the Week 13 AWS EC2 deployment, which uses separate
+Terraform-managed credentials.
+
+\section{Toolchain}
+
+Verified working versions as of Week 2 setup (see \texttt{setup.ps1} for the
+onboarding script that installs/checks all of these on a fresh machine):
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Tool & Version \\
+\midrule
+Git & 2.53 \\
+.NET SDK & 10.0.300 \\
+ABP CLI & 10.5.0 \\
+Docker Desktop & 29.4.3 \\
+Terraform & 1.15.8 \\
+Apache JMeter & 5.6.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Builds run from native Windows PowerShell against the \texttt{D:\textbackslash}
+drive, not inside a WSL2 shell — cross-filesystem I/O between Windows and WSL2 is
+the main source of slow \texttt{docker build}/bind-mount performance on this setup
+(see \texttt{FLASHSALE\_EXECUTION\_CHECKLIST.md}, Step 0.2).
+
+% ============================================================
+\chapter{System Analysis and Design}
+% ============================================================
+
+\section{Entity-Relationship Diagram}
+% TODO Week 2 -- \includegraphics figure exported from docs/erd.md (schema-per-service: order_service, inventory_service).
+
+\section{API Contract}
+% TODO Week 4 -- summary of docs/api-contract-v1.json; full spec as appendix.
+
+\section{Event Contract}
+% TODO Week 4 -- summary of docs/event-contract.md.
+
+\section{Order State Machine}
+% TODO Week 1/4 -- \includegraphics figure exported from docs/order-state-machine.md;
+% resolve the open-question transitions noted there before finalizing this figure.
+
+\section{Sequence Diagrams}
+% TODO Week 4 -- happy path and rejection path, exported from Mermaid.
+
+\section{Design Rationale}
+% TODO Week 4.
+
+% ============================================================
+\chapter{Implementation}
+% ============================================================
+
+\section{Order Service}
+% TODO Weeks 5--6 -- idempotent creation, status API, state management, Outbox.
+
+\section{Inventory Service}
+% TODO Weeks 7--8 -- Redis Lua reservation, warm-up, OrderPlaced handling, result publication.
+
+\section{Reliability and Idempotency Layer}
+% TODO Week 9 -- Inbox pattern, acknowledgement strategy, duplicate-message handling.
+
+\section{Failure Handling and Recovery}
+% TODO Week 10 -- bounded retry, DLQ, timeout handling, reconciliation job.
+
+\section{Process Worker and Observability}
+% TODO Week 11 -- Process Worker, correlation ID, structured logging, metrics.
+
+\section{Load Shedding}
+% TODO Week 12 -- Nginx rate limiting, application-level concurrency limiting.
+
+% ============================================================
+\chapter{Experimental Design}
+% ============================================================
+% TODO Week 4/13 -- docs/test-plan.md summary; configurations compared (C0/C1/final design); load profiles.
+
+% ============================================================
+\chapter{Results}
+% ============================================================
+% TODO Week 14 -- p50/p95/p99 tables and throughput-over-time charts per configuration (build empty templates in Week 11 per Step 11.4).
+
+% ============================================================
+\chapter{Discussion}
+% ============================================================
+% TODO Week 14.
+
+% ============================================================
+\chapter{Conclusion}
+% ============================================================
+% TODO Week 15.
+
+% ============================================================
+\backmatter
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+% TODO -- bibliography (consider biblatex instead of manual list once sources accumulate).
+
+\appendix
+\chapter{Appendices}
+% TODO -- full API contract JSON, full event contract, additional raw experiment data.
+
+\end{document}
