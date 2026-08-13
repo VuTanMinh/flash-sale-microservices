@@ -308,6 +308,127 @@ the main source of slow \texttt{docker build}/bind-mount performance on this set
 \chapter{Implementation}
 % ============================================================
 
+\section{Baseline Configurations — C0 and C1 (Week 3)}
+\label{sec:c0-c1}
+
+Before building the real asynchronous design (Weeks 5--12), two controlled
+baseline configurations were built and compared, entirely inside the Order
+Service, with no separate Inventory Service involved yet. Both share a single
+raw-SQL table, \texttt{order\_service.inventory} (deliberately \emph{not}
+EF Core-migrated -- see \texttt{docs/erd.md} -- since C0 and C1 are baseline
+scaffolding, not the final design), seeded to a known stock value before every
+run via \texttt{scripts/reset-and-seed.ps1}.
+
+\subsection{C0 -- the naive baseline (a controlled failure demonstration)}
+
+C0 (\texttt{src/FlashSale.OrderService/Experiments/C0Naive/C0NaiveDemo.cs})
+implements the textbook race condition: read current stock, check it in
+application code, then issue a separate, unconditional \texttt{UPDATE} --
+two round trips, no locking between them:
+
+\begin{verbatim}
+SELECT stock FROM order_service.inventory WHERE product_id = @p;
+-- (application code checks: stock > 0 ?)
+UPDATE order_service.inventory SET stock = stock - 1 WHERE product_id = @p;
+\end{verbatim}
+
+C0 is deliberately not reachable via any HTTP route -- it is invoked only via
+\texttt{dotnet run -{}- -{}-run-c0-demo}, which bypasses the whole ABP host.
+This is a stronger isolation guarantee than "don't add a controller for it":
+there is no route in the routing table at all for a stray request to hit
+later in the project.
+
+Five concurrent attempts were fired against a product seeded with
+\texttt{stock = 1}, synchronized on a shared start gate so every attempt
+reaches the read at the same instant (without this, the race did not
+reproduce on every run -- scheduling jitter alone was occasionally enough to
+serialize the two "concurrent" reads). The result:
+
+\begin{verbatim}
+[C0] Seeded 'c0-demo-product' with stock = 1. Firing 5 concurrent naive requests...
+[C0] Attempt 3: saw stock=1, Confirmed.
+[C0] Attempt 1: saw stock=1, Confirmed.
+[C0] Attempt 4: saw stock=1, Confirmed.
+[C0] Attempt 2: saw stock=1, Confirmed.
+[C0] Attempt 5: saw stock=1, Confirmed.
+[C0] Result: 5 of 5 concurrent requests got 'Confirmed' for a product seeded with stock = 1.
+[C0] OVER-SOLD: more than one request reserved the same single unit of stock.
+[C0] Final stock in database: -4 (started at 1).
+\end{verbatim}
+
+All five requests believed they had validly reserved the single unit of
+stock; the database was left at \(-4\). This is the exact failure mode C1
+exists to eliminate. Note that \texttt{order\_service.inventory} deliberately
+has no \texttt{CHECK (stock >= 0)} constraint -- an earlier version of this
+table had one, and it only turned the bug into an unhandled exception
+instead of letting it manifest, which is a form of debugging the bug away
+rather than capturing it.
+
+\subsection{C1 -- the PostgreSQL atomic baseline}
+
+C1 (\texttt{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs})
+replaces the two round trips with a single conditional statement, where the
+\texttt{WHERE} clause is evaluated by PostgreSQL against the row's current
+value under its own row lock, not against a value the application read
+earlier and might now be stale:
+
+\begin{verbatim}
+UPDATE order_service.inventory
+SET stock = stock - 1
+WHERE product_id = @productId AND stock >= 1
+RETURNING stock;
+\end{verbatim}
+
+This runs inside the same database transaction as the order-outcome log
+insert, exposed as a real synchronous endpoint, \texttt{POST /api/orders}.
+The same five-concurrent-request test used against C0 was repeated against
+C1, seeded with \texttt{stock = 1}: \textbf{exactly 1 request Confirmed, 4
+Rejected, final stock 0} -- never negative, never more than one winner.
+\texttt{SELECT ... FOR UPDATE} followed by a separate \texttt{UPDATE} was
+deliberately avoided here: that reintroduces C0's exact race window between
+the two statements unless wrapped very carefully, whereas a single
+\texttt{UPDATE...WHERE...RETURNING} is simpler and provably atomic.
+
+\subsection{Correctness criteria}
+
+The four invariants defined in \texttt{docs/inventory-invariants.md} apply
+directly to this comparison: C0 violates Invariant~1
+(\texttt{available\_inventory >= 0}) and Invariant~2
+(\texttt{successful\_reservations <= initial\_inventory}) by construction
+under concurrency; C1 satisfies both, verified empirically above rather than
+only argued from the SQL's atomicity.
+
+\subsection{JMeter smoke test}
+
+A 10-thread, single-iteration JMeter plan
+(\texttt{tests/jmeter/smoke-test.jmx}) targets C1's \texttt{POST /api/orders}
+against a product seeded with ample stock (\texttt{flash-product-1},
+\texttt{stock = 1000}), confirming the full HTTP pipeline works end-to-end
+before any load testing begins. The first run of this test returned a clean
+\texttt{404} on all 10 requests -- worth recording precisely because it
+\emph{looked} like a pass against the checklist's own "2xx/4xx, not a
+connection error" criterion, but wasn't: the saved test plan had no port set,
+so JMeter defaulted to port 80, which on this machine belongs to an unrelated
+process (WSL2's \texttt{wslrelay.exe}), not the Order Service (which also
+wasn't running at the time). Fixed by setting the port explicitly and
+re-running against the actual service:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Metric & Result \\
+\midrule
+Requests & 10 \\
+Responses & 10 $\times$ \texttt{200 OK} \\
+Errors & 0 \\
+Avg / Min / Max latency & 913\,ms / 480\,ms / 1240\,ms \\
+\texttt{flash-product-1} stock & 1000 $\to$ 990 (exactly 10 decrements) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Raw results: \texttt{tests/jmeter/results/smoke-test-result.jtl}.
+
 \section{Order Service}
 % TODO Weeks 5--6 -- idempotent creation, status API, state management, Outbox.
 
