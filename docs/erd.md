@@ -66,6 +66,37 @@ Inventory Service's actual stock counters live in **Redis**, not Postgres — se
   (this is the reservation-level idempotency check the Lua script does *before*
   touching Postgres at all — see `docs/inventory-invariants.md`, Invariant 3).
 
+## Baseline-only tables (C0/C1, Week 3) — not part of the design above
+
+`order_service.inventory` and `order_service.baseline_orders` (raw SQL,
+`scripts/schema/baseline-schema.sql`) exist only for the C0/C1 baseline
+comparisons and are **not** EF Core-migrated, **not** part of the async design
+above, and have no relationship to Inventory Service's Redis-based stock at all.
+C0 and C1 are both entirely inside Order Service — there's no separate
+microservice call for either, since that only starts existing in Week 7.
+
+```mermaid
+erDiagram
+    INVENTORY {
+        text product_id PK
+        int stock "no CHECK stock >= 0 on purpose -- C0 needs to push this negative to demonstrate over-selling"
+    }
+
+    BASELINE_ORDERS {
+        uuid id PK
+        text config "'C0' or 'C1'"
+        text product_id
+        text result "'Confirmed' or 'Rejected'"
+        timestamptz created_at
+    }
+```
+
+Once the real design lands (Week 5+), `order_service.orders` and
+`order_service.outbox_events` from the schema above become the actual EF
+Core-migrated tables — `inventory` and `baseline_orders` stay as they are,
+frozen evidence for the C0/C1 comparison in the report, not something later
+weeks build on.
+
 ## Idempotency key naming — resolving the ambiguity flagged in Week 1
 
 `docs/inventory-invariants.md`'s Invariant 3 query referenced a placeholder table

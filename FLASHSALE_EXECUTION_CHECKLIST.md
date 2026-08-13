@@ -247,37 +247,55 @@ git push -u origin feat/c0-c1-baseline
 > 📌 **Roadmap:** mark Step 3.1 done, and log the SQL Server mistake + fix in your tracker — it's a real example of the exact risk Step 0.3's ⚠️ warned about (CLI flags that silently do the wrong thing), worth a sentence in the Discussion chapter later.
 
 #### Step 3.2 — Build C0 (deliberately naive — this is a controlled demonstration, not real code you'll keep)
-- [ ] Implement the obviously-broken version: read current stock with a plain `SELECT`, check in application code if `stock > 0`, then issue a separate `UPDATE stock = stock - 1` — two round trips, no locking.
-- [ ] Keep this in its own clearly-marked branch/folder (e.g. `src/OrderService/Experiments/C0Naive/`) — you will run this once to *capture* the over-selling bug on camera/log for your report, then never touch it again.
-- ⚠️ Don't accidentally let C0 code paths be reachable from your real API surface later — isolate it so a stray request in Week 8 can't hit the naive handler.
+- [x] Implement the obviously-broken version: read current stock with a plain `SELECT`, check in application code if `stock > 0`, then issue a separate `UPDATE stock = stock - 1` — two round trips, no locking. — `src/FlashSale.OrderService/Experiments/C0Naive/C0NaiveDemo.cs`.
+- [x] Keep this in its own clearly-marked branch/folder (e.g. `src/OrderService/Experiments/C0Naive/`) — you will run this once to *capture* the over-selling bug on camera/log for your report, then never touch it again. — done, and taken further: it's not wired to any HTTP route at all, only invokable via `dotnet run -- --run-c0-demo`, which bypasses the whole ABP host (see Program.cs) — a stray request genuinely cannot reach it, there's no route to hit.
+- ⚠️ Don't accidentally let C0 code paths be reachable from your real API surface later — isolate it so a stray request in Week 8 can't hit the naive handler. — see above.
+- **Evidence captured** (5 concurrent requests against `stock = 1`, synchronized to hit the read at the same instant so the race reproduces every run, not just sometimes):
+  ```
+  [C0] Seeded 'c0-demo-product' with stock = 1. Firing 5 concurrent naive requests...
+  [C0] Attempt 3: saw stock=1, Confirmed.
+  [C0] Attempt 1: saw stock=1, Confirmed.
+  [C0] Attempt 4: saw stock=1, Confirmed.
+  [C0] Attempt 2: saw stock=1, Confirmed.
+  [C0] Attempt 5: saw stock=1, Confirmed.
+  [C0] Result: 5 of 5 concurrent requests got 'Confirmed' for a product seeded with stock = 1.
+  [C0] OVER-SOLD: more than one request reserved the same single unit of stock. This is the bug C1 (Step 3.3) fixes.
+  [C0] Final stock in database: -4 (started at 1).
+  ```
+  All 10 attempts across both runs are also logged in `order_service.baseline_orders` (`config='C0'`) for a durable record beyond this console output. Note: the `inventory` table deliberately has **no** `CHECK (stock >= 0)` — an early version had one, and it just turned the bug into an unhandled exception instead of letting stock actually go negative, which is closer to "debugging it away" than capturing it (see the ⚠️ on Step 3.5).
 
-> 🔁 **Git:** `git add -A ; git commit -m "feat: C0 naive implementation for race-condition demo"`. 📌 **Roadmap:** mark Step 3.2 done.
+> 🔁 **Git:** see the combined Week 3.2-3.4 commit/push commands after Step 3.4. 📌 **Roadmap:** mark Step 3.2 done.
 
 #### Step 3.3 — Build C1 (the real baseline you'll benchmark all semester)
-- [ ] Implement the conditional atomic update:
+- [x] Implement the conditional atomic update:
 ```sql
 UPDATE inventory
 SET stock = stock - 1
 WHERE product_id = @productId AND stock >= 1
 RETURNING stock;
 ```
-- [ ] Wire this into a real synchronous API endpoint: `POST /api/orders` that blocks until this statement (and the order-row insert) commits in one transaction, then returns `Confirmed`/`Rejected` directly.
+  — `src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs`.
+- [x] Wire this into a real synchronous API endpoint: `POST /api/orders` that blocks until this statement (and the order-row insert) commits in one transaction, then returns `Confirmed`/`Rejected` directly. — both statements run in one `NpgsqlTransaction`, committed together.
 - 📎 Proposal §6, "C1 – PostgreSQL Atomic Baseline" — "Cấu hình này phải bảo đảm không over-selling và được sử dụng làm baseline chính."
-- ✅ Verify with a quick manual test: seed `stock = 1`, fire two concurrent requests (even just two terminal tabs with `curl` at the same time), confirm exactly one gets `Confirmed` and one gets `Rejected`, and stock never goes negative.
-- ⚠️ Don't use `SELECT ... FOR UPDATE` followed by a separate `UPDATE` here — that's just C0 with an explicit lock, which reintroduces a race window between the two statements unless wrapped very carefully. A single conditional `UPDATE...WHERE...RETURNING` is simpler and provably atomic; prefer it.
+- [x] Verify with a quick manual test: seed `stock = 1`, fire two concurrent requests (even just two terminal tabs with `curl` at the same time), confirm exactly one gets `Confirmed` and one gets `Rejected`, and stock never goes negative. — used 5 genuinely concurrent `curl` requests (backgrounded + `wait`, not sequential) against `stock = 1`: exactly **1 Confirmed, 4 Rejected**, final stock **0** (not negative). `order_service.baseline_orders` (`config='C1'`) has the durable record.
+- ⚠️ Don't use `SELECT ... FOR UPDATE` followed by a separate `UPDATE` here — that's just C0 with an explicit lock, which reintroduces a race window between the two statements unless wrapped very carefully. A single conditional `UPDATE...WHERE...RETURNING` is simpler and provably atomic; prefer it. — used the single conditional `UPDATE...RETURNING`, not `SELECT...FOR UPDATE`.
 
-> 🔁 **Git:** `git add -A ; git commit -m "feat: C1 synchronous atomic-update baseline"`. 📌 **Roadmap:** mark Step 3.3 done.
+> 🔁 **Git:** see the combined commit/push commands below. 📌 **Roadmap:** mark Step 3.3 done.
 
 #### Step 3.4 — Seed/reset script
-- [ ] Create `scripts/seed.sql` and `scripts/reset.sql` — reset truncates orders/inventory tables and reseeds a known starting stock value; you will run this before **every single experiment run** from Week 3 onward, so make it a one-command operation:
+- [x] Create `scripts/seed.sql` and `scripts/reset.sql` — reset truncates orders/inventory tables and reseeds a known starting stock value; you will run this before **every single experiment run** from Week 3 onward, so make it a one-command operation: — `scripts/reset-and-seed.ps1` also applies `scripts/schema/baseline-schema.sql` first (idempotent `CREATE ... IF NOT EXISTS`), so the one command works even against a completely fresh Postgres volume, not just an already-set-up one.
 ```powershell
 # scripts/reset-and-seed.ps1
 docker exec -i infra-postgres-1 psql -U flashsale -d flashsale -f /dev/stdin < scripts/reset.sql
 docker exec -i infra-postgres-1 psql -U flashsale -d flashsale -f /dev/stdin < scripts/seed.sql
 ```
-- ✅ Verify: run it twice in a row — second run should produce identical starting state to the first (idempotent reset).
+- [x] Verify: run it twice in a row — second run should produce identical starting state to the first (idempotent reset). — ran twice; both times: `c0-demo-product`/`c1-demo-product` at stock 1, `flash-product-1` at stock 1000.
 
-> 🔁 **Git:** `git add -A ; git commit -m "scripts: db reset and seed"`. 📌 **Roadmap:** mark Step 3.4 done.
+> 🔁 **Git:** everything for Steps 3.2-3.4 is committed locally on `feat/c0-c1-baseline` — push it yourself:
+```powershell
+git push -u origin feat/c0-c1-baseline
+```
+> 📌 **Roadmap:** mark Steps 3.2, 3.3, and 3.4 done.
 
 #### Step 3.5 — JMeter smoke test
 - [ ] Open JMeter (`jmeter.bat` from Week 0.4).
