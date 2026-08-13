@@ -33,8 +33,10 @@ report/*.fdb_latexmk
 report/*.synctex.gz
 report/*.pdf
 
-# JMeter run artifacts
-tests/jmeter/*.jtl
+# JMeter run artifacts (the Step 3.5 smoke-test .jtl is intentionally
+# committed as report evidence -- this only excludes JMeter's own verbose
+# run log and future large load-test result dumps)
+tests/jmeter/results/*.log
 tests/jmeter/*-results/
 
 # Local tool config — not project source

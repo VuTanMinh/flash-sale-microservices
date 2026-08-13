@@ -33,8 +33,8 @@ Not in your official 15-week table, but everything after this assumes these exis
 git config --global user.name "Vu Dinh Kiet"
 git config --global user.email "<your-github-email>"
 ```
-- [ ] Confirm you have a GitHub account. If not, create one at https://github.com/join.
-- [ ] Set up SSH auth (avoids typing your password every push):
+- [x] Confirm you have a GitHub account. If not, create one at https://github.com/join.
+- [x] Set up SSH auth (avoids typing your password every push):
 ```powershell
 ssh-keygen -t ed25519 -C "<your-github-email>"
 # press Enter through the prompts, then:
@@ -298,21 +298,25 @@ git push -u origin feat/c0-c1-baseline
 > 📌 **Roadmap:** mark Steps 3.2, 3.3, and 3.4 done.
 
 #### Step 3.5 — JMeter smoke test
-- [ ] Open JMeter (`jmeter.bat` from Week 0.4).
-- [ ] Right-click **Test Plan** → **Add** → **Threads (Users)** → **Thread Group**. Set: Number of Threads = 10, Ramp-up = 1s, Loop Count = 1 — this is a *smoke* test, not a load test, just confirming the pipeline works end-to-end.
-- [ ] Right-click the Thread Group → **Add** → **Sampler** → **HTTP Request**. Set Server Name = `localhost`, Port = the Order Service's port, Path = `/api/orders`, Method = `POST`, and put a minimal JSON body in the **Body Data** tab.
-- [ ] Right-click Thread Group → **Add** → **Listener** → **View Results Tree** (lets you see actual request/response bodies while debugging).
-- [ ] Save the test plan as `tests/jmeter/smoke-test.jmx` inside your repo — don't leave it only in JMeter's temp state.
-- [ ] Run it (green play button), confirm all 10 requests get a 2xx/4xx response as expected (not connection errors).
-- ⚠️ Don't run this against C0 with real concurrency yet expecting a "correct" result — the whole point of C0 is that it will occasionally over-sell; that failure *is* your Week 3 report evidence, capture it, don't debug it away.
+- [x] Open JMeter (`jmeter.bat` from Week 0.4).
+- [x] Right-click **Test Plan** → **Add** → **Threads (Users)** → **Thread Group**. Set: Number of Threads = 10, Ramp-up = 1s, Loop Count = 1 — this is a *smoke* test, not a load test, just confirming the pipeline works end-to-end.
+- [x] Right-click the Thread Group → **Add** → **Sampler** → **HTTP Request**. Set Server Name = `localhost`, Port = the Order Service's port, Path = `/api/orders`, Method = `POST`, and put a minimal JSON body in the **Body Data** tab.
+- [x] Right-click Thread Group → **Add** → **Listener** → **View Results Tree** (lets you see actual request/response bodies while debugging).
+- [x] Save the test plan as `tests/jmeter/smoke-test.jmx` inside your repo — don't leave it only in JMeter's temp state.
+- [x] Run it (green play button), confirm all 10 requests get a 2xx/4xx response as expected (not connection errors). — **the first run got a clean 404 on all 10 requests, and that was NOT actually "expected" despite superficially matching the "2xx/4xx" wording** — root cause: the saved `.jmx` had no `HTTPSampler.port` set, so JMeter defaulted to port 80; port 80 on this machine is `wslrelay.exe` (WSL2's networking relay), completely unrelated to the Order Service, which also wasn't running at the time. A 404 across every single request from a supposedly-working sampler is a config red flag, not a pass — a *real* smoke-test 404 would come from the app itself (e.g. a genuinely wrong path), not from hitting an unrelated process. Fixed: added explicit `HTTPSampler.port=5100` + `protocol=http` to the `.jmx`, added a `Content-Type: application/json` header, and changed the body from `{}` (which fails `ProductId` validation) to `{"productId": "flash-product-1"}` (a real seeded product). Re-ran via `jmeter -n -t tests/jmeter/smoke-test.jmx -l tests/jmeter/results/smoke-test-result.jtl` against the Order Service running on `http://localhost:5100`: **10/10 requests → `200 OK`**, `flash-product-1` stock went `1000 → 990` (exactly 10 decrements, no double-counting), all 10 logged as `C1`/`Confirmed` in `order_service.baseline_orders`.
+- ⚠️ Don't run this against C0 with real concurrency yet expecting a "correct" result — the whole point of C0 is that it will occasionally over-sell; that failure *is* your Week 3 report evidence, capture it, don't debug it away. — this smoke test only ever targets `/api/orders` (C1's real HTTP endpoint); C0 has no route to hit at all (Step 3.2), so there was never a risk of conflating the two here.
 
-> 🔁 **Git:** `git add -A ; git commit -m "test: jmeter smoke test plan"`. 📌 **Roadmap:** mark Step 3.5 done.
+> 🔁 **Git:** see the combined commit/push commands after Step 3.6. 📌 **Roadmap:** mark Step 3.5 done — and note the JMeter-port lesson in your tracker, it's a good concrete example for the Discussion chapter of "a passing-looking result that wasn't actually testing what it claimed to."
 
 #### Step 3.6 — Report writing: baseline, race condition, atomic update, correctness criteria
-- [ ] Write these sections now, using your actual C0 failure output and C1 success output as evidence/screenshots — this is stronger than hypothetical description.
-- [ ] Open PR `feat/c0-c1-baseline → main`, review, merge.
+- [x] Write these sections now, using your actual C0 failure output and C1 success output as evidence/screenshots — this is stronger than hypothetical description. — written as `report/report.tex` §"Baseline Configurations — C0 and C1 (Week 3)" under the Implementation chapter: C0's race condition + the actual over-selling log (5/5 confirmed on stock=1, final stock -4), C1's atomic `UPDATE...RETURNING` + the actual concurrency test (1 confirmed/4 rejected, final stock 0), correctness criteria tied back to `docs/inventory-invariants.md`, and the corrected JMeter smoke-test results table. Real captured output throughout, not hypothetical description — exactly what this step asks for.
+- [ ] Open PR `feat/c0-c1-baseline → main`, review, merge. — **your action**: push `feat/c0-c1-baseline` (command below), then open/review/merge the PR on GitHub yourself, same as the previous two.
 
-> 🔁 **Git:** `git checkout main ; git pull`. 📌 **Roadmap:** close out Week 3 in the tracker, compare planned vs actual.
+> 🔁 **Git:** everything for Steps 3.5-3.6 is committed locally on `feat/c0-c1-baseline` — push it yourself:
+```powershell
+git push -u origin feat/c0-c1-baseline
+```
+> 📌 **Roadmap:** close out Week 3 in the tracker, compare planned vs actual.
 
 ---
 
