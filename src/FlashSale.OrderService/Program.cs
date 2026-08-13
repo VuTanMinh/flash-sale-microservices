@@ -1,4 +1,5 @@
 using FlashSale.OrderService.Data;
+using FlashSale.OrderService.Experiments.C0Naive;
 using Serilog;
 using Serilog.Events;
 using Volo.Abp.Data;
@@ -31,6 +32,19 @@ public class Program
         }
 
         Log.Logger = loggerConfiguration.CreateLogger();
+
+        if (IsRunC0Demo(args))
+        {
+            // Deliberately bypasses the whole ABP host (identity, permissions,
+            // etc.) — this demo only needs a Postgres connection string, and
+            // skipping the host keeps it maximally isolated from the real app.
+            var demoConfiguration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false)
+                .Build();
+            await C0NaiveDemo.RunAsync(demoConfiguration.GetConnectionString("Default")!);
+            return 0;
+        }
 
         try
         {
@@ -75,5 +89,10 @@ public class Program
     private static bool IsMigrateDatabase(string[] args)
     {
         return args.Any(x => x.Contains("--migrate-database", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsRunC0Demo(string[] args)
+    {
+        return args.Any(x => x.Contains("--run-c0-demo", StringComparison.OrdinalIgnoreCase));
     }
 }
