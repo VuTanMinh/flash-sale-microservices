@@ -33,8 +33,8 @@ Not in your official 15-week table, but everything after this assumes these exis
 git config --global user.name "Vu Dinh Kiet"
 git config --global user.email "<your-github-email>"
 ```
-- [ ] Confirm you have a GitHub account. If not, create one at https://github.com/join.
-- [ ] Set up SSH auth (avoids typing your password every push):
+- [x] Confirm you have a GitHub account. If not, create one at https://github.com/join.
+- [x] Set up SSH auth (avoids typing your password every push):
 ```powershell
 ssh-keygen -t ed25519 -C "<your-github-email>"
 # press Enter through the prompts, then:
@@ -309,10 +309,14 @@ git push -u origin feat/c0-c1-baseline
 > 🔁 **Git:** see the combined commit/push commands after Step 3.6. 📌 **Roadmap:** mark Step 3.5 done — and note the JMeter-port lesson in your tracker, it's a good concrete example for the Discussion chapter of "a passing-looking result that wasn't actually testing what it claimed to."
 
 #### Step 3.6 — Report writing: baseline, race condition, atomic update, correctness criteria
-- [ ] Write these sections now, using your actual C0 failure output and C1 success output as evidence/screenshots — this is stronger than hypothetical description.
-- [ ] Open PR `feat/c0-c1-baseline → main`, review, merge.
+- [x] Write these sections now, using your actual C0 failure output and C1 success output as evidence/screenshots — this is stronger than hypothetical description. — written as `report/report.tex` §"Baseline Configurations — C0 and C1 (Week 3)" under the Implementation chapter: C0's race condition + the actual over-selling log (5/5 confirmed on stock=1, final stock -4), C1's atomic `UPDATE...RETURNING` + the actual concurrency test (1 confirmed/4 rejected, final stock 0), correctness criteria tied back to `docs/inventory-invariants.md`, and the corrected JMeter smoke-test results table. Real captured output throughout, not hypothetical description — exactly what this step asks for.
+- [ ] Open PR `feat/c0-c1-baseline → main`, review, merge. — **your action**: push `feat/c0-c1-baseline` (command below), then open/review/merge the PR on GitHub yourself, same as the previous two.
 
-> 🔁 **Git:** `git checkout main ; git pull`. 📌 **Roadmap:** close out Week 3 in the tracker, compare planned vs actual.
+> 🔁 **Git:** everything for Steps 3.5-3.6 is committed locally on `feat/c0-c1-baseline` — push it yourself:
+```powershell
+git push -u origin feat/c0-c1-baseline
+```
+> 📌 **Roadmap:** close out Week 3 in the tracker, compare planned vs actual.
 
 ---
 
