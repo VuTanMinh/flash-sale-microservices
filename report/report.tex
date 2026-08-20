@@ -289,20 +289,89 @@ the main source of slow \texttt{docker build}/bind-mount performance on this set
 % TODO Week 2 -- \includegraphics figure exported from docs/erd.md (schema-per-service: order_service, inventory_service).
 
 \section{API Contract}
-% TODO Week 4 -- summary of docs/api-contract-v1.json; full spec as appendix.
+
+ABP generates the OpenAPI/Swagger contract directly from the running
+controllers, rather than it being hand-written -- the full document is
+exported to \texttt{docs/api-contract-v1.json} (Week 4) and re-exported as
+each week's endpoints change, so it can never drift from the actual code the
+way a hand-maintained spec could.
+
+Reviewing the Week 4 export against \texttt{docs/order-state-machine.md}
+surfaced a scope-fidelity issue worth recording rather than quietly fixing:
+of roughly 30 exposed endpoint groups, only \texttt{/api/orders} (the C1
+baseline from Week 3) actually belongs to this system. Every other path
+(\texttt{/api/identity/*}, \texttt{/api/account/*},
+\texttt{/api/permission-management/*}, \texttt{/api/multi-tenancy/*}, ...)
+is default scaffolding from ABP modules the project's own scope lock
+(\texttt{docs/00-scope-lock.md}) explicitly excludes -- user management,
+authentication/authorization, and multi-tenancy. None of it traces to any
+state-machine transition, which is exactly what Step 4.1's review criterion
+is designed to catch. These modules were pulled in automatically by the
+\texttt{app-nolayers} template's default package set (Week 3.1) and were not
+a deliberate choice; trimming them is a reasonable Week 5 cleanup item, since
+touching module wiring isn't itself Week 4 scope.
+
+The real API surface -- idempotent order creation and status lookup -- is
+built in Week 5; this section is re-exported and expanded once that exists.
 
 \section{Event Contract}
-% TODO Week 4 -- summary of docs/event-contract.md.
+
+Full contract: \texttt{docs/event-contract.md}; class definitions:
+\texttt{src/FlashSale.EventContracts/}. Three events, one per fully-specified
+state-machine transition (\texttt{docs/order-state-machine.md}):
+\texttt{OrderPlacedEto} ($[*] \to$ \texttt{PendingStock}),
+\texttt{StockReservedEto} (\texttt{PendingStock} $\to$ \texttt{Confirmed}),
+and \texttt{StockRejectedEto} (\texttt{PendingStock} $\to$ \texttt{Rejected}).
+Each carries a \texttt{MessageId} -- the broker-redelivery idempotency key
+used by the Week 9 Inbox pattern, distinct from the client-facing
+\texttt{Idempotency-Key} header built in Week 5.
+
+The contract deliberately omits a \texttt{CorrelationId} field and a
+\texttt{Reason} field on the rejection event. Both are easy to imagine
+wanting eventually, but nothing produces or consumes either one yet:
+correlation-ID propagation is explicitly a Week 11 addition, and the only
+rejection cause currently in scope (insufficient stock) gives a
+\texttt{Reason} field nothing to distinguish between. Both are documented as
+deliberate omissions rather than oversights, precisely so a later reviewer
+(or a later week's version of the author) doesn't mistake "not needed yet"
+for "forgotten."
+
+The contract lives in a separate class library
+(\texttt{FlashSale.EventContracts}) rather than inside Order Service itself,
+referenced by whichever service needs it. This is what makes "the contract
+doc and the code can't drift" actually true across service boundaries, not
+just within one service: Inventory Service (Week 7) will reference the same
+compiled types Order Service publishes, rather than maintaining its own copy
+that could silently diverge.
 
 \section{Order State Machine}
-% TODO Week 1/4 -- \includegraphics figure exported from docs/order-state-machine.md;
-% resolve the open-question transitions noted there before finalizing this figure.
+See \texttt{docs/order-state-machine.md} for the full diagram and
+transition table. Two transitions
+(\texttt{Confirmed} $\to$ \texttt{Processing} $\to$
+\texttt{Completed}/\texttt{ProcessingFailed}) remain an explicitly recorded
+open question pending the Week 11 Process Worker design -- inventing a
+trigger for them now, to make the diagram look more finished than the design
+actually is, would cost more credibility at defense time than leaving the
+gap visible.
 
 \section{Sequence Diagrams}
-% TODO Week 4 -- happy path and rejection path, exported from Mermaid.
+Full diagrams: \texttt{docs/sequence-diagrams.md} (happy path and rejection
+path). Both represent the target design (Weeks 5--9, not yet built as of
+Week 4) and stop short of the \texttt{Processing} state for the same reason
+the state machine does above -- extending a sequence diagram past a
+transition whose trigger isn't known yet means drawing a mechanism that
+doesn't exist.
 
 \section{Design Rationale}
-% TODO Week 4.
+The central design decision this project makes -- comparing a synchronous
+PostgreSQL-atomic-update baseline (C1, Week 3) against an asynchronous,
+event-driven design (Weeks 5--12) under the \emph{same} correctness
+invariants (\texttt{docs/inventory-invariants.md}) -- is what the
+Experimental Design and Results chapters ultimately quantify. Every
+mechanism introduced from here forward (Outbox, Inbox, DLQ, load shedding)
+exists to answer one question precisely: what does buying resilience and
+horizontal scalability actually cost in throughput and latency, relative to
+the simpler baseline that cannot provide either.
 
 % ============================================================
 \chapter{Implementation}

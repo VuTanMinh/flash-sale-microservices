@@ -325,33 +325,37 @@ git push -u origin feat/c0-c1-baseline
 📎 Roadmap: "Hoàn thiện ERD, API contract, event contract, state machine và test plan. Hoàn thành bản nháp chương System Analysis and Design; bổ sung sequence diagram và design rationale."
 
 #### Step 4.1 — API contract (OpenAPI)
-- [ ] ABP auto-generates Swagger/OpenAPI for your controllers — run the Order Service and open `/swagger` in the browser to see the current auto-generated contract.
-- [ ] Export it: 💻 `curl http://localhost:<port>/swagger/v1/swagger.json -o docs/api-contract-v1.json`
-- [ ] Manually review it against your Week 1 state machine — every endpoint that changes order state should be traceable to a specific transition you already wrote down.
-- ⚠️ Don't hand-write the OpenAPI spec from scratch when ABP already generates one from your actual controllers — hand-written specs drift from real code; generated ones can't.
+- [x] ABP auto-generates Swagger/OpenAPI for your controllers — run the Order Service and open `/swagger` in the browser to see the current auto-generated contract. — verified via `curl` (no browser here): `/swagger/index.html` → 200.
+- [x] Export it: 💻 `curl http://localhost:<port>/swagger/v1/swagger.json -o docs/api-contract-v1.json` — exported (410KB).
+- [x] Manually review it against your Week 1 state machine — every endpoint that changes order state should be traceable to a specific transition you already wrote down. — **finding: it mostly fails this check, and that's informative, not a problem to hide.** Of ~30 endpoint groups exported, only `/api/orders` (C1, Week 3) is actually ours. Everything else (`/api/identity/*`, `/api/account/*`, `/api/permission-management/*`, `/api/multi-tenancy/*`, ...) is default ABP scaffolding from modules `docs/00-scope-lock.md` explicitly excludes (user management, auth/authz, multi-tenancy) — pulled in automatically by the `app-nolayers` template in Week 3.1, not a deliberate choice. None of it traces to any state-machine transition. Recorded in `report/report.tex`'s API Contract section as a known gap; **recommend trimming these unused module packages/registrations in Week 5** when the real endpoints get built, rather than doing an unscoped refactor here — say the word if you want that done now instead.
+- ⚠️ Don't hand-write the OpenAPI spec from scratch when ABP already generates one from your actual controllers — hand-written specs drift from real code; generated ones can't. — used the generated export, not hand-written.
 
-> 🔁 **Git:** `git checkout -b feat/contracts-week4 ; git add -A ; git commit -m "docs: export API contract v1"`. 📌 **Roadmap:** mark Step 4.1 done.
+> 🔁 **Git:** see the combined commit/push commands after Step 4.4. 📌 **Roadmap:** mark Step 4.1 done.
 
 #### Step 4.2 — Event contract
-- [ ] In `docs/event-contract.md`, define the exact shape of each event: `OrderPlacedEto`, `StockReservedEto`/`StockRejectedEto` — field names, types, and which fields are the idempotency keys (`order_id`, `message_id`).
-- [ ] Since you're on `Volo.Abp.EventBus.RabbitMQ`, these will literally be C# ETO classes — write the contract doc and the actual C# class definitions together so they can't drift.
-- ⚠️ Don't add fields "just in case" — every field in an event contract has to be produced by the publisher and consumed by someone; unused fields are dead weight you'll have to explain in a defense if asked what they're for.
+- [x] In `docs/event-contract.md`, define the exact shape of each event: `OrderPlacedEto`, `StockReservedEto`/`StockRejectedEto` — field names, types, and which fields are the idempotency keys (`order_id`, `message_id`). — done; one event per fully-specified state-machine transition, no event for the still-open `Confirmed→Processing` leg.
+- [x] Since you're on `Volo.Abp.EventBus.RabbitMQ`, these will literally be C# ETO classes — write the contract doc and the actual C# class definitions together so they can't drift. — `src/FlashSale.EventContracts/` (new shared class library, referenced by Order Service now and Inventory Service once it exists, Week 7 — one definition, not two copies that could diverge).
+- ⚠️ Don't add fields "just in case" — every field in an event contract has to be produced by the publisher and consumed by someone; unused fields are dead weight you'll have to explain in a defense if asked what they're for. — left out `CorrelationId` (explicitly a Week 11 addition per that week's own checklist wording) and a `Reason` field on `StockRejectedEto` (only one rejection cause exists in scope, so there's nothing yet for it to distinguish) — both documented as deliberate omissions in `docs/event-contract.md`, not oversights.
 
-> 🔁 **Git:** `git add -A ; git commit -m "docs+code: event contract and ETO classes"`. 📌 **Roadmap:** mark Step 4.2 done.
+> 🔁 **Git:** see the combined commit/push commands after Step 4.4. 📌 **Roadmap:** mark Step 4.2 done.
 
 #### Step 4.3 — Sequence diagrams (per main workflow)
-- [ ] Produce a proper Mermaid `sequenceDiagram` for the full happy path: Client → Nginx → Order Service → (Outbox commit) → Outbox Publisher → RabbitMQ → Inventory Service → Redis → RabbitMQ (result event) → Order Service → Client (poll).
-- [ ] Produce a second one for the rejection path (`StockRejected`).
-- [ ] Paste both into the System Analysis and Design chapter draft.
-- ✅ Verify: render both at https://mermaid.live before committing — a syntax error in a diagram you never previewed is an easy, avoidable embarrassment during a defense screen-share.
+- [x] Produce a proper Mermaid `sequenceDiagram` for the full happy path: Client → Nginx → Order Service → (Outbox commit) → Outbox Publisher → RabbitMQ → Inventory Service → Redis → RabbitMQ (result event) → Order Service → Client (poll). — `docs/sequence-diagrams.md`.
+- [x] Produce a second one for the rejection path (`StockRejected`). — same file; diverges only at the Redis reservation result, as it should.
+- [x] Paste both into the System Analysis and Design chapter draft. — `report/report.tex` §Sequence Diagrams references both (Mermaid doesn't render in LaTeX — full diagrams live in the `.md` file; the report section summarizes and points there, per the note already in `report.tex`'s preamble about needing an image export for LaTeX, which still hasn't been done — no MiKTeX/TeX Live installed yet either, so this can't be verified by compiling).
+- [ ] Verify: render both at https://mermaid.live before committing — a syntax error in a diagram you never previewed is an easy, avoidable embarrassment during a defense screen-share. — **do this yourself**: no browser here to actually render them; open `docs/sequence-diagrams.md` in VS Code (Markdown Preview Mermaid Support is installed) or paste into mermaid.live to confirm both render cleanly before you present them.
 
-> 🔁 **Git:** `git add -A ; git commit -m "docs: sequence diagrams for happy/rejection paths"`. 📌 **Roadmap:** mark Step 4.3 done.
+> 🔁 **Git:** see the combined commit/push commands below. 📌 **Roadmap:** mark Step 4.3 done.
 
 #### Step 4.4 — Test plan document
-- [ ] Write `docs/test-plan.md` covering: what unit tests exist per service, what the JMeter smoke vs load vs overload test plans will each check, and how correctness validation (Week 8/14 invariant checks) will run — even though most of this isn't executable yet, writing the plan now means Weeks 5–14 are executing a plan, not improvising one.
-- [ ] Merge PR `feat/contracts-week4 → main`.
+- [x] Write `docs/test-plan.md` covering: what unit tests exist per service, what the JMeter smoke vs load vs overload test plans will each check, and how correctness validation (Week 8/14 invariant checks) will run — even though most of this isn't executable yet, writing the plan now means Weeks 5–14 are executing a plan, not improvising one. — done; explicitly notes C0/C1 are *not* unit-tested (they're one-shot evidence, not code with a future to protect) and reuses the Week 3 JMeter-port incident as a concrete example of why "no errors" isn't the same as "actually tested."
+- [ ] Merge PR `feat/contracts-week4 → main`. — **your action**: push (command below), then open/review/merge the PR yourself.
 
-> 🔁 **Git:** `git checkout main ; git pull`. 📌 **Roadmap:** close out Week 4.
+> 🔁 **Git:** everything for Steps 4.1-4.4 is committed locally on `feat/contracts-week4` (branched off `feat/c0-c1-baseline`, since that one isn't merged yet either — push and merge that one first if you want `feat/contracts-week4`'s eventual PR to show a clean diff) — push it yourself:
+```powershell
+git push -u origin feat/contracts-week4
+```
+> 📌 **Roadmap:** close out Week 4.
 
 ---
 

@@ -103,4 +103,8 @@
     <Content Remove="$(UserProfile)\.nuget\packages\*\*\contentFiles\any\*\*.abppkg*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FlashSale.EventContracts\FlashSale.EventContracts.csproj" />
+  </ItemGroup>
+
 </Project>
