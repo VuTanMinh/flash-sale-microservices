@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using FlashSale.OrderService.Entities;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.FeatureManagement.EntityFrameworkCore;
@@ -12,6 +13,8 @@ namespace FlashSale.OrderService.Data;
 
 public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
 {
+    public DbSet<Order> Orders => Set<Order>();
+
     public OrderServiceDbContext(DbContextOptions<OrderServiceDbContext> options)
         : base(options)
     {
@@ -45,5 +48,15 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
         builder.ConfigureTenantManagement();
 
         /* Configure your own entities here */
+
+        builder.Entity<Order>(b =>
+        {
+            b.ToTable("orders", "order_service");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.IdempotencyKey).IsUnique();
+            b.Property(x => x.IdempotencyKey).IsRequired();
+            b.Property(x => x.ProductId).IsRequired();
+            b.Property(x => x.State).HasConversion<string>().IsRequired();
+        });
     }
 }
