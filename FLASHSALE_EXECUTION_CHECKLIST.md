@@ -364,29 +364,34 @@ git push -u origin feat/contracts-week4
 📎 Roadmap: "Xây dựng Order Service: API tạo order, API tra cứu trạng thái, client idempotency key và state management."
 
 #### Step 5.1 — `POST /api/orders` with client idempotency key
-- [ ] Add an `Idempotency-Key` header requirement (or accept it in the body) — before creating a new order, check if an order with that client-supplied key already exists; if so, return the existing order's ID instead of creating a duplicate.
-- ⚠️ Don't confuse this client-facing idempotency key with the *message*-level idempotency you'll build in Week 9 (Inbox pattern) — they solve different problems (duplicate client submissions vs duplicate broker deliveries) and your report needs to distinguish them clearly.
+- [x] Add an `Idempotency-Key` header requirement (or accept it in the body) — before creating a new order, check if an order with that client-supplied key already exists; if so, return the existing order's ID instead of creating a duplicate. — `Controllers/OrdersController.cs`, real `Entities/Order.cs` EF entity (`order_service.orders`, EF-migrated — distinct from the raw-SQL `order_service.baseline_orders` C0/C1 use). Verified manually: same `Idempotency-Key` sent twice returns the identical order `id` both times; a direct Postgres query confirms exactly one row for that key, not two. Missing header → `400`.
+- ⚠️ Don't confuse this client-facing idempotency key with the *message*-level idempotency you'll build in Week 9 (Inbox pattern) — they solve different problems (duplicate client submissions vs duplicate broker deliveries) and your report needs to distinguish them clearly. — kept structurally distinct in code too: `Order.IdempotencyKey` (this step) vs. `MessageId` on the ETOs in `src/FlashSale.EventContracts` (Week 9) are different properties on different types, not the same field reused for two purposes.
+- **Route collision found and fixed**: C1's baseline endpoint (Week 3) was also sitting at `POST /api/orders`. Since `/api/orders` needs to be the real design from here on, and C1 needs to stay independently reachable all semester for the Week 13/14 comparison, moved C1 to `/api/c1/orders` (`BaselineOrdersController`) — updated `tests/jmeter/smoke-test.jmx` and `report/report.tex` to match. Verified both endpoints work at their respective routes after the move.
 
-> 🔁 **Git:** `git checkout -b feat/order-service-week5 ; git add -A ; git commit -m "feat: idempotent order creation"`. 📌 **Roadmap:** mark Step 5.1 done.
+> 🔁 **Git:** see the combined commit/push commands after Step 5.4. 📌 **Roadmap:** mark Step 5.1 done.
 
 #### Step 5.2 — `GET /api/orders/{id}` status lookup
-- [ ] Simple read endpoint returning current state + timestamps for each transition so far (this is also your first real piece of the Observability requirement — capture `request acceptance time` here now, per §4d).
-- ✅ Verify: create an order, poll its status endpoint, confirm the state matches what's in the DB directly (query Postgres yourself to cross-check, don't just trust the API's own read path).
+- [x] Simple read endpoint returning current state + timestamps for each transition so far (this is also your first real piece of the Observability requirement — capture `request acceptance time` here now, per §4d). — `GetOrderAsync`; returns `state`, `requestAcceptedAt`, `confirmedOrRejectedAt`, `completedAt`. Non-existent id → `404`.
+- [x] Verify: create an order, poll its status endpoint, confirm the state matches what's in the DB directly (query Postgres yourself to cross-check, don't just trust the API's own read path). — done: API response and a direct `psql` query on `order_service.orders` returned identical `id`/`state`/`RequestAcceptedAt` values.
 
-> 🔁 **Git:** `git add -A ; git commit -m "feat: order status endpoint"`. 📌 **Roadmap:** mark Step 5.2 done.
+> 🔁 **Git:** see the combined commit/push commands after Step 5.4. 📌 **Roadmap:** mark Step 5.2 done.
 
 #### Step 5.3 — State management enforcement
-- [ ] Implement the state machine from Week 1 as actual guarded transition logic (not just "set a status field to any string") — an illegal transition (e.g. `Completed → PendingStock`) should throw, not silently succeed.
-- [ ] Write unit tests: one per legal transition (should succeed), at least one per plausible illegal transition (should throw).
-- ✅ Verify: 💻 `dotnet test` — all green before moving on.
+- [x] Implement the state machine from Week 1 as actual guarded transition logic (not just "set a status field to any string") — an illegal transition (e.g. `Completed → PendingStock`) should throw, not silently succeed. — `Order.TransitionTo` + `InvalidOrderStateTransitionException`. `Confirmed`, `Rejected`, `Processing`, `Completed`, `ProcessingFailed` all currently have **no** legal outgoing transition — including `Confirmed`, since `Confirmed→Processing`'s trigger is still the open question `docs/order-state-machine.md` flagged in Week 1. Left genuinely blocked rather than guessing a trigger just to make the transition table look more finished.
+- [x] Write unit tests: one per legal transition (should succeed), at least one per plausible illegal transition (should throw). — `tests/FlashSale.OrderService.Tests/OrderStateMachineTests.cs`, 14 tests: both legal transitions (with timestamp assertions), every currently-illegal target from `PendingStock` and from `Confirmed` (5 targets each via `[Theory]`), `Rejected`'s terminal case, and the exception's `FromState`/`ToState` values. C0/C1 explicitly excluded from this suite — they're one-shot report evidence, not code with a future to protect (see `docs/test-plan.md`, Week 4).
+- [x] Verify: 💻 `dotnet test` — all green before moving on. — `Passed! - Failed: 0, Passed: 14, Skipped: 0, Total: 14`.
 
-> 🔁 **Git:** `git add -A ; git commit -m "feat+test: enforce order state machine transitions"`. 📌 **Roadmap:** mark Step 5.3 done.
+> 🔁 **Git:** see the combined commit/push commands below. 📌 **Roadmap:** mark Step 5.3 done.
 
 #### Step 5.4 — Report: Order Service, API design, idempotency strategy, test cases
-- [ ] Write this section, include the actual OpenAPI snippet and unit test summary as evidence.
-- [ ] Merge PR into `main`.
+- [x] Write this section, include the actual OpenAPI snippet and unit test summary as evidence. — `report/report.tex` §Order Service (API design, idempotency strategy — including the manual verification results, state management, test cases with the real `dotnet test` output). `docs/api-contract-v1.json` re-exported now that `/api/orders`, `/api/orders/{id}`, and `/api/c1/orders` actually exist.
+- [ ] Merge PR into `main`. — **your action**: push (command below), then open/review/merge on GitHub. Note this branch is stacked on `feat/contracts-week4`, which is stacked on `feat/c0-c1-baseline` — merge those first, in order, for a clean diff.
 
-> 🔁 **Git:** `git checkout main ; git pull`. 📌 **Roadmap:** close out Week 5.
+> 🔁 **Git:** everything for Steps 5.1-5.4 is committed locally on `feat/order-service-week5` — push it yourself:
+```powershell
+git push -u origin feat/order-service-week5
+```
+> 📌 **Roadmap:** close out Week 5.
 
 ---
 

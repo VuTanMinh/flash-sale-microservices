@@ -161,6 +161,19 @@ and system, not oversights to correct later within this project's timeline:
     caps) are tuned empirically against this project's specific hardware and
     workload shape; they are not claimed to generalize to arbitrary deployment
     scale without re-tuning.
+  \item \texttt{GET /api/orders/\{id\}} (Week 5) performs no ownership check --
+    any caller who has an order's \texttt{id} can read it. This is the direct
+    consequence of excluding authentication/authorization from scope (this
+    document's own Scope chapter), not an oversight: order IDs are
+    cryptographically random GUIDs, functioning as an unguessable capability
+    token rather than a sequential identifier an unrelated party could
+    enumerate. A production system would still pair this with real
+    authorization; this project does not, on purpose. Client-facing
+    idempotency keys (\texttt{POST /api/orders}) are hardened against the
+    adjacent risk of key collision instead -- reusing a key with a different
+    request body is rejected (\texttt{409}) rather than silently returning an
+    unrelated order, so at minimum two unrelated callers colliding on the same
+    key surface as an explicit conflict, not a silent data leak.
 \end{itemize}
 
 % ============================================================
@@ -449,8 +462,11 @@ RETURNING stock;
 \end{verbatim}
 
 This runs inside the same database transaction as the order-outcome log
-insert, exposed as a real synchronous endpoint, \texttt{POST /api/orders}.
-The same five-concurrent-request test used against C0 was repeated against
+insert, exposed as a real synchronous endpoint, \texttt{POST /api/c1/orders}
+(moved off \texttt{/api/orders} in Week 5 once that path became the real
+design's endpoint -- Week 13/14 need both configurations independently
+reachable for comparison, not one path whose behavior depends on a hidden
+flag). The same five-concurrent-request test used against C0 was repeated against
 C1, seeded with \texttt{stock = 1}: \textbf{exactly 1 request Confirmed, 4
 Rejected, final stock 0} -- never negative, never more than one winner.
 \texttt{SELECT ... FOR UPDATE} followed by a separate \texttt{UPDATE} was
@@ -470,7 +486,7 @@ only argued from the SQL's atomicity.
 \subsection{JMeter smoke test}
 
 A 10-thread, single-iteration JMeter plan
-(\texttt{tests/jmeter/smoke-test.jmx}) targets C1's \texttt{POST /api/orders}
+(\texttt{tests/jmeter/smoke-test.jmx}) targets C1's \texttt{POST /api/c1/orders}
 against a product seeded with ample stock (\texttt{flash-product-1},
 \texttt{stock = 1000}), confirming the full HTTP pipeline works end-to-end
 before any load testing begins. The first run of this test returned a clean
@@ -499,7 +515,64 @@ Avg / Min / Max latency & 913\,ms / 480\,ms / 1240\,ms \\
 Raw results: \texttt{tests/jmeter/results/smoke-test-result.jtl}.
 
 \section{Order Service}
-% TODO Weeks 5--6 -- idempotent creation, status API, state management, Outbox.
+
+\subsection{API design}
+
+Two endpoints (\texttt{Controllers/OrdersController.cs}):
+\texttt{POST /api/orders} (idempotent creation) and
+\texttt{GET /api/orders/\{id\}} (status lookup). Both return immediately from
+Postgres state -- there is no event publication yet (that arrives with the
+Transactional Outbox, Week 6), so every order created this week stays in
+\texttt{PendingStock} forever, which is expected for this week's scope, not
+a defect.
+
+\subsection{Idempotency strategy}
+
+A required \texttt{Idempotency-Key} request header is checked against
+existing orders before creating a new one; a repeated key returns the
+original order unchanged rather than creating a duplicate. This is the
+\emph{client}-facing idempotency layer -- entirely distinct from the
+\emph{broker}-message idempotency the Week 9 Inbox pattern adds later, which
+dedupes RabbitMQ redelivering the same message rather than a client
+resubmitting the same request. Conflating the two was flagged as a risk as
+early as \texttt{docs/00-scope-lock.md} (Week 1); keeping the two mechanisms'
+names and purposes distinct in the code (\texttt{IdempotencyKey} the client
+supplies vs.\ \texttt{MessageId} on the ETOs in
+\texttt{FlashSale.EventContracts}) is what keeps that distinction from
+blurring once both exist side by side.
+
+Verified manually against the running service (not just by inspection):
+sending the same \texttt{Idempotency-Key} twice returns the identical order
+\texttt{id} both times, and a direct Postgres query confirms exactly one row
+exists for that key -- the second request did not insert a duplicate.
+
+\subsection{State management}
+
+\texttt{Entities/Order.cs} implements the state machine from
+\texttt{docs/order-state-machine.md} as guarded transition logic
+(\texttt{Order.TransitionTo}), not an unguarded status field: an illegal
+transition throws \texttt{InvalidOrderStateTransitionException} rather than
+silently succeeding. Per that document's own open question, \texttt{Confirmed}
+currently has no legal outgoing transition either -- \texttt{Confirmed ->
+Processing}'s trigger depends on the Week 11 Process Worker design, so no
+code path can legally perform it yet. The alternative (guessing a trigger to
+make the state machine look more finished) would cost more at defense time
+than an honestly-incomplete transition table.
+
+\subsection{Test cases}
+
+14 unit tests (\texttt{tests/FlashSale.OrderService.Tests}), all passing:
+every legal transition succeeds and stamps the expected timestamp; every
+state currently without a legal outgoing transition (including
+\texttt{Confirmed}, precisely because of the open question above) throws on
+every attempted target; and the exception itself is asserted to report the
+correct from/to states. C0 and C1 (Week 3) are deliberately excluded from
+this test suite -- they are one-shot demonstrations captured as report
+evidence, not code with a future correctness guarantee to protect.
+
+\begin{verbatim}
+Passed!  - Failed: 0, Passed: 14, Skipped: 0, Total: 14
+\end{verbatim}
 
 \section{Inventory Service}
 % TODO Weeks 7--8 -- Redis Lua reservation, warm-up, OrderPlaced handling, result publication.

@@ -16,8 +16,14 @@ namespace FlashSale.OrderService.Controllers;
 /// Postgres against the current row inside its own lock, not against
 /// something the application read earlier. The order-log insert commits in
 /// the same transaction as the stock update, so the two never disagree.
+///
+/// Route moved off /api/orders in Week 5: that path now belongs to the real,
+/// idempotent, event-driven design (OrdersController) that C1 exists to be
+/// compared against all semester (Week 13/14 experiments need both
+/// configurations independently reachable, not one path whose behavior
+/// depends on a hidden flag).
 /// </summary>
-[Route("api/orders")]
+[Route("api/c1/orders")]
 public class BaselineOrdersController : AbpController
 {
     private readonly string _connectionString;
