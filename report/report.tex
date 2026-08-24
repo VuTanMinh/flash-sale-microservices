@@ -161,6 +161,19 @@ and system, not oversights to correct later within this project's timeline:
     caps) are tuned empirically against this project's specific hardware and
     workload shape; they are not claimed to generalize to arbitrary deployment
     scale without re-tuning.
+  \item \texttt{GET /api/orders/\{id\}} (Week 5) performs no ownership check --
+    any caller who has an order's \texttt{id} can read it. This is the direct
+    consequence of excluding authentication/authorization from scope (this
+    document's own Scope chapter), not an oversight: order IDs are
+    cryptographically random GUIDs, functioning as an unguessable capability
+    token rather than a sequential identifier an unrelated party could
+    enumerate. A production system would still pair this with real
+    authorization; this project does not, on purpose. Client-facing
+    idempotency keys (\texttt{POST /api/orders}) are hardened against the
+    adjacent risk of key collision instead -- reusing a key with a different
+    request body is rejected (\texttt{409}) rather than silently returning an
+    unrelated order, so at minimum two unrelated callers colliding on the same
+    key surface as an explicit conflict, not a silent data leak.
 \end{itemize}
 
 % ============================================================

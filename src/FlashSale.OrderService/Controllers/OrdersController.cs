@@ -59,6 +59,19 @@ public class OrdersController : AbpController
 
         if (existing is not null)
         {
+            // A reused key with a matching payload is a legitimate retry --
+            // return the original order. A reused key with a *different*
+            // payload means either a client bug or a key collision (two
+            // unrelated callers landing on the same key, whether by guessing
+            // or bad luck): with no auth model to scope keys per-caller
+            // (docs/00-scope-lock.md), the only thing this endpoint can do is
+            // refuse to silently hand back someone else's order under a
+            // colliding key, rather than merging the two.
+            if (existing.ProductId != request.ProductId || existing.Quantity != request.Quantity)
+            {
+                return Conflict("This Idempotency-Key was already used with a different request.");
+            }
+
             return Ok(ToResponse(existing));
         }
 
@@ -69,6 +82,11 @@ public class OrdersController : AbpController
         return StatusCode(201, ToResponse(order));
     }
 
+    // No ownership check: any caller with the id can read it. Deliberate, not
+    // an oversight -- docs/00-scope-lock.md excludes auth/authz entirely, and
+    // id is a random GUID, so it functions as an unguessable capability token
+    // rather than an enumerable identifier. See report.tex's Limitations
+    // chapter for the full reasoning.
     [HttpGet("{id}")]
     public async Task<ActionResult<OrderResponse>> GetOrderAsync(Guid id)
     {
