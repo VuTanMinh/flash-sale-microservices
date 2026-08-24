@@ -49,3 +49,11 @@ Thumbs.db
 #Powershell script
 setup.ps1
 setup-week1.ps1
+
+# Markdown docs stay local-only from here on -- planning/checklist/design
+# docs live in the working tree for reference (report/report.tex is what
+# actually gets submitted), not in the pushed repo. Only the root README
+# is tracked; nested README.md files (e.g. ABP-scaffolded ones under src/)
+# are excluded too since the exception below is anchored to repo root.
+*.md
+!/README.md
