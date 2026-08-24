@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="../tests/FlashSale.OrderService.Tests/FlashSale.OrderService.Tests.csproj" />
   <Project Path="FlashSale.EventContracts/FlashSale.EventContracts.csproj" />
   <Project Path="FlashSale.OrderService/FlashSale.OrderService.csproj" />
 </Solution>

@@ -9,18 +9,6 @@ RabbitMQ events, never a shared-schema join.
 
 ## `order_service` schema
 
-**Update (Week 5):** the generic `created_at`/`updated_at` columns originally
-sketched here were dropped from the actual implementation
-(`src/FlashSale.OrderService/Entities/Order.cs`) — `request_accepted_at`
-already *is* the creation timestamp, and nothing reads a generic
-"last-updated" value when every specific transition already has its own
-dedicated timestamp column. Keeping both would have been exactly the kind of
-redundant field the project has been deliberately avoiding elsewhere
-(`docs/event-contract.md`'s omitted `CorrelationId`/`Reason` fields, this
-document's own earlier `inventory_reservation_log` correction). `correlation_id`
-stays, unlike those two — it's explicitly annotated "Week 11" as a known
-future addition, not presented as already real.
-
 ```mermaid
 erDiagram
     ORDERS ||--o{ OUTBOX_EVENTS : "produces"
@@ -36,6 +24,8 @@ erDiagram
         timestamptz request_accepted_at
         timestamptz confirmed_or_rejected_at
         timestamptz completed_at
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     OUTBOX_EVENTS {
