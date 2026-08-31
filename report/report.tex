@@ -574,6 +574,121 @@ evidence, not code with a future correctness guarantee to protect.
 Passed!  - Failed: 0, Passed: 14, Skipped: 0, Total: 14
 \end{verbatim}
 
+\subsection{Event Publication Reliability (Week 6) -- the dual-write problem and the Transactional Outbox}
+\label{sec:outbox}
+
+\paragraph{The problem.} Once order creation needs to notify another service
+(Inventory Service, Week 7) that stock should be reserved, the order write
+and the "notify" action become two separate operations against two separate
+systems (Postgres and RabbitMQ) that cannot be wrapped in one atomic
+transaction the way two SQL statements against the same database can. Naively
+sequencing them --- write the order, then publish an event --- exposes two
+distinct failure orderings, and a system that only handles one of them is
+still broken:
+
+\begin{enumerate}
+  \item \textbf{The database commits but the publish fails.} The order now
+    exists in \texttt{PendingStock} with no corresponding event ever sent.
+    Nothing will ever move it out of \texttt{PendingStock} -- it is silently
+    stuck forever, and neither the client nor any operator has any signal
+    that anything is wrong.
+  \item \textbf{The publish succeeds but the database transaction rolls
+    back} (or the process crashes between the two steps). Inventory Service
+    now receives an \texttt{OrderPlaced} event for an order that, as far as
+    Order Service's own database is concerned, never happened. It may
+    reserve real stock against a phantom order that no client will ever be
+    able to query or complete.
+\end{enumerate}
+
+Both failures share a root cause: two systems that must agree with each
+other are being updated as if they were one, with no mechanism enforcing
+that they actually end up agreeing.
+
+\paragraph{How the Outbox pattern eliminates both.} Rather than publishing
+directly, the order-creation handler writes two rows to \emph{one}
+database -- the \texttt{orders} row and a row in \texttt{order\_service.outbox\_events}
+recording that an \texttt{OrderPlaced} event needs to be published -- inside
+the exact same \texttt{SaveChangesAsync} call
+(\texttt{Controllers/OrdersController.cs}). Because both rows are ordinary
+rows in the same relational database, Postgres's own transaction guarantee
+applies to both simultaneously: either both commit, or neither does. This
+directly closes both failure orderings above --- there is no longer a window
+where the order exists without a corresponding pending event, or vice versa,
+because "the order exists" and "an event needs publishing" have been reduced
+to a single fact instead of two facts that could disagree.
+
+This claim is verified directly, not just argued from the pattern's
+description, in
+\texttt{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs}: a real
+SQLite in-memory database (not a mock, and not EF Core's InMemory provider,
+which does not enforce relational constraints and so cannot demonstrate a
+rollback at all) is made to reject an outbox insert via a genuine primary-key
+collision, and the accompanying order insert is confirmed absent afterward
+--- the whole transaction rolled back, not just the failing half.
+
+\begin{verbatim}
+Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
+Order_and_outbox_row_both_commit_in_one_SaveChanges_call: PASS
+\end{verbatim}
+
+\paragraph{Getting the pending event to RabbitMQ.} Writing the outbox row
+only records that publication is needed -- a separate background worker
+(\texttt{Messaging/OutboxPublisherWorker.cs}) polls for unpublished rows
+every two seconds and publishes each one, marking a row published only once
+the broker has actually confirmed receipt, not merely once the publish call
+returned without throwing. This distinction matters: a broker that accepts a
+TCP write and then rejects the message asynchronously would let the weaker
+guarantee silently drop it. RabbitMQ.Client 7.x's
+\texttt{CreateChannelOptions(publisherConfirmationsEnabled: true,
+publisherConfirmationTrackingEnabled: true)} makes \texttt{BasicPublishAsync}
+itself not return until the broker has acknowledged the message, which is
+what \texttt{OutboxEvent.MarkPublished} is called on the strength of.
+
+\texttt{Volo.Abp.EventBus.RabbitMQ}'s own options
+(\texttt{AbpRabbitMqOptions}/\texttt{AbpRabbitMqEventBusOptions}) were
+checked, per this step's own instruction not to assume a configuration
+property exists without verifying it, and do not expose a documented way to
+enable publisher confirms. Publishing is done via the raw
+\texttt{RabbitMQ.Client} package instead, for exactly this reason -- reading
+connection settings from the same JSON shape ABP's own package uses, for
+consistency, without depending on a whole framework module for a
+configuration convenience.
+
+\paragraph{Failure handling in the worker itself.} A publish attempt that
+fails is retried up to three additional times with exponential backoff
+(1s/2s/4s) before the worker gives up for that poll cycle and leaves the row
+unpublished for the next one -- this was verified against a real outage, not
+simulated: stopping the RabbitMQ container mid-test produced exactly this
+log sequence, with the service continuing to accept new orders throughout
+(the worker's own tick failures are caught and logged, never allowed to
+crash the host):
+
+\begin{verbatim}
+[WRN] Failed to publish outbox event ... (attempt 1/4); retrying in 00:00:01
+[WRN] Failed to publish outbox event ... (attempt 2/4); retrying in 00:00:02
+[WRN] Failed to publish outbox event ... (attempt 3/4); retrying in 00:00:04
+[ERR] Failed to publish outbox event ... after 4 attempts; leaving unpublished,
+      will retry on the next poll
+\end{verbatim}
+
+Restarting the broker let the same row publish successfully on a later poll
+without any manual intervention, confirming the retry loop is not just
+present in the code but actually recovers.
+
+\paragraph{Verifying delivery, not just the publish call succeeding.} Since
+Inventory Service does not exist until Week 7, there is no consumer yet to
+observe the message being consumed -- the checklist anticipates exactly this
+("stay at 1 if you haven't built the consumer yet, which is expected until
+Week 7"). A queue (\texttt{OrderPlaced}) was bound to the exchange
+(\texttt{flashsale.order.exchange}) as a temporary stand-in verification
+target via RabbitMQ's HTTP management API, and each order created during
+testing produced exactly one message that persisted in that queue (message
+count increased by exactly one per order, including the one that survived
+the broker outage above) -- confirming messages are actually reaching
+RabbitMQ, not just that the publish call returns successfully. This queue is
+verification scaffolding, not a permanent design element; Week 7's real
+Inventory Service consumer declares and binds its own durable queue in code.
+
 \section{Inventory Service}
 % TODO Weeks 7--8 -- Redis Lua reservation, warm-up, OrderPlaced handling, result publication.
 

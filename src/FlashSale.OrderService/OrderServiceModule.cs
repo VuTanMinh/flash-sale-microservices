@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.OpenApi;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Localization;
+using FlashSale.OrderService.Messaging;
 using OpenIddict.Validation.AspNetCore;
 using Volo.Abp;
 using Volo.Abp.Uow;
@@ -165,6 +166,7 @@ public class OrderServiceModule : AbpModule
         ConfigureCors(context, configuration);
         ConfigureDataProtection(context);
         ConfigureEfCore(context);
+        ConfigureOutbox(context, configuration);
     }
 
     private void ConfigureAuthentication(ServiceConfigurationContext context)
@@ -334,6 +336,19 @@ public class OrderServiceModule : AbpModule
             });
         });
 
+    }
+
+    // Registered explicitly rather than via ABP's ISingletonDependency
+    // convention: that convention didn't pick this class up in practice (it
+    // stayed unresolved at runtime -- "service has not been registered" --
+    // for reasons not worth chasing further when an explicit registration is
+    // one line, guaranteed to work, and visible here instead of implied by a
+    // marker interface).
+    private void ConfigureOutbox(ServiceConfigurationContext context, IConfiguration configuration)
+    {
+        context.Services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
+        context.Services.AddSingleton<IOutboxMessagePublisher, RabbitMqOutboxPublisher>();
+        context.Services.AddHostedService<OutboxPublisherWorker>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
