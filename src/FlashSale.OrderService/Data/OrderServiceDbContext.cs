@@ -15,6 +15,8 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
 {
     public DbSet<Order> Orders => Set<Order>();
 
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
     public OrderServiceDbContext(DbContextOptions<OrderServiceDbContext> options)
         : base(options)
     {
@@ -57,6 +59,17 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
             b.Property(x => x.IdempotencyKey).IsRequired();
             b.Property(x => x.ProductId).IsRequired();
             b.Property(x => x.State).HasConversion<string>().IsRequired();
+        });
+
+        builder.Entity<OutboxEvent>(b =>
+        {
+            b.ToTable("outbox_events", "order_service");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.EventType).IsRequired();
+            b.Property(x => x.Payload).IsRequired().HasColumnType("jsonb");
+            // The publisher polls WHERE Published = false on every tick (Week 6.2) --
+            // without this index that becomes a full table scan as the table grows.
+            b.HasIndex(x => x.Published);
         });
     }
 }

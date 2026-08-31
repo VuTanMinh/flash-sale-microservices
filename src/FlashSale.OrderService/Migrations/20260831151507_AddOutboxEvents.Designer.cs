@@ -3,6 +3,7 @@ using System;
 using FlashSale.OrderService.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Volo.Abp.EntityFrameworkCore;
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace FlashSale.OrderService.Migrations
 {
     [DbContext(typeof(OrderServiceDbContext))]
-    partial class OrderServiceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831151507_AddOutboxEvents")]
+    partial class AddOutboxEvents
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

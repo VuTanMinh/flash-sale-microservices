@@ -14,10 +14,12 @@ namespace FlashSale.OrderService.Controllers;
 /// /api/c1/orders (BaselineOrdersController) so both configurations stay
 /// independently reachable for Week 13/14 experiments.
 ///
-/// Currently returns as soon as the order row commits (state=PendingStock) —
-/// there is no event publication yet (that's the Transactional Outbox, Week 6),
-/// so nothing will ever move this order past PendingStock until then. That's
-/// expected for this week, not a bug to chase.
+/// Returns as soon as the order + outbox rows commit (state=PendingStock).
+/// The OrderPlaced outbox row is written in the SAME SaveChangesAsync call as
+/// the order (Week 6) -- one call, one transaction, so the order's existence
+/// and its pending OrderPlaced event can never disagree. Actually getting
+/// published to RabbitMQ happens later, out-of-band, in
+/// BackgroundServices/OutboxPublisherWorker.cs.
 /// </summary>
 [Route("api/orders")]
 public class OrdersController : AbpController
@@ -77,6 +79,12 @@ public class OrdersController : AbpController
 
         var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity);
         _dbContext.Orders.Add(order);
+        // Same SaveChangesAsync call as the order insert above -- this single
+        // fact is the entire point of the Outbox pattern (checklist Step 6.1).
+        // Two separate SaveChanges calls here would reintroduce the exact
+        // dual-write problem Outbox exists to eliminate: either the order or
+        // the "an event needs publishing" fact could commit without the other.
+        _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
         await _dbContext.SaveChangesAsync();
 
         return StatusCode(201, ToResponse(order));
