@@ -255,6 +255,9 @@ paket-files/
 # OrderService
 FlashSale.OrderService/Logs/*
 
+# InventoryService
+FlashSale.InventoryService/Logs/*
+
 *.db
 *.db-shm
 *.db-wal
