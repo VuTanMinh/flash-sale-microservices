@@ -690,7 +690,130 @@ verification scaffolding, not a permanent design element; Week 7's real
 Inventory Service consumer declares and binds its own durable queue in code.
 
 \section{Inventory Service}
-% TODO Weeks 7--8 -- Redis Lua reservation, warm-up, OrderPlaced handling, result publication.
+
+\subsection{Scaffolding, done differently from Order Service on purpose}
+
+Inventory Service was scaffolded with a deliberately minimal ABP module set
+(\texttt{MVC}, \texttt{Autofac}, \texttt{EntityFrameworkCore.PostgreSql},
+\texttt{Swashbuckle}, \texttt{Serilog} only) rather than the full default set
+\texttt{abp new} produces. Order Service (Week 3) carried the default set
+(Identity, Account, PermissionManagement, TenantManagement,
+FeatureManagement, SettingManagement, OpenIddict, AuditLogging, the LeptonX
+UI theme), and that turned out to cost more than unused weight: it directly
+caused the Week 3 migration/schema bug (Setting Management's runtime queries
+don't resolve a non-default schema consistently) and, per Week 4's API
+contract review, produced roughly 29 of 30 exposed endpoints that traced to
+nothing in the state machine. Since \texttt{docs/00-scope-lock.md} already
+excludes user management, auth/authz, and multi-tenancy entirely, Inventory
+Service simply never adds those modules, rather than adding and later
+removing them. The concrete result: its Swagger contract exposes exactly the
+three unavoidable ABP core meta-endpoints and nothing else, versus Order
+Service's roughly thirty endpoint groups. This is a deliberate difference
+between the two services' scaffolds, not an inconsistency -- Order Service's
+equivalent cleanup remains a flagged, not-yet-done item, tracked separately
+rather than retrofitted here.
+
+\subsection{Redis data structure and the Lua reservation script}
+
+Actual stock lives in Redis, not Postgres (\texttt{docs/erd.md}): an integer
+key \texttt{inventory:\{productId\}} for available stock, and a set key
+\texttt{processed:\{productId\}} recording which order IDs have already been
+reserved for that product -- the second key is what makes the duplicate
+check possible without touching Postgres at all.
+
+\begin{verbatim}
+if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
+  return 'DUPLICATE'
+end
+local stock = tonumber(redis.call('GET', KEYS[1]))
+if stock == nil or stock <= 0 then
+  return 'REJECTED'
+end
+redis.call('DECR', KEYS[1])
+redis.call('SADD', KEYS[2], ARGV[1])
+return 'RESERVED'
+\end{verbatim}
+
+Redis executes a Lua script as one atomic, single-threaded operation --
+this is what makes the duplicate-check, stock-check, decrement, and
+mark-processed sequence race-free without any application-level locking.
+The three outcomes were verified directly against \texttt{redis-cli}, before
+any C\# integration existed, isolating the script's own correctness from
+the .NET client's:
+
+\begin{verbatim}
+> SET inventory:test 1
+> EVAL <script> 2 inventory:test processed:test order-1
+RESERVED
+> EVAL <script> 2 inventory:test processed:test order-1
+DUPLICATE
+> EVAL <script> 2 inventory:test processed:test order-2
+REJECTED
+> GET inventory:test
+0
+\end{verbatim}
+
+All three outcomes matched expectations exactly, and stock never went
+negative or was double-decremented. The C\# side
+(\texttt{Inventory/InventoryReservationService.cs}) is a thin wrapper that
+loads this exact script file at startup and passes \texttt{KEYS}/\texttt{ARGV}
+through -- it does not, and must not, reimplement any of the check-then-act
+logic in C\#, since doing so would reintroduce the exact race condition the
+Lua script's atomicity exists to prevent.
+
+\subsection{Inventory warm-up}
+
+\texttt{scripts/warm-up.ps1} loads known starting stock for each test
+product before a Flash-sale "opens". Product availability is conditional on
+this having run by construction, not by convention: an unset inventory key
+reads as Lua's \texttt{nil}, which the script already treats as
+\texttt{REJECTED}, so a product nobody warmed up simply cannot be reserved.
+
+\subsection{OrderPlaced handling}
+
+\texttt{Messaging/OrderPlacedConsumer.cs} consumes via the raw
+\texttt{RabbitMQ.Client}, the same choice and for the same reason as Order
+Service's \texttt{OutboxPublisherWorker} (Week 6): messages are published as
+plain JSON with a routing key, not through \texttt{Volo.Abp.EventBus.RabbitMQ}'s
+own envelope format, so a consumer built against that abstraction would not
+be looking at the same message shape. Keeping publish and consume on the
+same primitives end to end avoids that mismatch. Each message is
+deserialized into \texttt{OrderPlacedEto} (\texttt{FlashSale.EventContracts},
+Week 4), reserved via the Lua script above, and manually acknowledged only
+after successful processing -- a failure nacks with requeue, and a
+transient connection failure retries the whole consumer connection with a
+5-second backoff rather than crashing the service. Week 9 replaces this
+simple ack-after-success strategy with the full Inbox-pattern-based
+idempotent acknowledgement.
+
+This does not yet publish \texttt{StockReserved}/\texttt{StockRejected} back
+to Order Service -- that is Week 8 (Step 8.1). This week's outcome is only
+logged, which is sufficient to verify the reservation logic itself end to
+end.
+
+\paragraph{End-to-end verification.} Rather than only checking Redis state
+after the fact, the full path was watched live: an order created via
+\texttt{POST /api/orders} was observed flowing through the Outbox, into
+RabbitMQ, into this consumer, into the Lua script, and into an updated Redis
+key, within about two seconds end to end (RabbitMQ pushes to consumers; this
+is not a polling delay). Both outcomes were exercised through the complete
+pipeline, not just at the Lua/redis-cli level above:
+
+\begin{verbatim}
+[INF] OrderPlaced 7918a432-... for product flash-product-1 -> Reserved
+[INF] OrderPlaced 1dd50a8a-... for product out-of-stock-product -> Rejected
+\end{verbatim}
+
+A useful side effect of building the consumer this week: three
+\texttt{OrderPlaced} messages left over from Week 6's manual verification
+queue (including one that had survived a deliberate RabbitMQ outage) were
+still sitting unconsumed. Starting this consumer drained all three
+automatically on first connection, decrementing \texttt{flash-product-1}'s
+stock from 1000 to 997 and recording exactly three entries in
+\texttt{processed:flash-product-1} -- confirming not only that new messages
+flow through correctly, but that messages published before any consumer
+existed are not lost, exactly what the Outbox pattern from Week 6 was
+supposed to guarantee.
 
 \section{Reliability and Idempotency Layer}
 % TODO Week 9 -- Inbox pattern, acknowledgement strategy, duplicate-message handling.

@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
+    <PackageReference Include="StackExchange.Redis" Version="3.1.31" />
+  </ItemGroup>
+
+  <!-- Deliberately minimal module set: see the comment on
+       InventoryServiceModule's [DependsOn] for why. No Identity, Account,
+       PermissionManagement, TenantManagement, FeatureManagement,
+       SettingManagement, OpenIddict, AuditLogging, or UI theme packages,
+       since none of that is in scope (docs/00-scope-lock.md), and Order
+       Service's experience carrying all of it (Week 3's migration bug,
+       Week 4's API contract review) is exactly why this scaffold doesn't
+       repeat it. -->
+  <ItemGroup>
+    <PackageReference Include="Volo.Abp.AspNetCore.Mvc" Version="10.6.0" />
+    <PackageReference Include="Volo.Abp.Autofac" Version="10.6.0" />
+    <PackageReference Include="Volo.Abp.Swashbuckle" Version="10.6.0" />
+    <PackageReference Include="Volo.Abp.AspNetCore.Serilog" Version="10.6.0" />
+    <PackageReference Include="Volo.Abp.EntityFrameworkCore.PostgreSql" Version="10.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+      <PrivateAssets>compile; contentFiles; build; buildMultitargeting; buildTransitive; analyzers; native</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="Localization\InventoryService\*.json" />
+    <EmbeddedResource Include="Localization\InventoryService\*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Logs\**" />
+    <Content Remove="Logs\**" />
+    <EmbeddedResource Remove="Logs\**" />
+    <None Remove="Logs\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="$(UserProfile)\.nuget\packages\*\*\contentFiles\any\*\*.abppkg*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlashSale.EventContracts\FlashSale.EventContracts.csproj" />
+  </ItemGroup>
+
+  <!-- Links (not copies) the canonical scripts/redis/reserve.lua, the same
+       file already verified directly against redis-cli in Step 7.2. Reading
+       the actual file at runtime, rather than an embedded copy, means there
+       is exactly one version of this script to keep correct, not two that
+       could quietly drift apart. -->
+  <ItemGroup>
+    <Content Include="..\..\scripts\redis\reserve.lua">
+      <Link>Redis\reserve.lua</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
