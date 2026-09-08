@@ -369,11 +369,13 @@ gap visible.
 
 \section{Sequence Diagrams}
 Full diagrams: \texttt{docs/sequence-diagrams.md} (happy path and rejection
-path). Both represent the target design (Weeks 5--9, not yet built as of
-Week 4) and stop short of the \texttt{Processing} state for the same reason
-the state machine does above -- extending a sequence diagram past a
-transition whose trigger isn't known yet means drawing a mechanism that
-doesn't exist.
+path). Originally drafted in Week 4 as target design; revised in Week 8
+(Step 8.4) against what was actually built and verified live through that
+week -- the Outbox on both services, both publisher workers, and the
+Redis-backed reservation round trip. Both diagrams still stop short of the
+\texttt{Processing} state for the same reason the state machine does above
+-- extending a sequence diagram past a transition whose trigger isn't known
+yet means drawing a mechanism that doesn't exist.
 
 \section{Design Rationale}
 The central design decision this project makes -- comparing a synchronous
@@ -786,10 +788,11 @@ transient connection failure retries the whole consumer connection with a
 simple ack-after-success strategy with the full Inbox-pattern-based
 idempotent acknowledgement.
 
-This does not yet publish \texttt{StockReserved}/\texttt{StockRejected} back
-to Order Service -- that is Week 8 (Step 8.1). This week's outcome is only
-logged, which is sufficient to verify the reservation logic itself end to
-end.
+Publishing \texttt{StockReserved}/\texttt{StockRejected} back to Order
+Service is Week 8's addition (Section~\ref{sec:week8}); this week's own
+verification below stops at the Lua/consumer boundary, which is sufficient
+to confirm the reservation logic itself end to end before wiring the result
+back out.
 
 \paragraph{End-to-end verification.} Rather than only checking Redis state
 after the fact, the full path was watched live: an order created via
@@ -815,8 +818,132 @@ flow through correctly, but that messages published before any consumer
 existed are not lost, exactly what the Outbox pattern from Week 6 was
 supposed to guarantee.
 
-\section{Reliability and Idempotency Layer}
-% TODO Week 9 -- Inbox pattern, acknowledgement strategy, duplicate-message handling.
+\section{Closing the Loop -- Stock Results and Order State (Week 8)}
+\label{sec:week8}
+
+Weeks 6--7 built one direction of the pipeline: an order becomes an
+\texttt{OrderPlaced} event, which Inventory Service reserves against Redis.
+Week 8 builds the return direction -- Inventory Service telling Order
+Service what happened, and Order Service acting on it -- which is what
+actually lets an order leave \texttt{PendingStock}.
+
+\subsection{Inventory Service's own Outbox -- a harder dual-write problem}
+
+Order Service's Week 6 Outbox writes a business row and an outbox row to the
+\emph{same} Postgres database in one transaction, so atomicity is free.
+Inventory Service cannot do that: the business fact (stock was reserved) is
+recorded in Redis by \texttt{reserve.lua}, and the outbox fact (tell Order
+Service) must be recorded in Postgres -- two different data stores that
+cannot share a transaction. Rather than accept a gap where a process crash
+between the two writes silently drops the notification, Inventory Service
+gets its own \texttt{outbox\_events} table (\texttt{inventory\_service}
+schema) with one deliberate difference from Order Service's: the unique
+index is on \texttt{OrderId}, not \texttt{Id}.
+
+That difference is what makes the Lua script's \texttt{DUPLICATE} outcome
+safe. \texttt{DUPLICATE} means a \emph{previous} delivery of the same
+\texttt{OrderPlaced} message already reserved the stock in Redis -- so if
+the consumer treated it as a no-op, a redelivered message would never
+produce a \texttt{StockReserved} row, and that order would sit in
+\texttt{PendingStock} forever despite the reservation having genuinely
+succeeded. Instead, both \texttt{RESERVED} and \texttt{DUPLICATE} run the
+same \texttt{EnsureResultOutboxEventAsync} step: check whether an outbox row
+for this \texttt{OrderId} already exists, and only insert if it doesn't. The
+unique index turns a possible race between two redeliveries into a caught
+\texttt{DbUpdateException} rather than a duplicate row -- "ensure exists",
+not "insert unconditionally". \texttt{RabbitMqOutboxPublisher} and
+\texttt{OutboxPublisherWorker} on the Inventory Service side are otherwise
+the same design as Order Service's Week 6 versions (raw
+\texttt{RabbitMQ.Client}, publisher confirms, 2s poll interval).
+
+\subsection{Order Service: consuming the result}
+
+\texttt{Messaging/StockResultConsumer.cs} binds two queues,
+\texttt{StockReserved} and \texttt{StockRejected}, to
+\texttt{flashsale.order.exchange}. Both share one handler,
+\texttt{HandleResultAsync}, parameterized by the target state: look up the
+order; if it is already in the target state, acknowledge as a no-op
+(handles redelivery without re-running the transition); otherwise call
+\texttt{Order.TransitionTo}. A transition rejected by the state machine
+(\texttt{InvalidOrderStateTransitionException} -- e.g. a message claims
+\texttt{Reserved} for an order already \texttt{Rejected}) is a genuine
+conflict, not a redelivery, and is logged loudly and nacked \emph{without}
+requeue, since there is no DLQ yet (Week 10) to catch a message that would
+otherwise requeue forever. Any other exception nacks \emph{with} requeue.
+Unlike \texttt{EnsureResultOutboxEventAsync} above,
+\texttt{SaveChangesAsync()} here is called directly rather than through
+ABP's \texttt{SaveChangesOnDbContextAsync} bypass -- this code runs inside a
+real DI scope resolved via \texttt{scope.ServiceProvider}, where the
+services ABP's own \texttt{SaveChangesAsync} depends on (audit logging,
+event dispatch) are actually available; the bypass is only needed when a
+\texttt{DbContext} is constructed directly outside DI, as in an isolated
+unit test.
+
+\paragraph{End-to-end verification.} Both outcomes were exercised through
+the complete, real pipeline -- not a unit test double for Redis, RabbitMQ,
+or Postgres. An order posted against a product with available stock was
+polled from \texttt{PendingStock} through to \texttt{Confirmed}; a second
+order against a product forced to zero stock was polled through to
+\texttt{Rejected}. In both cases, Postgres showed exactly one Inventory
+Service outbox row for the order, with the expected event type and
+\texttt{Published = t}.
+
+\subsection{Automated correctness validation (Step 8.3)}
+
+\texttt{scripts/validate-correctness.ps1} turns the four invariants from
+\texttt{docs/inventory-invariants.md} into a runnable check against the live
+system, parameterized by product id and expected initial stock rather than
+hardcoded -- Weeks 13--14 reuse this exact script, unmodified, against
+several different product/stock configurations, so it cannot bake in one
+week's test values. Two PowerShell-specific bugs surfaced and were fixed
+while building it: passing SQL containing double-quoted, case-sensitive
+Postgres identifiers as a \texttt{docker exec ... -c} argument silently
+stripped the quotes (fixed by piping the SQL via stdin instead, matching
+\texttt{reset-and-seed.ps1}'s existing pattern), and a helper function
+originally named its parameter \texttt{\$args}, which collides with
+PowerShell's own reserved automatic variable of the same name (renamed to
+\texttt{\$redisArgs}).
+
+Run against a clean, controlled batch (Postgres tables truncated, Redis
+re-seeded, five orders created across two products, specifically so the
+script's first real trial wasn't validating against leftover mixed test
+data):
+
+\begin{verbatim}
+Invariant                                        Status    Detail
+1. available_inventory >= 0                      PASS
+2. successful_reservations <= initial_inventory  PASS
+3. <=1 successful reservation per order          PASS      (structurally
+                                                             guaranteed by PK;
+                                                             verified, not
+                                                             assumed)
+4. duplicate delivery never double-deducts stock PENDING   order_service.
+                                                             processed_messages
+                                                             does not exist
+                                                             yet (Week 9)
+
+RESULT: All checkable invariants hold.
+\end{verbatim}
+
+Invariant 4 is reported \texttt{PENDING}, not \texttt{PASS}, because the
+table it needs (\texttt{order\_service.processed\_messages}) is Week 9's
+Inbox pattern and does not exist yet -- the script checks for the table's
+existence first and only runs the real duplicate-message check if present.
+Reporting a fake pass here would be claiming a check that never actually
+ran; the script's exit code (0) reflects only the invariants that were
+actually checkable this week, and \texttt{PENDING} does not fail it.
+
+\subsection{Sequence diagrams brought current (Step 8.4)}
+
+\texttt{docs/sequence-diagrams.md}, drafted in Week 4 as target design, was
+revised this week against what was actually built and verified above: the
+response code for order creation is \texttt{201 Created} (the diagram had
+drawn \texttt{202 Accepted}), Inventory Service's result publication is
+shown as the same two-hop Outbox-plus-publisher-worker pattern as Order
+Service's own rather than a single inline publish, and the
+\texttt{DUPLICATE} handling above is called out explicitly rather than left
+implicit. Nginx remains drawn as target design, since routing through it
+isn't exercised until Week 12.
 
 \section{Failure Handling and Recovery}
 % TODO Week 10 -- bounded retry, DLQ, timeout handling, reconciliation job.
