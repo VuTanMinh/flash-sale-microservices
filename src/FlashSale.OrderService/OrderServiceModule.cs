@@ -349,6 +349,10 @@ public class OrderServiceModule : AbpModule
         context.Services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
         context.Services.AddSingleton<IOutboxMessagePublisher, RabbitMqOutboxPublisher>();
         context.Services.AddHostedService<OutboxPublisherWorker>();
+
+        // Step 8.2 -- consumes Inventory Service's results and transitions
+        // order state.
+        context.Services.AddHostedService<StockResultConsumer>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

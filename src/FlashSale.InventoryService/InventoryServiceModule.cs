@@ -182,6 +182,12 @@ public class InventoryServiceModule : AbpModule
 
         context.Services.AddTransient<InventoryReservationService>();
         context.Services.AddHostedService<OrderPlacedConsumer>();
+
+        // Step 8.1 -- this service's own Outbox publisher, for
+        // StockReserved/StockRejected. Same explicit-registration reasoning
+        // as above.
+        context.Services.AddSingleton<IOutboxMessagePublisher, RabbitMqOutboxPublisher>();
+        context.Services.AddHostedService<OutboxPublisherWorker>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

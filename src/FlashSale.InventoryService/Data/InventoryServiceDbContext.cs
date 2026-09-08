@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using FlashSale.InventoryService.Entities;
 using Volo.Abp.EntityFrameworkCore;
 
 namespace FlashSale.InventoryService.Data;
@@ -8,6 +9,8 @@ namespace FlashSale.InventoryService.Data;
 // modules. See InventoryServiceModule's [DependsOn] comment for why.
 public class InventoryServiceDbContext : AbpDbContext<InventoryServiceDbContext>
 {
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
     public InventoryServiceDbContext(DbContextOptions<InventoryServiceDbContext> options)
         : base(options)
     {
@@ -18,5 +21,18 @@ public class InventoryServiceDbContext : AbpDbContext<InventoryServiceDbContext>
         base.OnModelCreating(builder);
 
         /* Configure your own entities here */
+
+        builder.Entity<OutboxEvent>(b =>
+        {
+            b.ToTable("outbox_events", "inventory_service");
+            b.HasKey(x => x.Id);
+            // Unique on OrderId, not just Id -- this is what makes "ensure an
+            // outbox row exists for this order" idempotent. See the class's
+            // own doc comment for why that matters here.
+            b.HasIndex(x => x.OrderId).IsUnique();
+            b.Property(x => x.EventType).IsRequired();
+            b.Property(x => x.Payload).IsRequired().HasColumnType("jsonb");
+            b.HasIndex(x => x.Published);
+        });
     }
 }

@@ -35,5 +35,11 @@ public class RabbitMqOptions
     public class EventBusOptions
     {
         public string ExchangeName { get; set; } = "flashsale.order.exchange";
+
+        /// <summary>Queues this service consumes results from (Week 8) --
+        /// one queue per event type, each bound with that type as its
+        /// routing key, matching how OutboxPublisherWorker publishes.</summary>
+        public string StockReservedQueueName { get; set; } = "StockReserved";
+        public string StockRejectedQueueName { get; set; } = "StockRejected";
     }
 }
