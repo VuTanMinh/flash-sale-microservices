@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using FlashSale.EventContracts;
 using FlashSale.InventoryService.Data;
 using FlashSale.InventoryService.Inventory;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -31,9 +30,15 @@ namespace FlashSale.InventoryService.Messaging;
 /// produces. Keeping publish and consume on the same raw primitives end to
 /// end avoids that mismatch entirely.
 ///
-/// Acknowledgement here is a simple ack-after-success /
-/// nack-and-requeue-on-failure; Week 9 replaces this with the full
-/// Inbox-pattern-based idempotent acknowledgement strategy.
+/// The actual idempotency logic (Inbox check by MessageId, Lua reservation,
+/// ensure-outbox-row, Inbox insert) lives in
+/// <see cref="OrderPlacedProcessor"/> (Week 9) -- this class is only broker
+/// plumbing around it. Acked only after that processing completes, so a
+/// crash mid-processing (Step 9.3) results in RabbitMQ redelivering the
+/// message rather than losing it, and reprocessing it is safe by
+/// construction (Inbox check, Redis's own DUPLICATE handling, and the
+/// outbox's unique-OrderId index all cover different parts of the same
+/// guarantee).
 /// </summary>
 public class OrderPlacedConsumer : BackgroundService
 {
@@ -122,35 +127,21 @@ public class OrderPlacedConsumer : BackgroundService
             var orderPlaced = JsonSerializer.Deserialize<OrderPlacedEto>(body)
                 ?? throw new InvalidOperationException("OrderPlacedEto deserialized to null.");
 
+            _logger.LogInformation(
+                "Received OrderPlaced {MessageId} for order {OrderId}", orderPlaced.MessageId, orderPlaced.OrderId);
+
             using var scope = _scopeFactory.CreateScope();
             var reservationService = scope.ServiceProvider.GetRequiredService<InventoryReservationService>();
             var dbContext = scope.ServiceProvider.GetRequiredService<InventoryServiceDbContext>();
 
-            var result = await reservationService.ReserveAsync(
-                orderPlaced.ProductId, orderPlaced.OrderId.ToString());
+            var outcome = await OrderPlacedProcessor.ProcessAsync(dbContext, reservationService, orderPlaced, _logger);
 
-            _logger.LogInformation(
-                "OrderPlaced {OrderId} for product {ProductId} -> {Result}",
-                orderPlaced.OrderId, orderPlaced.ProductId, result);
-
-            // DUPLICATE only happens when a *prior* delivery already reserved
-            // this order's stock in Redis (reserve.lua's own idempotency
-            // check) -- it means "make sure the outbox row exists," not "skip,
-            // already handled." Without this, a redelivered message that hit
-            // DUPLICATE would silently never notify Order Service, leaving the
-            // order stuck in PendingStock forever even though the reservation
-            // genuinely succeeded. See Entities/OutboxEvent.cs for the fuller
-            // reasoning on why this gap exists at all (Redis + Postgres can't
-            // share one transaction the way Order Service's Outbox can).
-            var eventType = result switch
+            if (outcome == OrderPlacedProcessingOutcome.AlreadyProcessed)
             {
-                ReservationResult.Reserved => "StockReserved",
-                ReservationResult.Duplicate => "StockReserved",
-                ReservationResult.Rejected => "StockRejected",
-                _ => throw new InvalidOperationException($"Unhandled reservation result: {result}"),
-            };
-
-            await EnsureResultOutboxEventAsync(dbContext, orderPlaced, eventType);
+                _logger.LogInformation(
+                    "OrderPlaced {MessageId} for order {OrderId} already processed; acking as no-op",
+                    orderPlaced.MessageId, orderPlaced.OrderId);
+            }
 
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
         }
@@ -158,50 +149,6 @@ public class OrderPlacedConsumer : BackgroundService
         {
             _logger.LogError(ex, "Failed to process OrderPlaced message; requeueing");
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: true);
-        }
-    }
-
-    private static async Task EnsureResultOutboxEventAsync(
-        InventoryServiceDbContext dbContext, OrderPlacedEto orderPlaced, string eventType)
-    {
-        var alreadyExists = await dbContext.OutboxEvents
-            .AnyAsync(e => e.OrderId == orderPlaced.OrderId);
-        if (alreadyExists)
-        {
-            return;
-        }
-
-        var payload = eventType == "StockReserved"
-            ? JsonSerializer.Serialize(new StockReservedEto
-            {
-                OrderId = orderPlaced.OrderId,
-                ProductId = orderPlaced.ProductId,
-                MessageId = Guid.NewGuid(),
-            })
-            : JsonSerializer.Serialize(new StockRejectedEto
-            {
-                OrderId = orderPlaced.OrderId,
-                ProductId = orderPlaced.ProductId,
-                MessageId = Guid.NewGuid(),
-            });
-
-        dbContext.OutboxEvents.Add(new Entities.OutboxEvent(Guid.NewGuid(), orderPlaced.OrderId, eventType, payload));
-
-        try
-        {
-            // Plain SaveChangesAsync here, not the SaveChangesOnDbContextAsync
-            // bypass used in unit tests: this runs inside a full ABP DI scope
-            // (resolved above via the service provider), where the
-            // LazyServiceProvider-backed services AbpDbContext's own
-            // SaveChangesAsync needs are actually available.
-            await dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            // Lost a race with another delivery of the same order (the unique
-            // index on OrderId caught it) -- someone else's insert already
-            // ensured the row exists, which is exactly the outcome this
-            // method is trying to guarantee. Nothing further to do.
         }
     }
 
