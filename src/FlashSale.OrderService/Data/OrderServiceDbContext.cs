@@ -17,6 +17,8 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
 
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
 
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
+
     public OrderServiceDbContext(DbContextOptions<OrderServiceDbContext> options)
         : base(options)
     {
@@ -70,6 +72,19 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
             // The publisher polls WHERE Published = false on every tick (Week 6.2) --
             // without this index that becomes a full table scan as the table grows.
             b.HasIndex(x => x.Published);
+        });
+
+        builder.Entity<ProcessedMessage>(b =>
+        {
+            b.ToTable("processed_messages", "order_service");
+            b.HasKey(x => x.Id);
+            // The actual Inbox-pattern guarantee (Week 9, Step 9.2): a second
+            // insert attempt for the same MessageId fails at the database
+            // level, not just at the application's own AnyAsync check above
+            // it -- that check alone would still race under concurrent
+            // redelivery.
+            b.HasIndex(x => x.MessageId).IsUnique();
+            b.Property(x => x.MessageType).IsRequired();
         });
     }
 }

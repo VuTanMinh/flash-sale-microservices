@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using FlashSale.EventContracts;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Entities;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,6 +27,14 @@ namespace FlashSale.OrderService.Messaging;
 /// already does the same thing for OrderPlaced. Raw RabbitMQ.Client for the
 /// same reason as every other consumer/publisher pair in this project: the
 /// messages aren't in ABP's own event-bus envelope.
+///
+/// The actual idempotency logic (Inbox check, transition, Inbox insert, all
+/// in one transaction) lives in <see cref="StockResultProcessor"/> -- this
+/// class is only broker plumbing (ack/nack, deserialization) around it.
+/// Acked only after that transaction commits, so a crash between "processed"
+/// and "acked" (Step 9.3) results in RabbitMQ redelivering the message, not
+/// silently losing it -- and the redelivery is safe precisely because the
+/// Inbox check makes reprocessing it a no-op.
 /// </summary>
 public class StockResultConsumer : BackgroundService
 {
@@ -106,48 +113,53 @@ public class StockResultConsumer : BackgroundService
     }
 
     private Task OnStockReservedAsync(object sender, BasicDeliverEventArgs eventArgs) =>
-        HandleResultAsync(eventArgs, OrderState.Confirmed, body => JsonSerializer.Deserialize<StockReservedEto>(body)?.OrderId);
+        HandleResultAsync(eventArgs, OrderState.Confirmed, "StockReserved", body =>
+        {
+            var eto = JsonSerializer.Deserialize<StockReservedEto>(body);
+            return eto is null ? null : (eto.OrderId, eto.MessageId);
+        });
 
     private Task OnStockRejectedAsync(object sender, BasicDeliverEventArgs eventArgs) =>
-        HandleResultAsync(eventArgs, OrderState.Rejected, body => JsonSerializer.Deserialize<StockRejectedEto>(body)?.OrderId);
+        HandleResultAsync(eventArgs, OrderState.Rejected, "StockRejected", body =>
+        {
+            var eto = JsonSerializer.Deserialize<StockRejectedEto>(body);
+            return eto is null ? null : (eto.OrderId, eto.MessageId);
+        });
 
     private async Task HandleResultAsync(
-        BasicDeliverEventArgs eventArgs, OrderState targetState, Func<string, Guid?> extractOrderId)
+        BasicDeliverEventArgs eventArgs, OrderState targetState, string eventType,
+        Func<string, (Guid OrderId, Guid MessageId)?> extract)
     {
         try
         {
             var body = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
-            var orderId = extractOrderId(body)
-                ?? throw new InvalidOperationException("Result event deserialized with no OrderId.");
+            var (orderId, messageId) = extract(body)
+                ?? throw new InvalidOperationException("Result event deserialized with no OrderId/MessageId.");
+
+            _logger.LogInformation(
+                "Received {EventType} {MessageId} for order {OrderId}", eventType, messageId, orderId);
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
 
-            var order = await dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
-            if (order is null)
+            var outcome = await StockResultProcessor.ProcessAsync(dbContext, orderId, messageId, eventType, targetState);
+
+            switch (outcome)
             {
-                // The order genuinely doesn't exist -- redelivery after Week
-                // 13/14 test data was reset, most likely. Nothing to transition;
-                // ack so this doesn't loop forever on data that's gone.
-                _logger.LogWarning("Received a result for unknown order {OrderId}; acking without action", orderId);
-                await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
-                return;
+                case ResultProcessingOutcome.Applied:
+                    _logger.LogInformation("Order {OrderId} -> {State}", orderId, targetState);
+                    break;
+                case ResultProcessingOutcome.OrderNotFound:
+                    // The order genuinely doesn't exist -- redelivery after Week
+                    // 13/14 test data was reset, most likely. Nothing to transition.
+                    _logger.LogWarning("Received a result for unknown order {OrderId}; acking without action", orderId);
+                    break;
+                case ResultProcessingOutcome.AlreadyProcessed:
+                    _logger.LogInformation(
+                        "{EventType} {MessageId} for order {OrderId} already processed; acking as no-op",
+                        eventType, messageId, orderId);
+                    break;
             }
-
-            if (order.State == targetState)
-            {
-                // Redelivery of a result already applied -- idempotent no-op,
-                // not an error. A full Inbox-pattern check (Week 9) will make
-                // this exact case unambiguous by message id; for now, "already
-                // in the state this message asks for" is a safe enough proxy.
-                await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
-                return;
-            }
-
-            order.TransitionTo(targetState);
-            await dbContext.SaveChangesAsync();
-
-            _logger.LogInformation("Order {OrderId} -> {State}", orderId, targetState);
 
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
         }

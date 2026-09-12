@@ -945,6 +945,158 @@ Service's own rather than a single inline publish, and the
 implicit. Nginx remains drawn as target design, since routing through it
 isn't exercised until Week 12.
 
+\section{Reliability and Idempotency Layer (Week 9)}
+\label{sec:week9}
+
+RabbitMQ's own guarantee is at-least-once delivery -- a message can be, and
+in the Step 9.3 test below actually was, delivered more than once. Weeks
+6--8 already made every individual state write safe against that
+(Order.TransitionTo has no legal self-loop, and reserve.lua's own
+\texttt{DUPLICATE} result and the Week 8 outbox's unique-OrderId index both
+tolerate replays). Week 9 adds the piece those didn't cover: a broker-message-
+level Inbox, so a redelivered message is recognized and skipped \emph{before}
+any of that per-message logic even runs, and so the report can state
+precisely what turns RabbitMQ's at-least-once delivery into effectively-once
+\emph{side effects} -- because those are not the same guarantee, and the
+distinction is exactly what this section is required to make explicit.
+
+\subsection{Two idempotency layers, not one (Step 9.1)}
+
+It would be easy to assume Redis's \texttt{processed:\{productId\}} set
+(Week 7) already covers this. It doesn't -- it answers a different question.
+That set dedupes by \emph{order id}, at the business level: two different
+messages must not both reserve stock for the same order. The new
+\texttt{processed\_messages} table (one per schema, \texttt{order\_service}
+and \texttt{inventory\_service}, docs/erd.md) dedupes by \emph{MessageId}, at
+the broker-delivery level: the exact same physical RabbitMQ message must not
+be processed twice. A bug that somehow re-published \texttt{OrderPlaced} for
+an order with a fresh MessageId would be caught by the Redis-level check but
+sail straight through a naive MessageId-only check, and vice versa for a
+literal broker redelivery -- keeping both is not redundancy, it's covering
+two different failure shapes with one constraint each. Both tables share the
+same shape (\texttt{id uuid PK}, \texttt{message\_id uuid UK}, \texttt{message\_type},
+\texttt{processed\_at}), applied via \texttt{dotnet ef migrations add
+AddProcessedMessages} against each service, and confirmed directly:
+
+\begin{verbatim}
+order_service.processed_messages:     "MessageId" UNIQUE, btree
+inventory_service.processed_messages: "MessageId" UNIQUE, btree
+\end{verbatim}
+
+\subsection{Idempotent consumer logic (Step 9.2)}
+
+Both consumers' actual correctness logic was pulled out of the
+RabbitMQ-facing classes into two small static classes --
+\texttt{StockResultProcessor} (Order Service) and \texttt{OrderPlacedProcessor}
+(Inventory Service) -- leaving \texttt{StockResultConsumer} and
+\texttt{OrderPlacedConsumer} as pure broker plumbing (ack/nack,
+deserialization) around them. Both follow the same shape: check the Inbox by
+MessageId first; if present, ack as a no-op without touching the business
+state at all; if absent, apply the business change and insert the Inbox row,
+both tracked on the same DbContext and committed by one
+\texttt{SaveChangesAsync} call, so a crash between "state changed" and
+"MessageId recorded" is impossible by construction -- either both happened
+in that one transaction, or neither did.
+
+One deliberate departure from a naive "if already in target state, skip"
+check: \texttt{Order.TransitionTo} has no legal self-loop for
+\texttt{Confirmed}/\texttt{Rejected} (both map to an empty list in
+\texttt{Order.LegalTransitions}), so calling it again on an order already in
+the target state would incorrectly throw
+\texttt{InvalidOrderStateTransitionException} on a perfectly legitimate
+redelivery. \texttt{StockResultProcessor} branches around this explicitly --
+skipping the transition call itself while still recording the Inbox row --
+rather than letting that exception do double duty for both "genuine
+conflict" and "safe redelivery", which would make the two indistinguishable
+to the caller.
+
+On the Inventory Service side, the Postgres-level Inbox check runs
+\emph{before} the Lua script is even called -- an exact redelivery is
+recognized and skipped without a Redis round trip at all, which is a real
+efficiency gain, not just symmetry with the Order Service side for its own
+sake.
+
+\subsection{Acknowledgement strategy, proven with a real crash (Step 9.3)}
+
+Both consumers already used manual acknowledgement (\texttt{autoAck: false}), acking
+only after the local transaction above commits. Rather than assert this from
+reading the code, it was proven directly: a temporary artificial delay was
+inserted between the "message received" log line and the start of
+processing (removed again before this commit -- \texttt{git diff} on this
+commit shows no trace of it), an order was placed, and the moment Inventory
+Service logged receipt, its process was killed outright
+(\texttt{Stop-Process -Force} on the specific \texttt{FlashSale.InventoryService.exe}
+PID, not the \texttt{dotnet run} wrapper around it):
+
+\begin{verbatim}
+[INF] Received OrderPlaced 70d0502d-... for order 6da814db-...
+SUCCESS: The process with PID 3484 has been terminated.
+\end{verbatim}
+
+Confirmed directly, before restarting anything: Redis stock unchanged, zero
+outbox rows and zero Inbox rows for this order/message, order still
+\texttt{PendingStock}. The message was never acked, so it was never
+removed from the queue -- exactly what manual acknowledgement is for.
+Restarting Inventory Service triggered RabbitMQ to redeliver that same
+unacked message (confirmed by the identical MessageId reappearing in the new
+process's logs, not a new publish), and this second delivery ran to
+completion:
+
+\begin{verbatim}
+[INF] Received OrderPlaced 70d0502d-... for order 6da814db-...    (redelivery)
+[INF] OrderPlaced 6da814db-... for product flash-product-1 -> Reserved
+\end{verbatim}
+
+Final state, checked directly rather than inferred: Redis stock decremented
+by exactly one (999 $\to$ 998, not 997), exactly one outbox row
+(\texttt{Published = t}), exactly one Inbox row for that MessageId, and the
+order transitioned to \texttt{Confirmed} exactly once. RabbitMQ delivered
+the message twice; the system produced the business side effect once -- the
+precise distinction this section opened with, now demonstrated rather than
+asserted.
+
+\subsection{Duplicate-message test and re-validation (Step 9.4)}
+
+\texttt{DuplicateMessageIdempotencyTests.cs} drives
+\texttt{StockResultProcessor} directly with the same MessageId twice (the
+same SQLite-real-engine reasoning as \texttt{OutboxAtomicityTests}: a unique
+constraint is the thing under test, and EF Core's InMemory provider doesn't
+enforce those). Three cases: a redelivered message is a no-op and leaves
+exactly one Inbox row; two \emph{different} messages for an order already in
+its target state are both safely absorbed without throwing; and a genuine
+conflict (a second message claiming a different terminal state for an
+already-Rejected order) still throws
+\texttt{InvalidOrderStateTransitionException} and leaves no Inbox row behind
+for the failed attempt. \texttt{StockResultProcessor} exposes a
+save-delegate-injectable overload so these tests can substitute
+\texttt{SaveChangesOnDbContextAsync} for the real, DI-dependent
+\texttt{SaveChangesAsync} -- the same documented limitation
+\texttt{OutboxAtomicityTests} already works around, not a new one.
+Full suite: 19/19 passing (16 from Weeks 5--8, 3 new).
+
+Re-running \texttt{scripts/validate-correctness.ps1} (Step 8.3) against the
+live state left over from the Step 9.3 crash test is the actual point of
+Step 9.4's second instruction, and it is what finally makes Invariant 4 a
+real result instead of a placeholder:
+
+\begin{verbatim}
+Invariant                                        Status Detail
+1. available_inventory >= 0                      PASS   Current stock: 998
+2. successful_reservations <= initial_inventory  PASS   5 <= 1000 seeded
+3. <=1 successful reservation per order          PASS   (PK-guaranteed)
+4. duplicate delivery never double-deducts stock PASS   No duplicate message
+                                                          ids in processed_messages
+
+RESULT: All checkable invariants hold.
+\end{verbatim}
+
+Invariant 4 was reported \texttt{PENDING} in Week 8 because
+\texttt{processed\_messages} didn't exist yet; the script needed no code
+change at all to go from \texttt{PENDING} to a real \texttt{PASS} -- it was
+already written (Step 8.3) to check for the table's existence and run the
+real query once it appeared, precisely so this week wouldn't require
+touching it.
+
 \section{Failure Handling and Recovery}
 % TODO Week 10 -- bounded retry, DLQ, timeout handling, reconciliation job.
 
@@ -975,7 +1127,11 @@ isn't exercised until Week 12.
 % TODO Week 15.
 
 % ============================================================
-\backmatter
+% \backmatter is a book-class-only command (undefined in the "report" class
+% used here, docs/00-scope-lock.md's \documentclass line) -- \chapter* below
+% already gives References an unnumbered chapter, and \addcontentsline
+% already puts it in the TOC, so \backmatter had no effect it wasn't
+% already achieving and was simply a compile-breaking leftover.
 \chapter*{References}
 \addcontentsline{toc}{chapter}{References}
 % TODO -- bibliography (consider biblatex instead of manual list once sources accumulate).

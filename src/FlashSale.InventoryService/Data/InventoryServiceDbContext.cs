@@ -11,6 +11,8 @@ public class InventoryServiceDbContext : AbpDbContext<InventoryServiceDbContext>
 {
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
 
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
+
     public InventoryServiceDbContext(DbContextOptions<InventoryServiceDbContext> options)
         : base(options)
     {
@@ -33,6 +35,14 @@ public class InventoryServiceDbContext : AbpDbContext<InventoryServiceDbContext>
             b.Property(x => x.EventType).IsRequired();
             b.Property(x => x.Payload).IsRequired().HasColumnType("jsonb");
             b.HasIndex(x => x.Published);
+        });
+
+        builder.Entity<ProcessedMessage>(b =>
+        {
+            b.ToTable("processed_messages", "inventory_service");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.MessageId).IsUnique();
+            b.Property(x => x.MessageType).IsRequired();
         });
     }
 }
