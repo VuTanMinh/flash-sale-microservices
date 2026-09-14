@@ -353,6 +353,11 @@ public class OrderServiceModule : AbpModule
         // Step 8.2 -- consumes Inventory Service's results and transitions
         // order state.
         context.Services.AddHostedService<StockResultConsumer>();
+
+        // Step 10.3 -- safety net for orders stuck in PendingStock past a
+        // configurable timeout; see ReconciliationWorker's own doc comment.
+        context.Services.Configure<ReconciliationOptions>(configuration.GetSection("Reconciliation"));
+        context.Services.AddHostedService<ReconciliationWorker>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

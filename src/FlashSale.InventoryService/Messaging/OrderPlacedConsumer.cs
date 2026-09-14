@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -42,6 +44,19 @@ namespace FlashSale.InventoryService.Messaging;
 /// </summary>
 public class OrderPlacedConsumer : BackgroundService
 {
+    // Same schedule as OutboxPublisherWorker's own retry-with-backoff (Week
+    // 6) -- consumer-side processing failures (Step 10.1, e.g. a transient
+    // Redis or Postgres hiccup) get bounded retries before this message is
+    // given up on, distinct from the connection-level 5s reconnect loop in
+    // ExecuteAsync below, which handles broker outages, not handler errors.
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(4),
+    ];
+    private const int MaxAttempts = 4; // 1 initial + 3 retries, per RetryDelays above
+
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderPlacedConsumer> _logger;
@@ -81,8 +96,35 @@ public class OrderPlacedConsumer : BackgroundService
                     _options.EventBus.ExchangeName, ExchangeType.Direct, durable: true, autoDelete: false,
                     cancellationToken: stoppingToken);
 
+                // Dead-letter exchange + queue (Step 10.2): a separate direct
+                // exchange from the main one above, so a message that exhausts
+                // OnMessageReceivedAsync's retries and gets nacked without
+                // requeue lands somewhere an operator has to look, rather than
+                // being silently dropped or looping the main queue forever.
+                await _channel.ExchangeDeclareAsync(
+                    _options.EventBus.DeadLetterExchangeName, ExchangeType.Direct, durable: true, autoDelete: false,
+                    cancellationToken: stoppingToken);
+
+                await _channel.QueueDeclareAsync(
+                    _options.EventBus.OrderPlacedDeadLetterQueueName, durable: true, exclusive: false, autoDelete: false,
+                    cancellationToken: stoppingToken);
+
+                await _channel.QueueBindAsync(
+                    _options.EventBus.OrderPlacedDeadLetterQueueName, _options.EventBus.DeadLetterExchangeName,
+                    routingKey: "OrderPlaced", cancellationToken: stoppingToken);
+
+                // x-dead-letter-exchange on the MAIN queue's own arguments is
+                // what actually routes a requeue:false'd message to the DLX
+                // above -- RabbitMQ re-publishes it there with its original
+                // routing key preserved, which is why the DLQ binding above
+                // uses the same "OrderPlaced" routing key rather than a
+                // wildcard.
                 await _channel.QueueDeclareAsync(
                     _options.EventBus.OrderPlacedQueueName, durable: true, exclusive: false, autoDelete: false,
+                    arguments: new Dictionary<string, object?>
+                    {
+                        ["x-dead-letter-exchange"] = _options.EventBus.DeadLetterExchangeName,
+                    },
                     cancellationToken: stoppingToken);
 
                 await _channel.QueueBindAsync(
@@ -130,11 +172,7 @@ public class OrderPlacedConsumer : BackgroundService
             _logger.LogInformation(
                 "Received OrderPlaced {MessageId} for order {OrderId}", orderPlaced.MessageId, orderPlaced.OrderId);
 
-            using var scope = _scopeFactory.CreateScope();
-            var reservationService = scope.ServiceProvider.GetRequiredService<InventoryReservationService>();
-            var dbContext = scope.ServiceProvider.GetRequiredService<InventoryServiceDbContext>();
-
-            var outcome = await OrderPlacedProcessor.ProcessAsync(dbContext, reservationService, orderPlaced, _logger);
+            var outcome = await ProcessWithRetryAsync(orderPlaced);
 
             if (outcome == OrderPlacedProcessingOutcome.AlreadyProcessed)
             {
@@ -147,9 +185,64 @@ public class OrderPlacedConsumer : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process OrderPlaced message; requeueing");
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: true);
+            // Either the message never deserialized (retrying wouldn't help --
+            // the bytes don't change) or ProcessWithRetryAsync below already
+            // exhausted MaxAttempts and logged it. Either way, nack without
+            // requeue routes it to the DLQ (via the main queue's
+            // x-dead-letter-exchange argument, Step 10.2) instead of looping
+            // it back onto this same queue forever.
+            _logger.LogError(ex, "Failed to process OrderPlaced message; routing to DLQ");
+            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
+    }
+
+    /// <summary>
+    /// Step 10.1: bounded retry with exponential backoff for consumer-side
+    /// processing failures (a transient Redis/Postgres error inside
+    /// OrderPlacedProcessor), as distinct from delivery failures (handled by
+    /// RabbitMQ itself) or broker connection failures (ExecuteAsync's own 5s
+    /// reconnect loop above). Volo.Abp.EventBus.RabbitMQ was checked and does
+    /// not apply here at all -- this project doesn't use it (see this class's
+    /// own doc comment) -- so this is implemented directly, matching
+    /// OutboxPublisherWorker's already-established retry shape.
+    ///
+    /// Retrying the whole call (not just the Lua reservation) is safe because
+    /// OrderPlacedProcessor is itself idempotent: a retry that lands after a
+    /// prior attempt actually succeeded just sees AlreadyProcessed via the
+    /// Inbox check and returns cleanly, rather than double-processing.
+    /// </summary>
+    private async Task<OrderPlacedProcessingOutcome> ProcessWithRetryAsync(OrderPlacedEto orderPlaced)
+    {
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var reservationService = scope.ServiceProvider.GetRequiredService<InventoryReservationService>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<InventoryServiceDbContext>();
+                return await OrderPlacedProcessor.ProcessAsync(dbContext, reservationService, orderPlaced, _logger);
+            }
+            catch (Exception ex)
+            {
+                if (attempt == MaxAttempts)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to process OrderPlaced {MessageId} for order {OrderId} after {Attempts} attempts; routing to DLQ",
+                        orderPlaced.MessageId, orderPlaced.OrderId, attempt);
+                    throw;
+                }
+
+                var delay = RetryDelays[attempt - 1];
+                _logger.LogWarning(
+                    ex,
+                    "Failed to process OrderPlaced {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",
+                    orderPlaced.MessageId, orderPlaced.OrderId, attempt, MaxAttempts, delay);
+                await Task.Delay(delay);
+            }
+        }
+
+        throw new UnreachableException(); // the loop above always returns or rethrows
     }
 
     public override void Dispose()
