@@ -14,18 +14,131 @@
 % not what SHOULD be approved) before this is considered final.
 % ============================================================
 
-\documentclass[12pt,a4paper]{report}
+% Switched from plain \documentclass{report} to KOMA-Script's scrreprt (Week
+% 10 visual redesign) specifically to use the `cleanthesis` package below --
+% cleanthesis calls KOMA-only chapter-heading hooks (e.g.
+% \chapterheadstartvskip) that don't exist under plain `report`. scrreprt
+% accepts the same \chapter/\section/\subsection/\maketitle used throughout
+% this file, so none of the existing content needed to change.
+%
+% Using KOMA's own typearea margin calculation (activated below, after
+% cleanthesis loads) instead of a flat margin -- necessary, not cosmetic: an
+% earlier attempt at \usepackage{geometry}\geometry{margin=2.5cm} computed a
+% bottom margin (2.5cm) smaller than the footskip cleanthesis's two-line
+% running footer actually needs (page number + section title), which pushed
+% the entire footer below the physical page and made it invisible.
+\documentclass[a4paper,12pt]{scrreprt}
 
+% Loaded BEFORE cleanthesis: cleanthesis pulls in csquotes internally, and
+% csquotes errors ("'inputenc' package loaded too late") if inputenc isn't
+% already active by the time it loads.
 \usepackage[utf8]{inputenc}
-\usepackage[T5]{fontenc} % Vietnamese text support; swap for polyglossia+xelatex if compiling with XeLaTeX/LuaLaTeX instead
-\usepackage{geometry}
-\geometry{margin=2.5cm}
+
+% cleanthesis (CTAN, Ricardo Langner) -- a clean, distraction-free thesis/
+% report style: colored chapter/section headings, a running header+footer via
+% scrlayer-scrpage, refined caption/TOC typography (tocloft), and Charter/TeX
+% Gyre Heros fonts instead of Computer Modern. Options set here rather than
+% left at their defaults:
+%   - configurelistings=false: this document uses \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize] for
+%     log/code excerpts, not lstlisting, so cleanthesis's own listings setup
+%     would configure a package we never invoke.
+%   - configurebiblatex=false: no real bibliography yet (References is still
+%     a manual placeholder, see the backmatter below); report/bib-refs.bib
+%     is an empty placeholder file only -- cleanthesis's own bibfile-exists
+%     check (its one quirk: it isn't actually gated behind this option,
+%     unlike the rest of the biblatex setup) would otherwise error even with
+%     biblatex disabled. Flip this to true and populate the real .bib once
+%     the report has actual citations.
+%   - colortheme=bluemagenta: cleanthesis's default; picked deliberately
+%     over bluegreen for better contrast against black body text at 12pt.
+\PassOptionsToPackage{
+  hangfigurecaption=false,
+  hangsection=true,
+  hangsubsection=true,
+  sansserif=false,
+  configurelistings=false,
+  configurebiblatex=false,
+  colorize=full,
+  colortheme=bluemagenta
+}{cleanthesis}
+\usepackage{cleanthesis}
+
+% cleanthesis itself hardcodes \KOMAoption{DIV}{12} internally (not exposed
+% as one of its own package options) -- overriding it back here, AFTER the
+% package has already loaded, is the only way a wider choice actually takes
+% effect. DIV=15 widens the text column enough that this report's many
+% inline \texttt{longIdentifierNames} (C# method/class names quoted in
+% running prose) mostly fit on one line instead of overflowing the margin;
+% \usepackage[htt]{hyphenat} below covers the few that still don't.
+\KOMAoptions{DIV=15}
+
+% KOMA defaults chapter-opening pages to the "plain" pagestyle (a bare
+% centered page number), distinct from "scrheadings" (cleanthesis's own
+% styled running footer) used on every other page. cleanthesis never
+% overrides this, so a chapter-opening page rendered BOTH -- the plain
+% centered number and, immediately below it, the scrheadings running
+% footer/rule -- since scrlayer-scrpage keeps both styles' content defined
+% and simply switches which one is active per page. Forcing chapter pages
+% onto scrheadings too makes every page in the document use one consistent
+% footer style, matching the rest of this design rather than confusingly
+% doubling up in the one place two page styles were fighting.
+\renewcommand*{\chapterpagestyle}{scrheadings}
+
+% Loaded AFTER cleanthesis's own \RequirePackage[T1]{fontenc}: fontenc
+% accumulates encodings across repeated \usepackage calls, and the LAST one
+% loaded becomes the active default -- T5 has to load second so Vietnamese
+% text (the title/author below) still renders correctly under cleanthesis.
+\usepackage[T5]{fontenc}
 \usepackage{graphicx}
-\usepackage{hyperref}
 \usepackage{listings}
 \usepackage{booktabs}
 \usepackage{amsmath}
-\usepackage{caption}
+
+% fvextra's Verbatim (capital V) replaces every plain \begin{verbatim} in
+% this report -- some of its ~17 raw docker/psql/log excerpts contain single
+% lines too long to fit any reasonable column width (a long docker command,
+% a wide log line with several identifiers), and plain verbatim has no way
+% to wrap them: the line just runs off the page, silently truncated in the
+% rendered PDF with no warning in the log to catch it (found by actually
+% looking at the compiled PDF, not by trusting "0 errors"). breaklines=true
+% wraps instead of truncating; breakanywhere=true allows breaking inside a
+% single long unbroken run (e.g. a long file path) rather than only at
+% existing spaces, which plain line-wrapping would still overflow on. Plain
+% fancyvrb (fvextra's own base package, loaded transitively) does NOT
+% support either key -- confirmed by trying it first and getting "Package
+% xkeyval Error: breaklines undefined" -- fvextra specifically adds them.
+\usepackage{fvextra}
+
+% enumitem (already required by cleanthesis) -- \item[Long Label] in this
+% report's description lists (e.g. the Technology Selection chapter) was
+% overflowing the margin because a long label is set on the same line as
+% its text by default. style=nextline puts the label on its own line
+% instead, which is what actually fixes it (a wider column alone wouldn't,
+% since some labels are wrapped in \texttt{...} identifiers too).
+\setlist[description]{style=nextline}
+
+% This report inlines a LOT of long C#/identifier names in running prose via
+% \texttt{...} (e.g. publisherConfirmationTrackingEnabled) -- ordinary
+% \texttt has no hyphenation, so any single such identifier wider than the
+% column simply overflows the margin instead of breaking. hyphenat's `htt`
+% option specifically enables hyphenation for \texttt content (breaking at
+% normal camelCase-friendly points), which fixes this without rewording
+% dozens of sentences across the report or wrapping every \texttt call site
+% individually.
+\usepackage[htt]{hyphenat}
+% hyperref and caption are NOT loaded here -- cleanthesis already requires
+% and configures both (caption with its own styled small/bold/colored label
+% settings); loading either again with different options risks LaTeX's
+% "option clash" error for a package already loaded.
+
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = ctcolormain,
+  citecolor  = ctcolormain,
+  urlcolor   = ctcolormain,
+  pdftitle   = {Thiết kế và Đánh giá hiệu năng hệ thống Microservices xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale},
+  pdfauthor  = {Vũ Đình Kiệt (523V0011)},
+}
 
 % NOTE on diagrams: Mermaid blocks used throughout docs/*.md (state machine,
 % ERD, sequence diagrams) do NOT render directly in LaTeX like they do in
@@ -41,7 +154,47 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 
 \begin{document}
 
-\maketitle
+% Custom title page (Week 10 visual redesign) rather than the bare
+% \maketitle this file used before -- \supervisor and \faculty below are
+% real unknowns, not guesses: TDTU capstone reports name a specific
+% supervisor and home faculty, neither of which appears anywhere in this
+% repo's checklist, proposal excerpts, or prior report content. Left as
+% clearly marked placeholders (matching this file's own DRAFT NOTICE
+% convention above) rather than silently invented -- fill in before final
+% submission.
+\begin{titlepage}
+  \centering
+  \vspace*{1cm}
+  {\scshape\Large Ton Duc Thang University\par}
+  \vspace{0.2cm}
+  {\large [Faculty name -- fill in]\par}
+  \vspace{1.5cm}
+  \rule{\linewidth}{0.5mm}\\[0.4cm]
+  {\huge\bfseries Thiết kế và Đánh giá hiệu năng hệ thống Microservices\\[0.2cm]
+    xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale\par}
+  \vspace{0.4cm}
+  \rule{\linewidth}{0.5mm}\\[1.2cm]
+  {\large Capstone Project Report\par}
+  \vspace{2cm}
+
+  \begin{minipage}{0.45\textwidth}
+    \begin{flushleft} \large
+      \textit{Student}\\
+      Vũ Đình Kiệt (523V0011)\\
+      Class 23K50201
+    \end{flushleft}
+  \end{minipage}
+  \begin{minipage}{0.45\textwidth}
+    \begin{flushright} \large
+      \textit{Supervisor}\\
+      \mbox{[Supervisor name -- fill in]}
+    \end{flushright}
+  \end{minipage}
+
+  \vfill
+  {\large \today\par}
+\end{titlepage}
+
 \tableofcontents
 
 % ============================================================
@@ -329,8 +482,8 @@ built in Week 5; this section is re-exported and expanded once that exists.
 
 \section{Event Contract}
 
-Full contract: \texttt{docs/event-contract.md}; class definitions:
-\texttt{src/FlashSale.EventContracts/}. Three events, one per fully-specified
+Full contract: \texttt{docs/event-contract.md}; class definitions live in the
+\texttt{FlashSale.EventContracts} project. Three events, one per fully-specified
 state-machine transition (\texttt{docs/order-state-machine.md}):
 \texttt{OrderPlacedEto} ($[*] \to$ \texttt{PendingStock}),
 \texttt{StockReservedEto} (\texttt{PendingStock} $\to$ \texttt{Confirmed}),
@@ -361,7 +514,7 @@ that could silently diverge.
 See \texttt{docs/order-state-machine.md} for the full diagram and
 transition table. Two transitions
 (\texttt{Confirmed} $\to$ \texttt{Processing} $\to$
-\texttt{Completed}/\texttt{ProcessingFailed}) remain an explicitly recorded
+\texttt{Completed}/\allowbreak\texttt{ProcessingFailed}) remain an explicitly recorded
 open question pending the Week 11 Process Worker design -- inventing a
 trigger for them now, to make the diagram look more finished than the design
 actually is, would cost more credibility at defense time than leaving the
@@ -410,11 +563,11 @@ implements the textbook race condition: read current stock, check it in
 application code, then issue a separate, unconditional \texttt{UPDATE} --
 two round trips, no locking between them:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 SELECT stock FROM order_service.inventory WHERE product_id = @p;
 -- (application code checks: stock > 0 ?)
 UPDATE order_service.inventory SET stock = stock - 1 WHERE product_id = @p;
-\end{verbatim}
+\end{Verbatim}
 
 C0 is deliberately not reachable via any HTTP route -- it is invoked only via
 \texttt{dotnet run -{}- -{}-run-c0-demo}, which bypasses the whole ABP host.
@@ -428,7 +581,7 @@ reaches the read at the same instant (without this, the race did not
 reproduce on every run -- scheduling jitter alone was occasionally enough to
 serialize the two "concurrent" reads). The result:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [C0] Seeded 'c0-demo-product' with stock = 1. Firing 5 concurrent naive requests...
 [C0] Attempt 3: saw stock=1, Confirmed.
 [C0] Attempt 1: saw stock=1, Confirmed.
@@ -438,7 +591,7 @@ serialize the two "concurrent" reads). The result:
 [C0] Result: 5 of 5 concurrent requests got 'Confirmed' for a product seeded with stock = 1.
 [C0] OVER-SOLD: more than one request reserved the same single unit of stock.
 [C0] Final stock in database: -4 (started at 1).
-\end{verbatim}
+\end{Verbatim}
 
 All five requests believed they had validly reserved the single unit of
 stock; the database was left at \(-4\). This is the exact failure mode C1
@@ -456,12 +609,12 @@ replaces the two round trips with a single conditional statement, where the
 value under its own row lock, not against a value the application read
 earlier and might now be stale:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 UPDATE order_service.inventory
 SET stock = stock - 1
 WHERE product_id = @productId AND stock >= 1
 RETURNING stock;
-\end{verbatim}
+\end{Verbatim}
 
 This runs inside the same database transaction as the order-outcome log
 insert, exposed as a real synchronous endpoint, \texttt{POST /api/c1/orders}
@@ -572,9 +725,9 @@ correct from/to states. C0 and C1 (Week 3) are deliberately excluded from
 this test suite -- they are one-shot demonstrations captured as report
 evidence, not code with a future correctness guarantee to protect.
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Passed!  - Failed: 0, Passed: 14, Skipped: 0, Total: 14
-\end{verbatim}
+\end{Verbatim}
 
 \subsection{Event Publication Reliability (Week 6) -- the dual-write problem and the Transactional Outbox}
 \label{sec:outbox}
@@ -611,7 +764,7 @@ directly, the order-creation handler writes two rows to \emph{one}
 database -- the \texttt{orders} row and a row in \texttt{order\_service.outbox\_events}
 recording that an \texttt{OrderPlaced} event needs to be published -- inside
 the exact same \texttt{SaveChangesAsync} call
-(\texttt{Controllers/OrdersController.cs}). Because both rows are ordinary
+(\texttt{Controllers/}\allowbreak\texttt{OrdersController.cs}). Because both rows are ordinary
 rows in the same relational database, Postgres's own transaction guarantee
 applies to both simultaneously: either both commit, or neither does. This
 directly closes both failure orderings above --- there is no longer a window
@@ -628,14 +781,14 @@ rollback at all) is made to reject an outbox insert via a genuine primary-key
 collision, and the accompanying order insert is confirmed absent afterward
 --- the whole transaction rolled back, not just the failing half.
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
 Order_and_outbox_row_both_commit_in_one_SaveChanges_call: PASS
-\end{verbatim}
+\end{Verbatim}
 
 \paragraph{Getting the pending event to RabbitMQ.} Writing the outbox row
 only records that publication is needed -- a separate background worker
-(\texttt{Messaging/OutboxPublisherWorker.cs}) polls for unpublished rows
+(\texttt{OutboxPublisherWorker.cs}, under \texttt{Messaging/}) polls for unpublished rows
 every two seconds and publishes each one, marking a row published only once
 the broker has actually confirmed receipt, not merely once the publish call
 returned without throwing. This distinction matters: a broker that accepts a
@@ -646,8 +799,8 @@ publisherConfirmationTrackingEnabled: true)} makes \texttt{BasicPublishAsync}
 itself not return until the broker has acknowledged the message, which is
 what \texttt{OutboxEvent.MarkPublished} is called on the strength of.
 
-\texttt{Volo.Abp.EventBus.RabbitMQ}'s own options
-(\texttt{AbpRabbitMqOptions}/\texttt{AbpRabbitMqEventBusOptions}) were
+\texttt{Volo.Abp.EventBus.RabbitMQ}'s own configuration classes --
+\texttt{AbpRabbitMqOptions} and \texttt{AbpRabbitMqEventBusOptions} -- were
 checked, per this step's own instruction not to assume a configuration
 property exists without verifying it, and do not expose a documented way to
 enable publisher confirms. Publishing is done via the raw
@@ -665,13 +818,13 @@ log sequence, with the service continuing to accept new orders throughout
 (the worker's own tick failures are caught and logged, never allowed to
 crash the host):
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [WRN] Failed to publish outbox event ... (attempt 1/4); retrying in 00:00:01
 [WRN] Failed to publish outbox event ... (attempt 2/4); retrying in 00:00:02
 [WRN] Failed to publish outbox event ... (attempt 3/4); retrying in 00:00:04
 [ERR] Failed to publish outbox event ... after 4 attempts; leaving unpublished,
       will retry on the next poll
-\end{verbatim}
+\end{Verbatim}
 
 Restarting the broker let the same row publish successfully on a later poll
 without any manual intervention, confirming the retry loop is not just
@@ -723,7 +876,7 @@ key \texttt{inventory:\{productId\}} for available stock, and a set key
 reserved for that product -- the second key is what makes the duplicate
 check possible without touching Postgres at all.
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
   return 'DUPLICATE'
 end
@@ -734,7 +887,7 @@ end
 redis.call('DECR', KEYS[1])
 redis.call('SADD', KEYS[2], ARGV[1])
 return 'RESERVED'
-\end{verbatim}
+\end{Verbatim}
 
 Redis executes a Lua script as one atomic, single-threaded operation --
 this is what makes the duplicate-check, stock-check, decrement, and
@@ -743,7 +896,7 @@ The three outcomes were verified directly against \texttt{redis-cli}, before
 any C\# integration existed, isolating the script's own correctness from
 the .NET client's:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 > SET inventory:test 1
 > EVAL <script> 2 inventory:test processed:test order-1
 RESERVED
@@ -753,12 +906,12 @@ DUPLICATE
 REJECTED
 > GET inventory:test
 0
-\end{verbatim}
+\end{Verbatim}
 
 All three outcomes matched expectations exactly, and stock never went
 negative or was double-decremented. The C\# side
-(\texttt{Inventory/InventoryReservationService.cs}) is a thin wrapper that
-loads this exact script file at startup and passes \texttt{KEYS}/\texttt{ARGV}
+(\texttt{InventoryReservationService.cs}, under \texttt{Inventory/}) is a thin wrapper that
+loads this exact script file at startup and passes \texttt{KEYS}/\allowbreak\texttt{ARGV}
 through -- it does not, and must not, reimplement any of the check-then-act
 logic in C\#, since doing so would reintroduce the exact race condition the
 Lua script's atomicity exists to prevent.
@@ -788,7 +941,7 @@ transient connection failure retries the whole consumer connection with a
 simple ack-after-success strategy with the full Inbox-pattern-based
 idempotent acknowledgement.
 
-Publishing \texttt{StockReserved}/\texttt{StockRejected} back to Order
+Publishing \texttt{StockReserved}/\allowbreak\texttt{StockRejected} back to Order
 Service is Week 8's addition (Section~\ref{sec:week8}); this week's own
 verification below stops at the Lua/consumer boundary, which is sufficient
 to confirm the reservation logic itself end to end before wiring the result
@@ -802,10 +955,10 @@ key, within about two seconds end to end (RabbitMQ pushes to consumers; this
 is not a polling delay). Both outcomes were exercised through the complete
 pipeline, not just at the Lua/redis-cli level above:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [INF] OrderPlaced 7918a432-... for product flash-product-1 -> Reserved
 [INF] OrderPlaced 1dd50a8a-... for product out-of-stock-product -> Rejected
-\end{verbatim}
+\end{Verbatim}
 
 A useful side effect of building the consumer this week: three
 \texttt{OrderPlaced} messages left over from Week 6's manual verification
@@ -909,7 +1062,7 @@ re-seeded, five orders created across two products, specifically so the
 script's first real trial wasn't validating against leftover mixed test
 data):
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Invariant                                        Status    Detail
 1. available_inventory >= 0                      PASS
 2. successful_reservations <= initial_inventory  PASS
@@ -923,7 +1076,7 @@ Invariant                                        Status    Detail
                                                              yet (Week 9)
 
 RESULT: All checkable invariants hold.
-\end{verbatim}
+\end{Verbatim}
 
 Invariant 4 is reported \texttt{PENDING}, not \texttt{PASS}, because the
 table it needs (\texttt{order\_service.processed\_messages}) is Week 9's
@@ -978,10 +1131,10 @@ same shape (\texttt{id uuid PK}, \texttt{message\_id uuid UK}, \texttt{message\_
 \texttt{processed\_at}), applied via \texttt{dotnet ef migrations add
 AddProcessedMessages} against each service, and confirmed directly:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 order_service.processed_messages:     "MessageId" UNIQUE, btree
 inventory_service.processed_messages: "MessageId" UNIQUE, btree
-\end{verbatim}
+\end{Verbatim}
 
 \subsection{Idempotent consumer logic (Step 9.2)}
 
@@ -1000,7 +1153,7 @@ in that one transaction, or neither did.
 
 One deliberate departure from a naive "if already in target state, skip"
 check: \texttt{Order.TransitionTo} has no legal self-loop for
-\texttt{Confirmed}/\texttt{Rejected} (both map to an empty list in
+\texttt{Confirmed}/\allowbreak\texttt{Rejected} (both map to an empty list in
 \texttt{Order.LegalTransitions}), so calling it again on an order already in
 the target state would incorrectly throw
 \texttt{InvalidOrderStateTransitionException} on a perfectly legitimate
@@ -1028,10 +1181,10 @@ Service logged receipt, its process was killed outright
 (\texttt{Stop-Process -Force} on the specific \texttt{FlashSale.InventoryService.exe}
 PID, not the \texttt{dotnet run} wrapper around it):
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [INF] Received OrderPlaced 70d0502d-... for order 6da814db-...
 SUCCESS: The process with PID 3484 has been terminated.
-\end{verbatim}
+\end{Verbatim}
 
 Confirmed directly, before restarting anything: Redis stock unchanged, zero
 outbox rows and zero Inbox rows for this order/message, order still
@@ -1042,10 +1195,10 @@ unacked message (confirmed by the identical MessageId reappearing in the new
 process's logs, not a new publish), and this second delivery ran to
 completion:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [INF] Received OrderPlaced 70d0502d-... for order 6da814db-...    (redelivery)
 [INF] OrderPlaced 6da814db-... for product flash-product-1 -> Reserved
-\end{verbatim}
+\end{Verbatim}
 
 Final state, checked directly rather than inferred: Redis stock decremented
 by exactly one (999 $\to$ 998, not 997), exactly one outbox row
@@ -1079,7 +1232,7 @@ live state left over from the Step 9.3 crash test is the actual point of
 Step 9.4's second instruction, and it is what finally makes Invariant 4 a
 real result instead of a placeholder:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Invariant                                        Status Detail
 1. available_inventory >= 0                      PASS   Current stock: 998
 2. successful_reservations <= initial_inventory  PASS   5 <= 1000 seeded
@@ -1088,7 +1241,7 @@ Invariant                                        Status Detail
                                                           ids in processed_messages
 
 RESULT: All checkable invariants hold.
-\end{verbatim}
+\end{Verbatim}
 
 Invariant 4 was reported \texttt{PENDING} in Week 8 because
 \texttt{processed\_messages} didn't exist yet; the script needed no code
@@ -1152,22 +1305,22 @@ temporary fault injection (removed before this commit) made
 product id. An order placed against that id produced exactly the expected
 sequence, captured directly from the running service's own logs:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [WRN] ...(attempt 1/4); retrying in 00:00:01
 [WRN] ...(attempt 2/4); retrying in 00:00:02
 [WRN] ...(attempt 3/4); retrying in 00:00:04
 [ERR] ...after 4 attempts; routing to DLQ
-\end{verbatim}
+\end{Verbatim}
 
 \texttt{rabbitmqctl list\_queues} confirmed \texttt{OrderPlaced.dlq} held
 exactly one message afterward, and the RabbitMQ management API's own message
 inspection showed the dead-lettered message's \texttt{x-death} header --
 proof of the mechanism, not just its absence of errors:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 "x-death": [{"count":1,"exchange":"flashsale.order.exchange",
              "queue":"OrderPlaced","reason":"rejected", ...}]
-\end{verbatim}
+\end{Verbatim}
 
 The DLQ was purged immediately after capturing this evidence, per this
 step's own warning against letting a poison message contaminate later
@@ -1194,10 +1347,10 @@ The stuck order left behind by Step 10.2's poison-message test (its
 \texttt{PendingStock}) served as a real, unplanned test case for this
 worker rather than a synthetic one:
 
-\begin{verbatim}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [WRN] Reconciliation: order 15b2781f-... stuck in PendingStock for over
       00:00:30 (accepted ...); re-publishing OrderPlaced
-\end{verbatim}
+\end{Verbatim}
 
 This fired again on the following poll tick, since the order was still
 genuinely stuck (the fault injection was still active) -- confirmed live,
