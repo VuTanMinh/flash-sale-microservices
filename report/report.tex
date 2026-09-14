@@ -1097,8 +1097,133 @@ already written (Step 8.3) to check for the table's existence and run the
 real query once it appeared, precisely so this week wouldn't require
 touching it.
 
-\section{Failure Handling and Recovery}
-% TODO Week 10 -- bounded retry, DLQ, timeout handling, reconciliation job.
+\section{Failure Handling and Recovery (Week 10)}
+\label{sec:week10}
+
+Weeks 6--9 made every individual message idempotent. Week 10 makes the
+system tolerate the failures that happen \emph{around} that idempotency --
+a handler that throws, a message nobody can ever process, and an order that
+somehow falls through every other net. Proposal §5's own boundary is kept
+explicit throughout: this is bounded retry, a DLQ, and a safety-net job --
+not Redis Cluster failover, Postgres replication failover, or multi-region,
+none of which are in scope (docs/00-scope-lock.md).
+
+\subsection{Bounded retry with backoff (Step 10.1)}
+
+\texttt{Volo.Abp.EventBus.RabbitMQ} was checked, per this step's own
+instruction not to assume -- it doesn't apply at all, since this project
+doesn't use it (see \texttt{RabbitMqOutboxPublisher}'s Week 6 reasoning:
+publisher confirms and a non-enveloped message format neither this package
+nor its consumer counterpart accommodate). Retry is implemented directly in
+both consumers, reusing \texttt{OutboxPublisherWorker}'s own schedule
+(1s, 2s, 4s; 4 total attempts) for consistency: on a processing exception,
+log a warning and retry in-process, up to \texttt{MaxAttempts}; on the final
+failure, log an error and let the exception propagate to the broker-facing
+catch block, which nacks without requeue. Retrying the whole processing call
+(not just its riskiest sub-step) is safe because both processors are already
+idempotent (Week 9) -- a retry that lands after an earlier attempt actually
+succeeded just sees \texttt{AlreadyProcessed} and returns cleanly.
+
+One exception is deliberately \emph{not} retried:
+\texttt{InvalidOrderStateTransitionException} on the Order Service side is a
+genuine, deterministic conflict (the order's actual state disagrees with
+what a message claims) -- retrying it three times with backoff would
+reproduce the identical exception three times for no benefit, so
+\texttt{StockResultConsumer.ProcessWithRetryAsync} catches and rethrows it
+immediately, skipping the retry loop entirely.
+
+\subsection{Dead-Letter Queue (Step 10.2)}
+
+Each of the three main queues (\texttt{OrderPlaced}, \texttt{StockReserved},
+\texttt{StockRejected}) declares an \texttt{x-dead-letter-exchange} argument
+pointing at a new \texttt{flashsale.dlx} exchange, distinct from the
+ordinary \texttt{flashsale.order.exchange} every normal message flows
+through. A message nacked without requeue (retries exhausted, or a
+non-retryable conflict) is automatically re-published by RabbitMQ to that
+exchange with its original routing key preserved, landing in a matching DLQ
+(\texttt{OrderPlaced.dlq}, etc.) bound with that same routing key. Declaring
+these arguments required deleting and recreating the three pre-existing
+queues first -- RabbitMQ refuses to redeclare a queue with different
+arguments, and the queues from Weeks 6--9 had none.
+
+\paragraph{Verified with a real poison message, not a hypothetical one.} A
+temporary fault injection (removed before this commit) made
+\texttt{OrderPlacedProcessor} throw unconditionally for one specific test
+product id. An order placed against that id produced exactly the expected
+sequence, captured directly from the running service's own logs:
+
+\begin{verbatim}
+[WRN] ...(attempt 1/4); retrying in 00:00:01
+[WRN] ...(attempt 2/4); retrying in 00:00:02
+[WRN] ...(attempt 3/4); retrying in 00:00:04
+[ERR] ...after 4 attempts; routing to DLQ
+\end{verbatim}
+
+\texttt{rabbitmqctl list\_queues} confirmed \texttt{OrderPlaced.dlq} held
+exactly one message afterward, and the RabbitMQ management API's own message
+inspection showed the dead-lettered message's \texttt{x-death} header --
+proof of the mechanism, not just its absence of errors:
+
+\begin{verbatim}
+"x-death": [{"count":1,"exchange":"flashsale.order.exchange",
+             "queue":"OrderPlaced","reason":"rejected", ...}]
+\end{verbatim}
+
+The DLQ was purged immediately after capturing this evidence, per this
+step's own warning against letting a poison message contaminate later
+weeks' measurements.
+
+\subsection{Timeout handling and reconciliation (Step 10.3)}
+
+\texttt{ReconciliationWorker} (another \texttt{IHostedService}, Order
+Service) polls for orders in \texttt{PendingStock} past a configurable
+timeout and re-publishes a fresh \texttt{OrderPlaced} outbox row for each
+one found -- nothing more. It cannot do anything more: Order Service has no
+access to Inventory Service's own schema (docs/erd.md's schema-per-service
+boundary), so the only lever this service has over its own data is asking
+the pipeline to run again from the top. That re-ask is safe precisely
+because Weeks 7--9 already made every downstream step idempotent (Redis's
+order-level dedup, Inventory Service's ensure-exists outbox, this service's
+own Inbox) -- a genuine duplicate in-flight message converges to the same
+one-time effect as the original rather than double-applying.
+
+Every intervention is logged at Warning, matching this step's own explicit
+warning against a silent second path that masks real Outbox/retry/DLQ bugs.
+The stuck order left behind by Step 10.2's poison-message test (its
+\texttt{OrderPlaced} was permanently dead-lettered, so it never left
+\texttt{PendingStock}) served as a real, unplanned test case for this
+worker rather than a synthetic one:
+
+\begin{verbatim}
+[WRN] Reconciliation: order 15b2781f-... stuck in PendingStock for over
+      00:00:30 (accepted ...); re-publishing OrderPlaced
+\end{verbatim}
+
+This fired again on the following poll tick, since the order was still
+genuinely stuck (the fault injection was still active) -- confirmed live,
+this is the intended behavior, not a runaway loop: an order that recovers
+quickly leaves \texttt{PendingStock} before the next tick and simply stops
+matching the query; only a still-broken order keeps getting picked up, at a
+bounded, loudly-logged cadence. Removing the fault injection and letting the
+next re-trigger run its course resolved the order to \texttt{Rejected}
+(the test product genuinely has no Redis stock) -- demonstrated end to end,
+not asserted: detection, intervention, and eventual resolution, all visible
+in the same log stream.
+
+\subsection{What's handled and what's explicitly out of scope}
+
+Handled, and each verified live above or in an earlier week: a temporarily
+unreachable broker (Weeks 6--7's 5s reconnect loop, unrelated to this
+week's consumer-level retries), a consumer crash mid-processing (Week 9's
+kill test), duplicate message delivery (Weeks 7--9's three idempotency
+layers), and a poison message that can never succeed (this week's DLQ and
+reconciliation tests together). Out of scope, per
+\texttt{docs/00-scope-lock.md} and unchanged by this week's work: Redis
+Cluster failover, Postgres replication failover, and multi-region
+deployment -- none of which this project's single-instance
+Docker Compose infrastructure could exercise even if implemented, and none
+of which bear on the correctness-under-load question the later
+Experimental Design and Results chapters actually measure.
 
 \section{Process Worker and Observability}
 % TODO Week 11 -- Process Worker, correlation ID, structured logging, metrics.

@@ -41,5 +41,15 @@ public class RabbitMqOptions
         /// routing key, matching how OutboxPublisherWorker publishes.</summary>
         public string StockReservedQueueName { get; set; } = "StockReserved";
         public string StockRejectedQueueName { get; set; } = "StockRejected";
+
+        /// <summary>Dead-letter exchange (Week 10, Step 10.2) -- see Inventory
+        /// Service's own RabbitMqOptions for the fuller reasoning; same idea,
+        /// separate exchange per service rather than a shared one, matching
+        /// how every other messaging primitive in this project is duplicated
+        /// per service instead of shared.</summary>
+        public string DeadLetterExchangeName { get; set; } = "flashsale.dlx";
+
+        public string StockReservedDeadLetterQueueName { get; set; } = "StockReserved.dlq";
+        public string StockRejectedDeadLetterQueueName { get; set; } = "StockRejected.dlq";
     }
 }

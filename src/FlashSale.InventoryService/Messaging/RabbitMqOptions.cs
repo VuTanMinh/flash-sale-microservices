@@ -36,5 +36,16 @@ public class RabbitMqOptions
         /// same queue manually declared for verification in Week 6; this
         /// consumer now owns declaring and binding it going forward.</summary>
         public string OrderPlacedQueueName { get; set; } = "OrderPlaced";
+
+        /// <summary>Dead-letter exchange (Week 10, Step 10.2) -- where a message
+        /// lands after OrderPlacedConsumer's bounded in-process retry (Step
+        /// 10.1) is exhausted and it nacks without requeue. A separate
+        /// exchange from ExchangeName above so a poison message is routed
+        /// somewhere an operator has to look, not silently reappended to the
+        /// same exchange every ordinary message flows through.</summary>
+        public string DeadLetterExchangeName { get; set; } = "flashsale.dlx";
+
+        /// <summary>Where OrderPlaced messages land after exhausting retries.</summary>
+        public string OrderPlacedDeadLetterQueueName { get; set; } = "OrderPlaced.dlq";
     }
 }

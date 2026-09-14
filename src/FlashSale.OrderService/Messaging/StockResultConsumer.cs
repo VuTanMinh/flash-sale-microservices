@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -38,6 +40,18 @@ namespace FlashSale.OrderService.Messaging;
 /// </summary>
 public class StockResultConsumer : BackgroundService
 {
+    // Same retry-with-backoff shape as OutboxPublisherWorker (Week 6) and
+    // Inventory Service's OrderPlacedConsumer (Week 10) -- see either for the
+    // fuller reasoning. Bounds consumer-side processing failures, distinct
+    // from the connection-level 5s reconnect loop in ExecuteAsync below.
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(4),
+    ];
+    private const int MaxAttempts = 4; // 1 initial + 3 retries, per RetryDelays above
+
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<StockResultConsumer> _logger;
@@ -73,10 +87,20 @@ public class StockResultConsumer : BackgroundService
                     _options.EventBus.ExchangeName, ExchangeType.Direct, durable: true, autoDelete: false,
                     cancellationToken: stoppingToken);
 
+                // Dead-letter exchange (Step 10.2) -- see Inventory Service's
+                // OrderPlacedConsumer for the fuller reasoning; same idea here,
+                // one DLQ per main queue since StockReserved and StockRejected
+                // are independent queues with independent failure histories.
+                await _channel.ExchangeDeclareAsync(
+                    _options.EventBus.DeadLetterExchangeName, ExchangeType.Direct, durable: true, autoDelete: false,
+                    cancellationToken: stoppingToken);
+
                 await BindAndConsumeAsync(
-                    _options.EventBus.StockReservedQueueName, "StockReserved", OnStockReservedAsync, stoppingToken);
+                    _options.EventBus.StockReservedQueueName, "StockReserved",
+                    _options.EventBus.StockReservedDeadLetterQueueName, OnStockReservedAsync, stoppingToken);
                 await BindAndConsumeAsync(
-                    _options.EventBus.StockRejectedQueueName, "StockRejected", OnStockRejectedAsync, stoppingToken);
+                    _options.EventBus.StockRejectedQueueName, "StockRejected",
+                    _options.EventBus.StockRejectedDeadLetterQueueName, OnStockRejectedAsync, stoppingToken);
 
                 _logger.LogInformation(
                     "Consuming StockReserved from '{ReservedQueue}' and StockRejected from '{RejectedQueue}'",
@@ -97,10 +121,24 @@ public class StockResultConsumer : BackgroundService
     }
 
     private async Task BindAndConsumeAsync(
-        string queueName, string routingKey, AsyncEventHandler<BasicDeliverEventArgs> handler, CancellationToken stoppingToken)
+        string queueName, string routingKey, string deadLetterQueueName,
+        AsyncEventHandler<BasicDeliverEventArgs> handler, CancellationToken stoppingToken)
     {
         await _channel!.QueueDeclareAsync(
-            queueName, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
+            deadLetterQueueName, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
+        await _channel.QueueBindAsync(
+            deadLetterQueueName, _options.EventBus.DeadLetterExchangeName, routingKey, cancellationToken: stoppingToken);
+
+        // x-dead-letter-exchange here is what routes a requeue:false'd message
+        // to the DLX (and from there, via the matching routing key, to the
+        // DLQ bound above) instead of it vanishing when nacked.
+        await _channel.QueueDeclareAsync(
+            queueName, durable: true, exclusive: false, autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = _options.EventBus.DeadLetterExchangeName,
+            },
+            cancellationToken: stoppingToken);
         await _channel.QueueBindAsync(
             queueName, _options.EventBus.ExchangeName, routingKey, cancellationToken: stoppingToken);
 
@@ -139,10 +177,7 @@ public class StockResultConsumer : BackgroundService
             _logger.LogInformation(
                 "Received {EventType} {MessageId} for order {OrderId}", eventType, messageId, orderId);
 
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
-
-            var outcome = await StockResultProcessor.ProcessAsync(dbContext, orderId, messageId, eventType, targetState);
+            var outcome = await ProcessWithRetryAsync(orderId, messageId, eventType, targetState);
 
             switch (outcome)
             {
@@ -166,18 +201,76 @@ public class StockResultConsumer : BackgroundService
         catch (InvalidOrderStateTransitionException ex)
         {
             // A genuine conflict (e.g. already Rejected, now told Reserved) --
-            // not something a requeue will resolve, since the message's
-            // instruction is fundamentally incompatible with the order's
-            // actual state. Logged loudly rather than silently dropped or
-            // retried forever; Week 10's DLQ gives this an actual home.
-            _logger.LogError(ex, "Order state conflict processing a result event; dropping without requeue");
+            // not something a retry will resolve, since the order's state
+            // doesn't change between attempts on its own; ProcessWithRetryAsync
+            // deliberately skips its retry loop for this exact exception and
+            // rethrows immediately, so this is reached on the very first
+            // attempt, not after wasting 1s+2s+4s retrying something retrying
+            // can't fix. Logged loudly and routed to the DLQ (Step 10.2) for
+            // manual inspection rather than silently dropped or retried forever.
+            _logger.LogError(ex, "Order state conflict processing a result event; routing to DLQ");
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process result event; requeueing");
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: true);
+            // ProcessWithRetryAsync exhausted all MaxAttempts retries above
+            // (or deserialization itself failed, which isn't retryable
+            // either). Nack without requeue routes it to the DLQ instead of
+            // looping it back onto this same queue forever.
+            _logger.LogError(ex, "Failed to process result event after retries; routing to DLQ");
+            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
+    }
+
+    /// <summary>
+    /// Step 10.1: bounded retry with exponential backoff for consumer-side
+    /// processing failures, mirroring Inventory Service's OrderPlacedConsumer
+    /// (see its own doc comment for the fuller reasoning on why this is
+    /// implemented directly rather than via Volo.Abp.EventBus.RabbitMQ).
+    /// <see cref="InvalidOrderStateTransitionException"/> is deliberately
+    /// exempted from the retry loop -- it is a genuine, deterministic
+    /// conflict (the order's actual state disagrees with what this message
+    /// claims), not a transient failure, so retrying it three times with
+    /// backoff would just reproduce the identical exception three times for
+    /// no benefit. Every other exception gets the full retry treatment before
+    /// giving up.
+    /// </summary>
+    private async Task<ResultProcessingOutcome> ProcessWithRetryAsync(
+        Guid orderId, Guid messageId, string eventType, OrderState targetState)
+    {
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
+                return await StockResultProcessor.ProcessAsync(dbContext, orderId, messageId, eventType, targetState);
+            }
+            catch (InvalidOrderStateTransitionException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                if (attempt == MaxAttempts)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to process {EventType} {MessageId} for order {OrderId} after {Attempts} attempts; routing to DLQ",
+                        eventType, messageId, orderId, attempt);
+                    throw;
+                }
+
+                var delay = RetryDelays[attempt - 1];
+                _logger.LogWarning(
+                    ex,
+                    "Failed to process {EventType} {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",
+                    eventType, messageId, orderId, attempt, MaxAttempts, delay);
+                await Task.Delay(delay);
+            }
+        }
+
+        throw new UnreachableException(); // the loop above always returns or rethrows
     }
 
     public override void Dispose()
