@@ -51,7 +51,7 @@ public class DuplicateMessageIdempotencyTests : IDisposable
     }
 
     private static Order NewPendingOrder() =>
-        new(Guid.NewGuid(), "idem-key-" + Guid.NewGuid(), "product-1", 1);
+        new(Guid.NewGuid(), "idem-key-" + Guid.NewGuid(), "product-1", 1, "corr-" + Guid.NewGuid());
 
     [Fact]
     public async Task Redelivered_StockReserved_message_transitions_order_exactly_once()

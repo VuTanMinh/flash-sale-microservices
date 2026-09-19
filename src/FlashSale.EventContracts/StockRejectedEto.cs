@@ -22,4 +22,10 @@ public class StockRejectedEto
     public string ProductId { get; set; } = null!;
 
     public Guid MessageId { get; set; }
+
+    /// <summary>
+    /// Copied verbatim from the OrderPlaced event that caused this rejection
+    /// (Week 11, Step 11.2). See StockReservedEto for the fuller note.
+    /// </summary>
+    public string CorrelationId { get; set; } = null!;
 }

@@ -51,5 +51,10 @@ public class RabbitMqOptions
 
         public string StockReservedDeadLetterQueueName { get; set; } = "StockReserved.dlq";
         public string StockRejectedDeadLetterQueueName { get; set; } = "StockRejected.dlq";
+
+        /// <summary>Queue this service consumes the Process Worker's completion
+        /// event from (Week 11) — the input to Confirmed → Completed.</summary>
+        public string OrderProcessedQueueName { get; set; } = "OrderProcessed";
+        public string OrderProcessedDeadLetterQueueName { get; set; } = "OrderProcessed.dlq";
     }
 }

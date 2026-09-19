@@ -62,7 +62,7 @@ public class OutboxAtomicityTests : IDisposable
     [Fact]
     public async Task Order_and_outbox_row_both_commit_in_one_SaveChanges_call()
     {
-        var order = new Order(Guid.NewGuid(), "idem-key-1", "product-1", 1);
+        var order = new Order(Guid.NewGuid(), "idem-key-1", "product-1", 1, "corr-1");
         _dbContext.Orders.Add(order);
         _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
 
@@ -76,7 +76,7 @@ public class OutboxAtomicityTests : IDisposable
     public async Task Failed_outbox_insert_rolls_back_the_order_insert_too()
     {
         // Seed a pre-existing outbox row so we have a real primary key to collide with.
-        var priorOrder = new Order(Guid.NewGuid(), "idem-key-0", "product-1", 1);
+        var priorOrder = new Order(Guid.NewGuid(), "idem-key-0", "product-1", 1, "corr-0");
         var priorOutboxEvent = OutboxEvent.ForOrderPlaced(priorOrder);
         _dbContext.Orders.Add(priorOrder);
         _dbContext.OutboxEvents.Add(priorOutboxEvent);
@@ -95,7 +95,7 @@ public class OutboxAtomicityTests : IDisposable
 
         // A new order whose outbox row (by construction, simulating a bug
         // that reused an id) collides on the outbox table's primary key.
-        var newOrder = new Order(Guid.NewGuid(), "idem-key-1", "product-1", 1);
+        var newOrder = new Order(Guid.NewGuid(), "idem-key-1", "product-1", 1, "corr-1");
         var collidingOutboxEvent = new OutboxEvent(
             priorOutboxEvent.Id, // <- reuses an existing primary key on purpose
             newOrder.Id,

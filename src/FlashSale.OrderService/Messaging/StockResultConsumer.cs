@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Serilog.Context;
 
 namespace FlashSale.OrderService.Messaging;
 
@@ -154,25 +155,28 @@ public class StockResultConsumer : BackgroundService
         HandleResultAsync(eventArgs, OrderState.Confirmed, "StockReserved", body =>
         {
             var eto = JsonSerializer.Deserialize<StockReservedEto>(body);
-            return eto is null ? null : (eto.OrderId, eto.MessageId);
+            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId);
         });
 
     private Task OnStockRejectedAsync(object sender, BasicDeliverEventArgs eventArgs) =>
         HandleResultAsync(eventArgs, OrderState.Rejected, "StockRejected", body =>
         {
             var eto = JsonSerializer.Deserialize<StockRejectedEto>(body);
-            return eto is null ? null : (eto.OrderId, eto.MessageId);
+            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId);
         });
 
     private async Task HandleResultAsync(
         BasicDeliverEventArgs eventArgs, OrderState targetState, string eventType,
-        Func<string, (Guid OrderId, Guid MessageId)?> extract)
+        Func<string, (Guid OrderId, Guid MessageId, string CorrelationId)?> extract)
     {
         try
         {
             var body = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
-            var (orderId, messageId) = extract(body)
+            var (orderId, messageId, correlationId) = extract(body)
                 ?? throw new InvalidOperationException("Result event deserialized with no OrderId/MessageId.");
+
+            // Week 11, Step 11.2 -- see OrderPlacedConsumer for the fuller note.
+            using var correlationScope = LogContext.PushProperty("CorrelationId", correlationId);
 
             _logger.LogInformation(
                 "Received {EventType} {MessageId} for order {OrderId}", eventType, messageId, orderId);
@@ -182,6 +186,12 @@ public class StockResultConsumer : BackgroundService
             switch (outcome)
             {
                 case ResultProcessingOutcome.Applied:
+                    // Only Applied increments: AlreadyProcessed means some
+                    // earlier delivery already counted this order, and counting
+                    // it twice would make the metric disagree with the database
+                    // precisely under the redelivery conditions Week 13/14 is
+                    // trying to measure.
+                    OrderMetrics.OrdersByOutcome.WithLabels(targetState.ToString()).Inc();
                     _logger.LogInformation("Order {OrderId} -> {State}", orderId, targetState);
                     break;
                 case ResultProcessingOutcome.OrderNotFound:

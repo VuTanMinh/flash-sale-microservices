@@ -22,4 +22,11 @@ public class StockReservedEto
     /// event that triggered it.
     /// </summary>
     public Guid MessageId { get; set; }
+
+    /// <summary>
+    /// Copied verbatim from the OrderPlaced event that caused this
+    /// reservation (Week 11, Step 11.2) — unlike MessageId, this is NOT
+    /// regenerated per hop; that is the entire point of it.
+    /// </summary>
+    public string CorrelationId { get; set; } = null!;
 }

@@ -2,9 +2,11 @@ using System;
 using System.Threading.Tasks;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Entities;
+using FlashSale.OrderService.Messaging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.AspNetCore.Mvc;
+using Volo.Abp.Tracing;
 
 namespace FlashSale.OrderService.Controllers;
 
@@ -25,10 +27,12 @@ namespace FlashSale.OrderService.Controllers;
 public class OrdersController : AbpController
 {
     private readonly OrderServiceDbContext _dbContext;
+    private readonly ICorrelationIdProvider _correlationIdProvider;
 
-    public OrdersController(OrderServiceDbContext dbContext)
+    public OrdersController(OrderServiceDbContext dbContext, ICorrelationIdProvider correlationIdProvider)
     {
         _dbContext = dbContext;
+        _correlationIdProvider = correlationIdProvider;
     }
 
     public record CreateOrderRequest(string ProductId, int Quantity);
@@ -51,6 +55,19 @@ public class OrdersController : AbpController
         {
             return BadRequest("The Idempotency-Key header is required.");
         }
+
+        // Week 11, Step 11.2. Deliberately ABP's correlation id rather than
+        // one minted here: app.UseCorrelationId() (OrderServiceModule) already
+        // reads the caller's X-Correlation-Id header or generates one per HTTP
+        // request, and app.UseAbpSerilogEnrichers() already stamps THAT value
+        // onto every log line written during the request. Generating a second
+        // id here would mean the HTTP log lines and the order row disagreed
+        // about what this request is called -- which is precisely the failure
+        // this step exists to prevent. Taking ABP's value instead makes the
+        // id continuous from the inbound request, through the events below,
+        // to the other two services.
+        var correlationId = _correlationIdProvider.Get()
+            ?? throw new InvalidOperationException("No correlation id available from ICorrelationIdProvider.");
 
         // Client-facing idempotency (Week 5) -- distinct from the broker-message
         // idempotency the Week 9 Inbox pattern adds later. This dedupes an
@@ -77,7 +94,7 @@ public class OrdersController : AbpController
             return Ok(ToResponse(existing));
         }
 
-        var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity);
+        var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity, correlationId);
         _dbContext.Orders.Add(order);
         // Same SaveChangesAsync call as the order insert above -- this single
         // fact is the entire point of the Outbox pattern (checklist Step 6.1).
@@ -86,6 +103,12 @@ public class OrdersController : AbpController
         // the "an event needs publishing" fact could commit without the other.
         _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
         await _dbContext.SaveChangesAsync();
+
+        // Counted only after the commit, not before: an order that failed to
+        // persist was never accepted, and Week 13/14 compare this counter
+        // against JMeter's own request count to detect exactly that kind of
+        // divergence.
+        OrderMetrics.OrdersAccepted.Inc();
 
         return StatusCode(201, ToResponse(order));
     }

@@ -258,6 +258,9 @@ FlashSale.OrderService/Logs/*
 # InventoryService
 FlashSale.InventoryService/Logs/*
 
+# ProcessWorker (Week 11)
+FlashSale.ProcessWorker/Logs/*
+
 *.db
 *.db-shm
 *.db-wal

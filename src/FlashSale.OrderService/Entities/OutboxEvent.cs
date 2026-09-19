@@ -59,6 +59,10 @@ public class OutboxEvent
             ProductId = order.ProductId,
             Quantity = order.Quantity,
             MessageId = Guid.NewGuid(),
+            // Carried from the order, not regenerated -- this is the point at
+            // which the request's correlation id leaves Order Service and
+            // becomes traceable across the other two (Week 11, Step 11.2).
+            CorrelationId = order.CorrelationId,
         };
 
         return new OutboxEvent(Guid.NewGuid(), order.Id, "OrderPlaced", JsonSerializer.Serialize(eto));

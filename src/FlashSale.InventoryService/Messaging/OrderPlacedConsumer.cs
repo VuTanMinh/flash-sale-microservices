@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Serilog.Context;
 
 namespace FlashSale.InventoryService.Messaging;
 
@@ -168,6 +169,12 @@ public class OrderPlacedConsumer : BackgroundService
         {
             var orderPlaced = JsonSerializer.Deserialize<OrderPlacedEto>(body)
                 ?? throw new InvalidOperationException("OrderPlacedEto deserialized to null.");
+
+            // Week 11, Step 11.2: tags every log line produced while handling
+            // this message -- including OrderPlacedProcessor's and the Lua
+            // wrapper's, since LogContext flows across the awaits below -- with
+            // the correlation id the order started with in Order Service.
+            using var correlationScope = LogContext.PushProperty("CorrelationId", orderPlaced.CorrelationId);
 
             _logger.LogInformation(
                 "Received OrderPlaced {MessageId} for order {OrderId}", orderPlaced.MessageId, orderPlaced.OrderId);

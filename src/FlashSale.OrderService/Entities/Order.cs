@@ -30,6 +30,16 @@ public class Order
 
     public OrderState State { get; private set; }
 
+    /// <summary>
+    /// Week 11 (Step 11.2). Minted at this order's entry point, or taken from
+    /// the caller's X-Correlation-ID header, then carried unchanged onto every
+    /// event this order causes. Stored on the order itself (not only in logs)
+    /// so a row in the database can still be tied back to its request trace
+    /// after the fact -- which is what Week 13/14 need when reconciling
+    /// measured latencies against what the logs say happened.
+    /// </summary>
+    public string CorrelationId { get; private set; } = null!;
+
     /// <summary>When the order was accepted (this is also the "created" timestamp — a
     /// separate generic CreatedAt would just duplicate it).</summary>
     public DateTime RequestAcceptedAt { get; private set; }
@@ -43,32 +53,37 @@ public class Order
         // EF Core materialization only.
     }
 
-    public Order(Guid id, string idempotencyKey, string productId, int quantity)
+    public Order(Guid id, string idempotencyKey, string productId, int quantity, string correlationId)
     {
         Id = id;
         IdempotencyKey = idempotencyKey;
         ProductId = productId;
         Quantity = quantity;
+        CorrelationId = correlationId;
         State = OrderState.PendingStock;
         RequestAcceptedAt = DateTime.UtcNow;
     }
 
     /// <summary>
-    /// docs/order-state-machine.md, transcribed directly. Confirmed->Processing
-    /// and Processing->Completed/ProcessingFailed are deliberately absent: that
-    /// document records their trigger as an open question pending the Week 11
-    /// Process Worker design, so there is nothing here for this service to
-    /// legally transition into yet — adding them now would mean guessing a
-    /// mechanism instead of waiting for the actual design.
+    /// docs/order-state-machine.md, transcribed directly. Week 11 closed the
+    /// open question that kept Confirmed terminal through Weeks 5-10: the
+    /// Process Worker consumes StockReserved, waits its deterministic delay,
+    /// and publishes exactly one OrderProcessed, which drives
+    /// Confirmed -> Completed here.
+    ///
+    /// That single completion event is also why Processing and
+    /// ProcessingFailed no longer exist as states at all (see OrderState):
+    /// with one input event and one output event, this service never learns
+    /// a distinct "processing has begun" fact to transition ON, and the
+    /// scope lock rules out the failure path that ProcessingFailed existed
+    /// for. Both were retired rather than left declared-but-unreachable.
     /// </summary>
     private static readonly Dictionary<OrderState, OrderState[]> LegalTransitions = new()
     {
         [OrderState.PendingStock] = [OrderState.Confirmed, OrderState.Rejected],
-        [OrderState.Confirmed] = [],
+        [OrderState.Confirmed] = [OrderState.Completed],
         [OrderState.Rejected] = [],
-        [OrderState.Processing] = [],
         [OrderState.Completed] = [],
-        [OrderState.ProcessingFailed] = [],
     };
 
     public void TransitionTo(OrderState newState)
@@ -80,9 +95,20 @@ public class Order
 
         State = newState;
 
+        // The timestamp schema from Proposal §4d is recorded by these two
+        // assignments plus RequestAcceptedAt in the constructor; the fourth
+        // stage (event publication) is already timestamped on the order's own
+        // outbox row (outbox_events.published_at, joinable by order_id) and is
+        // deliberately NOT copied here -- doing so would add a second write to
+        // the publish path of a system whose throughput is the thing under
+        // measurement.
         if (newState is OrderState.Confirmed or OrderState.Rejected)
         {
             ConfirmedOrRejectedAt = DateTime.UtcNow;
+        }
+        else if (newState is OrderState.Completed)
+        {
+            CompletedAt = DateTime.UtcNow;
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
+using Prometheus;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.OpenApi;
 using FlashSale.OrderService.Data;
@@ -354,6 +355,10 @@ public class OrderServiceModule : AbpModule
         // order state.
         context.Services.AddHostedService<StockResultConsumer>();
 
+        // Step 11.1 -- consumes the Process Worker's completion event and
+        // closes the order out (Confirmed -> Completed).
+        context.Services.AddHostedService<OrderProcessedConsumer>();
+
         // Step 10.3 -- safety net for orders stuck in PendingStock past a
         // configurable timeout; see ReconciliationWorker's own doc comment.
         context.Services.Configure<ReconciliationOptions>(configuration.GetSection("Reconciliation"));
@@ -405,6 +410,8 @@ public class OrderServiceModule : AbpModule
 
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
-        app.UseConfiguredEndpoints();
+        // Week 11, Step 11.3 -- /metrics for Prometheus to scrape
+        // (infra/prometheus.yml lists this service as a target).
+        app.UseConfiguredEndpoints(endpoints => endpoints.MapMetrics());
     }
 }

@@ -93,6 +93,11 @@
 \usepackage{listings}
 \usepackage{booktabs}
 \usepackage{amsmath}
+% [H] for the Results chapter's tables: each one belongs to the section that
+% explains it, and LaTeX's default float placement was drifting them a page
+% away from their own headings, so a reader met the table before the text
+% telling them what it measures.
+\usepackage{float}
 
 % fvextra's Verbatim (capital V) replaces every plain \begin{verbatim} in
 % this report -- some of its ~17 raw docker/psql/log excerpts contain single
@@ -1378,8 +1383,204 @@ Docker Compose infrastructure could exercise even if implemented, and none
 of which bear on the correctness-under-load question the later
 Experimental Design and Results chapters actually measure.
 
-\section{Process Worker and Observability}
-% TODO Week 11 -- Process Worker, correlation ID, structured logging, metrics.
+\section{Process Worker and Observability (Week 11)}
+\label{sec:week11}
+
+Week 11 adds the last component of the pipeline and the instrumentation the
+experiments will read it through. It also closes the oldest open question in
+this project: the \texttt{Confirmed} $\to$ \texttt{Processing} $\to$
+\texttt{Completed} leg that \texttt{docs/order-state-machine.md} had refused
+to specify since Week 1.
+
+\subsection{The Process Worker, and what it settled about the state machine}
+
+\texttt{FlashSale.ProcessWorker} is a third service: it consumes
+\texttt{StockReserved}, waits a deterministic delay, and publishes
+\texttt{OrderProcessed}. Per Proposal §3 it simulates downstream processing
+only -- there is no payment step, no failure injection and no compensation
+logic, all three being excluded by \texttt{docs/00-scope-lock.md}. The delay
+is deterministic rather than randomised on purpose: with a fixed service
+time, any variance Week 13/14 measure in end-to-end latency comes from
+queueing and contention in the architecture, not from the simulator adding
+noise of its own.
+
+It consumes from its \emph{own} queue
+(\texttt{ProcessWorker.StockReserved}), bound to the same exchange with the
+same \texttt{StockReserved} routing key as Order Service's queue. A direct
+exchange copies the message to every bound queue, so both services react to
+the same event independently. Sharing one queue would have made them compete
+for messages, and roughly half of all orders would never have been processed
+at all.
+
+\paragraph{Resolving the Week 1 open question.} The checklist specifies one
+input event and one output event for this worker. That is what settles the
+state machine: Order Service learns exactly two facts about an order after it
+is placed -- ``stock reserved'' and ``processing finished'' -- and never a
+third, distinct ``processing has started'' fact to transition on. So
+\texttt{Processing} and \texttt{ProcessingFailed} were \emph{removed} from
+the domain rather than given invented triggers:
+
+\begin{itemize}
+  \item \texttt{Processing} would have required inventing a second event
+    purely so a state could exist -- a contract, a queue, a consumer and an
+    Inbox path added to a simulator, for a state no reader of the order would
+    act on differently. Where work is genuinely in flight is already
+    observable where it actually lives: the depth of the Process Worker's own
+    queue, which this week's Prometheus setup scrapes.
+  \item \texttt{ProcessingFailed} has no reachable trigger at all under the
+    scope lock, since the simulated result is deterministically successful.
+\end{itemize}
+
+Both were deleted from the \texttt{OrderState} enum, not merely left
+unreachable, so the code cannot drift back into claiming them. Week 1's rule
+was ``don't allow any transition you can't name the trigger for''; this
+applies the same rule one level up, to states. The conditions that would
+bring each back are recorded in \texttt{docs/order-state-machine.md} rather
+than pre-built.
+
+\paragraph{Idempotency with no database.} The Process Worker is the only
+service here with no persistent store, and deliberately so: it holds no
+business state, so there is no local write that a publish could disagree
+with, and therefore no dual-write problem and no need for an Outbox -- the
+reasoning that forced Inventory Service to add one in Week 8 simply does not
+apply. Step 11.1's requirement that it ``use \texttt{order\_id} as its own
+idempotency key'' is met by deriving the published message's
+\texttt{MessageId} from the order id (they are set equal) instead of minting
+a fresh one per hop as every other event does. A redelivered
+\texttt{StockReserved} therefore regenerates a byte-identical
+\texttt{OrderProcessed}, which Order Service's Week 9 Inbox recognises and
+drops: the idempotency key travels in the message rather than living in a
+store.
+
+\subsection{Correlation IDs across three services (Step 11.2)}
+
+Each event now carries a \texttt{CorrelationId}, copied unchanged at every
+hop. That invariance distinguishes it from the two identifiers already in the
+contract: \texttt{MessageId} is regenerated at every hop (each consumer needs
+its own Inbox key), and \texttt{OrderId} only exists once an order does,
+whereas a correlation id identifies the \emph{request}.
+
+Order Service does not mint the value. ABP's own
+\texttt{app.UseCorrelationId()} middleware was already populating
+\texttt{ICorrelationIdProvider} from the caller's \texttt{X-Correlation-Id}
+header (generating one per request when absent), and
+\texttt{app.UseAbpSerilogEnrichers()} was already stamping that value onto
+every log line written during the request. Generating a second id in the
+controller would have made the HTTP log lines and the order row disagree
+about what the request is called -- the precise failure this step exists to
+prevent -- so the controller takes ABP's value and carries it onto the order
+and every event that follows. Across the message hops, where no HTTP
+middleware exists, each consumer re-establishes it with
+\texttt{LogContext.PushProperty}, which flows through the awaits into
+everything that logs downstream of it.
+
+\paragraph{Verification.} Step 11.2 asks for one order to be traceable across
+all three services from a single id. Posting one order with
+\texttt{X-Correlation-Id: week11-trace-...} and grepping that one string
+across the three JSON logs reconstructs the entire journey in order:
+
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+OrderService     18:02:03.49  Executing endpoint 'OrdersController.CreateOrderAsync'
+InventoryService 18:02:04.14  Received OrderPlaced aaf0370d-... for order eeb2e356-...
+InventoryService 18:02:04.52  OrderPlaced eeb2e356-... for product flash-product-1 -> Reserved
+OrderService     18:02:05.23  Received StockReserved 134f2f79-... for order eeb2e356-...
+OrderService     18:02:05.38  Order eeb2e356-... -> Confirmed
+ProcessWorker    18:02:05.75  Received StockReserved for order eeb2e356-...; starting processing
+ProcessWorker    18:02:06.21  Order eeb2e356-... processed in 460ms; published OrderProcessed
+OrderService     18:02:06.12  Received OrderProcessed eeb2e356-... for order eeb2e356-...
+OrderService     18:02:06.18  Order eeb2e356-... -> Completed
+\end{Verbatim}
+
+Note the \texttt{OrderProcessed} message id in the second-to-last line: it is
+the order id, which is the idempotency design above showing through in the
+logs.
+
+\subsection{Structured logging and metrics (Step 11.3)}
+
+\paragraph{Logging.} Serilog was already configured in all services with
+\texttt{Enrich.FromLogContext()}; what changed is the file sink's format,
+from plain text to one JSON object per line
+(\texttt{CompactJsonFormatter}). Structure is what makes the correlation id
+above actually \emph{queryable} -- Week 13/14 need to filter thousands of
+lines by a field and read timestamps back as values, not regex them out of a
+rendered string. The console sink deliberately stays human-readable: it is
+watched live by a person, not parsed.
+
+\paragraph{Metrics.} Prometheus and Grafana were added to
+\texttt{infra/docker-compose.yml}, with the Grafana datasource provisioned
+from a file so a fresh \texttt{docker compose up} returns a working stack
+(the same reproducibility reasoning behind \texttt{reset-and-seed.ps1}). All
+three services expose \texttt{/metrics} via \texttt{prometheus-net}. Because
+the services run on the host rather than in Compose, Prometheus scrapes
+\texttt{host.docker.internal}; the two ABP services are scraped over HTTPS
+with \texttt{insecure\_skip\_verify}, since they run on the ASP.NET Core
+development certificate. The scrape interval is 5s rather than Prometheus's
+15s default: a load run lasting minutes would otherwise produce too few
+points to read a ramp or a recovery from.
+
+The metric set is deliberately small -- each one answers a question the
+Experimental Design chapter already commits to asking:
+
+\begin{itemize}
+  \item \texttt{flashsale\_orders\_accepted\_total} -- orders accepted by
+    \texttt{POST /api/orders}, incremented only \emph{after} the commit, so
+    Week 13/14 can compare it against JMeter's own request count and detect
+    divergence.
+  \item \texttt{flashsale\_orders\_outcome\_total\{outcome\}} -- state
+    transitions actually applied, as one labelled counter rather than three
+    separate ones, so confirm/reject/complete ratios are a single PromQL
+    expression. Incremented only on \texttt{Applied}, never on an idempotent
+    no-op, so the metric cannot disagree with the database precisely under
+    the redelivery conditions being measured.
+  \item \texttt{flashsale\_orders\_processed\_total} and
+    \texttt{flashsale\_process\_worker\_duration\_seconds} -- the Process
+    Worker's throughput and service time.
+  \item \texttt{flashsale\_process\_worker\_dead\_lettered\_total} -- messages
+    given up on, so a DLQ filling up during an experiment is visible as a
+    rate rather than discovered afterwards.
+\end{itemize}
+
+Latency percentiles are deliberately \emph{not} computed in-process. JMeter
+measures client-observed latency directly, and end-to-end pipeline latency is
+reconstructed from the per-order timestamp schema below. A Prometheus
+histogram of the same quantity would be a third, bucketed copy that disagrees
+with both at the tail -- which is exactly where this project's research
+question lives.
+
+\paragraph{Timestamp schema (Proposal §4d).} The four stages are recorded as
+\texttt{orders.request\_accepted\_at}, \texttt{outbox\_events.published\_at},
+\texttt{orders.confirmed\_or\_rejected\_at} and
+\texttt{orders.completed\_at}. Only the last of these is new in spirit --
+\texttt{completed\_at} existed as a column from Week 5 but was unreachable
+until this week gave \texttt{Completed} a trigger. Publication time is read
+from the order's own outbox row (joined by \texttt{order\_id}) rather than
+denormalised onto \texttt{orders}, because copying it would add a second
+write to the publish path of a system whose throughput is the thing under
+measurement.
+
+\paragraph{End-to-end verification, including the failure contrast.} Beyond
+the happy path above, a duplicate \texttt{StockReserved} was republished by
+hand for an order that had already completed. The two different-but-correct
+outcomes are worth recording together, because they show why both Week 9's
+and Week 10's mechanisms exist:
+
+\begin{itemize}
+  \item The Process Worker, having no store, genuinely re-processed it and
+    republished \texttt{OrderProcessed} -- whose message id was identical, so
+    Order Service's Inbox logged ``already processed; acking as no-op'' and
+    \texttt{completed\_at} was left byte-identical. Idempotency held.
+  \item That same republished \texttt{StockReserved} also reached Order
+    Service's own consumer, which correctly treated it as a genuine conflict
+    (a stock result for an order already \texttt{Completed} is not a
+    redelivery) and dead-lettered it loudly, per Week 10's design.
+\end{itemize}
+
+The two dead letters produced by this test also confirmed the
+\texttt{x-dead-letter-routing-key} rewrite added this week: the Process
+Worker's dead letter landed only in its own DLQ rather than being copied into
+Order Service's, which shares the same dead-letter exchange. Both queues were
+purged afterwards, per Week 10's own rule about not leaving poison messages
+where later measurements can find them.
 
 \section{Load Shedding}
 % TODO Week 12 -- Nginx rate limiting, application-level concurrency limiting.
@@ -1392,7 +1593,122 @@ Experimental Design and Results chapters actually measure.
 % ============================================================
 \chapter{Results}
 % ============================================================
-% TODO Week 14 -- p50/p95/p99 tables and throughput-over-time charts per configuration (build empty templates in Week 11 per Step 11.4).
+
+% Built empty in Week 11 (Step 11.4), to be filled with real numbers in
+% Week 14. The point of building them now is that Week 14 becomes "run the
+% experiments and paste the numbers in" rather than "design the chapter from
+% scratch under deadline pressure" -- and, just as importantly, deciding NOW
+% what each table must contain forces the instrumentation to exist before
+% the runs, not after. Every cell below is marked --- (not 0, not TBD): a
+% dash is unmistakably "not yet measured", whereas a zero could be misread
+% as a real result if one ever escaped into a draft.
+
+\section{Measurement Method}
+
+Each configuration below is exercised with the same JMeter plan and the same
+seeded stock (\texttt{scripts/reset-and-seed.ps1}, \texttt{scripts/warm-up.ps1}),
+and each run is followed immediately by \texttt{scripts/validate-correctness.ps1}
+(Week 8) so that every row of every table has a correctness verdict attached
+to it. A throughput number without that verdict would be meaningless here:
+the entire research question is what correctness costs, so a configuration
+that is fast \emph{and} over-sells has not "won" anything.
+
+Latency is reported from two independent sources, deliberately not merged:
+client-observed latency from JMeter (what a buyer experiences), and
+pipeline-stage latency reconstructed from the per-order timestamp schema
+(Proposal §4d, Section~\ref{sec:week11}) in Postgres. Where the two disagree,
+the disagreement is itself a result worth reporting rather than an error to
+reconcile away.
+
+\section{Client-Observed Latency by Configuration}
+
+\begin{table}[H]
+\centering
+\caption{End-to-end request latency (ms), measured by JMeter at the client.
+C0 and C1 are the Week 3 baselines; the final design is the full asynchronous
+pipeline. \emph{To be completed in Week 14.}}
+\begin{tabular}{lrrrrr}
+\toprule
+Configuration & p50 & p95 & p99 & Max & Error rate \\
+\midrule
+C0 -- naive read-then-write   & --- & --- & --- & --- & --- \\
+C1 -- Postgres atomic update  & --- & --- & --- & --- & --- \\
+Final design -- async pipeline & --- & --- & --- & --- & --- \\
+Final design + load shedding   & --- & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Pipeline-Stage Latency (Final Design)}
+
+\begin{table}[H]
+\centering
+\caption{Time spent in each stage of the asynchronous pipeline, from the
+per-order timestamp schema. Stage boundaries are the four timestamps defined
+in Section~\ref{sec:week11}. \emph{To be completed in Week 14.}}
+\begin{tabular}{lrrr}
+\toprule
+Stage & p50 & p95 & p99 \\
+\midrule
+Accept $\to$ event published (outbox latency)   & --- & --- & --- \\
+Published $\to$ stock decided (reservation)     & --- & --- & --- \\
+Stock decided $\to$ completed (process worker)  & --- & --- & --- \\
+Accept $\to$ completed (total)                  & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Throughput and Correctness by Configuration}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Sustained throughput and the correctness verdict for the same run.
+Offered and completed are requests per second; rejected is a percentage of
+offered. The final column is the result of
+\texttt{validate-correctness.ps1}, not a manual judgement. \emph{To be
+completed in Week 14.}}
+\begin{tabular}{lrrrl}
+\toprule
+Configuration & Offered & Completed & Rejected & Invariants \\
+\midrule
+C0 -- naive read-then-write    & --- & --- & --- & --- \\
+C1 -- Postgres atomic update   & --- & --- & --- & --- \\
+Final design -- async pipeline & --- & --- & --- & --- \\
+Final design + load shedding   & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Throughput Over Time}
+
+% Week 14: export from Grafana (or plot the Prometheus range query for
+% rate(flashsale_orders_outcome_total[30s])) into report/figures/ and
+% \includegraphics it here. The chart matters most around the ramp and the
+% recovery after load is removed -- a single average would hide both, which
+% is the whole reason this is a time series and not another table row.
+\emph{Chart to be inserted in Week 14: completed orders per second over the
+course of each run, with the load ramp and the post-overload recovery both
+visible. Data source: the \texttt{flashsale\_orders\_outcome\_total} counter
+scraped at 5s intervals (Section~\ref{sec:week11}).}
+
+\section{Resilience Behaviour Under Overload}
+
+\begin{table}[H]
+\centering
+\caption{What the resilience mechanisms actually did during each run. A high
+count in any column is a result, not a defect to hide -- the reconciliation
+job in particular is designed to be loud precisely so this table can be
+filled in honestly. \emph{To be completed in Week 14.}}
+\begin{tabular}{lrrr}
+\toprule
+Configuration & Retries & Dead-lettered & Reconciliation interventions \\
+\midrule
+Final design -- async pipeline & --- & --- & --- \\
+Final design + load shedding   & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % ============================================================
 \chapter{Discussion}

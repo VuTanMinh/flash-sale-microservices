@@ -1,6 +1,7 @@
 using FlashSale.InventoryService.Data;
 using Serilog;
 using Serilog.Events;
+using Serilog.Formatting.Compact;
 using Volo.Abp.Data;
 
 namespace FlashSale.InventoryService;
@@ -21,7 +22,11 @@ public class Program
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            .WriteTo.Async(c => c.File("Logs/logs.txt"))
+            // JSON file sink / plain console -- see Order Service's Program.cs
+            // for the full reasoning (Week 11, Step 11.3). Identical on all
+            // three services so one log-reading tool works across the whole
+            // trace.
+            .WriteTo.Async(c => c.File(new CompactJsonFormatter(), "Logs/logs.json"))
             .WriteTo.Async(c => c.Console());
 
         if (IsMigrateDatabase(args))

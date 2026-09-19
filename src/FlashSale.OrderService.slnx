@@ -3,4 +3,5 @@
   <Project Path="FlashSale.EventContracts/FlashSale.EventContracts.csproj" />
   <Project Path="FlashSale.InventoryService/FlashSale.InventoryService.csproj" />
   <Project Path="FlashSale.OrderService/FlashSale.OrderService.csproj" />
+  <Project Path="FlashSale.ProcessWorker/FlashSale.ProcessWorker.csproj" />
 </Solution>

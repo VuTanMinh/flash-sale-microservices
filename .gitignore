@@ -10,7 +10,11 @@ obj/
 *.rej
 **/node_modules/
 **/wwwroot/libs/
+# Serilog output. Was .txt-only until Week 11 switched the file sink to
+# structured JSON (Step 11.3) -- the new extension would otherwise have
+# slipped past this rule and committed runtime logs.
 **/Logs/*.txt
+**/Logs/*.json
 **/appsettings.secrets.json
 *.pfx
 

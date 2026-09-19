@@ -26,4 +26,15 @@ public class OrderPlacedEto
     /// header from Week 5; see docs/00-scope-lock.md's boundary notes.
     /// </summary>
     public Guid MessageId { get; set; }
+
+    /// <summary>
+    /// Week 11 (Step 11.2). Minted at the Order Service entry point (or taken
+    /// from the caller's X-Correlation-ID header) and carried unchanged
+    /// through every event this order causes, so one grep across all three
+    /// services' logs reconstructs the whole journey. Distinct from both
+    /// MessageId (per-message, changes on every hop) and OrderId (business
+    /// key): a correlation id identifies the *request*, and stays the same
+    /// even where the order id isn't yet known to a log line.
+    /// </summary>
+    public string CorrelationId { get; set; } = null!;
 }

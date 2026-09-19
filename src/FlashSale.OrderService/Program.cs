@@ -2,6 +2,7 @@ using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Experiments.C0Naive;
 using Serilog;
 using Serilog.Events;
+using Serilog.Formatting.Compact;
 using Volo.Abp.Data;
 
 namespace FlashSale.OrderService;
@@ -22,7 +23,15 @@ public class Program
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            .WriteTo.Async(c => c.File("Logs/logs.txt"))
+            // Week 11, Step 11.3: the file sink is JSON (one object per line,
+            // CompactJsonFormatter) rather than the plain text this used to
+            // write. Structured output is what makes the correlation id added
+            // in Step 11.2 actually *queryable* -- Week 13/14 need to filter
+            // thousands of lines by CorrelationId and read timestamps back as
+            // fields, not regex them out of a rendered string. The console
+            // sink deliberately stays human-readable: it is watched live by a
+            // person, not parsed.
+            .WriteTo.Async(c => c.File(new CompactJsonFormatter(), "Logs/logs.json"))
             .WriteTo.Async(c => c.Console());
 
         if (IsMigrateDatabase(args))

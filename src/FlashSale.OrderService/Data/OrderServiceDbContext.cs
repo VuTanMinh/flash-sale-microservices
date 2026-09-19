@@ -61,6 +61,11 @@ public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
             b.Property(x => x.IdempotencyKey).IsRequired();
             b.Property(x => x.ProductId).IsRequired();
             b.Property(x => x.State).HasConversion<string>().IsRequired();
+            b.Property(x => x.CorrelationId).IsRequired();
+            // Week 13/14 read back by correlation id when reconciling a log
+            // trace against the row it produced; without this that is a table
+            // scan over every order in the experiment.
+            b.HasIndex(x => x.CorrelationId);
         });
 
         builder.Entity<OutboxEvent>(b =>

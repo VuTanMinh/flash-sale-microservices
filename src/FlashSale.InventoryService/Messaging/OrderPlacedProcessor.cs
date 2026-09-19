@@ -71,18 +71,24 @@ public static class OrderPlacedProcessor
         var outboxRowExists = await dbContext.OutboxEvents.AnyAsync(e => e.OrderId == orderPlaced.OrderId);
         if (!outboxRowExists)
         {
+            // MessageId is fresh per outbound event (each service owns its own
+            // broker-level idempotency key); CorrelationId is copied through
+            // unchanged, which is exactly the distinction Week 11 Step 11.2
+            // rests on.
             var payload = eventType == "StockReserved"
                 ? JsonSerializer.Serialize(new StockReservedEto
                 {
                     OrderId = orderPlaced.OrderId,
                     ProductId = orderPlaced.ProductId,
                     MessageId = Guid.NewGuid(),
+                    CorrelationId = orderPlaced.CorrelationId,
                 })
                 : JsonSerializer.Serialize(new StockRejectedEto
                 {
                     OrderId = orderPlaced.OrderId,
                     ProductId = orderPlaced.ProductId,
                     MessageId = Guid.NewGuid(),
+                    CorrelationId = orderPlaced.CorrelationId,
                 });
 
             dbContext.OutboxEvents.Add(new OutboxEvent(Guid.NewGuid(), orderPlaced.OrderId, eventType, payload));

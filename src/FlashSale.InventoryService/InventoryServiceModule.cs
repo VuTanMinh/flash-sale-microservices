@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Cors;
 using Microsoft.OpenApi;
+using Prometheus;
 using FlashSale.InventoryService.Data;
 using FlashSale.InventoryService.Inventory;
 using FlashSale.InventoryService.Localization;
@@ -217,6 +218,8 @@ public class InventoryServiceModule : AbpModule
         });
 
         app.UseAbpSerilogEnrichers();
-        app.UseConfiguredEndpoints();
+        // Week 11, Step 11.3 -- /metrics for Prometheus to scrape
+        // (infra/prometheus.yml lists this service as a target).
+        app.UseConfiguredEndpoints(endpoints => endpoints.MapMetrics());
     }
 }
