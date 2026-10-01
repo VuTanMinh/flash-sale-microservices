@@ -61,7 +61,7 @@ public class Order
         Quantity = quantity;
         CorrelationId = correlationId;
         State = OrderState.PendingStock;
-        RequestAcceptedAt = DateTime.UtcNow;
+        RequestAcceptedAt = UtcNowMicroseconds();
     }
 
     /// <summary>
@@ -104,11 +104,24 @@ public class Order
         // measurement.
         if (newState is OrderState.Confirmed or OrderState.Rejected)
         {
-            ConfirmedOrRejectedAt = DateTime.UtcNow;
+            ConfirmedOrRejectedAt = UtcNowMicroseconds();
         }
         else if (newState is OrderState.Completed)
         {
-            CompletedAt = DateTime.UtcNow;
+            CompletedAt = UtcNowMicroseconds();
         }
+    }
+
+    /// <summary>
+    /// PostgreSQL stores timestamps at microsecond precision, while
+    /// DateTime.UtcNow has 100 ns ticks. Truncating here makes the value
+    /// returned when an order is created equal to the value read back later,
+    /// so an idempotent replay answers with the same timestamps
+    /// (docs/order-api.md, "Timestamps").
+    /// </summary>
+    private static DateTime UtcNowMicroseconds()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
     }
 }

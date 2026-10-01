@@ -6,6 +6,7 @@ using FlashSale.OrderService.Messaging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Tracing;
 
@@ -47,9 +48,10 @@ public class OrdersController : AbpController
         DateTime? ConfirmedOrRejectedAt,
         DateTime? CompletedAt);
 
-    // Documented outcomes (exported to docs/api-contract-v1.json): 201 new
-    // order, 200 replay of the same Idempotency-Key + payload, 400 missing
-    // key, 409 key reused with a different payload.
+    // Documented outcomes (exported to docs/api-contract-v1.json; behaviour
+    // specified in docs/order-api.md): 201 new order, 200 replay of the same
+    // Idempotency-Key + payload, 400 missing key or invalid body, 409 key
+    // reused with a different payload.
     [HttpPost]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
@@ -62,6 +64,21 @@ public class OrdersController : AbpController
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
             return BadRequest("The Idempotency-Key header is required.");
+        }
+
+        // docs/order-api.md: validated before any database write, so a
+        // rejected request leaves no order and no Outbox row behind.
+        if (string.IsNullOrWhiteSpace(request.ProductId))
+        {
+            return BadRequest("productId is required.");
+        }
+
+        // Single-unit flash-sale orders: reserve.lua decrements exactly one
+        // unit per order, so any other quantity would be accepted here but
+        // reserved as one downstream.
+        if (request.Quantity != 1)
+        {
+            return BadRequest("quantity must be 1.");
         }
 
         // Week 11, Step 11.2. Deliberately ABP's correlation id rather than
@@ -110,7 +127,30 @@ public class OrdersController : AbpController
         // dual-write problem Outbox exists to eliminate: either the order or
         // the "an event needs publishing" fact could commit without the other.
         _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_orders_IdempotencyKey"
+        })
+        {
+            // Lost a race: a concurrent request with the same key committed
+            // between our lookup and our insert. Its order is the one the key
+            // belongs to, so answer exactly as a replay (or a conflict) would,
+            // instead of a 500. Only this specific unique violation is treated
+            // this way; any other database error still propagates.
+            _dbContext.ChangeTracker.Clear();
+            var winner = await _dbContext.Orders.AsNoTracking()
+                .FirstAsync(o => o.IdempotencyKey == idempotencyKey);
+            if (winner.ProductId != request.ProductId || winner.Quantity != request.Quantity)
+            {
+                return Conflict("This Idempotency-Key was already used with a different request.");
+            }
+
+            return Ok(ToResponse(winner));
+        }
 
         // Counted only after the commit, not before: an order that failed to
         // persist was never accepted, and Week 13/14 compare this counter
@@ -140,12 +180,17 @@ public class OrdersController : AbpController
         return Ok(ToResponse(order));
     }
 
+    // Timestamps are stored as UTC in a "timestamp without time zone" column
+    // and come back with Kind = Unspecified; marking them UTC keeps the "Z"
+    // suffix, so a replayed order serialises exactly like the original.
     private static OrderResponse ToResponse(Order order) => new(
         order.Id,
         order.ProductId,
         order.Quantity,
         order.State.ToString(),
-        order.RequestAcceptedAt,
-        order.ConfirmedOrRejectedAt,
-        order.CompletedAt);
+        AsUtc(order.RequestAcceptedAt),
+        order.ConfirmedOrRejectedAt is { } decidedAt ? AsUtc(decidedAt) : null,
+        order.CompletedAt is { } completedAt ? AsUtc(completedAt) : null);
+
+    private static DateTime AsUtc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);
 }
