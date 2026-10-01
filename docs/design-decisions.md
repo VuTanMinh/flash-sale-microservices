@@ -19,7 +19,7 @@ RabbitMQ gives no ordering guarantee across queues, and redelivery can reorder m
 | Situation | Defined behaviour |
 |---|---|
 | Duplicate of an applied message (same `MessageId`) | Inbox hit, so ack as a no-op (`ResultProcessingOutcome.AlreadyProcessed`). |
-| Result event for an order already in that state (different `MessageId`) | Ack as a no-op and record the Inbox row (`StockResultProcessor`: `order.State == targetState`). |
+| Result event for an order already in that state, or already past it on `PendingStock → Confirmed → Completed` (different `MessageId`, e.g. `StockReserved` after `Completed`) | Ack as a no-op and record the Inbox row (`StockResultProcessor`: `IsAtOrPast`). Before 2026-10-01 a stale event like this was dead-lettered; fixed in Week 5. |
 | Result that conflicts with the current state (e.g. `StockRejected` after `Confirmed`) | Deterministic conflict: no retry, nack to the service's DLQ (`InvalidOrderStateTransitionException`). |
 | Downstream event arriving **before** its prerequisite (e.g. `OrderProcessed` while the order is still `PendingStock`) | **Defined:** temporary, so nack with bounded retry (requeue), never dropped. Under the six-state model, an early `OrderProcessed` while `Confirmed` applies `Confirmed → Processing → Completed` with an implied history row (`docs/order-state-machine.md`). |
 | Stale event for an earlier state (e.g. `OrderProcessingStarted` after `Completed`, Week 11) | Ack as a no-op. |

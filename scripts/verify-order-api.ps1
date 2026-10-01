@@ -108,6 +108,25 @@ foreach ($round in 1..3) {
     Check "TP-A05 round $round`: every response names the same order; one order and one Outbox row" ($ids.Count -eq 1 -and (Rows $ck) -eq 1 -and (OutboxRows $ck) -eq 1) "ids $($ids.Count), rows $(Rows $ck), outbox $(OutboxRows $ck)"
 }
 
+# TP-A07 one order per Idempotency-Key under mixed concurrent load
+$keys = @(1..50 | ForEach-Object { "mixed-" + [guid]::NewGuid() })
+$mixed = @(foreach ($mk in $keys) { foreach ($n in 1..4) { [pscustomobject]@{ Key = $mk; Task = $client.SendAsync((New-Post $mk $ok)) } } })
+try { [System.Threading.Tasks.Task]::WaitAll(@($mixed | ForEach-Object { $_.Task })) } catch { }
+$bad = @($mixed | Where-Object { $_.Task.IsFaulted -or ([int]$_.Task.Result.StatusCode -notin 200, 201) })
+Check "TP-A07 200 concurrent requests over 50 keys: every response is 201 or 200" ($bad.Count -eq 0) "$($bad.Count) other responses"
+$perKey = $mixed | Group-Object Key | ForEach-Object {
+    $ids = @($_.Group | Where-Object { -not $_.Task.IsFaulted } | ForEach-Object { ($_.Task.Result.Content.ReadAsStringAsync().Result | ConvertFrom-Json).id } | Select-Object -Unique)
+    $created = @($_.Group | Where-Object { -not $_.Task.IsFaulted -and [int]$_.Task.Result.StatusCode -eq 201 }).Count
+    [pscustomobject]@{ Ids = $ids.Count; Created = $created }
+}
+Check "TP-A07 each key: exactly one 201 and one order id across its 4 responses" (@($perKey | Where-Object { $_.Ids -ne 1 -or $_.Created -ne 1 }).Count -eq 0)
+$inList = ($keys | ForEach-Object { "'$_'" }) -join ","
+$orderCount = [int](Sql "SELECT count(*) FROM order_service.orders WHERE `"IdempotencyKey`" IN ($inList);")
+$outboxCount = [int](Sql "SELECT count(*) FROM order_service.outbox_events e JOIN order_service.orders o ON o.`"Id`" = e.`"OrderId`" WHERE o.`"IdempotencyKey`" IN ($inList);")
+Check "TP-A07 database: exactly 50 orders and 50 OrderPlaced Outbox rows for the 50 keys" ($orderCount -eq 50 -and $outboxCount -eq 50) "orders $orderCount, outbox $outboxCount"
+$dupKeys = [int](Sql "SELECT count(*) FROM (SELECT `"IdempotencyKey`" FROM order_service.orders GROUP BY 1 HAVING count(*) > 1) d;")
+Check "TP-A07 no Idempotency-Key has more than one order in the whole table" ($dupKeys -eq 0)
+
 Write-Host ""
 if ($failures -gt 0) { Write-Host "$failures check(s) failed." -ForegroundColor Red; exit 1 }
 Write-Host "Order API behaves as specified in docs/order-api.md." -ForegroundColor Green

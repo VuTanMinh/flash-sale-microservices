@@ -29,6 +29,24 @@ A rejected request creates **no** order row and **no** Outbox row. A product id 
 | `GET /api/orders/{id}` for an existing order | 200 with current `state` and the stage timestamps |
 | Unknown id | 404 |
 
+## One order per key
+
+Guaranteed by the unique index `IX_orders_IdempotencyKey` plus the race handling above. Checked under mixed load: 50 keys × 4 concurrent requests must produce exactly 50 orders and 50 Outbox rows, one `201` per key, and the same order id in all four responses for a key (TP-A07).
+
+## State behaviour (current four-state code)
+
+Legal transitions (`Order.LegalTransitions`): `PendingStock → Confirmed`, `PendingStock → Rejected`, `Confirmed → Completed`. Every other pair throws `InvalidOrderStateTransitionException` and changes nothing. Result events are applied by `StockResultProcessor`:
+
+| Event arrives when the order is… | Outcome |
+|---|---|
+| in the event's target state (duplicate, any `MessageId`) | Ack, no transition; the Inbox row is recorded |
+| already past the target on `PendingStock → Confirmed → Completed` (stale, e.g. `StockReserved` after `Completed`) | Ack, no transition; the Inbox row is recorded |
+| in a conflicting state (e.g. `StockRejected` after `Confirmed`, anything after `Rejected` except `StockRejected`) | `InvalidOrderStateTransitionException`, nothing recorded, so the consumer dead-letters it |
+| unknown order id | Ack as `OrderNotFound`, nothing recorded |
+| `OrderProcessed` while still `PendingStock` (early) | **Known gap:** dead-lettered today; defined behaviour is retry (`docs/design-decisions.md` §2, Week 9) |
+
+Verified by `OrderStateBehaviourTests` (full 4×4 transition matrix and the event cases above; TP-A06).
+
 ## Timestamps
 
 All timestamps are UTC and serialised with a `Z` suffix. They are stored at microsecond precision, so a value read back from PostgreSQL equals the value returned when the order was created.

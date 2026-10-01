@@ -42,6 +42,7 @@
 | TP-A04 | Changed-payload conflict | W05 | Same key, different body | 409; original order unchanged | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
 | TP-A05 | Concurrent retries of one key | W05 | 20 concurrent posts, same key + body | Exactly one order row and one Outbox row; every response carries that order id | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
 | TP-A06 | Legal/duplicate/invalid state transitions | W05 | Transition matrix on `Order.TransitionTo` | Legal succeed; illegal throw; duplicate result is a no-op | `dotnet test` (extend `OrderStateMachineTests`) | NOT RUN | — |
+| TP-A07 | One order per Idempotency-Key under mixed concurrent load | W05 | 50 keys × 4 concurrent identical requests | Every response 201/200; one 201 and one order id per key; exactly 50 orders and 50 Outbox rows; no duplicate key in the table | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
 
 ## Outbox and publication (Week 6)
 

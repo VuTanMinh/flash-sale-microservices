@@ -27,7 +27,7 @@ $citations = @(
     @("Inventory Inbox unique MessageId", "src\FlashSale.InventoryService\Data\InventoryServiceDbContext.cs", 'HasIndex\(x => x\.MessageId\)\.IsUnique\(\)'),
     @("Inventory Outbox unique OrderId", "src\FlashSale.InventoryService\Data\InventoryServiceDbContext.cs", 'HasIndex\(x => x\.OrderId\)\.IsUnique\(\)'),
     @("StockResultProcessor.ProcessAsync", "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs", 'ProcessAsync\('),
-    @("StockResultProcessor same-state no-op", "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs", 'order\.State == targetState'),
+    @("StockResultProcessor same-or-past-state no-op", "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs", 'IsAtOrPast\(order\.State, targetState\)'),
     @("AlreadyProcessed outcome", "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs", 'ResultProcessingOutcome\.AlreadyProcessed'),
     @("OrderPlacedProcessor Inbox check first", "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs", 'ProcessedMessages\.AnyAsync'),
     @("OrderPlacedProcessor DUPLICATE treated as StockReserved", "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs", 'ReservationResult\.Duplicate => "StockReserved"'),

@@ -70,8 +70,12 @@ public static class StockResultProcessor
             return ResultProcessingOutcome.OrderNotFound;
         }
 
-        if (order.State == targetState)
+        if (IsAtOrPast(order.State, targetState))
         {
+            // Same state (a duplicate with a new MessageId) or a stale event
+            // for a state the order has already moved past on the happy path
+            // (e.g. StockReserved arriving after Completed): acknowledge as a
+            // no-op, per docs/order-state-machine.md "Delivery rules".
             // Order.TransitionTo has no legal self-loop for Confirmed/Rejected
             // (Order.cs's LegalTransitions table) -- calling it here would
             // throw InvalidOrderStateTransitionException on a legitimate
@@ -112,5 +116,23 @@ public static class StockResultProcessor
         }
 
         return ResultProcessingOutcome.Applied;
+    }
+
+    // Happy-path progression for the "same or earlier state" rule. Rejected
+    // is off the path: it only matches itself, so StockRejected after
+    // Confirmed (or StockReserved after Rejected) stays a genuine conflict.
+    private static readonly OrderState[] Progression =
+        [OrderState.PendingStock, OrderState.Confirmed, OrderState.Completed];
+
+    private static bool IsAtOrPast(OrderState current, OrderState target)
+    {
+        if (current == target)
+        {
+            return true;
+        }
+
+        var currentRank = Array.IndexOf(Progression, current);
+        var targetRank = Array.IndexOf(Progression, target);
+        return currentRank >= 0 && targetRank >= 0 && currentRank > targetRank;
     }
 }
