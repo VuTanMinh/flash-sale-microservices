@@ -296,35 +296,87 @@ The results have the following limits:
 \chapter{System Requirements}
 % ============================================================
 
+Requirements below follow the teacher brief (\texttt{docs/teacher-brief.md},
+§4) item by item. They state what the system must do; whether each is
+implemented and verified is reported in the chapter for the week that builds
+it, not assumed here.
+
 \section{Functional Requirements}
-\begin{itemize}
-  \item Accept an order request for a single product/quantity and return
-    immediately with a pending state, without blocking on inventory confirmation.
-  \item Allow a client to query the current order state and the recorded
-    acceptance, reservation-result, and completion timestamps.
-  \item Reserve inventory such that concurrent requests for the same product can
-    never together reserve more than the available stock.
-  \item Detect and reject duplicate order submissions (client-level) and duplicate
-    message deliveries (broker-level) without double-processing either.
-  \item Retry transient message failures with a bound, dead-letter poison messages,
-    and surface orders that remain pending through reconciliation.
-  \item Reject excess load deliberately when configured limits are reached. These
-    controls are evaluated in C3; they are not assumed to exist in earlier versions.
-\end{itemize}
+\begin{enumerate}
+  \item \textbf{FR-1 Order intake.} Accept and persist an order for one product
+    and return its order ID as soon as the request is accepted, in state
+    \texttt{PendingStock}, without waiting for inventory.
+  \item \textbf{FR-2 Status polling.} Let the client poll an order's current
+    state until it reaches a terminal state or times out.
+  \item \textbf{FR-3 Atomic reservation.} Check and reserve inventory atomically
+    (Redis Lua in C2--C4; conditional atomic update in PostgreSQL for C1), so
+    concurrent requests can never reserve more than the available stock.
+  \item \textbf{FR-4 Status from reservation result.} Move the order to
+    \texttt{Confirmed} or \texttt{Rejected} from the \texttt{StockReserved} or
+    \texttt{StockRejected} event.
+  \item \textbf{FR-5 Downstream processing.} A Process Worker consumes
+    \texttt{StockReserved}, simulates downstream work with a deterministic
+    delay and a successful result, and uses the order ID as its idempotency key.
+  \item \textbf{FR-6 Messaging.} Publish and consume events through RabbitMQ,
+    with publisher confirms.
+  \item \textbf{FR-7 Transactional Outbox.} Every producer writes its business
+    change and its outgoing event in one local transaction; a publisher retries
+    until the broker confirms.
+  \item \textbf{FR-8 Inbox.} Every consumer records each message ID under a
+    unique constraint, in the same transaction as its business change, so a
+    redelivered message has no second effect.
+  \item \textbf{FR-9 Retry and DLQ.} Retry transient failures a bounded number
+    of times; move poison or exhausted messages to a dead-letter queue.
+  \item \textbf{FR-10 Reconciliation.} A periodic job finds orders stuck in a
+    non-terminal state too long. It is a safety net, not a replacement for the
+    Outbox, retry or DLQ.
+  \item \textbf{FR-11 Warm-up gate.} Load inventory into Redis before the sale
+    and open the sale only after warm-up is complete and confirmed.
+  \item \textbf{FR-12 Stage timestamps and history.} Record the state and a
+    timestamp at each processing stage, including a state-transition history.
+  \item \textbf{FR-13 Client and message deduplication.} Reject duplicate
+    client submissions (Idempotency-Key) and ignore duplicate or invalid
+    events without repeating a state transition.
+  \item \textbf{FR-14 Load shedding.} When configured limits are reached
+    (Nginx rate limit, application concurrency limit, bounded RabbitMQ queue),
+    reject new work early with a suitable status code, before an order is
+    created. Never return ``accepted'' for work the system cannot guarantee to
+    continue. Evaluated in C3.
+\end{enumerate}
 
 \section{Non-Functional Requirements}
 \begin{itemize}
-  \item \textbf{Inventory correctness}: check the four stock and duplicate-delivery
-    invariants in \texttt{docs/inventory-invariants.md}; report any failed or
-    inconclusive run rather than aggregating it as a pass.
-  \item \textbf{Order liveness}: reconcile accepted requests with terminal orders
-    and explicitly surfaced pending, retry, or dead-letter cases.
-  \item \textbf{Observability}: record correlation, order, and message identifiers
-    and the timestamps needed to separate API acceptance from business completion.
-  \item \textbf{Replication scope}: compare 1, 2, and 4 Inventory Service replicas
-    on the same EC2 host; do not claim multi-node scalability from these runs.
-  \item \textbf{Reproducibility}: reset and seed before each run, record the exact
-    workload and infrastructure, and validate each run independently.
+  \item \textbf{Consistency.} In every tested workload and failure scenario:
+    inventory never goes negative; successful reservations never exceed the
+    initial inventory; an order is reserved at most once; a duplicate message
+    causes no duplicate side effect. Checked after each run by the four
+    invariants in \texttt{docs/inventory-invariants.md}; a failed or
+    inconclusive run is reported, never counted as a pass.
+  \item \textbf{Performance.} Evaluate at several load levels. Every experiment
+    records the EC2 configuration, virtual users and request rate, test
+    duration, number of products, initial inventory, number of consumer
+    replicas, payload size, and the PostgreSQL, Redis and RabbitMQ
+    configuration. The initial target is about 2,000 reservation attempts per
+    second on the chosen hardware; this is an experimental target, not a
+    hardware-independent guarantee. API throughput and business-completion
+    throughput are reported separately.
+  \item \textbf{Resilience.} Under overload, reject part of the load in a
+    controlled way instead of accepting without limit. After load drops, the
+    backlog must drain and the system must return to a stable state without a
+    full restart.
+  \item \textbf{Observability.} Every order can be traced by correlation ID,
+    order ID, message ID, current status and state-transition history, plus
+    four timestamps: request acceptance, event publication, stock processing
+    and completion.
+  \item \textbf{Liveness.} Every accepted order reaches a terminal state or is
+    surfaced by reconciliation; order counts by state must reconcile with the
+    number of accepted requests.
+  \item \textbf{Replication scope.} Compare 1, 2 and 4 Inventory consumer
+    replicas on the same EC2 host; do not claim multi-node scalability from
+    these runs.
+  \item \textbf{Reproducibility.} Reset, seed and warm up before each run;
+    repeat each configuration 3--5 times; report percentiles, median and
+    run-to-run variation, not only averages.
 \end{itemize}
 
 % ============================================================
@@ -332,30 +384,44 @@ The results have the following limits:
 % ============================================================
 
 \begin{description}
-  \item[PostgreSQL 16] Chosen for the durable, transactional side of the system
-    (orders, outbox, inbox) specifically because the Transactional Outbox pattern
-    (Week 6) requires the business write and the event write to commit atomically
-    in one transaction — a relational engine with real ACID transactions is a
-    prerequisite for that pattern, not just a convenient default.
-  \item[Redis] Stores available inventory and the reservation-level duplicate
-    set. The check, decrement, and set update run together in
-    \texttt{scripts/redis/reserve.lua}; the local Redis Stack image also includes
-    RedisInsight for inspection, but the reservation logic does not depend on it.
-  \item[RabbitMQ vs. Kafka] RabbitMQ was chosen over Kafka for this workload
-    shape: the implementation uses routed queues, publisher confirms, bounded
-    retry, and dead-lettering. Historical log replay is not part of the current
-    research scope.
-  \item[ABP Framework (\texttt{app-nolayers})] Chosen for built-in event bus
-    abstractions (\texttt{Volo.Abp.EventBus.RabbitMQ}) and EF Core integration
-    that reduce boilerplate around the parts of the system that aren't the actual
-    research question (reservation correctness, resilience, load shedding). The
-    \texttt{app-nolayers} template specifically — not the default layered
-    template — to keep each service's codebase proportional to its actual
-    complexity for a project this scoped.
-  \item[Nginx] Chosen as the load-shedding entry point (Week 12) for its mature,
-    well-documented \texttt{limit\_req} rate-limiting module, which is sufficient
-    for this project's single-node local/EC2 deployment without needing a full
-    API gateway.
+  \item[ABP Framework 10.6 on .NET 10] Required by the brief. Used for module
+    wiring, EF Core integration and hosting, from the \texttt{app-nolayers}
+    template to keep each service's codebase proportional to its size. ABP's
+    own RabbitMQ event bus (\texttt{Volo.Abp.EventBus.RabbitMQ}) is
+    \emph{not} used: messaging goes through \texttt{RabbitMQ.Client} 7.1.2
+    directly, because the design needs per-message publisher confirms and plain
+    (non-enveloped) JSON messages per event, which the implementation chapters
+    explain.
+  \item[PostgreSQL 16] The durable, transactional side (orders, Outbox,
+    Inbox). The Transactional Outbox needs the business write and the event
+    write to commit in one ACID transaction, so a relational engine is a
+    prerequisite. One instance with a schema and a database account per
+    service (schema-per-service, not physical isolation). It also hosts the C1
+    baseline's conditional atomic update.
+  \item[Redis Stack with Lua] Holds available inventory and the
+    reservation-level duplicate set. \texttt{scripts/redis/reserve.lua} checks
+    idempotency, checks stock, decrements and records the result atomically,
+    in one script call. Accessed through \texttt{StackExchange.Redis}.
+    RedisInsight (bundled with Redis Stack) is for inspection only.
+  \item[RabbitMQ vs.\ Kafka] RabbitMQ fits this workload: routed queues per
+    consumer, publisher confirms, bounded retry, dead-lettering and bounded
+    queues with an overflow policy for load shedding. Historical log replay,
+    Kafka's main advantage, is not part of the research scope.
+  \item[Nginx] Entry point and first load-shedding layer (\texttt{limit\_req}
+    rate limiting). Sufficient for a single-host deployment without a full API
+    gateway.
+  \item[Serilog, prometheus-net, Prometheus, Grafana] Structured JSON logs
+    carrying correlation, order and message IDs (Serilog), service metrics
+    exported by \texttt{prometheus-net}, scraped by Prometheus and viewed in
+    Grafana.
+  \item[Docker Compose] Runs PostgreSQL, Redis, RabbitMQ, Nginx and the
+    monitoring stack identically on a developer machine and the EC2 host.
+  \item[Terraform and AWS EC2] The brief requires the system under test on one
+    EC2 instance. Terraform makes that host reproducible; it is planned for the
+    Week 12 deployment and not yet in the repository.
+  \item[Apache JMeter] Simulates concurrent clients through the order and
+    status APIs. It runs on a separate machine so it does not compete with the
+    system under test.
 \end{description}
 
 % ============================================================
