@@ -20,6 +20,8 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+# -Product is interpolated into SQL below; allow only product-id characters.
+if ($Product -notmatch "^[A-Za-z0-9_-]+$") { Write-Host "Invalid -Product" -ForegroundColor Red; exit 2 }
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $composeFile = Join-Path $repoRoot "infra\docker-compose.yml"
 $resultsDir = Join-Path $repoRoot "tests\jmeter\results"
