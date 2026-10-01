@@ -1,0 +1,11 @@
+﻿{
+    "commit":  "9a539dc",
+    "dirtyTree":  false,
+    "scenario":  "C0 race",
+    "initialStock":  1,
+    "attempts":  5,
+    "confirmed":  5,
+    "finalStock":  -4,
+    "baselineRows":  "Confirmed=5",
+    "verdict":  "RACE CAPTURED"
+}
