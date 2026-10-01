@@ -41,7 +41,7 @@ Triggers `[*] → PendingStock`.
 | `OrderId` | `Guid` | Business identifier — the order this event is about. |
 | `ProductId` | `string` | Which product's stock to reserve against. |
 | `Quantity` | `int` | Always `1` under current scope (single-unit orders); the field exists as `int` rather than hardcoded to keep the contract honest about what it represents, not because multi-quantity orders are planned. |
-| `MessageId` | `Guid` | Broker-message-level idempotency key (Week 9 Inbox pattern). Generated once, at publish time (inside the same Outbox transaction as the order insert, Week 6). **Not** the same as the client-supplied `Idempotency-Key` header from Week 5 — see the boundary note below. |
+| `MessageId` | `Guid` | Broker-message-level idempotency key (Week 9 Inbox pattern). Generated once, when the Outbox row is written (inside the same transaction as the order insert, Week 6), and stored in the payload, so every publish retry sends the same value. **Not** the same as the client-supplied `Idempotency-Key` header from Week 5 — see the boundary note below. |
 | `CorrelationId` | `string` | Copied unchanged from the inbound request (see below). |
 
 ## `StockReservedEto`

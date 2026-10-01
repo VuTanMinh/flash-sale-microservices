@@ -12,7 +12,7 @@ erDiagram
         timestamp CompletedAt "nullable"
     }
     outbox_events {
-        uuid Id PK "becomes the event MessageId"
+        uuid Id PK "row id; the event MessageId is a separate value inside Payload"
         uuid OrderId "logical ref to orders.Id, no FK, not unique"
         text EventType "e.g. OrderPlaced"
         jsonb Payload

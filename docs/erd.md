@@ -37,7 +37,7 @@ erDiagram
         timestamp CompletedAt "nullable"
     }
     outbox_events {
-        uuid Id PK "becomes the event MessageId"
+        uuid Id PK "row id; the event MessageId is a separate value inside Payload"
         uuid OrderId "logical ref to orders.Id, no FK, not unique"
         text EventType "e.g. OrderPlaced"
         jsonb Payload
@@ -60,7 +60,7 @@ erDiagram
 ```mermaid
 erDiagram
     outbox_events {
-        uuid Id PK "becomes the event MessageId"
+        uuid Id PK "row id; the event MessageId is a separate value inside Payload"
         uuid OrderId UK "one result event per order; cross-service id, no FK"
         text EventType "StockReserved or StockRejected"
         jsonb Payload
@@ -113,7 +113,7 @@ Order Service is an ABP application. Its first migration (`20260812083054_Initia
 | `order_service.processed_messages."MessageId"` | Order Service applies each broker message at most once (Inbox) |
 | `inventory_service.processed_messages."MessageId"` | Inventory Service applies each `OrderPlaced` message at most once (Inbox) |
 | `inventory_service.outbox_events."OrderId"` | At most one stock-result event per order |
-| Primary keys on every table | Row identity; `outbox_events."Id"` doubles as the published MessageId |
+| Primary keys on every table | Row identity. The published `MessageId` is not the Outbox row id: it is generated once when the Outbox row is written and stored inside `Payload`, so every retry republishes the same value |
 
 Non-unique indexes: `orders."CorrelationId"` (trace lookup), `outbox_events."Published"` in both schemas (publisher polling).
 

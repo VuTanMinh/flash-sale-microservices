@@ -1,6 +1,6 @@
 erDiagram
     outbox_events {
-        uuid Id PK "becomes the event MessageId"
+        uuid Id PK "row id; the event MessageId is a separate value inside Payload"
         uuid OrderId UK "one result event per order; cross-service id, no FK"
         text EventType "StockReserved or StockRejected"
         jsonb Payload
