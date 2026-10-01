@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Cors;
+using Volo.Abp.AspNetCore.Mvc.Libs;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Prometheus;
@@ -154,6 +155,13 @@ public class OrderServiceModule : AbpModule
         {
             context.Services.Replace(ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
         }
+
+        // wwwroot/libs is git-ignored (filled by `abp install-libs`), and with
+        // the default check ABP answers EVERY request -- API calls included --
+        // with HTTP 500 when it is missing, so a fresh clone could not serve
+        // the order APIs. The project has no frontend (docs/teacher-brief.md
+        // §3); the APIs need no client-side libraries.
+        Configure<AbpMvcLibsOptions>(options => options.CheckLibs = false);
 
         ConfigureAuthentication(context);
         ConfigureBundles();

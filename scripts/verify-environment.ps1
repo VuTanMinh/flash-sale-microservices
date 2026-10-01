@@ -143,20 +143,28 @@ try {
         -RedirectStandardOutput $svcLog -RedirectStandardError "$svcLog.err" -WindowStyle Hidden -PassThru
     $env:ConnectionStrings__Default = $null
     $env:ASPNETCORE_URLS = $null
-    $answered = $false
+    # A real API call, not just "any HTTP answer": a C1 order for a product
+    # with no stock row must come back 200 with result Rejected. (A 500 for
+    # every request -- e.g. ABP's missing-libs page -- must fail this check.)
+    $answered = $false; $lastStatus = "no response"
     for ($i = 0; $i -lt 60 -and -not $answered -and -not $svc.HasExited; $i++) {
         Start-Sleep -Seconds 2
-        try { Invoke-WebRequest -UseBasicParsing "http://localhost:5181/api/c1/orders" -TimeoutSec 2 -ErrorAction Stop | Out-Null; $answered = $true }
-        catch { if ($_.Exception.Response) { $answered = $true } }
+        try {
+            $r = Invoke-WebRequest -UseBasicParsing -Method Post -ContentType "application/json" `
+                -Body '{"productId":"verify-environment-probe"}' "http://localhost:5181/api/c1/orders" -TimeoutSec 5 -ErrorAction Stop
+            $answered = ($r.StatusCode -eq 200 -and $r.Content -match '"result":"Rejected"')
+            $lastStatus = "HTTP $($r.StatusCode) $($r.Content)"
+        }
+        catch { if ($_.Exception.Response) { $lastStatus = "HTTP $([int]$_.Exception.Response.StatusCode)"; if ([int]$_.Exception.Response.StatusCode -ge 500) { break } } }
     }
     # Stop only the process tree this script started (dotnet run -> service
     # exe), never an Order Service the user is running.
     Get-CimInstance Win32_Process -Filter "ParentProcessId=$($svc.Id)" |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     if (-not $svc.HasExited) { Stop-Process -Id $svc.Id -Force -ErrorAction SilentlyContinue }
-    if ($answered) { Pass "Order Service started and answered HTTP" }
+    if ($answered) { Pass "Order Service started; POST /api/c1/orders returned 200 Rejected for an unstocked product" }
     else {
-        Fail "Order Service did not start; see $svcLog"
+        Fail "Order Service API check failed ($lastStatus); see $svcLog"
         Select-String -Path $svcLog -Pattern "FTL|Exception" | Select-Object -First 3 | ForEach-Object { Write-Host "      $($_.Line)" }
     }
 
