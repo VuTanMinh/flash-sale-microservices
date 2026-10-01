@@ -1044,7 +1044,7 @@ asynchronously. The order row and its \texttt{OrderPlaced} Outbox row are
 written in one \texttt{SaveChangesAsync} call (Section~\ref{sec:outbox}). All
 timestamps are UTC with a \texttt{Z} suffix and are stored at microsecond
 precision, so a value read back from PostgreSQL equals the value returned at
-creation. Business validation must happen before any write, so a rejected
+creation. Validation runs before any write, so a rejected
 request leaves no order and no Outbox row.
 
 \subsection{Idempotency strategy}
@@ -1092,7 +1092,7 @@ repository; the error page now applies only outside \texttt{/api}.
 \subsection{State management}
 
 \texttt{Entities/Order.cs} implements the state machine as guarded
-transitions (\texttt{Order.TransitionTo}). The current code has three legal
+transitions (\texttt{Order.}\allowbreak\texttt{TransitionTo}). The current code has three legal
 transitions: \texttt{PendingStock} $\to$ \texttt{Confirmed}, \texttt{PendingStock}
 $\to$ \texttt{Rejected} and \texttt{Confirmed} $\to$ \texttt{Completed}. Every
 other pair throws \texttt{InvalidOrderStateTransitionException} and changes
@@ -1141,7 +1141,7 @@ TP-A07 & 50 keys $\times$ 4 concurrent requests: exactly 50 orders and Outbox ro
 TP-A01--A05 and TP-A07 are run by \texttt{scripts/verify-order-api.ps1}
 against the running service. TP-A06 consists of the unit tests in
 \texttt{OrderStateBehaviourTests}. The whole unit suite passes, 43 of 43, in
-the saved run \texttt{tests/evidence/20261001T123816Z-unit-tests.trx}.
+the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx}.
 \texttt{docs/test-plan.md} lists the inputs, expected outcomes and commands.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
