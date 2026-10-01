@@ -23,15 +23,16 @@ Run ramp-up, steady load, spike, sustained overload, and recovery profiles. Incl
 
 ## C0/C1 smoke run
 
-From the repository root, start the Compose services. If PostgreSQL already has a data volume, apply the role SQL once as described in docs/infrastructure.md. Then run scripts/reset-and-seed.ps1. Start Order Service in one terminal:
+Start the Compose services (or a throwaway database with `scripts/verify-environment.ps1 -Mode Fresh -Keep`). On an existing PostgreSQL volume, apply the role SQL once as described in `docs/infrastructure.md`. Start Order Service on port 5100:
 
     dotnet run --project src/FlashSale.OrderService --no-launch-profile --urls http://localhost:5100
 
-In another terminal, save each run to a new JTL file:
+Then run the checked smoke test. Add `-Container verify-env-pg` for the throwaway database; leave it out for the Compose database:
 
-    jmeter -n -t tests/jmeter/smoke-test.jmx -l tests/jmeter/results/c1-smoke-run-01.jtl
+    powershell -ExecutionPolicy Bypass -File .\scriptsun-jmeter-smoke.ps1 -JMeter <path>in\jmeter.bat
 
-Check for ten successful responses, then query baseline_orders and inventory to confirm ten C1 decisions and the expected stock decrement. Record run metadata beside the result and choose a new filename for each run so historical evidence is not overwritten.
+The script resets and seeds the database, then runs `tests/jmeter/smoke-test.jmx` (10 threads, one `POST /api/c1/orders` each for `flash-product-1`). Each sample has two assertions: HTTP status 200, and a body that is a `Confirmed` decision for that product with a `remainingStock` value. The script saves the JTL and a summary as `tests/jmeter/results/<UTC stamp>-c1-smoke.*`. It then checks that the JTL holds 10 samples, all on `/api/c1/orders`, all 200, and all passing the assertions. It also checks the database: exactly 10 Confirmed C1 rows and stock 1000 → 990. Each run gets a new timestamped file, so earlier evidence is never overwritten. The target can be changed with `-Jhost`, `-Jport` and `-Jproduct`. Running with `-Product no-such-product` must fail, which proves the assertions bite.
+
 ## Comparison rules
 
 - C0 demonstrates the race and is not a valid correctness baseline.
