@@ -1,0 +1,28 @@
+erDiagram
+    orders ||--o{ outbox_events : "OrderId (logical, same transaction)"
+    orders {
+        uuid Id PK
+        text IdempotencyKey UK "client Idempotency-Key header"
+        text ProductId
+        integer Quantity
+        text State "enum stored as text"
+        text CorrelationId "indexed, not unique"
+        timestamp RequestAcceptedAt
+        timestamp ConfirmedOrRejectedAt "nullable"
+        timestamp CompletedAt "nullable"
+    }
+    outbox_events {
+        uuid Id PK "becomes the event MessageId"
+        uuid OrderId "logical ref to orders.Id, no FK, not unique"
+        text EventType "e.g. OrderPlaced"
+        jsonb Payload
+        boolean Published "indexed; true only after publisher confirm"
+        timestamp CreatedAt
+        timestamp PublishedAt "nullable"
+    }
+    processed_messages {
+        uuid Id PK
+        uuid MessageId UK "Inbox: one row per consumed broker message"
+        text MessageType
+        timestamp ProcessedAt
+    }

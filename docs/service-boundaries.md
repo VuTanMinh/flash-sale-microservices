@@ -36,4 +36,6 @@ flowchart LR
 
 The two PostgreSQL schemas share an instance; they are not physical database isolation. The teacher brief requires distinct service accounts and prohibits cross-service schema access. Record any mismatch in the Week 2 infrastructure review before treating that requirement as met.
 
-`StockReserved` is delivered independently to Order Service and Process Worker. Order Service records the reservation result; Process Worker later emits completion. There is no `Processing` order state because Order Service does not receive a separate processing-start event.
+`StockReserved` is delivered independently to Order Service and Process Worker. Order Service records the reservation result; Process Worker later emits completion. Under the adopted six-state model (`docs/order-state-machine.md`, 2026-10-01), the Process Worker will also publish `OrderProcessingStarted` so that Order Service can enter `Processing`. That event is not built yet; it is the Week 11 implementation task.
+
+Table-level data ownership, constraints and the `public` schema used by ABP are documented in `docs/erd.md`, and `scripts/verify-erd.ps1` checks them against a live database.

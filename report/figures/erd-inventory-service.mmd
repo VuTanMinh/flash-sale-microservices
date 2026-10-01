@@ -1,0 +1,16 @@
+erDiagram
+    outbox_events {
+        uuid Id PK "becomes the event MessageId"
+        uuid OrderId UK "one result event per order; cross-service id, no FK"
+        text EventType "StockReserved or StockRejected"
+        jsonb Payload
+        boolean Published "indexed"
+        timestamp CreatedAt
+        timestamp PublishedAt "nullable"
+    }
+    processed_messages {
+        uuid Id PK
+        uuid MessageId UK "Inbox: one row per consumed OrderPlaced message"
+        text MessageType
+        timestamp ProcessedAt
+    }

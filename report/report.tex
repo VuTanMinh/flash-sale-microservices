@@ -420,7 +420,78 @@ untracked setup checklist.
 % ============================================================
 
 \section{Entity-Relationship Diagram}
-% TODO Week 2 -- \includegraphics figure exported from docs/erd.md (schema-per-service: order_service, inventory_service).
+The data model below is taken from the EF Core models and migrations, the
+raw baseline SQL and the role/schema initialisation script, not drawn by hand.
+\texttt{docs/erd.md} holds the same diagrams plus a machine-readable manifest,
+and \texttt{scripts/verify-erd.ps1} compares that manifest with a live
+database. On 2026-10-01 a database built from scratch (role initialisation,
+then both services' migrations, then the baseline schema) passed all 29 checks.
+
+\paragraph{Architecture of the data layer.} One PostgreSQL instance holds one
+schema per service. Order Service writes \texttt{order\_service}, plus ABP's
+module tables in \texttt{public}. Inventory Service writes only
+\texttt{inventory\_service}. Each schema is owned by its own login role
+(\texttt{order\_service\_user}, \texttt{inventory\_service\_user}). Neither
+role can read the other's schema, and only Order Service's role can use
+\texttt{public}. The services share data only through RabbitMQ events. There
+are no foreign keys: links such as an Outbox row's \texttt{OrderId} are
+logical, and they are kept consistent by writing both rows in one local
+transaction. Inventory's \texttt{OrderId} refers to an order in another
+service's schema, so it could not have a foreign key anyway. In the
+asynchronous design, stock is held in Redis, not PostgreSQL:
+\texttt{inventory:\{productId\}} stores available units and
+\texttt{processed:\{productId\}} stores the ids of orders already reserved.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/erd-order-service.png}
+  \caption{\texttt{order\_service} schema (Order Service). The Outbox row
+  references its order logically through \texttt{OrderId}. The Inbox
+  (\texttt{processed\_messages}) is unique per broker \texttt{MessageId}.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/erd-inventory-service.png}
+  \caption{\texttt{inventory\_service} schema (Inventory Service). It has both
+  an Outbox, unique per \texttt{OrderId} so one order yields at most one stock
+  result event, and an Inbox, unique per \texttt{MessageId}.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{figures/erd-baseline.png}
+  \caption{C0/C1 baseline tables (raw SQL, not EF-migrated). \texttt{stock}
+  deliberately has no non-negative check so that C0 can demonstrate
+  overselling.}
+\end{figure}
+
+\paragraph{Unique constraints.} Four unique indexes carry the system's
+idempotency guarantees:
+\texttt{orders.IdempotencyKey} (one order per client key),
+\texttt{processed\_messages.MessageId} in each service schema (each broker
+message is applied at most once by each consumer), and
+\texttt{inventory\_service.outbox\_events.OrderId} (at most one stock result
+per order). Non-unique indexes support trace lookup
+(\texttt{orders.CorrelationId}) and Outbox polling (\texttt{Published}).
+
+\paragraph{ABP and the \texttt{public} schema.} Order Service is an ABP
+application. Its first migration creates 37 ABP module tables
+(\texttt{Abp*}, \texttt{OpenIddict*}) and its EF migration history in
+\texttt{public}, all owned by \texttt{order\_service\_user}. They stay in
+\texttt{public} because forcing a default schema breaks some ABP modules at
+runtime. Inventory Service configures no ABP modules. Its connection string
+sets the search path to \texttt{inventory\_service}, so its migration history
+is stored there. No business or experiment data lives in \texttt{public}.
+
+\paragraph{Open point found by this check.} On a fresh database, the baseline
+tables are owned by the \texttt{flashsale} admin account that creates them,
+and \texttt{order\_service\_user} has no privileges on them. The C0/C1 runs
+therefore need a grant or ownership fix, which is tracked as a Week 3 task.
+
+The order status-history table required by the adopted six-state model
+(Section~\ref{sec:order-state-machine}) is not shown, because it does not exist
+in code yet. It is added by the Week 11 implementation task.
 
 \section{API Contract}
 
@@ -479,6 +550,7 @@ compiled types Order Service publishes, rather than maintaining its own copy
 that could silently diverge.
 
 \section{Order State Machine}
+\label{sec:order-state-machine}
 See \texttt{docs/order-state-machine.md} for the full diagram and
 transition table. The adopted model (decided 2026-10-01) uses the teacher's
 six named states: \texttt{PendingStock}, \texttt{Confirmed},
