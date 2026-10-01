@@ -49,6 +49,10 @@ Take the earliest unticked checkbox (start at Week 1). For that one box only:
   `Processing` is real (with history); `ProcessingFailed` is declared but no
   event reaches it (success-only Worker) and must be documented that way.
 
+## Git conventions
+- Branch names are plain (e.g. `week1-2`, `week3`); never `claude/...` or any
+  AI/tool name. Commit messages name the checkbox, with no AI attribution.
+
 ## Gotchas
 - `.gitignore` ignores `*.md` except `/README.md`, `/CLAUDE.md`, `docs/**` and
   this skill folder. Switching branches silently overwrites ignored local copies
