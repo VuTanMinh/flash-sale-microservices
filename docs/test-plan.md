@@ -48,7 +48,7 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-O01 | Atomic order/event commit and rollback; stable MessageId on retry | W06 | Forced Outbox insert failure; publisher retry | Neither row commits on failure; a retried publish keeps the same MessageId | Planned: `scripts/verify-outbox.ps1` | NOT RUN | — |
+| TP-O01 | Atomic order/event commit and rollback; stable MessageId on retry | W06 | Throwaway DB + broker; Outbox INSERT revoked for one request; broker down, then up | Commit: one order + one unpublished Outbox row. Refused Outbox insert: request fails, no order row. Retries keep the payload; once the broker is up exactly one message arrives with the MessageId stored at commit | `scripts/verify-outbox.ps1` | PASS | `tests/evidence/20261001T160843Z-outbox.log` |
 | TP-O02 | Routing, missing bindings, returns/negative confirms, broker interruption | W06 | Delete a binding; stop RabbitMQ mid-publish | No row marked published without a routed confirm; publication resumes after recovery | Planned: `scripts/verify-outbox.ps1` | NOT RUN | — |
 
 ## Inventory reservation (Week 7)
