@@ -633,7 +633,7 @@ Endpoint & Status & Meaning \\
 \midrule
 \texttt{POST /api/orders} & 201 & New order accepted in \texttt{PendingStock}; body is the order with its id \\
  & 200 & Same \texttt{Idempotency-Key} and same body as an earlier request: the original order \\
- & 400 & \texttt{Idempotency-Key} header missing \\
+ & 400 & \texttt{Idempotency-Key} missing, or invalid body (quantity $\neq 1$, blank product) \\
  & 409 & Key already used with a different body \\
 \texttt{GET /api/orders/\{id\}} & 200 & Current state and the stage timestamps \\
  & 404 & Unknown order id \\
@@ -642,10 +642,10 @@ Endpoint & Status & Meaning \\
 \end{tabular}
 \end{center}
 
-Two gaps against the teacher brief are open and assigned. First, quantity is
-not yet validated to equal 1 (Week 5, case TP-A02). Second, the request is not
-yet rejected before order creation when admission capacity is exhausted
-(Week 12, case TP-L01). The remaining paths in the export are ABP module
+Request validation (quantity must equal 1, non-blank product and key) was
+added in Week 5 and is verified by case TP-A02. One gap against the teacher
+brief remains open: the request is not yet rejected before order creation when
+admission capacity is exhausted (Week 12, case TP-L01). The remaining paths in the export are ABP module
 scaffolding (identity, account, permissions, multi-tenancy). The scope lock
 excludes them, and they play no part in the order workflow.
 
@@ -822,7 +822,7 @@ code but has no saved verification yet; it is not a claim that it works.
 \toprule
 Failure & Handling & Verification \\
 \midrule
-Client retries the same request & \texttt{Idempotency-Key}: same body returns the original order, different body returns 409 & Designed; TP-A03--A05 (W05) \\
+Client retries the same request (also concurrently) & \texttt{Idempotency-Key}: same body returns the original order, different body returns 409; a lost unique-index race is answered as a replay & Verified: TP-A03--A05 (W05) \\
 Broker redelivers a message & Inbox (unique \texttt{MessageId}) in the same transaction; ack after commit & Unit tests pass (TP-E03); live: TP-M01 (W09) \\
 Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Designed; TP-M02 (W09) \\
 Crash after commit, before ack & Redelivery hits the Inbox and is acked & Designed; TP-M01 (W09) \\

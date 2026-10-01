@@ -36,11 +36,11 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-A01 | Accepted intake and polling | W05 | `POST /api/orders` with a new key, then `GET /api/orders/{id}` | 201 with `PendingStock`; GET returns the same order | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
-| TP-A02 | Request validation, quantity = 1 | W05 | Missing key; quantity 0, 2; empty product | 400 for each; no order row created | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
-| TP-A03 | Unchanged-payload replay | W05 | Same key + same body twice | Second call 200 with the same order id; one row | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
-| TP-A04 | Changed-payload conflict | W05 | Same key, different body | 409; original order unchanged | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
-| TP-A05 | Concurrent retries of one key | W05 | 20 concurrent posts, same key + body | Exactly one order row and one Outbox row; every response carries that order id | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
+| TP-A01 | Accepted intake and polling | W05 | `POST /api/orders` with a new key, then `GET /api/orders/{id}` | 201 with `PendingStock`; GET returns the same order | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
+| TP-A02 | Request validation, quantity = 1 | W05 | Missing key; quantity 0, 2; empty product | 400 for each; no order row created | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
+| TP-A03 | Unchanged-payload replay | W05 | Same key + same body twice | Second call 200 with the same order id; one row | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
+| TP-A04 | Changed-payload conflict | W05 | Same key, different body | 409; original order unchanged | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
+| TP-A05 | Concurrent retries of one key | W05 | 20 concurrent posts, same key + body | Exactly one order row and one Outbox row; every response carries that order id | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
 | TP-A06 | Legal/duplicate/invalid state transitions | W05 | Transition matrix on `Order.TransitionTo` | Legal succeed; illegal throw; duplicate result is a no-op | `dotnet test` (extend `OrderStateMachineTests`) | NOT RUN | — |
 
 ## Outbox and publication (Week 6)
