@@ -1,0 +1,73 @@
+﻿Commit: 3dfd9e6
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-environment.ps1 -Mode Existing
+Exit code: 0
+
+
+== SDK and build
+PASS  .NET SDK 10.0.300 matches global.json 10.0.300 (latestPatch)
+PASS  Order Service signing certificate (openiddict.pfx) present
+PASS  clean build of the solution (0 errors, 0 warnings)
+
+== Throwaway PostgreSQL (Existing) on port 55432
+PASS  temporary database is up
+
+== Copy the existing database (read-only dump of infra-postgres-1)
+PASS  copied infra-postgres-1
+PASS  role script applied (run 1 of 2, idempotent)
+PASS  role script applied (run 2 of 2, idempotent)
+
+== Migrations with the dedicated accounts
+PASS  FlashSale.OrderService migrations (as its own account)
+PASS  FlashSale.InventoryService migrations (as its own account)
+
+== Baseline (C0/C1) schema
+PASS  baseline schema applied
+
+== Order Service starts against this database (own account)
+PASS  Order Service started; POST /api/c1/orders returned 200 Rejected for an unstocked product
+
+== Account isolation
+PASS  order_service_user: SELECT count(*) FROM order_service.orders -> allowed
+PASS  order_service_user: UPDATE order_service.inventory SET stock = stock WHERE false -> allowed
+PASS  order_service_user: SELECT count(*) FROM public."AbpUsers" -> allowed
+PASS  order_service_user: SELECT count(*) FROM inventory_service.outbox_events -> denied
+PASS  inventory_service_user: SELECT count(*) FROM inventory_service.outbox_events -> allowed
+PASS  inventory_service_user: SELECT count(*) FROM order_service.orders -> denied
+PASS  inventory_service_user: SELECT count(*) FROM public."AbpUsers" -> denied
+
+== Schema matches docs/erd.md
+PASS  order_service has exactly the documented tables
+PASS  inventory_service has exactly the documented tables
+PASS  order_service.orders columns
+PASS  order_service.orders unique constraints
+PASS  order_service.orders owner
+PASS  order_service.outbox_events columns
+PASS  order_service.outbox_events unique constraints
+PASS  order_service.outbox_events owner
+PASS  order_service.processed_messages columns
+PASS  order_service.processed_messages unique constraints
+PASS  order_service.processed_messages owner
+PASS  order_service.inventory columns
+PASS  order_service.inventory unique constraints
+PASS  order_service.inventory owner
+PASS  order_service.baseline_orders columns
+PASS  order_service.baseline_orders unique constraints
+PASS  order_service.baseline_orders owner
+PASS  inventory_service.outbox_events columns
+PASS  inventory_service.outbox_events unique constraints
+PASS  inventory_service.outbox_events owner
+PASS  inventory_service.processed_messages columns
+PASS  inventory_service.processed_messages unique constraints
+PASS  inventory_service.processed_messages owner
+PASS  no foreign keys in service schemas
+PASS  public holds 37 ABP/OpenIddict tables
+PASS  public holds nothing else except Order Service migration history
+PASS  public tables owned by order_service_user
+PASS  Order Service migrations all applied (public history)
+PASS  Inventory Service migrations all applied (inventory_service history)
+
+All checks passed: docs/erd.md matches the database.
+PASS  verify-erd.ps1
+
+All checks passed (Existing).
+

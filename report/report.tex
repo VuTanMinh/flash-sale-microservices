@@ -98,6 +98,10 @@
 % away from their own headings, so a reader met the table before the text
 % telling them what it measures.
 \usepackage{float}
+% Marks a claim from an earlier manual run whose output was not saved in the
+% repository. Such claims are not evidence until the named test-plan case
+% (docs/test-plan.md) passes with committed evidence.
+\newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \texttt{docs/test-plan.md}.]}}
 
 % fvextra's Verbatim (capital V) replaces every plain \begin{verbatim} in
 % this report -- some of its ~17 raw docker/psql/log excerpts contain single
@@ -665,7 +669,7 @@ Full diagrams: \texttt{docs/sequence-diagrams.md} (happy path and rejection
 path). Originally drafted in Week 4 as target design; revised in Week 8
 (Step 8.4) against what was actually built and verified live through that
 week -- the Outbox on both services, both publisher workers, and the
-Redis-backed reservation round trip. Both diagrams still stop short of the
+Redis-backed reservation round trip \unverified{TP-W01}{Week 8}. Both diagrams still stop short of the
 \texttt{Processing} state. The adopted six-state model now names its trigger
 (\texttt{OrderProcessingStarted}), but the diagrams are only extended once that
 event exists in code, under the Week 4 alignment and Week 11 implementation
@@ -888,17 +892,20 @@ than an honestly-incomplete transition table.
 
 \subsection{Test cases}
 
-14 unit tests (\texttt{tests/FlashSale.OrderService.Tests}), all passing:
-every legal transition succeeds and stamps the expected timestamp; every
-state currently without a legal outgoing transition (including
-\texttt{Confirmed}, precisely because of the open question above) throws on
-every attempted target; and the exception itself is asserted to report the
-correct from/to states. C0 and C1 (Week 3) are deliberately excluded from
+The state-machine tests in \texttt{tests/FlashSale.OrderService.Tests}
+(\texttt{OrderStateMachineTests}) check that a new order starts in
+\texttt{PendingStock}, that every legal transition succeeds and stamps its
+timestamp, that every illegal target throws (including every target other
+than \texttt{Completed} from \texttt{Confirmed}), that \texttt{Rejected} and
+\texttt{Completed} are terminal, and that the exception reports the attempted
+from/to states. The whole suite (17 tests, including the Outbox and
+duplicate-message tests below) passes in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx}
+(test case TP-E03). C0 and C1 (Week 3) are deliberately excluded from
 this test suite -- they are one-shot demonstrations captured as report
 evidence, not code with a future correctness guarantee to protect.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-Passed!  - Failed: 0, Passed: 14, Skipped: 0, Total: 14
+Passed!  - Failed: 0, Passed: 17, Skipped: 0, Total: 17
 \end{Verbatim}
 
 \subsection{Event Publication Reliability (Week 6) -- the dual-write problem and the Transactional Outbox}
@@ -957,6 +964,8 @@ collision, and the accompanying order insert is confirmed absent afterward
 Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
 Order_and_outbox_row_both_commit_in_one_SaveChanges_call: PASS
 \end{Verbatim}
+
+Both pass in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx} (TP-E03).
 
 \paragraph{Getting the pending event to RabbitMQ.} Writing the outbox row
 only records that publication is needed -- a separate background worker
@@ -1119,7 +1128,7 @@ verification below stops at the Lua/consumer boundary, which is sufficient
 to confirm the reservation logic itself end to end before wiring the result
 back out.
 
-\paragraph{End-to-end verification.} Rather than only checking Redis state
+\paragraph{End-to-end verification.} \unverified{TP-I02}{Week 7} Rather than only checking Redis state
 after the fact, the full path was watched live: an order created via
 \texttt{POST /api/orders} was observed flowing through the Outbox, into
 RabbitMQ, into this consumer, into the Lua script, and into an updated Redis
@@ -1229,7 +1238,7 @@ originally named its parameter \texttt{\$args}, which collides with
 PowerShell's own reserved automatic variable of the same name (renamed to
 \texttt{\$redisArgs}).
 
-Run against a clean, controlled batch (Postgres tables truncated, Redis
+\unverified{TP-W02}{Week 8} Run against a clean, controlled batch (Postgres tables truncated, Redis
 re-seeded, five orders created across two products, specifically so the
 script's first real trial wasn't validating against leftover mixed test
 data):
@@ -1343,6 +1352,8 @@ sake.
 
 \subsection{Acknowledgement strategy, proven with a real crash (Step 9.3)}
 
+\unverified{TP-M01}{Week 9}
+
 Both consumers already used manual acknowledgement (\texttt{autoAck: false}), acking
 only after the local transaction above commits. Rather than assert this from
 reading the code, it was proven directly: a temporary artificial delay was
@@ -1397,9 +1408,11 @@ save-delegate-injectable overload so these tests can substitute
 \texttt{SaveChangesOnDbContextAsync} for the real, DI-dependent
 \texttt{SaveChangesAsync} -- the same documented limitation
 \texttt{OutboxAtomicityTests} already works around, not a new one.
-Full suite: 19/19 passing (16 from Weeks 5--8, 3 new).
+All three pass in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx} (TP-E03); the suite
+currently has 17 tests in total. (An earlier draft said 19; that count is not
+supported by any saved run.)
 
-Re-running \texttt{scripts/validate-correctness.ps1} (Step 8.3) against the
+\unverified{TP-W02}{Week 8} Re-running \texttt{scripts/validate-correctness.ps1} (Step 8.3) against the
 live state left over from the Step 9.3 crash test is the actual point of
 Step 9.4's second instruction, and it is what finally makes Invariant 4 a
 real result instead of a placeholder:
@@ -1524,7 +1537,7 @@ worker rather than a synthetic one:
       00:00:30 (accepted ...); re-publishing OrderPlaced
 \end{Verbatim}
 
-This fired again on the following poll tick, since the order was still
+\unverified{TP-F02}{Week 10} This fired again on the following poll tick, since the order was still
 genuinely stuck (the fault injection was still active) -- confirmed live,
 this is the intended behavior, not a runaway loop: an order that recovers
 quickly leaves \texttt{PendingStock} before the next tick and simply stops
@@ -1537,7 +1550,9 @@ in the same log stream.
 
 \subsection{What's handled and what's explicitly out of scope}
 
-Handled, and each verified live above or in an earlier week: a temporarily
+Handled by design, each to be re-verified by a test-plan case (TP-O02,
+TP-M01, TP-M02, TP-F01, TP-F02); the earlier manual checks were not saved as
+evidence: a temporarily
 unreachable broker (Weeks 6--7's 5s reconnect loop, unrelated to this
 week's consumer-level retries), a consumer crash mid-processing (Week 9's
 kill test), duplicate message delivery (Weeks 7--9's three idempotency
@@ -1622,7 +1637,7 @@ a fresh one per hop as every other event does. A redelivered
 \texttt{StockReserved} therefore regenerates a byte-identical
 \texttt{OrderProcessed}, which Order Service's Week 9 Inbox recognises and
 drops: the idempotency key travels in the message rather than living in a
-store.
+store. \unverified{TP-P01}{Week 11}
 
 \subsection{Correlation IDs across three services (Step 11.2)}
 
@@ -1646,7 +1661,10 @@ middleware exists, each consumer re-establishes it with
 \texttt{LogContext.PushProperty}, which flows through the awaits into
 everything that logs downstream of it.
 
-\paragraph{Verification.} Step 11.2 asks for one order to be traceable across
+\paragraph{Verification.} \unverified{TP-P03}{Week 11} The excerpt below also
+shows Order Service receiving \texttt{OrderProcessed} (06.12) before the Process
+Worker logged publishing it (06.21), which re-verification must explain or
+correct. Step 11.2 asks for one order to be traceable across
 all three services from a single id. Posting one order with
 \texttt{X-Correlation-Id: week11-trace-...} and grepping that one string
 across the three JSON logs reconstructs the entire journey in order:

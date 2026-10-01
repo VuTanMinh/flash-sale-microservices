@@ -1,7 +1,7 @@
 # Sequence Diagrams
 
 Two diagrams for the one workflow the system has (place an order), split by
-outcome, plus one clearly labelled planned hop for the six-state model. Both reflect what was **actually built and verified live** — through
+outcome, plus one clearly labelled planned hop for the six-state model. Both reflect what was **actually built** (earlier live checks are listed as test cases in `docs/test-plan.md`) — through
 Week 8 for the Outbox/RabbitMQ/Redis path, and extended in Week 11 with the
 Process Worker leg that carries the happy path all the way to `Completed`.
 The Week 4 version of this file was the target design, drafted before any of
@@ -95,7 +95,7 @@ Verified live end-to-end: through Week 8 as far as `Confirmed`, and in
 Week 11 all the way to `Completed` — a real order posted through this exact
 path took roughly 2.5 seconds from accepted to completed, with every hop
 observed directly (Postgres rows, RabbitMQ queue depths, Redis keys, and all
-three services' logs correlated by a single correlation id), not inferred.
+three services' logs correlated by a single correlation id), not inferred. *(Not re-verified: earlier manual run, output not saved in the repository; see test case TP-P03 in `docs/test-plan.md`.)*
 
 **Note the fork after `StockReserved`.** RabbitMQ delivers that one event to
 *two* queues — Order Service's and the Process Worker's — because both are
@@ -175,7 +175,7 @@ sequenceDiagram
 
 Verified live the same way as the happy path: a product forced to zero
 stock, ordered through the real API, observed transitioning to `Rejected`
-end to end.
+end to end. *(Not re-verified: earlier manual run, output not saved in the repository; see test case TP-W01 in `docs/test-plan.md`.)*
 
 ## The DUPLICATE case (not its own diagram, but worth stating precisely)
 
