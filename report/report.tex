@@ -503,9 +503,10 @@ path). Originally drafted in Week 4 as target design; revised in Week 8
 (Step 8.4) against what was actually built and verified live through that
 week -- the Outbox on both services, both publisher workers, and the
 Redis-backed reservation round trip. Both diagrams still stop short of the
-\texttt{Processing} state for the same reason the state machine does above
--- extending a sequence diagram past a transition whose trigger isn't known
-yet means drawing a mechanism that doesn't exist.
+\texttt{Processing} state. The adopted six-state model now names its trigger
+(\texttt{OrderProcessingStarted}), but the diagrams are only extended once that
+event exists in code, under the Week 4 alignment and Week 11 implementation
+tasks -- drawing it earlier would show a mechanism that does not exist yet.
 
 \section{Design Rationale}
 The central design decision this project makes -- comparing a synchronous
