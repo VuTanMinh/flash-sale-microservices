@@ -6,7 +6,9 @@ services:
       POSTGRES_PASSWORD: flashsale_dev
       POSTGRES_DB: flashsale
     ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb/01-create-service-roles.sql:/docker-entrypoint-initdb.d/01-create-service-roles.sql:ro
 
   redis:
     image: redis/redis-stack:latest

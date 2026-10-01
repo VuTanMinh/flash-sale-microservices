@@ -9,13 +9,17 @@
 # ============================================================
 
 $ErrorActionPreference = "Stop"
-$container = "infra-postgres-1"
 $db = "flashsale"
 $user = "flashsale"
 $scriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptsDir
+$composeFile = Join-Path $repoRoot "infra\docker-compose.yml"
 
 function Invoke-SqlFile($path) {
-    Get-Content $path -Raw | docker exec -i $container psql -U $user -d $db -v ON_ERROR_STOP=1
+    Get-Content -LiteralPath $path -Raw | docker compose -f $composeFile exec -T postgres psql -U $user -d $db -v ON_ERROR_STOP=1
+    if ($LASTEXITCODE -ne 0) {
+        throw "psql failed while applying '$path'."
+    }
 }
 
 Write-Host "Applying baseline schema (idempotent)..." -ForegroundColor Cyan
@@ -28,4 +32,7 @@ Write-Host "Seeding known starting inventory..." -ForegroundColor Cyan
 Invoke-SqlFile (Join-Path $scriptsDir "seed.sql")
 
 Write-Host "Done. Current inventory:" -ForegroundColor Green
-docker exec $container psql -U $user -d $db -c "SELECT * FROM order_service.inventory ORDER BY product_id;"
+docker compose -f $composeFile exec -T postgres psql -U $user -d $db -c "SELECT * FROM order_service.inventory ORDER BY product_id;"
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not query the seeded inventory."
+}

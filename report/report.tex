@@ -1,6 +1,6 @@
 % ============================================================
 % Flash-Sale Microservices Capstone — Report Skeleton
-% Student: Vu Dinh Kiet (523V0011) — Class 23K50201 — TDTU
+% Students: Vũ Đình Kiệt (523V0011), Vũ Tấn Minh (523V0012) — Class 23K50201 — TDTU
 % Week 1 skeleton per FLASHSALE_EXECUTION_CHECKLIST.md Step 1.4.
 %
 % DRAFT NOTICE: Introduction, Problem Statement, Objectives, Scope
@@ -142,7 +142,7 @@
   citecolor  = ctcolormain,
   urlcolor   = ctcolormain,
   pdftitle   = {Thiết kế và Đánh giá hiệu năng hệ thống Microservices xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale},
-  pdfauthor  = {Vũ Đình Kiệt (523V0011)},
+  pdfauthor  = {Vũ Đình Kiệt (523V0011); Vũ Tấn Minh (523V0012)},
 }
 
 % NOTE on diagrams: Mermaid blocks used throughout docs/*.md (state machine,
@@ -154,7 +154,7 @@
 
 \title{Thiết kế và Đánh giá hiệu năng hệ thống Microservices \\
 xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
-\author{Vũ Đình Kiệt (523V0011) \\ Class 23K50201 \\ Ton Duc Thang University}
+\author{Vũ Đình Kiệt (523V0011) \\ Vũ Tấn Minh (523V0012) \\ Class 23K50201 \\ Ton Duc Thang University}
 \date{\today}
 
 \begin{document}
@@ -184,8 +184,9 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 
   \begin{minipage}{0.45\textwidth}
     \begin{flushleft} \large
-      \textit{Student}\\
+      \textit{Students}\\
       Vũ Đình Kiệt (523V0011)\\
+      Vũ Tấn Minh (523V0012)\\
       Class 23K50201
     \end{flushleft}
   \end{minipage}
@@ -206,132 +207,89 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 \chapter{Introduction}
 % ============================================================
 
-Flash-sale events -- short, fixed-duration promotional windows in which a large
-volume of buyers compete for a much smaller pool of inventory -- are a deliberately
-adversarial workload for backend systems: request volume spikes by orders of
-magnitude in seconds, and correctness (never selling stock that does not exist)
-must hold even as throughput far exceeds normal operating conditions.
+Flash-sale workloads send a short burst of concurrent orders toward a small amount
+of inventory. A backend must preserve stock correctness while processing requests
+quickly, and must control work when the incoming rate exceeds available capacity.
 
-This project designs, implements, and experimentally evaluates a microservices-based
-order-and-inventory system built specifically to survive this workload shape. Rather
-than treating "handle high traffic" as a single monolithic goal, the work isolates
-two mechanisms that are conflated in most informal Flash-sale discussions: how the
-system stays \emph{correct} under concurrency (Section~\ref{sec:problem}), and how it
-stays \emph{responsive} under overload it cannot fully absorb (load shedding,
-Week 12). Both are evaluated through controlled, repeatable JMeter-driven experiments
-against multiple architectural configurations (C0 through the final resilient
-design), not through a single end-to-end demo.
+This project compares a synchronous PostgreSQL inventory baseline with an
+asynchronous design using RabbitMQ and an atomic Redis Lua reservation. It evaluates
+correctness, request and completion latency, throughput, overload response, and the
+effect of running multiple consumers on one host. The research question, boundaries,
+and experiment controls are recorded in
+\texttt{docs/00-scope-lock.md} and \texttt{docs/experiment-protocol.md}.
 
 % ============================================================
 \chapter{Problem Statement}
 \label{sec:problem}
 % ============================================================
 
-Under concurrent access to a shared, finite inventory count, a naively implemented
-order path exhibits a classic read-then-write race: two concurrent requests can each
-observe available stock, both decide independently that a reservation is valid, and
-both commit -- overselling the product. This is demonstrated directly and
-deliberately in this project (the C0 baseline, Week 3) before being solved.
+With finite stock, a read-check-write sequence can let concurrent requests reserve
+the same remaining unit. A conditional atomic update can prevent that race, but
+contention may affect latency and throughput. In an asynchronous design, separate
+services also have to handle partial failures, redelivered messages, and traffic
+above capacity without losing track of accepted orders.
 
-Beyond single-request correctness, a Flash-sale system built as a set of
-independently-deployed services introduces a second class of problem: partial
-failure. A service can crash between updating its own state and notifying another
-service of that update (the dual-write problem, addressed by the Transactional
-Outbox pattern, Week 6); a message can be delivered more than once by the broker
-(addressed by idempotent consumers and the Inbox pattern, Week 9); and the system as
-a whole can receive more concurrent requests than it is provisioned to process
-correctly, in which case naive behavior degrades unpredictably rather than
-predictably (addressed by load shedding, Week 12).
-
-The problem this project addresses, precisely: \emph{design and build an
-order-and-inventory subsystem that provably avoids overselling under concurrent
-load, remains correct despite partial service failure and at-least-once message
-delivery, and degrades predictably rather than catastrophically once load exceeds
-provisioned capacity -- then measure, with controlled experiments, what that
-correctness and resilience cost in throughput and latency compared to a simpler
-baseline.}
+This project asks how C0 (a deliberately unsafe demonstration), C1 (synchronous
+PostgreSQL atomic update), and C2 (RabbitMQ with Redis Lua reservation) behave under
+matched workloads. C3 adds load shedding; C4 compares 1, 2, and 4 Inventory Service
+replicas on the same EC2 host. C0 is only a race-condition demonstration; C1 is the
+correctness and performance baseline. The study measures the trade-offs rather than
+assuming that a relational database or a microservices architecture is inherently
+faster or safer.
 
 % ============================================================
 \chapter{Objectives}
 % ============================================================
 
 \begin{enumerate}
-  \item Implement and empirically compare at least two inventory-reservation
-    strategies -- a synchronous PostgreSQL atomic-update baseline (C1) and an
-    asynchronous, event-driven Redis-backed design -- under identical experimental
-    conditions.
-  \item Guarantee, and experimentally validate, the four correctness invariants
-    defined in \texttt{docs/00-scope-lock.md}: bounded reservations, controlled
-    overload response, replica scalability, and traceable state.
-  \item Implement the resilience mechanisms a production event-driven system
-    requires -- Transactional Outbox, idempotent/Inbox-pattern consumers, bounded
-    retry with a Dead-Letter Queue, and a reconciliation safety net -- and
-    demonstrate each one specifically defeats the failure mode it targets.
-  \item Measure system behavior (throughput, p50/p95/p99 latency, correctness
-    violation rate) across the full range from normal load through deliberate
-    overload, and report the point at which -- and the mechanism by which -- the
-    system sheds load rather than failing uncontrolled.
+  \item Compare C0 and C1 with the asynchronous C2 design under equivalent
+    conditions; evaluate C3 overload controls and C4 same-host replica counts.
+  \item Check the inventory rules in \texttt{docs/inventory-invariants.md}, including
+    no negative stock, no oversell, one reservation per order, and no duplicate
+    side effects on redelivery.
+  \item Measure request acceptance and end-to-end completion separately, alongside
+    latency percentiles, throughput, rejection, queue, resource, retry, and DLQ
+    measures.
+  \item Determine whether accepted orders reach a terminal state or are surfaced by
+    reconciliation, and limit conclusions to the tested hardware, workloads, and
+    failure scenarios.
 \end{enumerate}
 
 % ============================================================
 \chapter{Scope}
 % ============================================================
 
-See \texttt{docs/00-scope-lock.md} for the authoritative, frozen scope statement.
-Summary for report readers:
+See \texttt{docs/00-scope-lock.md} for the research question and scope. The system
+includes Order Service, Inventory Service, a deterministic Process Worker,
+PostgreSQL schemas owned by each service, Redis Lua stock reservation, RabbitMQ,
+and the planned Nginx/application/queue load-shedding controls. The backend target
+is one AWS EC2 host; JMeter runs on a separate machine. C4 varies Inventory Service
+replicas as 1, 2, and 4 processes or containers on that same host.
 
-\textbf{In scope:} Order Service and Inventory Service (ABP Framework,
-app-nolayers), a Process Worker simulating downstream processing, PostgreSQL
-(schema-per-service) and Redis (Lua-scripted atomic reservation) for state,
-RabbitMQ for asynchronous messaging with Transactional Outbox and Inbox patterns,
-Nginx-based load shedding, and a JMeter-driven experimental protocol comparing
-multiple configurations (C0 naive, C1 synchronous baseline, and the full
-asynchronous design) under normal and overload traffic.
-
-\textbf{Out of scope:} frontend UI, product catalog/cart/promotions, user
-management and authentication/authorization, and any clustered/replicated
-deployment of Redis, RabbitMQ, or PostgreSQL (single-instance only). Payment
-processing and failure-compensation logic beyond the Process Worker's deterministic
-simulated success path are explicitly excluded.
+The study excludes a frontend, authentication and authorization, real payment
+processing, payment-failure compensation, multi-node scaling, clusters, and
+multi-region deployment. It does not claim that one-host replication represents
+multi-node horizontal scaling.
 
 % ============================================================
 \chapter{Limitations}
 % ============================================================
 
-The following are acknowledged, deliberate limitations of the experimental design
-and system, not oversights to correct later within this project's timeline:
+The results have the following limits:
 
 \begin{itemize}
-  \item Single-instance infrastructure (Redis, RabbitMQ, PostgreSQL) means this
-    project does not evaluate behavior under infrastructure-level failure
-    (node loss, network partition, replica failover) -- only application- and
-    service-level failure modes are covered.
-  \item The Process Worker simulates downstream processing with a deterministic
-    delay and a successful outcome; it does not model realistic downstream failure
-    rates, so the \texttt{ProcessingFailed} state's real-world frequency is not
-    experimentally characterized (see the open question in
-    \texttt{docs/order-state-machine.md}).
-  \item Experiments run in a single local/cloud environment (Week 13's AWS EC2
-    deployment) rather than across a distributed/multi-region topology, so
-    network-latency effects representative of real multi-region Flash-sale traffic
-    are out of scope.
-  \item Load-shedding thresholds (Nginx rate limits, application-level concurrency
-    caps) are tuned empirically against this project's specific hardware and
-    workload shape; they are not claimed to generalize to arbitrary deployment
-    scale without re-tuning.
-  \item \texttt{GET /api/orders/\{id\}} (Week 5) performs no ownership check --
-    any caller who has an order's \texttt{id} can read it. This is the direct
-    consequence of excluding authentication/authorization from scope (this
-    document's own Scope chapter), not an oversight: order IDs are
-    cryptographically random GUIDs, functioning as an unguessable capability
-    token rather than a sequential identifier an unrelated party could
-    enumerate. A production system would still pair this with real
-    authorization; this project does not, on purpose. Client-facing
-    idempotency keys (\texttt{POST /api/orders}) are hardened against the
-    adjacent risk of key collision instead -- reusing a key with a different
-    request body is rejected (\texttt{409}) rather than silently returning an
-    unrelated order, so at minimum two unrelated callers colliding on the same
-    key surface as an explicit conflict, not a silent data leak.
+  \item PostgreSQL, Redis, and RabbitMQ each run as a single instance. The project
+    does not evaluate cluster failover, infrastructure node loss, or multi-region
+    network effects.
+  \item The Process Worker uses a deterministic delay and successful result; the
+    study does not characterize real downstream failure rates or compensation.
+  \item Replica experiments use processes or containers on one EC2 host. Shared CPU,
+    memory, and I/O contention limit how far their results can be generalized.
+  \item Load-shedding thresholds and the reservation-attempt target are specific to
+    the recorded hardware and workload; they are not universal capacity guarantees.
+  \item Authentication and authorization are out of scope. The order-status API
+    therefore must not be presented as production-secure, and a GUID is not a
+    substitute for an authorization check.
 \end{itemize}
 
 % ============================================================
@@ -342,30 +300,31 @@ and system, not oversights to correct later within this project's timeline:
 \begin{itemize}
   \item Accept an order request for a single product/quantity and return
     immediately with a pending state, without blocking on inventory confirmation.
-  \item Allow a client to query an order's current state and full transition
-    history at any time after submission.
+  \item Allow a client to query the current order state and the recorded
+    acceptance, reservation-result, and completion timestamps.
   \item Reserve inventory such that concurrent requests for the same product can
     never together reserve more than the available stock.
   \item Detect and reject duplicate order submissions (client-level) and duplicate
     message deliveries (broker-level) without double-processing either.
-  \item Recover automatically from a crashed consumer, a temporarily unreachable
-    broker, or a message that repeatedly fails processing, without operator
-    intervention for the common cases.
-  \item Shed excess load predictably (explicit rejection) once request rate
-    exceeds provisioned capacity, rather than degrading unpredictably.
+  \item Retry transient message failures with a bound, dead-letter poison messages,
+    and surface orders that remain pending through reconciliation.
+  \item Reject excess load deliberately when configured limits are reached. These
+    controls are evaluated in C3; they are not assumed to exist in earlier versions.
 \end{itemize}
 
 \section{Non-Functional Requirements}
 \begin{itemize}
-  \item \textbf{Correctness under concurrency} takes priority over latency — see
-    the four guarantees in \texttt{docs/00-scope-lock.md}.
-  \item \textbf{Observability}: every order's lifecycle must be reconstructable
-    end-to-end from logs via a single correlation ID (Week 11).
-  \item \textbf{Horizontal scalability}: no service may depend on in-memory-only
-    state that would break when running more than one replica.
-  \item \textbf{Reproducibility}: every experiment run must be preceded by a
-    deterministic reset/seed step (\texttt{scripts/reset-and-seed.ps1}, Week 3) so
-    results are comparable across configurations and across repeated runs.
+  \item \textbf{Inventory correctness}: check the four stock and duplicate-delivery
+    invariants in \texttt{docs/inventory-invariants.md}; report any failed or
+    inconclusive run rather than aggregating it as a pass.
+  \item \textbf{Order liveness}: reconcile accepted requests with terminal orders
+    and explicitly surfaced pending, retry, or dead-letter cases.
+  \item \textbf{Observability}: record correlation, order, and message identifiers
+    and the timestamps needed to separate API acceptance from business completion.
+  \item \textbf{Replication scope}: compare 1, 2, and 4 Inventory Service replicas
+    on the same EC2 host; do not claim multi-node scalability from these runs.
+  \item \textbf{Reproducibility}: reset and seed before each run, record the exact
+    workload and infrastructure, and validate each run independently.
 \end{itemize}
 
 % ============================================================
@@ -378,16 +337,14 @@ and system, not oversights to correct later within this project's timeline:
     (Week 6) requires the business write and the event write to commit atomically
     in one transaction — a relational engine with real ACID transactions is a
     prerequisite for that pattern, not just a convenient default.
-  \item[Redis Stack] Chosen over plain Redis specifically for its bundled Lua
-    scripting support: the inventory reservation check-and-decrement
-    (\texttt{scripts/redis/reserve.lua}, Week 7) must execute as one atomic
-    operation server-side, which Lua's single-threaded execution inside Redis
-    guarantees without needing external locking.
+  \item[Redis] Stores available inventory and the reservation-level duplicate
+    set. The check, decrement, and set update run together in
+    \texttt{scripts/redis/reserve.lua}; the local Redis Stack image also includes
+    RedisInsight for inspection, but the reservation logic does not depend on it.
   \item[RabbitMQ vs. Kafka] RabbitMQ was chosen over Kafka for this workload
-    shape: the system needs per-message routing, retry, and dead-lettering
-    semantics (Week 10) that map directly onto RabbitMQ's exchange/queue/DLX
-    model, whereas this project doesn't need Kafka's log-retention/replay
-    strengths (no consumer ever needs to replay historical events from scratch).
+    shape: the implementation uses routed queues, publisher confirms, bounded
+    retry, and dead-lettering. Historical log replay is not part of the current
+    research scope.
   \item[ABP Framework (\texttt{app-nolayers})] Chosen for built-in event bus
     abstractions (\texttt{Volo.Abp.EventBus.RabbitMQ}) and EF Core integration
     that reduce boilerplate around the parts of the system that aren't the actual
@@ -407,50 +364,56 @@ and system, not oversights to correct later within this project's timeline:
 
 \section{Local infrastructure (Docker Compose)}
 
-\texttt{infra/docker-compose.yml} defines four local dependencies, brought up with
-\texttt{docker compose up -d} from \texttt{infra/}:
+\texttt{infra/docker-compose.yml} defines the local data, broker, proxy, and
+monitoring containers. From the repository root, start them with
+\texttt{docker compose -f infra/docker-compose.yml up -d}:
 
 \begin{center}
 \begin{tabular}{@{}lll@{}}
 \toprule
-Service & Image & Ports \\
+Service & Image & Host ports \\
 \midrule
 PostgreSQL & \texttt{postgres:16} & 5432 \\
 Redis Stack & \texttt{redis/redis-stack:latest} & 6379 (data), 8001 (RedisInsight UI) \\
 RabbitMQ & \texttt{rabbitmq:3-management} & 5672 (AMQP), 15672 (management UI) \\
 Nginx & \texttt{nginx:latest} & 8080 (host) $\to$ 80 (container) \\
+Prometheus & \texttt{prom/prometheus:latest} & 9090 \\
+Grafana & \texttt{grafana/grafana:latest} & 3000 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Dev credentials (\texttt{flashsale} / \texttt{flashsale\_dev}) are local-only —
-never reused for the Week 13 AWS EC2 deployment, which uses separate
-Terraform-managed credentials.
+The .NET services currently run on the host; Prometheus reaches them through
+\texttt{host.docker.internal}. PostgreSQL's \texttt{flashsale} account is for local
+bootstrap only. Order Service and Inventory Service use separate local roles
+created by \texttt{infra/initdb/01-create-service-roles.sql}. These development
+passwords are not deployment secrets. Mutable image tags must be pinned before
+official experiments.
 
 \section{Toolchain}
 
-Verified working versions as of Week 2 setup (see \texttt{setup.ps1} for the
-onboarding script that installs/checks all of these on a fresh machine):
+\texttt{setup.ps1} contains Windows onboarding defaults, not a record that every
+tool was installed or verified on the benchmark host. Record the actual .NET SDK,
+Docker images, Terraform version, JMeter version, and AWS instance configuration
+in each experiment's run manifest.
 
 \begin{center}
 \begin{tabular}{@{}ll@{}}
 \toprule
-Tool & Version \\
+Tool & Use \\
 \midrule
-Git & 2.53 \\
-.NET SDK & 10.0.300 \\
-ABP CLI & 10.5.0 \\
-Docker Desktop & 29.4.3 \\
-Terraform & 1.15.8 \\
-Apache JMeter & 5.6.3 \\
+Git & Source control \\
+.NET SDK & Build and run the services \\
+Docker Compose & Run local dependencies \\
+Terraform & Provision the single EC2 host (configuration still required) \\
+Apache JMeter & Generate load from a separate machine \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Builds run from native Windows PowerShell against the \texttt{D:\textbackslash}
-drive, not inside a WSL2 shell — cross-filesystem I/O between Windows and WSL2 is
-the main source of slow \texttt{docker build}/bind-mount performance on this setup
-(see \texttt{FLASHSALE\_EXECUTION\_CHECKLIST.md}, Step 0.2).
+Run project commands from the repository root and resolve script paths relative to
+the script location. Do not rely on a machine-specific drive letter or an
+untracked setup checklist.
 
 % ============================================================
 \chapter{System Analysis and Design}
@@ -645,35 +608,16 @@ only argued from the SQL's atomicity.
 
 \subsection{JMeter smoke test}
 
-A 10-thread, single-iteration JMeter plan
-(\texttt{tests/jmeter/smoke-test.jmx}) targets C1's \texttt{POST /api/c1/orders}
-against a product seeded with ample stock (\texttt{flash-product-1},
-\texttt{stock = 1000}), confirming the full HTTP pipeline works end-to-end
-before any load testing begins. The first run of this test returned a clean
-\texttt{404} on all 10 requests -- worth recording precisely because it
-\emph{looked} like a pass against the checklist's own "2xx/4xx, not a
-connection error" criterion, but wasn't: the saved test plan had no port set,
-so JMeter defaulted to port 80, which on this machine belongs to an unrelated
-process (WSL2's \texttt{wslrelay.exe}), not the Order Service (which also
-wasn't running at the time). Fixed by setting the port explicitly and
-re-running against the actual service:
-
-\begin{center}
-\begin{tabular}{@{}ll@{}}
-\toprule
-Metric & Result \\
-\midrule
-Requests & 10 \\
-Responses & 10 $\times$ \texttt{200 OK} \\
-Errors & 0 \\
-Avg / Min / Max latency & 913\,ms / 480\,ms / 1240\,ms \\
-\texttt{flash-product-1} stock & 1000 $\to$ 990 (exactly 10 decrements) \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Raw results: \texttt{tests/jmeter/results/smoke-test-result.jtl}.
-
+The checked-in 10-thread, single-iteration JMeter plan
+(\texttt{tests/jmeter/smoke-test.jmx}) targets the synchronous C1 endpoint
+\texttt{POST /api/c1/orders}. The saved result file
+(\texttt{tests/jmeter/results/smoke-test-result.jtl}) contains ten successful
+responses to \texttt{/api/orders}, which is the separate asynchronous order
+endpoint. Those records cannot be attributed to the checked-in C1 plan and do
+not prove C1 inventory decrements. The previous draft's latency and stock
+change table has therefore been removed. Preserve this JTL as historical
+evidence and collect a fresh C1 run using the documented procedure before
+reporting smoke-test results.
 \section{Order Service}
 
 \subsection{API design}
