@@ -98,8 +98,8 @@ try {
  "permissions":[{"user":"flashsale","vhost":"/","configure":".*","write":".*","read":".*"}],
  "vhosts":[{"name":"/"}],
  "exchanges":[{"name":"flashsale.order.exchange","vhost":"/","type":"direct","durable":true,"auto_delete":false,"internal":false,"arguments":{}}],
- "queues":[{"name":"verify-outbox-capture","vhost":"/","durable":true,"auto_delete":false,"arguments":{}}],
- "bindings":[{"source":"flashsale.order.exchange","vhost":"/","destination":"verify-outbox-capture","destination_type":"queue","routing_key":"OrderPlaced","arguments":{}}]}
+ "queues":[{"name":"OrderPlaced","vhost":"/","durable":true,"auto_delete":false,"arguments":{}}],
+ "bindings":[{"source":"flashsale.order.exchange","vhost":"/","destination":"OrderPlaced","destination_type":"queue","routing_key":"OrderPlaced","arguments":{}}]}
 '@ | Set-Content $defs -Encoding ASCII
     "management.load_definitions = /etc/rabbitmq/definitions.json`nloopback_users = none`n" | Set-Content $conf -Encoding ASCII
     docker run -d --name $mq -e RABBITMQ_DEFAULT_USER=flashsale -e RABBITMQ_DEFAULT_PASS=flashsale_dev `
@@ -113,7 +113,7 @@ try {
     }
     Check "retries: once the broker is up the row is marked published" $published
     $msgs = @(Invoke-RestMethod -Method Post -Headers $auth -ContentType "application/json" `
-        -Body '{"count":100,"ackmode":"ack_requeue_false","encoding":"auto"}' "http://localhost:$BrokerMgmtPort/api/queues/%2F/verify-outbox-capture/get")
+        -Body '{"count":100,"ackmode":"ack_requeue_false","encoding":"auto"}' "http://localhost:$BrokerMgmtPort/api/queues/%2F/OrderPlaced/get")
     # Windows PowerShell 5.1 returns a JSON array as ONE pipeline object;
     # unroll it so each message is filtered on its own.
     $msgs = @($msgs | ForEach-Object { $_ })
