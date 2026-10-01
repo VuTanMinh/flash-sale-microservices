@@ -76,6 +76,8 @@ try {
     } else {
         Fail ".NET SDK $sdk does not match global.json $want"
     }
+    powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\create-openiddict-cert.ps1") | Out-Null
+    if ($LASTEXITCODE -eq 0) { Pass "Order Service signing certificate (openiddict.pfx) present" } else { Fail "could not create openiddict.pfx" }
     if (-not $SkipBuild) {
         $buildLog = Join-Path $env:TEMP "verify-env-build.log"
         dotnet build (Join-Path $repoRoot "src\FlashSale.OrderService.slnx") --no-incremental -nologo *> $buildLog
@@ -131,6 +133,32 @@ try {
     Step "Baseline (C0/C1) schema"
     Get-Content -Raw (Join-Path $repoRoot "scripts\schema\baseline-schema.sql") | docker exec -i $container psql -q -U flashsale -d flashsale -v ON_ERROR_STOP=1 *> $null
     if ($LASTEXITCODE -eq 0) { Pass "baseline schema applied" } else { Fail "baseline schema failed" }
+
+    Step "Order Service starts against this database (own account)"
+    $svcLog = Join-Path $env:TEMP "verify-env-order-service.log"
+    $env:ConnectionStrings__Default = "Host=localhost;Port=$Port;Database=flashsale;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"
+    $env:ASPNETCORE_URLS = "http://localhost:5181"
+    $svc = Start-Process -FilePath dotnet -ArgumentList "run", "--no-build", "--no-launch-profile" `
+        -WorkingDirectory (Join-Path $repoRoot "src\FlashSale.OrderService") `
+        -RedirectStandardOutput $svcLog -RedirectStandardError "$svcLog.err" -WindowStyle Hidden -PassThru
+    $env:ConnectionStrings__Default = $null
+    $env:ASPNETCORE_URLS = $null
+    $answered = $false
+    for ($i = 0; $i -lt 60 -and -not $answered -and -not $svc.HasExited; $i++) {
+        Start-Sleep -Seconds 2
+        try { Invoke-WebRequest -UseBasicParsing "http://localhost:5181/api/c1/orders" -TimeoutSec 2 -ErrorAction Stop | Out-Null; $answered = $true }
+        catch { if ($_.Exception.Response) { $answered = $true } }
+    }
+    # Stop only the process tree this script started (dotnet run -> service
+    # exe), never an Order Service the user is running.
+    Get-CimInstance Win32_Process -Filter "ParentProcessId=$($svc.Id)" |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    if (-not $svc.HasExited) { Stop-Process -Id $svc.Id -Force -ErrorAction SilentlyContinue }
+    if ($answered) { Pass "Order Service started and answered HTTP" }
+    else {
+        Fail "Order Service did not start; see $svcLog"
+        Select-String -Path $svcLog -Pattern "FTL|Exception" | Select-Object -First 3 | ForEach-Object { Write-Host "      $($_.Line)" }
+    }
 
     Step "Account isolation"
     $checks = @(

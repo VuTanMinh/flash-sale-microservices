@@ -22,7 +22,9 @@ Run `docker compose -f infra/docker-compose.yml up -d` from the repository root.
 - **Clean build:** `dotnet build src/FlashSale.OrderService.slnx --no-incremental` builds all five projects (three services, event contracts, tests).
 - **Migrations:** each service migrates with its own account (`--migrate-database`, connection string from `ConnectionStrings__Default`). Order Service writes `order_service` and ABP's `public` tables; Inventory Service writes only `inventory_service`.
 
-`scripts/verify-environment.ps1 -Mode Fresh` checks all of this on a brand-new database: the SDK against `global.json`, the clean build, both migrations, account isolation and the ERD.
+- **Signing certificate:** outside the Development environment, Order Service loads OpenIddict's certificate from `src/FlashSale.OrderService/openiddict.pfx`. `*.pfx` is git-ignored, so a fresh clone does not have it and Order Service stops at startup with `Signing Certificate couldn't found: openiddict.pfx`. Create it once with `scripts/create-openiddict-cert.ps1` (ABP's `dotnet dev-certs` command; local development value).
+
+`scripts/verify-environment.ps1 -Mode Fresh` checks all of this on a brand-new database: the SDK against `global.json`, the certificate, the clean build, both migrations, Order Service starting and answering HTTP under its own account, account isolation and the ERD.
 
 ## PostgreSQL ownership
 
