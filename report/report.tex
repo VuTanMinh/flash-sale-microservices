@@ -690,19 +690,34 @@ the simpler baseline that cannot provide either.
 \label{sec:c0-c1}
 
 Before building the real asynchronous design (Weeks 5--12), two controlled
-baseline configurations were built and compared, entirely inside the Order
-Service, with no separate Inventory Service involved yet. Both share a single
-raw-SQL table, \texttt{order\_service.inventory} (deliberately \emph{not}
-EF Core-migrated -- see \texttt{docs/erd.md} -- since C0 and C1 are baseline
-scaffolding, not the final design), seeded to a known stock value before every
-run via \texttt{scripts/reset-and-seed.ps1}.
+baseline configurations were built inside Order Service, with no separate
+Inventory Service involved. Both use one raw-SQL table,
+\texttt{order\_service.inventory}. It is deliberately \emph{not}
+EF Core-migrated (see \texttt{docs/erd.md}), because C0 and C1 are baseline
+scaffolding, not the final design. Every result in this section was produced
+on 2026-10-01 from a fresh clone of the repository and a brand-new PostgreSQL
+database built by \texttt{scripts/verify-environment.ps1}, with Order Service
+connecting under its own account (\texttt{order\_service\_user}). The method
+and pass rules are in \texttt{docs/baseline-c0-c1.md}; the raw evidence is in
+\texttt{tests/baseline/results/} and \texttt{tests/jmeter/results/}.
+
+\subsection{Reset and seed}
+
+\texttt{scripts/reset-and-seed.ps1} applies the baseline schema, empties both
+baseline tables and inserts the starting inventory: \texttt{c0-demo-product} = 1,
+\texttt{c1-demo-product} = 1 and \texttt{flash-product-1} = 1000, with no other
+rows and no order rows. \texttt{scripts/verify-reset-seed.ps1} proves the script
+is repeatable. It runs it, then deliberately breaks every table (wrong stock, a
+deleted seed row, an extra product and 25 leftover order rows), then runs it
+twice more. All three snapshots matched the expected state exactly and were
+identical to each other (\texttt{20261001T090034Z-reset-seed.log}).
 
 \subsection{C0 -- the naive baseline (a controlled failure demonstration)}
 
 C0 (\texttt{src/FlashSale.OrderService/Experiments/C0Naive/C0NaiveDemo.cs})
-implements the textbook race condition: read current stock, check it in
-application code, then issue a separate, unconditional \texttt{UPDATE} --
-two round trips, no locking between them:
+implements the textbook race condition. It reads the current stock, checks it
+in application code, then issues a separate, unconditional \texttt{UPDATE}:
+two round trips with no locking between them.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 SELECT stock FROM order_service.inventory WHERE product_id = @p;
@@ -710,45 +725,39 @@ SELECT stock FROM order_service.inventory WHERE product_id = @p;
 UPDATE order_service.inventory SET stock = stock - 1 WHERE product_id = @p;
 \end{Verbatim}
 
-C0 is deliberately not reachable via any HTTP route -- it is invoked only via
-\texttt{dotnet run -{}- -{}-run-c0-demo}, which bypasses the whole ABP host.
-This is a stronger isolation guarantee than "don't add a controller for it":
-there is no route in the routing table at all for a stray request to hit
-later in the project.
-
-Five concurrent attempts were fired against a product seeded with
-\texttt{stock = 1}, synchronized on a shared start gate so every attempt
-reaches the read at the same instant (without this, the race did not
-reproduce on every run -- scheduling jitter alone was occasionally enough to
-serialize the two "concurrent" reads). The result:
+C0 has no HTTP route. It runs only via \texttt{dotnet run -{}- -{}-run-c0-demo},
+which bypasses the ABP host, so no stray request can reach it later in the
+project. Five concurrent attempts were fired at a product seeded with
+\texttt{stock = 1}. All five wait on a shared start gate so they reach the read
+at the same instant, and a 50\,ms pause between read and write widens the race
+window so it reproduces on every run. The captured result
+(\texttt{20261001T085538Z-c0-race.log}):
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [C0] Seeded 'c0-demo-product' with stock = 1. Firing 5 concurrent naive requests...
-[C0] Attempt 3: saw stock=1, Confirmed.
-[C0] Attempt 1: saw stock=1, Confirmed.
 [C0] Attempt 4: saw stock=1, Confirmed.
+[C0] Attempt 1: saw stock=1, Confirmed.
+[C0] Attempt 3: saw stock=1, Confirmed.
 [C0] Attempt 2: saw stock=1, Confirmed.
 [C0] Attempt 5: saw stock=1, Confirmed.
 [C0] Result: 5 of 5 concurrent requests got 'Confirmed' for a product seeded with stock = 1.
-[C0] OVER-SOLD: more than one request reserved the same single unit of stock.
+[C0] OVER-SOLD: more than one request reserved the same single unit of stock. This is the bug C1 (Step 3.3) fixes.
 [C0] Final stock in database: -4 (started at 1).
 \end{Verbatim}
 
-All five requests believed they had validly reserved the single unit of
-stock; the database was left at \(-4\). This is the exact failure mode C1
-exists to eliminate. Note that \texttt{order\_service.inventory} deliberately
-has no \texttt{CHECK (stock >= 0)} constraint -- an earlier version of this
-table had one, and it only turned the bug into an unhandled exception
-instead of letting it manifest, which is a form of debugging the bug away
-rather than capturing it.
+All five requests believed they had reserved the single unit, and the
+database was left at \(-4\). This is the race condition C1 exists to
+eliminate. \texttt{order\_service.inventory} deliberately has no
+\texttt{CHECK (stock >= 0)} constraint, so that the bug shows up as overselling
+instead of being turned into an unhandled exception.
 
-\subsection{C1 -- the PostgreSQL atomic baseline}
+\subsection{C1 -- the PostgreSQL atomic update}
 
-C1 (\texttt{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs})
-replaces the two round trips with a single conditional statement, where the
-\texttt{WHERE} clause is evaluated by PostgreSQL against the row's current
-value under its own row lock, not against a value the application read
-earlier and might now be stale:
+C1 (\texttt{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs},
+\texttt{POST /api/c1/orders}) replaces the two round trips with one
+conditional statement. Its \texttt{WHERE} clause is evaluated by PostgreSQL
+against the row's current value while holding the row lock, not against a
+value the application read earlier:
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 UPDATE order_service.inventory
@@ -757,40 +766,81 @@ WHERE product_id = @productId AND stock >= 1
 RETURNING stock;
 \end{Verbatim}
 
-This runs inside the same database transaction as the order-outcome log
-insert, exposed as a real synchronous endpoint, \texttt{POST /api/c1/orders}
-(moved off \texttt{/api/orders} in Week 5 once that path became the real
-design's endpoint -- Week 13/14 need both configurations independently
-reachable for comparison, not one path whose behavior depends on a hidden
-flag). The same five-concurrent-request test used against C0 was repeated against
-C1, seeded with \texttt{stock = 1}: \textbf{exactly 1 request Confirmed, 4
-Rejected, final stock 0} -- never negative, never more than one winner.
-\texttt{SELECT ... FOR UPDATE} followed by a separate \texttt{UPDATE} was
-deliberately avoided here: that reintroduces C0's exact race window between
-the two statements unless wrapped very carefully, whereas a single
-\texttt{UPDATE...WHERE...RETURNING} is simpler and provably atomic.
+The update and the outcome row in \texttt{baseline\_orders} commit in one
+transaction, so the log cannot disagree with the stock. A separate
+\texttt{SELECT ... FOR UPDATE} followed by an \texttt{UPDATE} was avoided,
+because it re-creates C0's two-statement window unless written very carefully.
+C1 lives on its own route; \texttt{/api/orders} belongs to the asynchronous
+design, so both configurations stay independently reachable for the Week 13--14
+comparison.
+
+\paragraph{Concurrent demand below, equal to and above stock.}
+\texttt{scripts/run-baseline.ps1} seeds \texttt{c1-demo-product} with 100
+units, starts every request before reading any response, and repeats each
+scenario three times:
+
+\begin{center}
+\begin{tabular}{@{}lrrrrrl@{}}
+\toprule
+Scenario & Requests & Confirmed & Rejected & Final stock & HTTP 200 & Verdict \\
+\midrule
+Below stock & 50 & 50 & 0 & 50 & 50/50 & PASS (3/3 runs) \\
+Equal to stock & 100 & 100 & 0 & 0 & 100/100 & PASS (3/3 runs) \\
+Above stock & 150 & 100 & 50 & 0 & 150/150 & PASS (3/3 runs) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+In all nine runs, Confirmed equalled $\min(\text{demand}, 100)$, stock never
+went negative, final stock equalled 100 minus Confirmed, and
+\texttt{baseline\_orders} held exactly one row per request
+(\texttt{20261001T085538Z-c1-*-run*.json}).
+
+\paragraph{Connection-pool finding.} The first concurrent prototype never
+oversold, but 3--31 of every 150--300 requests failed with HTTP 500
+(\texttt{53300: sorry, too many clients already}). Npgsql's default pool of
+100 connections per service is larger than what PostgreSQL's default
+\texttt{max\_connections = 100} leaves for ordinary roles (97), and both
+services share that server. The pools are now capped at 60 (Order Service)
+and 30 (Inventory Service). These sizes are part of the experiment
+configuration and are recorded with every run.
 
 \subsection{Correctness criteria}
 
-The four invariants defined in \texttt{docs/inventory-invariants.md} apply
-directly to this comparison: C0 violates Invariant~1
-(\texttt{available\_inventory >= 0}) and Invariant~2
-(\texttt{successful\_reservations <= initial\_inventory}) by construction
-under concurrency; C1 satisfies both, verified empirically above rather than
-only argued from the SQL's atomicity.
+The invariants in \texttt{docs/inventory-invariants.md} are applied as
+follows. Invariant~1 (\texttt{available\_inventory >= 0}) and Invariant~2
+(\texttt{successful\_reservations <= initial\_inventory}) are checked after
+every run from the database itself: final stock, and Confirmed rows in
+\texttt{baseline\_orders}. C0 violates both under concurrency (final stock
+\(-4\), 5 successes for 1 unit). C1 satisfied both in all nine runs. The
+captures add two run-level checks: every request receives a decision (HTTP 200
+with \texttt{Confirmed} or \texttt{Rejected}, and no errors), and stock is
+conserved (final stock = initial stock $-$ Confirmed). Invariants~3 and~4 (one
+reservation per order; no duplicate effect from a redelivered message) need an
+order identity and message delivery. C0 and C1 have neither, so those
+invariants are checked on the asynchronous design from Week 7 onward.
 
 \subsection{JMeter smoke test}
 
-The checked-in 10-thread, single-iteration JMeter plan
-(\texttt{tests/jmeter/smoke-test.jmx}) targets the synchronous C1 endpoint
-\texttt{POST /api/c1/orders}. The saved result file
-(\texttt{tests/jmeter/results/smoke-test-result.jtl}) contains ten successful
-responses to \texttt{/api/orders}, which is the separate asynchronous order
-endpoint. Those records cannot be attributed to the checked-in C1 plan and do
-not prove C1 inventory decrements. The previous draft's latency and stock
-change table has therefore been removed. Preserve this JTL as historical
-evidence and collect a fresh C1 run using the documented procedure before
-reporting smoke-test results.
+The checked-in plan \texttt{tests/jmeter/smoke-test.jmx} runs 10 threads with
+one \texttt{POST /api/c1/orders} each for \texttt{flash-product-1}. Each sample
+carries two assertions: HTTP status 200, and a body that is a
+\texttt{Confirmed} decision for that product with a \texttt{remainingStock}
+value. The previously committed result file had been recorded against
+\texttt{/api/orders}, the asynchronous endpoint, so it did not match the plan.
+It was removed and replaced. \texttt{scripts/run-jmeter-smoke.ps1} resets and
+seeds the database, runs the plan with JMeter 5.6.3, saves a timestamped JTL
+and cross-checks it against the database.
+
+Result (\texttt{tests/jmeter/results/20261001T090632Z-c1-smoke.jtl}): 10 of 10
+samples hit \texttt{/api/c1/orders}, all returned 200 and passed both
+assertions, the database recorded exactly 10 Confirmed C1 decisions, and stock
+fell from 1000 to 990. Elapsed time was 28\,ms minimum, 36.5\,ms median and
+162\,ms maximum. These figures come from one local smoke run and are a
+functional check, not a performance result. A control run against a product
+with no stock still returned 200 but failed the content assertion on all 10
+samples, which shows the assertions can fail.
+
 \section{Order Service}
 
 \subsection{API design}
