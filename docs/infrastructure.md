@@ -15,6 +15,15 @@ Run `docker compose -f infra/docker-compose.yml up -d` from the repository root.
 
 `latest` tags are mutable. Pin image versions and record the resolved image digests before official experiments.
 
+## .NET toolchain and build
+
+- **SDK:** pinned by `global.json` to `10.0.300` with `rollForward: latestPatch`, so any `10.0.3xx` patch at or above `10.0.300` is used and anything else fails fast. All projects target `net10.0`.
+- **Framework:** ABP `10.6.0`; LeptonX Lite theme `5.4.0` (previously a floating `5.4.0-preview*`, now pinned so a clean build resolves the same package everywhere); `RabbitMQ.Client` `7.1.2`.
+- **Clean build:** `dotnet build src/FlashSale.OrderService.slnx --no-incremental` builds all five projects (three services, event contracts, tests).
+- **Migrations:** each service migrates with its own account (`--migrate-database`, connection string from `ConnectionStrings__Default`). Order Service writes `order_service` and ABP's `public` tables; Inventory Service writes only `inventory_service`.
+
+`scripts/verify-environment.ps1 -Mode Fresh` checks all of this on a brand-new database: the SDK against `global.json`, the clean build, both migrations, account isolation and the ERD.
+
 ## PostgreSQL ownership
 
 - `flashsale` is the local bootstrap/admin account only.

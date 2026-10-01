@@ -411,6 +411,23 @@ Apache JMeter & Generate load from a separate machine \\
 \end{tabular}
 \end{center}
 
+\paragraph{Pinned versions.} The .NET SDK is pinned by \texttt{global.json} to
+10.0.300 (any later 10.0.3xx patch is accepted; other versions fail fast).
+All projects target \texttt{net10.0} and use ABP 10.6.0, the LeptonX Lite
+theme 5.4.0 and \texttt{RabbitMQ.Client} 7.1.2. No package uses a floating
+version, so a clean build resolves the same dependencies on every machine.
+
+\paragraph{Fresh-environment check.} \texttt{scripts/verify-environment.ps1}
+starts a temporary PostgreSQL container and proves the setup from nothing.
+It checks the SDK against \texttt{global.json}, then does a clean build of the
+whole solution. It runs both services' migrations, each with its own database
+account, and applies the baseline schema. Finally it checks account isolation:
+each service can use its own schema, cannot read the other's, and only Order
+Service can use \texttt{public}. It also checks the schema against the ERD.
+On 2026-10-01 it passed from a fresh clone with 0 build errors and 0 warnings.
+With \texttt{-Mode Existing}, the same checks run on a copy of an existing
+database after the role script is applied twice.
+
 Run project commands from the repository root and resolve script paths relative to
 the script location. Do not rely on a machine-specific drive letter or an
 untracked setup checklist.
