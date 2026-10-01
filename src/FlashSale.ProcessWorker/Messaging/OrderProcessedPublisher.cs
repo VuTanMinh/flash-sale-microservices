@@ -47,6 +47,24 @@ public class OrderProcessedPublisher : IDisposable
         await channel.ExchangeDeclareAsync(
             exchangeName, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
+        // Routed-confirmation rule (docs/outbox.md): before publishing, assert
+        // that every subscriber queue this event REQUIRES exists (passive
+        // declare -- throws if missing, so the publish fails and is retried
+        // instead of silently reaching nobody) and is bound. Binding is
+        // idempotent; asserting it here means a removed binding cannot make
+        // one required subscriber (e.g. the Process Worker for StockReserved)
+        // miss a message that another subscriber still receives.
+        if (!_options.EventBus.RequiredSubscriberQueues.TryGetValue("OrderProcessed", out var requiredQueues) || requiredQueues.Length == 0)
+        {
+            throw new InvalidOperationException($"No required subscriber queues configured for event '{"OrderProcessed"}'; refusing to publish unchecked.");
+        }
+
+        foreach (var queue in requiredQueues)
+        {
+            await channel.QueueDeclarePassiveAsync(queue, cancellationToken);
+            await channel.QueueBindAsync(queue, exchangeName, "OrderProcessed", cancellationToken: cancellationToken);
+        }
+
         var properties = new BasicProperties
         {
             Persistent = true,
@@ -59,7 +77,7 @@ public class OrderProcessedPublisher : IDisposable
         await channel.BasicPublishAsync(
             exchangeName,
             routingKey: "OrderProcessed",
-            mandatory: false,
+            mandatory: true,
             basicProperties: properties,
             body: body,
             cancellationToken: cancellationToken);

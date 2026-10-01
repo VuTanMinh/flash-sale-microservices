@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 namespace FlashSale.InventoryService.Messaging;
 
 /// <summary>
@@ -30,6 +31,12 @@ public class RabbitMqOptions
 
     public class EventBusOptions
     {
+        /// <summary>
+        /// Queues that must receive each published event type (docs/outbox.md,
+        /// "Routed confirmation"). Configured in appsettings.json.
+        /// </summary>
+        public Dictionary<string, string[]> RequiredSubscriberQueues { get; set; } = new();
+
         public string ExchangeName { get; set; } = "flashsale.order.exchange";
 
         /// <summary>The queue this service consumes OrderPlaced from -- the
