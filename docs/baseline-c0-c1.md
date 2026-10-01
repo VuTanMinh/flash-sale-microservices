@@ -22,6 +22,20 @@
 
 All three C1 rules also require that stock never goes negative, Confirmed ≤ initial stock, and `baseline_orders` holds exactly one row per request. Every C1 scenario runs **3 times**. All requests in a scenario are started together, before any response is read.
 
+## Reset and seed
+
+`scripts/reset-and-seed.ps1` (optionally `-Container <name>`) applies `scripts/schema/baseline-schema.sql`, empties both baseline tables (`scripts/reset.sql`), then inserts the starting inventory (`scripts/seed.sql`). After every run the database must hold exactly:
+
+| Table | Expected content |
+|---|---|
+| `order_service.inventory` | `c0-demo-product` = 1, `c1-demo-product` = 1, `flash-product-1` = 1000, and no other rows |
+| `order_service.baseline_orders` | 0 rows |
+| Owners | both tables owned by `order_service_user` |
+
+`flash-product-1` is the JMeter smoke/load product, and `c0-demo-product` matches `C0NaiveDemo`. `run-baseline.ps1` sets `c1-demo-product` to its own scenario stock (100) before each C1 run, so the seed value of 1 only matters for manual checks.
+
+`scripts/verify-reset-seed.ps1 -Container <name>` proves this. It runs reset+seed and snapshots the tables. It then deliberately breaks every table: wrong stock, a deleted seed row, an extra product and 25 leftover order rows. Then it runs reset+seed twice more. All three snapshots must equal the table above and each other. Redis inventory is reset by the Week 7 warm-up, not by this script.
+
 ## Evidence
 
 Each run writes `tests/baseline/results/<UTC timestamp>-<scenario>-run<N>.json` with the commit, scenario, counts, HTTP status counts and verdict. The C0 console output is saved beside it as `...-c0-race.log`. A summary `...-summary.md` lists all verdicts. The script exits non-zero if any C1 rule fails, or if C0 does not show the race.
