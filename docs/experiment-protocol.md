@@ -29,7 +29,8 @@ Start the Compose services (or a throwaway database with `scripts/verify-environ
 
 Then run the checked smoke test. Add `-Container verify-env-pg` for the throwaway database; leave it out for the Compose database:
 
-    powershell -ExecutionPolicy Bypass -File .\scriptsun-jmeter-smoke.ps1 -JMeter <path>in\jmeter.bat
+    powershell -ExecutionPolicy Bypass -File .\scripts
+un-jmeter-smoke.ps1 -JMeter <path>in\jmeter.bat
 
 The script resets and seeds the database, then runs `tests/jmeter/smoke-test.jmx` (10 threads, one `POST /api/c1/orders` each for `flash-product-1`). Each sample has two assertions: HTTP status 200, and a body that is a `Confirmed` decision for that product with a `remainingStock` value. The script saves the JTL and a summary as `tests/jmeter/results/<UTC stamp>-c1-smoke.*`. It then checks that the JTL holds 10 samples, all on `/api/c1/orders`, all 200, and all passing the assertions. It also checks the database: exactly 10 Confirmed C1 rows and stock 1000 → 990. Each run gets a new timestamped file, so earlier evidence is never overwritten. The target can be changed with `-Jhost`, `-Jport` and `-Jproduct`. Running with `-Product no-such-product` must fail, which proves the assertions bite.
 
