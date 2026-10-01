@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Entities;
 using FlashSale.OrderService.Messaging;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.AspNetCore.Mvc;
@@ -46,7 +47,14 @@ public class OrdersController : AbpController
         DateTime? ConfirmedOrRejectedAt,
         DateTime? CompletedAt);
 
+    // Documented outcomes (exported to docs/api-contract-v1.json): 201 new
+    // order, 200 replay of the same Idempotency-Key + payload, 400 missing
+    // key, 409 key reused with a different payload.
     [HttpPost]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OrderResponse>> CreateOrderAsync(
         [FromBody] CreateOrderRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
@@ -119,6 +127,8 @@ public class OrdersController : AbpController
     // rather than an enumerable identifier. See report.tex's Limitations
     // chapter for the full reasoning.
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<OrderResponse>> GetOrderAsync(Guid id)
     {
         var order = await _dbContext.Orders.FindAsync(id);

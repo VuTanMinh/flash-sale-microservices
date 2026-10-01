@@ -51,8 +51,16 @@ Every transition appends a row to an order status history: order ID, from-state,
 |---|---|
 | This document (adopted model) | Done, 2026-10-01 (Week 1) |
 | `OrderState` enum, transitions, `OrderProcessingStarted` event, Worker publish, history table, tests | **Open:** Week 11 box "Implement/verify the agreed Processing state/history and document the success-only interpretation of ProcessingFailed" |
-| ERD, event contract, sequence diagrams | **Open:** Week 2/Week 4 alignment boxes |
+| ERD, class diagram, API/event contracts, sequence diagrams | Aligned 2026-10-01 (Week 2 ERD box, Week 4 alignment box); planned parts are labelled as Week 11 |
 
 Until the Week 11 box closes, the running code still has four states. Do not report six-state behaviour as implemented until then.
+
+Transitions in the current code (`Order.LegalTransitions`):
+
+| Current code transition | Trigger |
+|---|---|
+| `PendingStock` → `Confirmed` | `StockReserved` |
+| `PendingStock` → `Rejected` | `StockRejected` |
+| `Confirmed` → `Completed` | `OrderProcessed` (becomes `Processing` → `Completed` in Week 11) |
 
 An accepted order that stays in `PendingStock` or `Processing` is a liveness failure to investigate, not a success. Retry, dead-letter and reconciliation are covered by the later week gates.

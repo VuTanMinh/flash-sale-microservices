@@ -3082,6 +3082,26 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlashSale.OrderService.Controllers.OrdersController+OrderResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlashSale.OrderService.Controllers.OrdersController+OrderResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlashSale.OrderService.Controllers.OrdersController+OrderResponse"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -3101,6 +3121,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
           }
         }
       }
@@ -3141,6 +3167,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found"
           }
         }
       }
@@ -5484,7 +5513,7 @@
             "in": "query",
             "schema": {
               "type": "object",
-              "additionalProperties": { }
+              "additionalProperties": {}
             }
           }
         ],
@@ -8541,7 +8570,7 @@
             "in": "query",
             "schema": {
               "type": "object",
-              "additionalProperties": { }
+              "additionalProperties": {}
             }
           }
         ],
@@ -10169,7 +10198,7 @@
             "in": "query",
             "schema": {
               "type": "object",
-              "additionalProperties": { }
+              "additionalProperties": {}
             }
           }
         ],
@@ -10585,7 +10614,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -10633,7 +10662,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -10716,7 +10745,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -10951,7 +10980,7 @@
           },
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           }
         },
@@ -11275,7 +11304,7 @@
           },
           "configuration": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           }
         },
@@ -11362,7 +11391,7 @@
           },
           "config": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           }
         },
@@ -11400,7 +11429,7 @@
           },
           "configuration": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           },
           "defaultValue": {
@@ -11560,7 +11589,7 @@
           },
           "configuration": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           }
         },
@@ -12222,7 +12251,7 @@
           },
           "enumValues": {
             "type": "array",
-            "items": { },
+            "items": {},
             "nullable": true
           },
           "genericArguments": {
@@ -12275,7 +12304,7 @@
           },
           "data": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true
           },
           "validationErrors": {
@@ -12322,7 +12351,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -12345,7 +12374,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -12385,7 +12414,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -12417,7 +12446,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -12476,7 +12505,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -12587,7 +12616,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -13155,7 +13184,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -13183,7 +13212,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -13210,7 +13239,7 @@
         "properties": {
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           },
@@ -13269,7 +13298,7 @@
           },
           "extraProperties": {
             "type": "object",
-            "additionalProperties": { },
+            "additionalProperties": {},
             "nullable": true,
             "readOnly": true
           }
@@ -13335,7 +13364,7 @@
   },
   "security": [
     {
-      "oauth2": [ ]
+      "oauth2": []
     }
   ],
   "tags": [

@@ -12,6 +12,10 @@ description: Use for ANY roadmap work on this repo — starting, continuing, imp
 - Never open, search into, read or write any other Notion page, database or
   workspace — not even pages it @-mentions. Fetch this page by id; do not search.
 - If Notion is unreachable, say so and stop ticking; do not fall back to guesses.
+- **Edit Notion minimally.** Never rewrite, reorder or restyle the page. Only
+  flip `[ ]`/`[x]` and append a short evidence note after the box's own text,
+  keeping the original wording intact. Never change a box's wording so it
+  deviates from the teacher's brief (`docs/teacher-brief.md`).
 
 ## Source of truth for the plan
 - The plan is the Notion page above. Do **not** use the local

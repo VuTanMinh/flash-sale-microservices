@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -37,6 +38,7 @@ public class BaselineOrdersController : AbpController
     public record PlaceOrderResponse(string ProductId, string Result, int? RemainingStock);
 
     [HttpPost]
+    [ProducesResponseType(typeof(PlaceOrderResponse), StatusCodes.Status200OK)]
     public async Task<PlaceOrderResponse> PlaceOrderAsync([FromBody] PlaceOrderRequest request)
     {
         await using var connection = new NpgsqlConnection(_connectionString);
