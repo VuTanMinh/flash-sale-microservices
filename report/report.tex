@@ -480,13 +480,22 @@ that could silently diverge.
 
 \section{Order State Machine}
 See \texttt{docs/order-state-machine.md} for the full diagram and
-transition table. Two transitions
-(\texttt{Confirmed} $\to$ \texttt{Processing} $\to$
-\texttt{Completed}/\allowbreak\texttt{ProcessingFailed}) remain an explicitly recorded
-open question pending the Week 11 Process Worker design -- inventing a
-trigger for them now, to make the diagram look more finished than the design
-actually is, would cost more credibility at defense time than leaving the
-gap visible.
+transition table. The adopted model (decided 2026-10-01) uses the teacher's
+six named states: \texttt{PendingStock}, \texttt{Confirmed},
+\texttt{Rejected}, \texttt{Processing}, \texttt{Completed} and
+\texttt{ProcessingFailed}. \texttt{Processing} is reachable through a
+dedicated \texttt{OrderProcessingStarted} event published by the Process
+Worker when it begins work, followed by \texttt{OrderProcessed} for
+\texttt{Processing} $\to$ \texttt{Completed}. \texttt{ProcessingFailed} is
+declared but unreachable by design: the scope lock gives the Process Worker
+a deterministic, successful outcome only, so no in-scope event produces it
+(the success-only interpretation). Reordered or duplicated Worker events are
+absorbed by explicit rules (stale events are no-ops; an early
+\texttt{OrderProcessed} applies an implied \texttt{Processing} step in the
+same transaction), and every transition is appended to an order status
+history. Aligning the source code with this model is the Week 11
+implementation task; until it closes, the running code still has the four
+states described in the Week 11 section.
 
 \section{Sequence Diagrams}
 Full diagrams: \texttt{docs/sequence-diagrams.md} (happy path and rejection
@@ -1355,6 +1364,11 @@ exchange copies the message to every bound queue, so both services react to
 the same event independently. Sharing one queue would have made them compete
 for messages, and roughly half of all orders would never have been processed
 at all.
+
+\paragraph{Superseded (2026-10-01).} The reasoning below records why the
+four-state model was adopted in Week 11. The project has since adopted the
+teacher's six-state model instead (see the Order State Machine section); the
+code change is tracked as an open Week 11 task.
 
 \paragraph{Resolving the Week 1 open question.} The checklist specifies one
 input event and one output event for this worker. That is what settles the

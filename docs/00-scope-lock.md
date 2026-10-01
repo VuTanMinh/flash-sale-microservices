@@ -22,7 +22,8 @@ The target of approximately 2,000 reservation attempts per second is an experime
 - Backend order acceptance, status polling, stock reservation, event delivery, and deterministic downstream processing.
 - Order Service owns orders, client idempotency, its Outbox, and its processed-message records.
 - Inventory Service owns reservation decisions. Redis Lua performs the atomic stock check/decrement; Inventory Service owns its Outbox and processed-message records.
-- Process Worker consumes successful reservation events, waits a configured deterministic delay, and publishes a successful completion result.
+- Process Worker consumes successful reservation events, publishes `OrderProcessingStarted` when it begins, waits a configured deterministic delay, and publishes a successful completion result (`OrderProcessed`).
+- Order states follow the teacher's six-state model; `ProcessingFailed` is declared but has no in-scope trigger (success-only). See `docs/order-state-machine.md`.
 - RabbitMQ carries asynchronous events. PostgreSQL is one instance with service-owned schemas and separate service credentials; services must not read another service's schema.
 - **Week 2 verification gap:** service connection strings now use separate roles and Compose initializes their schemas and grants, but the setup has not yet been exercised against a fresh and an existing PostgreSQL volume. Keep the infrastructure gate open until both paths are verified.
 - Docker Compose is the local development environment. The experiment target is one AWS EC2 instance. JMeter runs on a separate machine.
@@ -57,3 +58,4 @@ The target of approximately 2,000 reservation attempts per second is an experime
 ## Change log
 
 - 2026-09-30 — Reconstructed the Week 1 scope from the teacher brief and checked it against the Week 11 branch. This records the current baseline; it does not claim the document was frozen on the original Week 1 date.
+- 2026-10-01 — Adopted the teacher's six named order states over the four-state source model. `Processing` gets a real trigger (`OrderProcessingStarted`); `ProcessingFailed` stays declared but unreachable under this scope. Source alignment is the Week 11 task.
