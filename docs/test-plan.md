@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|
 | TP-E01 | Fresh environment: SDK, clean build, own-account migrations, isolation, ERD | W02 | New PostgreSQL volume with `infra/initdb`; repo at the commit under test | SDK matches `global.json`; 0 build errors; both migrations as their own accounts; Order Service answers `POST /api/c1/orders` with 200; 7 isolation checks; 29 ERD checks | `scripts/verify-environment.ps1 -Mode Fresh` | PASS | `tests/evidence/20261001T114318Z-environment-fresh.log` |
 | TP-E02 | Existing-database role migration | W02 | Copy of the running local DB; role script applied twice | Same checks as TP-E01 after the migration; Inventory history moved to `inventory_service` | `scripts/verify-environment.ps1 -Mode Existing` | PASS | `tests/evidence/20261001T114318Z-environment-existing.log` |
-| TP-E03 | Unit tests (Order Service: state machine, Outbox atomicity, duplicate message) | W05, W06, W09 | `tests/FlashSale.OrderService.Tests` | 17 of 17 pass | `dotnet test tests/FlashSale.OrderService.Tests --logger trx` | PASS | `tests/evidence/20261001T114318Z-unit-tests.trx` |
+| TP-E03 | Unit tests (Order Service: state machine and state behaviour, Outbox atomicity, duplicate message) | W05, W06, W09 | `tests/FlashSale.OrderService.Tests` | 43 of 43 pass | `dotnet test tests/FlashSale.OrderService.Tests --logger trx` | PASS | `tests/evidence/20261001T123816Z-unit-tests.trx` |
 
 ## Baseline (C0/C1)
 
@@ -41,8 +41,8 @@
 | TP-A03 | Unchanged-payload replay | W05 | Same key + same body twice | Second call 200 with the same order id; one row | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
 | TP-A04 | Changed-payload conflict | W05 | Same key, different body | 409; original order unchanged | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
 | TP-A05 | Concurrent retries of one key | W05 | 20 concurrent posts, same key + body | Exactly one order row and one Outbox row; every response carries that order id | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123317Z-order-api.log` |
-| TP-A06 | Legal/duplicate/invalid state transitions | W05 | Transition matrix on `Order.TransitionTo` | Legal succeed; illegal throw; duplicate result is a no-op | `dotnet test` (extend `OrderStateMachineTests`) | NOT RUN | — |
-| TP-A07 | One order per Idempotency-Key under mixed concurrent load | W05 | 50 keys × 4 concurrent identical requests | Every response 201/200; one 201 and one order id per key; exactly 50 orders and 50 Outbox rows; no duplicate key in the table | Planned: `scripts/verify-order-api.ps1` | NOT RUN | — |
+| TP-A06 | Legal/duplicate/invalid state transitions | W05 | Transition matrix on `Order.TransitionTo` | Legal succeed; illegal throw; duplicate result is a no-op | `dotnet test tests/FlashSale.OrderService.Tests` (`OrderStateBehaviourTests`) | PASS | `tests/evidence/20261001T123816Z-unit-tests.trx` |
+| TP-A07 | One order per Idempotency-Key under mixed concurrent load | W05 | 50 keys × 4 concurrent identical requests | Every response 201/200; one 201 and one order id per key; exactly 50 orders and 50 Outbox rows; no duplicate key in the table | `scripts/verify-order-api.ps1` | PASS | `tests/evidence/20261001T123816Z-order-api.log` |
 
 ## Outbox and publication (Week 6)
 

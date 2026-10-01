@@ -1,0 +1,37 @@
+﻿Commit: ca123e3 (fresh clone, fresh database, broker disabled)
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-order-api.ps1 -Container verify-env-pg
+Exit code: 0
+
+PASS  TP-A01 new order -> 201 PendingStock
+PASS  TP-A01 one order row and one OrderPlaced Outbox row
+PASS  TP-A01 timestamps are UTC (Z suffix)
+PASS  TP-A01 poll -> 200 with the same order
+PASS  TP-A01 poll unknown id -> 404
+PASS  TP-A02 missing Idempotency-Key -> 400, nothing stored
+PASS  TP-A02 blank Idempotency-Key -> 400, nothing stored
+PASS  TP-A02 quantity 0 -> 400, nothing stored
+PASS  TP-A02 quantity 2 -> 400, nothing stored
+PASS  TP-A02 quantity -1 -> 400, nothing stored
+PASS  TP-A02 quantity missing -> 400, nothing stored
+PASS  TP-A02 productId missing -> 400, nothing stored
+PASS  TP-A02 productId empty -> 400, nothing stored
+PASS  TP-A02 productId whitespace -> 400, nothing stored
+PASS  TP-A02 malformed JSON -> 400, nothing stored
+PASS  TP-A03 replay -> 200 with the original order
+PASS  TP-A03 replay body equals the original body
+PASS  TP-A03 still one order and one Outbox row
+PASS  TP-A04 same key, different product -> 409
+PASS  TP-A04 original order unchanged, still one row
+PASS  TP-A05 round 1: 20 concurrent same-key requests -> one 201, rest 200, no 5xx (200x19, 201x1)
+PASS  TP-A05 round 1: every response names the same order; one order and one Outbox row
+PASS  TP-A05 round 2: 20 concurrent same-key requests -> one 201, rest 200, no 5xx (201x1, 200x19)
+PASS  TP-A05 round 2: every response names the same order; one order and one Outbox row
+PASS  TP-A05 round 3: 20 concurrent same-key requests -> one 201, rest 200, no 5xx (200x19, 201x1)
+PASS  TP-A05 round 3: every response names the same order; one order and one Outbox row
+PASS  TP-A07 200 concurrent requests over 50 keys: every response is 201 or 200
+PASS  TP-A07 each key: exactly one 201 and one order id across its 4 responses
+PASS  TP-A07 database: exactly 50 orders and 50 OrderPlaced Outbox rows for the 50 keys
+PASS  TP-A07 no Idempotency-Key has more than one order in the whole table
+
+Order API behaves as specified in docs/order-api.md.
+
