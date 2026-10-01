@@ -50,6 +50,9 @@ public class Program
             var demoConfiguration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false)
+                // Same override the web host honours (ConnectionStrings__Default),
+                // so the C0 capture can target a throwaway database.
+                .AddEnvironmentVariables()
                 .Build();
             await C0NaiveDemo.RunAsync(demoConfiguration.GetConnectionString("Default")!);
             return 0;
