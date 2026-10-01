@@ -17,6 +17,9 @@ description: Use for ANY roadmap work on this repo — starting, continuing, imp
 - The plan is the Notion page above. Do **not** use the local
   `FLASHSALE_EXECUTION_CHECKLIST.md` or any other local plan markdown as the plan.
 - The repo (code, `docs/`, `report/report.tex`) is the evidence, not the plan.
+- The teacher's brief is saved verbatim in `docs/teacher-brief.md`. It is the
+  acceptance standard (what the result must satisfy), not the plan. Check each
+  checkbox's result against it; flag conflicts with Notion to the owners.
 
 ## The cycle — per checkbox, never one-shot
 Take the earliest unticked checkbox (start at Week 1). For that one box only:

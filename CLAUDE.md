@@ -8,6 +8,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
   It holds the hard Notion rule: only the "05 — 15-Week Roadmap and Submission"
   page may be read or written; no other Notion page, database or workspace.
 - The plan lives in that Notion page, not in local markdown.
+- The teacher's requirements are in `docs/teacher-brief.md` (verbatim); results must satisfy them.
 - One checkbox at a time; tick only with verified evidence.
 
 ## Commands
