@@ -48,8 +48,8 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-O01 | Atomic order/event commit and rollback; stable MessageId on retry | W06 | Throwaway DB + broker; Outbox INSERT revoked for one request; broker down, then up | Commit: one order + one unpublished Outbox row. Refused Outbox insert: request fails, no order row. Retries keep the payload; once the broker is up exactly one message arrives with the MessageId stored at commit | `scripts/verify-outbox.ps1` | PASS | `tests/evidence/20261001T160843Z-outbox.log` |
-| TP-O02 | Routing, missing bindings, returns/negative confirms, broker interruption | W06 | Delete a binding; stop RabbitMQ mid-publish | No row marked published without a routed confirm; publication resumes after recovery | Planned: `scripts/verify-outbox.ps1` | NOT RUN | — |
+| TP-O01 | Atomic order/event commit and rollback; stable MessageId on retry | W06 | Throwaway DB + broker; Outbox INSERT revoked for one request; broker down, then up | Commit: one order + one unpublished Outbox row. Refused Outbox insert: request fails, no order row. Retries keep the payload; once the broker is up exactly one message arrives with the MessageId stored at commit | `scripts/verify-outbox.ps1` | PASS | `tests/evidence/20261001T163530Z-outbox.log` |
+| TP-O02 | Routing, missing bindings, returns/negative confirms, broker interruption | W06 | Throwaway broker + Redis: valid route; required queue deleted; binding removed; broker stopped; full queue with reject-publish; unroutable probe; Process Worker queue missing for StockReserved; OrderProcessed queue missing | No row marked published unless every required queue received the message; each fault leaves the row unpublished and it is delivered exactly once after recovery; StockReserved reaches both required queues; the worker dead-letters rather than loses | `scripts/verify-publication.ps1` | PASS | `tests/evidence/20261001T163055Z-publication.log` |
 
 ## Inventory reservation (Week 7)
 
