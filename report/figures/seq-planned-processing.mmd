@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant MQ as RabbitMQ
+    participant OrderSvc as Order Service
+    participant PGOrd as Postgres (order_service)
+    participant ProcSvc as Process Worker
+    Note over ProcSvc,OrderSvc: PLANNED (Week 11), not in code yet
+    MQ->>ProcSvc: deliver StockReservedEto
+    ProcSvc->>MQ: publish OrderProcessingStartedEto
+    MQ->>OrderSvc: deliver OrderProcessingStartedEto
+    OrderSvc->>PGOrd: UPDATE Order SET state=Processing + history row
+    ProcSvc->>ProcSvc: deterministic processing delay
+    ProcSvc->>MQ: publish OrderProcessedEto (carries StartedAt)
+    MQ->>OrderSvc: deliver OrderProcessedEto
+    OrderSvc->>PGOrd: UPDATE Order SET state=Completed + history row

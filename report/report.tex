@@ -588,61 +588,93 @@ The order status-history table required by the adopted six-state model
 (Section~\ref{sec:order-state-machine}) is not shown, because it does not exist
 in code yet. It is added by the Week 11 implementation task.
 
+\section{Class Diagram}
+\label{sec:class-diagram}
+The domain and messaging classes below are taken from the source
+(\texttt{Entities/} in Order and Inventory Service and the shared
+\texttt{FlashSale.EventContracts} library; \texttt{docs/class-diagram.md}).
+\texttt{scripts/verify-design-alignment.ps1} checks that every class and
+property in the diagrams exists in code with the same type, and that no public
+property is missing. Inventory Service has its own \texttt{OutboxEvent} and
+\texttt{ProcessedMessage} classes in its own schema; the two services share no
+entity classes, only the event contracts.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/class-order-service.png}
+  \caption{Order Service domain classes. \texttt{Order.TransitionTo} enforces
+  the state machine; the Outbox row refers to its order only logically.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/class-event-contracts.png}
+  \caption{Event contracts shared by all services. Every event carries a
+  \texttt{MessageId} (Inbox key) and a \texttt{CorrelationId} (trace key).}
+\end{figure}
+
+The six-state model adds \texttt{OrderState.Processing},
+\texttt{OrderState.ProcessingFailed}, an \texttt{OrderProcessingStartedEto}
+and an order status-history entity. These are not in the code yet. They are
+drawn only in the ``Planned'' list of \texttt{docs/class-diagram.md} and are
+built by the Week 11 task.
+
 \section{API Contract}
+ABP generates the OpenAPI document from the running controllers; it is
+exported to \texttt{docs/api-contract-v1.json}. Since 2026-10-01 each order
+endpoint declares its outcomes with \texttt{[ProducesResponseType]}, so the
+export lists every status code the code can return. The alignment check
+compares the committed file with the live export of the same build.
 
-ABP generates the OpenAPI/Swagger contract directly from the running
-controllers, rather than it being hand-written -- the full document is
-exported to \texttt{docs/api-contract-v1.json} (Week 4) and re-exported as
-each week's endpoints change, so it can never drift from the actual code the
-way a hand-maintained spec could.
+\begin{center}
+\begin{tabular}{@{}llp{7.2cm}@{}}
+\toprule
+Endpoint & Status & Meaning \\
+\midrule
+\texttt{POST /api/orders} & 201 & New order accepted in \texttt{PendingStock}; body is the order with its id \\
+ & 200 & Same \texttt{Idempotency-Key} and same body as an earlier request: the original order \\
+ & 400 & \texttt{Idempotency-Key} header missing \\
+ & 409 & Key already used with a different body \\
+\texttt{GET /api/orders/\{id\}} & 200 & Current state and the stage timestamps \\
+ & 404 & Unknown order id \\
+\texttt{POST /api/c1/orders} & 200 & C1 baseline decision: \texttt{Confirmed} with remaining stock, or \texttt{Rejected} \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Reviewing the Week 4 export against \texttt{docs/order-state-machine.md}
-surfaced a scope-fidelity issue worth recording rather than quietly fixing:
-of roughly 30 exposed endpoint groups, only \texttt{/api/orders} (the C1
-baseline from Week 3) actually belongs to this system. Every other path
-(\texttt{/api/identity/*}, \texttt{/api/account/*},
-\texttt{/api/permission-management/*}, \texttt{/api/multi-tenancy/*}, ...)
-is default scaffolding from ABP modules the project's own scope lock
-(\texttt{docs/00-scope-lock.md}) explicitly excludes -- user management,
-authentication/authorization, and multi-tenancy. None of it traces to any
-state-machine transition, which is exactly what Step 4.1's review criterion
-is designed to catch. These modules were pulled in automatically by the
-\texttt{app-nolayers} template's default package set (Week 3.1) and were not
-a deliberate choice; trimming them is a reasonable Week 5 cleanup item, since
-touching module wiring isn't itself Week 4 scope.
-
-The real API surface -- idempotent order creation and status lookup -- is
-built in Week 5; this section is re-exported and expanded once that exists.
+Two gaps against the teacher brief are open and assigned. First, quantity is
+not yet validated to equal 1 (Week 5, case TP-A02). Second, the request is not
+yet rejected before order creation when admission capacity is exhausted
+(Week 12, case TP-L01). The remaining paths in the export are ABP module
+scaffolding (identity, account, permissions, multi-tenancy). The scope lock
+excludes them, and they play no part in the order workflow.
 
 \section{Event Contract}
+Full contract: \texttt{docs/event-contract.md}; the classes live in
+\texttt{FlashSale.EventContracts}. All events go through one direct exchange,
+\texttt{flashsale.order.exchange}, with the event name as routing key.
 
-Full contract: \texttt{docs/event-contract.md}; class definitions live in the
-\texttt{FlashSale.EventContracts} project. Three events, one per fully-specified
-state-machine transition (\texttt{docs/order-state-machine.md}):
-\texttt{OrderPlacedEto} ($[*] \to$ \texttt{PendingStock}),
-\texttt{StockReservedEto} (\texttt{PendingStock} $\to$ \texttt{Confirmed}),
-and \texttt{StockRejectedEto} (\texttt{PendingStock} $\to$ \texttt{Rejected}).
-Each carries a \texttt{MessageId} -- the broker-redelivery idempotency key
-used by the Week 9 Inbox pattern, distinct from the client-facing
-\texttt{Idempotency-Key} header built in Week 5.
+\begin{center}
+\begin{tabular}{@{}lllp{4.4cm}@{}}
+\toprule
+Event & Publisher & Consumer(s) & Transition \\
+\midrule
+\texttt{OrderPlacedEto} & Order Service (Outbox) & Inventory Service & new $\to$ \texttt{PendingStock} \\
+\texttt{StockReservedEto} & Inventory Service (Outbox) & Order Service, Process Worker & \texttt{PendingStock} $\to$ \texttt{Confirmed} \\
+\texttt{StockRejectedEto} & Inventory Service (Outbox) & Order Service & \texttt{PendingStock} $\to$ \texttt{Rejected} \\
+\texttt{OrderProcessedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Completed} (code); \texttt{Processing} $\to$ \texttt{Completed} (model) \\
+\texttt{OrderProcessingStartedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Processing}; \emph{planned, Week 11} \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-The contract deliberately omits a \texttt{CorrelationId} field and a
-\texttt{Reason} field on the rejection event. Both are easy to imagine
-wanting eventually, but nothing produces or consumes either one yet:
-correlation-ID propagation is explicitly a Week 11 addition, and the only
-rejection cause currently in scope (insufficient stock) gives a
-\texttt{Reason} field nothing to distinguish between. Both are documented as
-deliberate omissions rather than oversights, precisely so a later reviewer
-(or a later week's version of the author) doesn't mistake "not needed yet"
-for "forgotten."
-
-The contract lives in a separate class library
-(\texttt{FlashSale.EventContracts}) rather than inside Order Service itself,
-referenced by whichever service needs it. This is what makes "the contract
-doc and the code can't drift" actually true across service boundaries, not
-just within one service: Inventory Service (Week 7) will reference the same
-compiled types Order Service publishes, rather than maintaining its own copy
-that could silently diverge.
+Each event carries \texttt{MessageId}, regenerated at every hop because each
+consumer keeps its own Inbox, and \texttt{CorrelationId}, copied unchanged from
+the inbound request so one value traces the whole journey. The Process Worker
+sets \texttt{MessageId} equal to \texttt{OrderId}, because it has no database
+of its own; a replay then produces an identical message that the Inbox drops.
+\texttt{StockRejectedEto} has no \texttt{Reason} field, because insufficient
+stock is the only rejection cause in scope.
 
 \section{Order State Machine}
 \label{sec:order-state-machine}
@@ -661,30 +693,161 @@ absorbed by explicit rules (stale events are no-ops; an early
 \texttt{OrderProcessed} applies an implied \texttt{Processing} step in the
 same transaction), and every transition is appended to an order status
 history. Aligning the source code with this model is the Week 11
-implementation task; until it closes, the running code still has the four
-states described in the Week 11 section.
+implementation task. Until it closes, the running code has four states and
+three transitions (\texttt{PendingStock} $\to$ \texttt{Confirmed} or
+\texttt{Rejected}, then \texttt{Confirmed} $\to$ \texttt{Completed}); the
+alignment check compares those with \texttt{Order.LegalTransitions}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\textwidth]{figures/state-machine.png}
+  \caption{Adopted six-state order model. \texttt{ProcessingFailed} has no
+  producer in scope.}
+\end{figure}
 
 \section{Sequence Diagrams}
-Full diagrams: \texttt{docs/sequence-diagrams.md} (happy path and rejection
-path). Originally drafted in Week 4 as target design; revised in Week 8
-(Step 8.4) against what was actually built and verified live through that
-week -- the Outbox on both services, both publisher workers, and the
-Redis-backed reservation round trip \unverified{TP-W01}{Week 8}. Both diagrams still stop short of the
-\texttt{Processing} state. The adopted six-state model now names its trigger
-(\texttt{OrderProcessingStarted}), but the diagrams are only extended once that
-event exists in code, under the Week 4 alignment and Week 11 implementation
-tasks -- drawing it earlier would show a mechanism that does not exist yet.
+Full diagrams: \texttt{docs/sequence-diagrams.md}. The happy-path and
+rejection diagrams show the code as built: both Outboxes and their 2-second
+publishers, the Redis Lua reservation, the parallel delivery of
+\texttt{StockReserved} to Order Service and the Process Worker, and status
+polling. The earlier end-to-end runs that these diagrams were checked against
+were manual and their output was not saved \unverified{TP-W01}{Week 8}. The
+\texttt{Processing} hop of the six-state model appears only as a separate
+diagram labelled ``planned''. The Nginx hop is target design until Week 12.
+Inbox checks, retries and DLQ hops are omitted on purpose and covered by the
+event contract.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/seq-happy-path.png}
+  \caption{Happy path as built: order accepted, stock reserved, processed,
+  polled as \texttt{Completed}.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/seq-rejection.png}
+  \caption{Rejection path: identical up to the Lua result, then
+  \texttt{StockRejected} and terminal \texttt{Rejected}.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/seq-planned-processing.png}
+  \caption{Planned (Week 11), not in code yet: the \texttt{Processing} hop of
+  the six-state model.}
+\end{figure}
+
+\section{Idempotency, Ordering and Ownership}
+\label{sec:design-decisions}
+The full definitions, each tied to the code that implements it, are in
+\texttt{docs/design-decisions.md} and are checked by
+\texttt{scripts/verify-design-decisions.ps1}.
+
+\paragraph{Transport versus business idempotency.} Two \emph{transport} keys
+absorb retries of the same request or message. The client's
+\texttt{Idempotency-Key} is unique per order, and a reused key with a different
+body returns 409. The broker's \texttt{MessageId} is unique per consumer
+Inbox and is written in the same transaction as the business change. The
+\emph{business} key is \texttt{OrderId}. Redis's per-product set of reserved
+order ids and the unique \texttt{OrderId} on Inventory's Outbox guarantee one
+deduction and one result per order even when the same fact arrives as a new
+message, for example the reconciliation job re-publishing \texttt{OrderPlaced}.
+
+\paragraph{Ordering and replay.} The design does not rely on message order.
+Duplicates and events for a state already reached are acknowledged as no-ops.
+A conflicting result goes to the service's dead-letter queue. An event that
+arrives before its prerequisite is retried, never dropped. Replaying any
+message leaves stock, state and Outbox rows unchanged.
+
+\paragraph{Schema ownership.} Each schema has one owner account
+(\texttt{order\_service}, plus ABP's \texttt{public} tables, belongs to Order
+Service; \texttt{inventory\_service} belongs to Inventory Service). Redis
+inventory keys belong to Inventory Service. Services never read each other's
+data; facts cross service boundaries only as events.
+
+\paragraph{Redis/PostgreSQL boundary.} Redis decides the reservation
+atomically; PostgreSQL then records the result (Outbox row and Inbox row) in
+one transaction, and only then is the message acknowledged. If PostgreSQL fails
+after Redis has reserved, the message is redelivered. The Lua script answers
+\texttt{DUPLICATE} without a second deduction, and the missing result is
+written.
 
 \section{Design Rationale}
-The central design decision this project makes -- comparing a synchronous
-PostgreSQL-atomic-update baseline (C1, Week 3) against an asynchronous,
-event-driven design (Weeks 5--12) under the \emph{same} correctness
-invariants (\texttt{docs/inventory-invariants.md}) -- is what the
-Experimental Design and Results chapters ultimately quantify. Every
-mechanism introduced from here forward (Outbox, Inbox, DLQ, load shedding)
-exists to answer one question precisely: what does buying resilience and
-horizontal scalability actually cost in throughput and latency, relative to
-the simpler baseline that cannot provide either.
+The project compares a synchronous PostgreSQL conditional update (C1) with an
+asynchronous, event-driven design (C2--C4) under the same correctness
+invariants. Each mechanism in the asynchronous design was chosen for one
+reason:
+
+\begin{itemize}
+  \item \textbf{Accept first, decide later (HTTP 201 in \texttt{PendingStock}).}
+    It separates the request acceptance rate from the processing rate, so API
+    latency and completion latency are measured separately, as the brief
+    requires.
+  \item \textbf{Redis Lua for the stock decision.} It makes the idempotency
+    check, the stock check and the decrement one atomic step in memory,
+    instead of a row lock that every buyer of a hot product waits on in C1.
+  \item \textbf{Transactional Outbox on both producers.} It removes the
+    dual-write problem: an order (or a stock result) and its event commit
+    together or not at all, and a publisher retries until the broker confirms.
+  \item \textbf{Inbox per consumer.} RabbitMQ delivers at least once; a unique
+    \texttt{MessageId} written with the business change makes every effect
+    happen at most once.
+  \item \textbf{Direct exchange, one queue per consumer.} Order Service and the
+    Process Worker each get their own copy of \texttt{StockReserved}; sharing a
+    queue would split the messages between them.
+  \item \textbf{Schema-per-service on one PostgreSQL instance.} It gives
+    ownership and isolation by account at the cost of a single shared server,
+    which the brief accepts as a limitation (not physical isolation).
+  \item \textbf{Success-only Process Worker.} It keeps the downstream stage
+    deterministic, so latency variation in the results comes from the
+    architecture rather than from simulated failures. That is why
+    \texttt{ProcessingFailed} has no producer.
+\end{itemize}
+
+The cost of these choices is complexity: three services, two Outboxes, two
+Inboxes, a broker and a cache, compared with one SQL statement in C1. The
+Experimental Design and Results chapters quantify what this buys. Replica
+results (C4) are limited to processes on one host and do not show multi-node
+scaling.
+
+\section{Supported Failure Model}
+\label{sec:failure-model}
+The table lists the failures the design handles, how it handles them, and
+where that handling is verified. ``Designed'' means the mechanism exists in
+code but has no saved verification yet; it is not a claim that it works.
+
+\begin{center}
+\begin{tabular}{@{}p{3.6cm}p{6.4cm}p{3.2cm}@{}}
+\toprule
+Failure & Handling & Verification \\
+\midrule
+Client retries the same request & \texttt{Idempotency-Key}: same body returns the original order, different body returns 409 & Designed; TP-A03--A05 (W05) \\
+Broker redelivers a message & Inbox (unique \texttt{MessageId}) in the same transaction; ack after commit & Unit tests pass (TP-E03); live: TP-M01 (W09) \\
+Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Designed; TP-M02 (W09) \\
+Crash after commit, before ack & Redelivery hits the Inbox and is acked & Designed; TP-M01 (W09) \\
+Broker unreachable while publishing & Outbox row stays unpublished; publisher retries; consumers reconnect every 5\,s & Designed; TP-O02 (W06) \\
+PostgreSQL fails after Redis reserved & No ack, so the message is redelivered; Lua \texttt{DUPLICATE}; missing result written once & Designed; TP-I03 (W07) \\
+Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Designed; TP-F01 (W10) \\
+Poison message or state conflict & Straight to the service's DLQ, no retry & Designed; TP-F01 (W10) \\
+Order stuck in \texttt{PendingStock} & Reconciliation job re-publishes \texttt{OrderPlaced} after a timeout (safety net only) & Designed; TP-F02 (W10) \\
+Overload & Nginx rate limit, application concurrency limit, bounded queue; reject before creating an order & Not built; TP-L01--L02 (W12) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Known gaps in the supported model.} Two cases currently violate
+the design and are assigned to later weeks. First, an \texttt{OrderProcessed}
+that arrives while the order is still \texttt{PendingStock} is dead-lettered
+instead of retried (Weeks 9 and 11). Second, both result processors treat
+every database update error as a duplicate, which could acknowledge a real
+failure (Week 8, P0).
+
+\paragraph{Not supported (out of scope).} Redis, RabbitMQ or PostgreSQL
+cluster failover or replication; loss of Redis data without re-running the
+warm-up; payment failure and compensation (the Process Worker is
+success-only); multi-region or multi-node failures; authentication-related
+failures.
 
 % ============================================================
 \chapter{Implementation}

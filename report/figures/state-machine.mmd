@@ -1,0 +1,10 @@
+stateDiagram-v2
+    [*] --> PendingStock: order accepted
+    PendingStock --> Confirmed: StockReserved
+    PendingStock --> Rejected: StockRejected
+    Confirmed --> Processing: OrderProcessingStarted
+    Processing --> Completed: OrderProcessed
+    Processing --> ProcessingFailed: (no producer in scope)
+    Rejected --> [*]
+    Completed --> [*]
+    ProcessingFailed --> [*]

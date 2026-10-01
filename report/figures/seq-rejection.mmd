@@ -1,0 +1,35 @@
+sequenceDiagram
+    actor Client
+    participant Nginx
+    participant OrderSvc as Order Service
+    participant PGOrd as Postgres (order_service)
+    participant OrdPub as Order Outbox Publisher
+    participant MQ as RabbitMQ
+    participant InvSvc as Inventory Service
+    participant Redis
+    participant PGInv as Postgres (inventory_service)
+    participant InvPub as Inventory Outbox Publisher
+
+    Client->>Nginx: POST /api/orders
+    Nginx->>OrderSvc: POST /api/orders
+    OrderSvc->>PGOrd: INSERT Order (PendingStock) + OutboxEvent (OrderPlaced) — one transaction
+    PGOrd-->>OrderSvc: committed
+    OrderSvc-->>Client: 201 Created (order id, state=PendingStock)
+
+    OrdPub->>MQ: publish OrderPlacedEto
+    MQ->>InvSvc: deliver OrderPlacedEto
+    InvSvc->>Redis: EVAL reserve.lua (product_id, order_id)
+    Redis-->>InvSvc: REJECTED (stock <= 0)
+    InvSvc->>PGInv: ensure OutboxEvent(OrderId, StockRejected) exists
+    InvSvc->>MQ: ack OrderPlaced
+
+    InvPub->>MQ: publish StockRejectedEto (routing key "StockRejected")
+    MQ->>OrderSvc: deliver StockRejectedEto
+    OrderSvc->>PGOrd: UPDATE Order SET state=Rejected
+    OrderSvc->>MQ: ack StockRejected
+
+    Client->>Nginx: GET /api/orders/{id}
+    Nginx->>OrderSvc: GET /api/orders/{id}
+    OrderSvc->>PGOrd: SELECT Order
+    PGOrd-->>OrderSvc: state=Rejected
+    OrderSvc-->>Client: 200 OK (state=Rejected)

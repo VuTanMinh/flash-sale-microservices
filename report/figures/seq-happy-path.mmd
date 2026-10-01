@@ -1,0 +1,58 @@
+sequenceDiagram
+    actor Client
+    participant Nginx
+    participant OrderSvc as Order Service
+    participant PGOrd as Postgres (order_service)
+    participant OrdPub as Order Outbox Publisher
+    participant MQ as RabbitMQ
+    participant InvSvc as Inventory Service
+    participant Redis
+    participant PGInv as Postgres (inventory_service)
+    participant InvPub as Inventory Outbox Publisher
+    participant ProcSvc as Process Worker
+
+    Client->>Nginx: POST /api/orders
+    Nginx->>OrderSvc: POST /api/orders
+    OrderSvc->>PGOrd: INSERT Order (PendingStock) + OutboxEvent (OrderPlaced) — one transaction
+    PGOrd-->>OrderSvc: committed
+    OrderSvc-->>Client: 201 Created (order id, state=PendingStock)
+
+    loop polls unpublished rows, every 2s
+        OrdPub->>PGOrd: SELECT unpublished OutboxEvents
+    end
+    OrdPub->>MQ: publish OrderPlacedEto (routing key "OrderPlaced")
+    MQ-->>OrdPub: publisher confirm
+    OrdPub->>PGOrd: mark OutboxEvent published
+
+    MQ->>InvSvc: deliver OrderPlacedEto
+    InvSvc->>Redis: EVAL reserve.lua (product_id, order_id)
+    Redis-->>InvSvc: RESERVED
+    InvSvc->>PGInv: ensure OutboxEvent(OrderId, StockReserved) exists — one insert, unique on OrderId
+    InvSvc->>MQ: ack OrderPlaced
+
+    loop polls unpublished rows, every 2s
+        InvPub->>PGInv: SELECT unpublished OutboxEvents
+    end
+    InvPub->>MQ: publish StockReservedEto (routing key "StockReserved")
+    MQ-->>InvPub: publisher confirm
+    InvPub->>PGInv: mark OutboxEvent published
+
+    MQ->>OrderSvc: deliver StockReservedEto
+    OrderSvc->>PGOrd: UPDATE Order SET state=Confirmed
+    OrderSvc->>MQ: ack StockReserved
+
+    MQ->>ProcSvc: deliver StockReservedEto (own queue, same routing key)
+    ProcSvc->>ProcSvc: deterministic processing delay
+    ProcSvc->>MQ: publish OrderProcessedEto (MessageId = OrderId)
+    MQ-->>ProcSvc: publisher confirm
+    ProcSvc->>MQ: ack StockReserved
+
+    MQ->>OrderSvc: deliver OrderProcessedEto
+    OrderSvc->>PGOrd: UPDATE Order SET state=Completed
+    OrderSvc->>MQ: ack OrderProcessed
+
+    Client->>Nginx: GET /api/orders/{id}
+    Nginx->>OrderSvc: GET /api/orders/{id}
+    OrderSvc->>PGOrd: SELECT Order
+    PGOrd-->>OrderSvc: state=Completed
+    OrderSvc-->>Client: 200 OK (state=Completed)

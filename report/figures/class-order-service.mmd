@@ -1,0 +1,41 @@
+classDiagram
+    class Order {
+        +Guid Id
+        +string IdempotencyKey
+        +string ProductId
+        +int Quantity
+        +OrderState State
+        +string CorrelationId
+        +DateTime RequestAcceptedAt
+        +DateTime? ConfirmedOrRejectedAt
+        +DateTime? CompletedAt
+        +TransitionTo(OrderState newState)
+    }
+    class OrderState {
+        <<enumeration>>
+        PendingStock
+        Confirmed
+        Rejected
+        Completed
+    }
+    class OutboxEvent {
+        +Guid Id
+        +Guid OrderId
+        +string EventType
+        +string Payload
+        +bool Published
+        +DateTime CreatedAt
+        +DateTime? PublishedAt
+        +ForOrderPlaced(Order order)$
+        +MarkPublished()
+    }
+    class ProcessedMessage {
+        +Guid Id
+        +Guid MessageId
+        +string MessageType
+        +DateTime ProcessedAt
+    }
+    class InvalidOrderStateTransitionException
+    Order --> OrderState : State
+    Order ..> InvalidOrderStateTransitionException : throws on illegal transition
+    OutboxEvent ..> Order : OrderId (logical, same transaction)

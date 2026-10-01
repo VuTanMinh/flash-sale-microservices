@@ -1,0 +1,25 @@
+classDiagram
+    class OrderPlacedEto {
+        +Guid OrderId
+        +string ProductId
+        +int Quantity
+        +Guid MessageId
+        +string CorrelationId
+    }
+    class StockReservedEto {
+        +Guid OrderId
+        +string ProductId
+        +Guid MessageId
+        +string CorrelationId
+    }
+    class StockRejectedEto {
+        +Guid OrderId
+        +string ProductId
+        +Guid MessageId
+        +string CorrelationId
+    }
+    class OrderProcessedEto {
+        +Guid OrderId
+        +Guid MessageId
+        +string CorrelationId
+    }
