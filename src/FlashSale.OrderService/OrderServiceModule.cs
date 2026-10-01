@@ -387,7 +387,12 @@ public class OrderServiceModule : AbpModule
 
         if (!env.IsDevelopment())
         {
-            app.UseErrorPage();
+            // HTML error pages only for the (unused) UI routes. For /api the
+            // client gets the plain status code (e.g. 404 for an unknown
+            // order) -- re-executing ABP's themed error page there turned a
+            // 404 into a 500 on any machine without wwwroot/libs, and an HTML
+            // page is the wrong answer for an API client anyway.
+            app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api"), branch => branch.UseErrorPage());
         }
 
         app.UseCorrelationId();

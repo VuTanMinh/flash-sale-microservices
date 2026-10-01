@@ -157,12 +157,22 @@ try {
         }
         catch { if ($_.Exception.Response) { $lastStatus = "HTTP $([int]$_.Exception.Response.StatusCode)"; if ([int]$_.Exception.Response.StatusCode -ge 500) { break } } }
     }
+    # A 404 must stay a 404 on a fresh clone (no wwwroot/libs): ABP's themed
+    # error page used to turn it into a 500.
+    $notFound = "no response"
+    if ($answered) {
+        try { $nf = Invoke-WebRequest -UseBasicParsing "http://localhost:5181/api/orders/$([guid]::NewGuid())" -TimeoutSec 5 -ErrorAction Stop; $notFound = "$($nf.StatusCode)" }
+        catch { if ($_.Exception.Response) { $notFound = "$([int]$_.Exception.Response.StatusCode)" } }
+    }
     # Stop only the process tree this script started (dotnet run -> service
     # exe), never an Order Service the user is running.
     Get-CimInstance Win32_Process -Filter "ParentProcessId=$($svc.Id)" |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     if (-not $svc.HasExited) { Stop-Process -Id $svc.Id -Force -ErrorAction SilentlyContinue }
-    if ($answered) { Pass "Order Service started; POST /api/c1/orders returned 200 Rejected for an unstocked product" }
+    if ($answered) {
+        Pass "Order Service started; POST /api/c1/orders returned 200 Rejected for an unstocked product"
+        if ($notFound -eq "404") { Pass "GET /api/orders/{unknown id} returned 404" } else { Fail "GET /api/orders/{unknown id} returned $notFound, expected 404" }
+    }
     else {
         Fail "Order Service API check failed ($lastStatus); see $svcLog"
         Select-String -Path $svcLog -Pattern "FTL|Exception" | Select-Object -First 3 | ForEach-Object { Write-Host "      $($_.Line)" }
