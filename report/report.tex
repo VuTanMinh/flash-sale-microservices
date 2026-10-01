@@ -826,7 +826,7 @@ Client retries the same request (also concurrently) & \texttt{Idempotency-Key}: 
 Broker redelivers a message & Inbox (unique \texttt{MessageId}) in the same transaction; ack after commit & Unit tests pass (TP-E03); live: TP-M01 (W09) \\
 Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Designed; TP-M02 (W09) \\
 Crash after commit, before ack & Redelivery hits the Inbox and is acked & Designed; TP-M01 (W09) \\
-Broker unreachable while publishing & Outbox row stays unpublished; publisher retries; consumers reconnect every 5\,s & Designed; TP-O02 (W06) \\
+Broker unreachable while publishing & Outbox row stays unpublished; publisher retries; consumers reconnect every 5\,s & Verified: TP-O01, TP-O02 (W06) \\
 PostgreSQL fails after Redis reserved & No ack, so the message is redelivered; Lua \texttt{DUPLICATE}; missing result written once & Designed; TP-I03 (W07) \\
 Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Designed; TP-F01 (W10) \\
 Poison message or state conflict & Straight to the service's DLQ, no retry & Designed; TP-F01 (W10) \\
@@ -1205,65 +1205,87 @@ Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
 Order_and_outbox_row_both_commit_in_one_SaveChanges_call: PASS
 \end{Verbatim}
 
-Both pass in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx} (TP-E03).
+Both pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx} (TP-E03).
 
-\paragraph{Getting the pending event to RabbitMQ.} Writing the outbox row
-only records that publication is needed -- a separate background worker
-(\texttt{OutboxPublisherWorker.cs}, under \texttt{Messaging/}) polls for unpublished rows
-every two seconds and publishes each one, marking a row published only once
-the broker has actually confirmed receipt, not merely once the publish call
-returned without throwing. This distinction matters: a broker that accepts a
-TCP write and then rejects the message asynchronously would let the weaker
-guarantee silently drop it. RabbitMQ.Client 7.x's
-\texttt{CreateChannelOptions(publisherConfirmationsEnabled: true,
-publisherConfirmationTrackingEnabled: true)} makes \texttt{BasicPublishAsync}
-itself not return until the broker has acknowledged the message, which is
-what \texttt{OutboxEvent.MarkPublished} is called on the strength of.
+\paragraph{The same guarantee on the real database.} The unit test uses
+SQLite. \texttt{scripts/verify-outbox.ps1} repeats the check on PostgreSQL with
+Order Service running under its own account
+(\texttt{tests/evidence/20261001T163530Z-outbox.log}, 11 of 11 checks). A normal
+request stores exactly one order and one unpublished \texttt{OrderPlaced} row.
+With the Outbox \texttt{INSERT} privilege revoked for one request, the request
+failed and \emph{no} order row existed afterwards. Once the privilege was
+restored, the same key created the order normally.
 
-\texttt{Volo.Abp.EventBus.RabbitMQ}'s own configuration classes --
-\texttt{AbpRabbitMqOptions} and \texttt{AbpRabbitMqEventBusOptions} -- were
-checked, per this step's own instruction not to assume a configuration
-property exists without verifying it, and do not expose a documented way to
-enable publisher confirms. Publishing is done via the raw
-\texttt{RabbitMQ.Client} package instead, for exactly this reason -- reading
-connection settings from the same JSON shape ABP's own package uses, for
-consistency, without depending on a whole framework module for a
-configuration convenience.
+\paragraph{Outbox workflow.} Writing the Outbox row only records that an
+event must be published. A background worker (\texttt{OutboxPublisherWorker})
+polls every 2 seconds for unpublished rows, oldest first, 50 at a time, and
+publishes each stored payload. The event's \texttt{MessageId} is generated
+once, when the Outbox row is written, and stored in the payload, so every
+publish attempt for that row sends the same value. A failed attempt is retried
+after 1\,s, 2\,s and 4\,s. After that the row stays unpublished and is tried
+again on the next poll, indefinitely, until it succeeds. The worker never
+crashes the host: a failed tick is logged and the loop continues. In the saved
+run, the broker was unreachable when the order was created. The publisher
+logged failed attempts and left the payload unchanged. Once a broker came up,
+exactly one message arrived, carrying the \texttt{MessageId} stored at commit
+time.
 
-\paragraph{Failure handling in the worker itself.} A publish attempt that
-fails is retried up to three additional times with exponential backoff
-(1s/2s/4s) before the worker gives up for that poll cycle and leaves the row
-unpublished for the next one -- this was verified against a real outage, not
-simulated: stopping the RabbitMQ container mid-test produced exactly this
-log sequence, with the service continuing to accept new orders throughout
-(the worker's own tick failures are caught and logged, never allowed to
-crash the host):
+\paragraph{Routed confirmation.} A row is marked published only when the
+broker has confirmed the message \emph{and} delivered it to every queue that
+must receive it (\texttt{docs/outbox.md}). The Week 6 code check found that
+this was not true. All three publishers (both Outbox publishers and the Process
+Worker's) used \texttt{mandatory: false}, so a message with no matching
+binding was silently dropped, yet confirmed and marked published. The
+prototype reproduced it: an \texttt{OrderPlaced} published before any queue
+was bound was marked published and reached nobody. A second gap is subtler.
+\texttt{StockReserved} must reach two queues, Order Service's and the Process
+Worker's. If only one was bound, the broker accepted the message while the
+Process Worker never saw it.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[WRN] Failed to publish outbox event ... (attempt 1/4); retrying in 00:00:01
-[WRN] Failed to publish outbox event ... (attempt 2/4); retrying in 00:00:02
-[WRN] Failed to publish outbox event ... (attempt 3/4); retrying in 00:00:04
-[ERR] Failed to publish outbox event ... after 4 attempts; leaving unpublished,
-      will retry on the next poll
-\end{Verbatim}
+The fix is the same in all three publishers. The queues each event must
+reach are configured per event (\texttt{RequiredSubscriberQueues}:
+\texttt{OrderPlaced} $\to$ \texttt{OrderPlaced}; \texttt{StockReserved}
+$\to$ \texttt{StockReserved} and \texttt{ProcessWorker.StockReserved};
+\texttt{StockRejected} $\to$ \texttt{StockRejected}; \texttt{OrderProcessed}
+$\to$ \texttt{OrderProcessed}). Before each publish, every required queue is
+checked with a passive declare, which fails if it does not exist, and is then
+bound to the exchange; binding is idempotent. The message is published with
+\texttt{mandatory: true} on a channel with publisher confirmations and
+tracking. \texttt{BasicPublishAsync} then throws on a nack or a return. Any
+exception leaves the row unpublished, and an event type with no configured
+queues is refused. The consumers still own their queues; the publisher never
+creates one.
 
-Restarting the broker let the same row publish successfully on a later poll
-without any manual intervention, confirming the retry loop is not just
-present in the code but actually recovers.
+\paragraph{Failure scenarios.} \texttt{scripts/verify-publication.ps1} runs
+each scenario against a throwaway broker
+(\texttt{tests/evidence/20261001T163055Z-publication.log}, 18 of 18 checks).
+On the old publishers, 8 of its checks fail: the affected messages were
+marked published but were never delivered.
 
-\paragraph{Verifying delivery, not just the publish call succeeding.} Since
-Inventory Service does not exist until Week 7, there is no consumer yet to
-observe the message being consumed -- the checklist anticipates exactly this
-("stay at 1 if you haven't built the consumer yet, which is expected until
-Week 7"). A queue (\texttt{OrderPlaced}) was bound to the exchange
-(\texttt{flashsale.order.exchange}) as a temporary stand-in verification
-target via RabbitMQ's HTTP management API, and each order created during
-testing produced exactly one message that persisted in that queue (message
-count increased by exactly one per order, including the one that survived
-the broker outage above) -- confirming messages are actually reaching
-RabbitMQ, not just that the publish call returns successfully. This queue is
-verification scaffolding, not a permanent design element; Week 7's real
-Inventory Service consumer declares and binds its own durable queue in code.
+\begin{center}
+\begin{tabular}{@{}p{4.2cm}p{5.6cm}p{3.4cm}@{}}
+\toprule
+Scenario & Observed with the fix & Old code \\
+\midrule
+Valid route & Published; one message in the queue & Same \\
+Required queue missing & Row stays unpublished, retries logged; once the queue exists (even unbound) it is delivered once and the binding is restored & Marked published, message lost \\
+Binding removed & Binding restored; delivered once & Marked published, message lost \\
+Broker stopped, then restarted & Orders still accepted; row unpublished while down; delivered once after restart & Marked published, message lost \\
+Full queue (\texttt{reject-publish}) & Second message nacked and left unpublished; delivered once after space freed & Same (a nack was already detected) \\
+Unroutable message & \texttt{PublishException} with \texttt{IsReturn = true} (broker probe) & No exception \\
+\texttt{StockReserved}, Process Worker queue missing & Not published, nothing sent to the other queue; once both exist, one copy in each & Marked published, Worker copy lost \\
+\texttt{OrderProcessed} queue missing & Worker retries, then dead-letters its \texttt{StockReserved}; once the queue exists, one \texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId} & Not run on the old code \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+In every recoverable case the event arrived exactly once after the fault was
+removed, without manual intervention. A Process Worker event that cannot be
+published is not lost: it lands in the worker's dead-letter queue, and
+recovering it from there is Week 10's subject. ABP's own RabbitMQ event bus
+was not used for publishing because its options expose no documented way to
+enable publisher confirms; the raw \texttt{RabbitMQ.Client} 7.1.2 package is
+used instead.
 
 \section{Inventory Service}
 
@@ -1648,8 +1670,8 @@ save-delegate-injectable overload so these tests can substitute
 \texttt{SaveChangesOnDbContextAsync} for the real, DI-dependent
 \texttt{SaveChangesAsync} -- the same documented limitation
 \texttt{OutboxAtomicityTests} already works around, not a new one.
-All three pass in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx} (TP-E03); the suite
-currently has 17 tests in total. (An earlier draft said 19; that count is not
+All three pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx} (TP-E03); the suite
+currently has 43 tests in total. (An earlier draft said 19; that count is not
 supported by any saved run.)
 
 \unverified{TP-W02}{Week 8} Re-running \texttt{scripts/validate-correctness.ps1} (Step 8.3) against the
