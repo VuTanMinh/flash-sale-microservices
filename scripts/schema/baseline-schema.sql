@@ -32,3 +32,10 @@ CREATE TABLE IF NOT EXISTS order_service.baseline_orders (
     result TEXT NOT NULL CHECK (result IN ('Confirmed', 'Rejected')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Order Service's C0/C1 code connects as order_service_user, so it must own
+-- these tables. This script runs as the flashsale admin account, which would
+-- otherwise own them and leave the service with no privileges at all. Same
+-- owner as the existing-database path in infra/initdb/01-create-service-roles.sql.
+ALTER TABLE order_service.inventory OWNER TO order_service_user;
+ALTER TABLE order_service.baseline_orders OWNER TO order_service_user;

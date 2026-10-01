@@ -95,7 +95,7 @@ erDiagram
     }
 ```
 
-These live in `order_service` but are created by `scripts/schema/baseline-schema.sql` (run by `scripts/reset-and-seed.ps1` as the `flashsale` admin account), not by EF Core. They exist only for the C0/C1 comparison and are unrelated to Redis stock.
+These live in `order_service` but are created by `scripts/schema/baseline-schema.sql` (run by `scripts/reset-and-seed.ps1` as the `flashsale` admin account), not by EF Core. The script then hands ownership to `order_service_user`, because Order Service's C0/C1 code connects as that account. They exist only for the C0/C1 comparison and are unrelated to Redis stock.
 
 ## `public` schema: ABP module tables (owned by Order Service)
 
@@ -126,8 +126,8 @@ Non-unique indexes: `orders."CorrelationId"` (trace lookup), `outbox_events."Pub
 | order_service.orders | Id:uuid, IdempotencyKey:text, ProductId:text, Quantity:integer, State:text, RequestAcceptedAt:timestamp, ConfirmedOrRejectedAt:timestamp?, CompletedAt:timestamp?, CorrelationId:text | IdempotencyKey | order_service_user |
 | order_service.outbox_events | Id:uuid, OrderId:uuid, EventType:text, Payload:jsonb, Published:boolean, CreatedAt:timestamp, PublishedAt:timestamp? | - | order_service_user |
 | order_service.processed_messages | Id:uuid, MessageId:uuid, MessageType:text, ProcessedAt:timestamp | MessageId | order_service_user |
-| order_service.inventory | product_id:text, stock:integer | - | flashsale |
-| order_service.baseline_orders | id:uuid, config:text, product_id:text, result:text, created_at:timestamptz | - | flashsale |
+| order_service.inventory | product_id:text, stock:integer | - | order_service_user |
+| order_service.baseline_orders | id:uuid, config:text, product_id:text, result:text, created_at:timestamptz | - | order_service_user |
 | inventory_service.outbox_events | Id:uuid, OrderId:uuid, EventType:text, Payload:jsonb, Published:boolean, CreatedAt:timestamp, PublishedAt:timestamp? | OrderId | inventory_service_user |
 | inventory_service.processed_messages | Id:uuid, MessageId:uuid, MessageType:text, ProcessedAt:timestamp | MessageId | inventory_service_user |
 
@@ -147,4 +147,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-erd.ps1 -Container <po
 
 It prints one PASS/FAIL line per check and exits non-zero on any mismatch.
 
-**Ownership finding for Week 3 (checked 2026-10-01 on a fresh database):** the baseline tables are owned by `flashsale`, because `reset-and-seed.ps1` creates them as the admin account. `order_service_user`, which Order Service's C0/C1 code connects as, has **no** `SELECT`/`UPDATE` on `order_service.inventory` and no `INSERT` on `order_service.baseline_orders` (`has_table_privilege` returned false for both). The C0/C1 baseline will fail on a fresh environment until Week 3 fixes the grants or ownership. This ERD records the current ownership as built; fixing it is a Week 3 task.
+**Ownership history:** before 2026-10-01 the baseline tables kept the admin account (`flashsale`) as owner on a fresh database, so `order_service_user` had no privileges on them (`has_table_privilege` returned false) and C0/C1 would have failed. `baseline-schema.sql` now transfers ownership, so the fresh and existing-database paths give the same owner.

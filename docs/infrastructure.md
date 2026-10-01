@@ -26,7 +26,24 @@ Run `docker compose -f infra/docker-compose.yml up -d` from the repository root.
   Get-Content -Raw .\infra\initdb\01-create-service-roles.sql | docker compose -f .\infra\docker-compose.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U flashsale -d flashsale
   ```
 
-On an existing dedicated project database, this script also transfers existing public tables and sequences to the Order Service account and service-schema objects to their respective service accounts, so later migrations can alter them. The committed credentials are local development values. Override service connection strings and bootstrap credentials for any non-local deployment.
+On an existing dedicated project database, this script also transfers existing public tables and sequences to the Order Service account and service-schema objects to their respective service accounts, so later migrations can alter them. It also moves Inventory Service's three migration-history rows out of the formerly shared `public."__EFMigrationsHistory"` into `inventory_service."__EFMigrationsHistory"`. Inventory now connects with `Search Path=inventory_service`, and without that move it would re-run its migrations and fail with `relation "outbox_events" already exists`. The script is safe to run more than once.
+
+After applying it to an existing database, run both services' migrations once with their own accounts (`dotnet run --project FlashSale.OrderService --migrate-database`, then the same for `FlashSale.InventoryService`, from `src/`). Each should report that it completed with nothing to apply.
+
+`scripts/schema/baseline-schema.sql` (run by `reset-and-seed.ps1`) hands the C0/C1 tables to `order_service_user`, so both paths end with the same owners.
+
+### Verifying both paths
+
+```powershell
+# Fresh: new throwaway Postgres + initdb, build, both migrations, baseline schema, checks
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-environment.ps1 -Mode Fresh
+# Existing: copy of the running local database, role script applied twice, migrations, checks
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-environment.ps1 -Mode Existing
+```
+
+Both modes run on a temporary container on port 55432 and never modify the running `infra-postgres-1` database. They finish with `scripts/verify-erd.ps1` and the account-isolation checks.
+
+The committed credentials are local development values. Override service connection strings and bootstrap credentials for any non-local deployment.
 
 ## AWS deployment boundary
 

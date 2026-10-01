@@ -484,10 +484,18 @@ runtime. Inventory Service configures no ABP modules. Its connection string
 sets the search path to \texttt{inventory\_service}, so its migration history
 is stored there. No business or experiment data lives in \texttt{public}.
 
-\paragraph{Open point found by this check.} On a fresh database, the baseline
-tables are owned by the \texttt{flashsale} admin account that creates them,
-and \texttt{order\_service\_user} has no privileges on them. The C0/C1 runs
-therefore need a grant or ownership fix, which is tracked as a Week 3 task.
+\paragraph{Ownership defects found by this check.} Two were found and fixed.
+First, on a fresh database the baseline tables were owned by the
+\texttt{flashsale} admin account that creates them, so
+\texttt{order\_service\_user} had no privileges on them and the C0/C1 runs
+would have failed. The baseline schema script now hands them to
+\texttt{order\_service\_user}. Second, on a database created before the
+per-service accounts existed, both services shared one migration-history table
+in \texttt{public}. Once Inventory Service connected with its own search path,
+it re-ran its migrations and failed with ``relation already exists''. The
+role script now moves Inventory's history rows into
+\texttt{inventory\_service}. Both the fresh and the existing-database paths
+are checked by \texttt{scripts/verify-environment.ps1}.
 
 The order status-history table required by the adopted six-state model
 (Section~\ref{sec:order-state-machine}) is not shown, because it does not exist
