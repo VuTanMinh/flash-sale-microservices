@@ -1009,66 +1009,143 @@ with no stock still returned 200 but failed the content assertion on all 10
 samples, which shows the assertions can fail.
 
 \section{Order Service}
+\label{sec:order-service}
+
+Order Service accepts orders, stores them with their \texttt{OrderPlaced}
+Outbox row, answers status polling, and applies the stock and processing
+results that come back as events. The behaviour below is specified in
+\texttt{docs/order-api.md}. Every claim in this section is backed by the
+saved Week 5 evidence (\texttt{tests/evidence/20261001T123816Z-*}),
+produced from a fresh clone on a brand-new database with Order Service running
+under its own database account.
 
 \subsection{API design}
 
-Two endpoints (\texttt{Controllers/OrdersController.cs}):
-\texttt{POST /api/orders} (idempotent creation) and
-\texttt{GET /api/orders/\{id\}} (status lookup). Both return immediately from
-Postgres state -- there is no event publication yet (that arrives with the
-Transactional Outbox, Week 6), so every order created this week stays in
-\texttt{PendingStock} forever, which is expected for this week's scope, not
-a defect.
+\begin{center}
+\begin{tabular}{@{}llp{7.4cm}@{}}
+\toprule
+Request & Status & Meaning \\
+\midrule
+\texttt{POST /api/orders} & 201 & New order in \texttt{PendingStock}; body is the order with its id and \texttt{requestAcceptedAt} \\
+ & 200 & Same \texttt{Idempotency-Key} and same body: the original order, unchanged \\
+ & 400 & Missing or blank key, quantity $\neq 1$, blank product, or malformed JSON; nothing is stored \\
+ & 409 & Key already used with a different body; the original order is unchanged \\
+\texttt{GET /api/orders/\{id\}} & 200 & Current state and the stage timestamps \\
+ & 404 & Unknown order id \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The request carries \texttt{productId} and \texttt{quantity}. Quantity must
+equal 1, because flash-sale orders are single-unit and the reservation script
+decrements exactly one unit. A product id with no stock is \emph{not} a
+validation error: the order is accepted, and Inventory Service rejects it
+asynchronously. The order row and its \texttt{OrderPlaced} Outbox row are
+written in one \texttt{SaveChangesAsync} call (Section~\ref{sec:outbox}). All
+timestamps are UTC with a \texttt{Z} suffix and are stored at microsecond
+precision, so a value read back from PostgreSQL equals the value returned at
+creation. Business validation must happen before any write, so a rejected
+request leaves no order and no Outbox row.
 
 \subsection{Idempotency strategy}
 
-A required \texttt{Idempotency-Key} request header is checked against
-existing orders before creating a new one; a repeated key returns the
-original order unchanged rather than creating a duplicate. This is the
-\emph{client}-facing idempotency layer -- entirely distinct from the
-\emph{broker}-message idempotency the Week 9 Inbox pattern adds later, which
-dedupes RabbitMQ redelivering the same message rather than a client
-resubmitting the same request. Conflating the two was flagged as a risk as
-early as \texttt{docs/00-scope-lock.md} (Week 1); keeping the two mechanisms'
-names and purposes distinct in the code (\texttt{IdempotencyKey} the client
-supplies vs.\ \texttt{MessageId} on the ETOs in
-\texttt{FlashSale.EventContracts}) is what keeps that distinction from
-blurring once both exist side by side.
+The client sends an \texttt{Idempotency-Key} header. It is the
+\emph{transport} key for client retries, and is distinct from the broker's
+\texttt{MessageId}, which the Inbox uses to absorb redelivered messages
+(Section~\ref{sec:design-decisions}). The key is enforced at two levels:
 
-Verified manually against the running service (not just by inspection):
-sending the same \texttt{Idempotency-Key} twice returns the identical order
-\texttt{id} both times, and a direct Postgres query confirms exactly one row
-exists for that key -- the second request did not insert a duplicate.
+\begin{itemize}
+  \item \textbf{Lookup before insert.} A known key with the same body returns
+    the original order (200); with a different body it returns 409.
+  \item \textbf{Unique index as the final arbiter.} Concurrent requests with
+    the same key can all miss the lookup. Only one insert can succeed against
+    \texttt{IX\_orders\_IdempotencyKey}. A request that loses this race catches
+    exactly that unique violation (PostgreSQL \texttt{23505} on that
+    constraint, nothing broader), re-reads the winning order and answers as a
+    replay or a conflict.
+\end{itemize}
+
+\paragraph{What the Week 5 check found.} Before the fix, quantities 0, 2 and
+$-1$ and an empty product id were accepted as orders. When 20 requests with
+the same key were sent at once, 6 to 9 of them returned HTTP 500: the unique
+index prevented duplicate rows, but the losing requests crashed. A replayed
+order also came back with different timestamps (no \texttt{Z}, different
+precision). On a fresh clone, an unknown order id returned 500 instead of 404,
+because ABP's themed error page needs website files that are not in the
+repository; the error page now applies only outside \texttt{/api}.
+\texttt{scripts/verify-order-api.ps1} fails 10 checks on the old code.
+
+\paragraph{Result after the fix} (\texttt{20261001T123816Z-order-api.log},
+30 of 30 checks):
+\begin{itemize}
+  \item every validation case returns 400 with no row stored;
+  \item a replay returns 200 with a body identical to the first response, and
+    a changed body returns 409 with the original order unchanged;
+  \item in three rounds of 20 concurrent same-key requests, each round gave
+    exactly one 201 and nineteen 200s naming the same order, with one order
+    row and one Outbox row;
+  \item 200 concurrent requests over 50 keys (4 per key) produced exactly 50
+    orders and 50 Outbox rows, one 201 per key, and no key with more than one
+    order in the table.
+\end{itemize}
 
 \subsection{State management}
 
-\texttt{Entities/Order.cs} implements the state machine from
-\texttt{docs/order-state-machine.md} as guarded transition logic
-(\texttt{Order.TransitionTo}), not an unguarded status field: an illegal
-transition throws \texttt{InvalidOrderStateTransitionException} rather than
-silently succeeding. Per that document's own open question, \texttt{Confirmed}
-currently has no legal outgoing transition either -- \texttt{Confirmed ->
-Processing}'s trigger depends on the Week 11 Process Worker design, so no
-code path can legally perform it yet. The alternative (guessing a trigger to
-make the state machine look more finished) would cost more at defense time
-than an honestly-incomplete transition table.
+\texttt{Entities/Order.cs} implements the state machine as guarded
+transitions (\texttt{Order.TransitionTo}). The current code has three legal
+transitions: \texttt{PendingStock} $\to$ \texttt{Confirmed}, \texttt{PendingStock}
+$\to$ \texttt{Rejected} and \texttt{Confirmed} $\to$ \texttt{Completed}. Every
+other pair throws \texttt{InvalidOrderStateTransitionException} and changes
+nothing. The adopted six-state model adds \texttt{Processing} in Week 11
+(Section~\ref{sec:order-state-machine}).
+
+Result events are applied by \texttt{StockResultProcessor}:
+
+\begin{itemize}
+  \item an event for the state the order is already in, with any
+    \texttt{MessageId}, is acknowledged without a transition and recorded in
+    the Inbox;
+  \item an event for a state the order has already passed on
+    \texttt{PendingStock} $\to$ \texttt{Confirmed} $\to$ \texttt{Completed}
+    (for example \texttt{StockReserved} after \texttt{Completed}) is likewise
+    acknowledged. Before Week 5 this case threw and would have been
+    dead-lettered; it was found by the Week 5 code check and fixed;
+  \item a conflicting event (for example \texttt{StockRejected} after
+    \texttt{Confirmed}) throws, nothing is recorded, and the consumer sends it
+    to the dead-letter queue;
+  \item an event for an unknown order is acknowledged and not recorded.
+\end{itemize}
+
+One case still violates the design. An \texttt{OrderProcessed} that arrives
+while the order is \texttt{PendingStock} is dead-lettered instead of retried.
+It belongs to the Week 9 out-of-order box (TP-M02).
 
 \subsection{Test cases}
 
-The state-machine tests in \texttt{tests/FlashSale.OrderService.Tests}
-(\texttt{OrderStateMachineTests}) check that a new order starts in
-\texttt{PendingStock}, that every legal transition succeeds and stamps its
-timestamp, that every illegal target throws (including every target other
-than \texttt{Completed} from \texttt{Confirmed}), that \texttt{Rejected} and
-\texttt{Completed} are terminal, and that the exception reports the attempted
-from/to states. The whole suite (17 tests, including the Outbox and
-duplicate-message tests below) passes in the saved run \texttt{tests/evidence/20261001T114318Z-unit-tests.trx}
-(test case TP-E03). C0 and C1 (Week 3) are deliberately excluded from
-this test suite -- they are one-shot demonstrations captured as report
-evidence, not code with a future correctness guarantee to protect.
+\begin{center}
+\begin{tabular}{@{}lp{7.6cm}l@{}}
+\toprule
+Case & What it shows & Status \\
+\midrule
+TP-A01 & Intake returns 201 \texttt{PendingStock}; polling returns the order; unknown id is 404 & PASS \\
+TP-A02 & 10 invalid requests (key, quantity, product, JSON) return 400 and store nothing & PASS \\
+TP-A03 & Replay returns the identical original order & PASS \\
+TP-A04 & Changed body returns 409; original unchanged & PASS \\
+TP-A05 & Concurrent same-key retries: one 201, the rest 200, no 5xx & PASS \\
+TP-A06 & Full $4\times4$ transition matrix; duplicate, stale, conflicting and unknown-order events & PASS \\
+TP-A07 & 50 keys $\times$ 4 concurrent requests: exactly 50 orders and Outbox rows & PASS \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+TP-A01--A05 and TP-A07 are run by \texttt{scripts/verify-order-api.ps1}
+against the running service. TP-A06 consists of the unit tests in
+\texttt{OrderStateBehaviourTests}. The whole unit suite passes, 43 of 43, in
+the saved run \texttt{tests/evidence/20261001T123816Z-unit-tests.trx}.
+\texttt{docs/test-plan.md} lists the inputs, expected outcomes and commands.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-Passed!  - Failed: 0, Passed: 17, Skipped: 0, Total: 17
+Passed!  - Failed: 0, Passed: 43, Skipped: 0, Total: 43
 \end{Verbatim}
 
 \subsection{Event Publication Reliability (Week 6) -- the dual-write problem and the Transactional Outbox}
