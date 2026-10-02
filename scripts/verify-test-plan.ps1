@@ -60,7 +60,14 @@ foreach ($stale in "Passed: 14, Skipped: 0, Total: 14", "Full suite: 19/19 passi
     Check "report no longer claims '$stale'" (-not $tex.Contains($stale))
 }
 $labels = @([regex]::Matches($tex, '\\unverified\{(TP-[A-Z]\d\d)\}') | ForEach-Object { $_.Groups[1].Value })
-Check "report labels unsupported manual-run claims ($($labels.Count))" ($labels.Count -ge 8)
+# Labels disappear as their cases get real evidence (e.g. TP-I02 in Week 7), so
+# there is no fixed count -- but a label must never point at a case that is
+# already PASS: then the text should cite the evidence instead.
+Check "report still labels the remaining unsupported manual-run claims ($($labels.Count))" ($labels.Count -ge 1)
+foreach ($l in $labels | Select-Object -Unique) {
+    $passed = @($rows | Where-Object { $_.Id -eq $l -and $_.Status -eq "PASS" }).Count -gt 0
+    Check "report label $l does not point at a case that already passed" (-not $passed)
+}
 foreach ($l in $labels | Select-Object -Unique) { Check "report label $l is a test-plan case" ($rows.Id -contains $l) }
 $seq = Get-Content (Join-Path $root "docs\sequence-diagrams.md") -Raw -Encoding UTF8
 Check "sequence diagrams: 'Verified live' claims carry a not-re-verified note" (@([regex]::Matches($seq, 'Verified live')).Count -eq @([regex]::Matches($seq, 'Not re-verified')).Count)

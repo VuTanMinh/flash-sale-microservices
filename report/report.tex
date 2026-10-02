@@ -827,7 +827,7 @@ Broker redelivers a message & Inbox (unique \texttt{MessageId}) in the same tran
 Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Designed; TP-M02 (W09) \\
 Crash after commit, before ack & Redelivery hits the Inbox and is acked & Designed; TP-M01 (W09) \\
 Broker unreachable while publishing & Outbox row stays unpublished; publisher retries; consumers reconnect every 5\,s & Verified: TP-O01, TP-O02 (W06) \\
-PostgreSQL fails after Redis reserved & No ack, so the message is redelivered; Lua \texttt{DUPLICATE}; missing result written once & Designed; TP-I03 (W07) \\
+PostgreSQL fails after Redis reserved & Not acked: retried, then dead-lettered; a retry or replay gets Lua \texttt{DUPLICATE} and writes the missing result once & Verified: TP-I03 (W07) \\
 Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Designed; TP-F01 (W10) \\
 Poison message or state conflict & Straight to the service's DLQ, no retry & Designed; TP-F01 (W10) \\
 Order stuck in \texttt{PendingStock} & Reconciliation job re-publishes \texttt{OrderPlaced} after a timeout (safety net only) & Designed; TP-F02 (W10) \\
@@ -839,9 +839,10 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \paragraph{Known gaps in the supported model.} Two cases currently violate
 the design and are assigned to later weeks. First, an \texttt{OrderProcessed}
 that arrives while the order is still \texttt{PendingStock} is dead-lettered
-instead of retried (Weeks 9 and 11). Second, both result processors treat
-every database update error as a duplicate, which could acknowledge a real
-failure (Week 8, P0).
+instead of retried (Weeks 9 and 11). Second, Order Service's result processor
+treats every database update error as a duplicate, which could acknowledge a
+real failure (Week 8, P0). The same defect in Inventory Service was fixed and
+verified in Week 7 (TP-I03).
 
 \paragraph{Not supported (out of scope).} Redis, RabbitMQ or PostgreSQL
 cluster failover or replication; loss of Redis data without re-running the
@@ -1288,131 +1289,155 @@ enable publisher confirms; the raw \texttt{RabbitMQ.Client} 7.1.2 package is
 used instead.
 
 \section{Inventory Service}
+\label{sec:inventory}
 
-\subsection{Scaffolding, done differently from Order Service on purpose}
+\subsection{Scaffolding}
 
-Inventory Service was scaffolded with a deliberately minimal ABP module set
-(\texttt{MVC}, \texttt{Autofac}, \texttt{EntityFrameworkCore.PostgreSql},
-\texttt{Swashbuckle}, \texttt{Serilog} only) rather than the full default set
-\texttt{abp new} produces. Order Service (Week 3) carried the default set
-(Identity, Account, PermissionManagement, TenantManagement,
-FeatureManagement, SettingManagement, OpenIddict, AuditLogging, the LeptonX
-UI theme), and that turned out to cost more than unused weight: it directly
-caused the Week 3 migration/schema bug (Setting Management's runtime queries
-don't resolve a non-default schema consistently) and, per Week 4's API
-contract review, produced roughly 29 of 30 exposed endpoints that traced to
-nothing in the state machine. Since \texttt{docs/00-scope-lock.md} already
-excludes user management, auth/authz, and multi-tenancy entirely, Inventory
-Service simply never adds those modules, rather than adding and later
-removing them. The concrete result: its Swagger contract exposes exactly the
-three unavoidable ABP core meta-endpoints and nothing else, versus Order
-Service's roughly thirty endpoint groups. This is a deliberate difference
-between the two services' scaffolds, not an inconsistency -- Order Service's
-equivalent cleanup remains a flagged, not-yet-done item, tracked separately
-rather than retrofitted here.
+Inventory Service was scaffolded with a minimal ABP module set (MVC, Autofac,
+EntityFrameworkCore.PostgreSql, Swashbuckle, Serilog). It has none of the
+identity, account, permission, tenant, setting or OpenIddict modules that
+Order Service carries from the default template: the scope lock excludes user
+management, authentication and multi-tenancy, so Inventory Service never adds
+them. It owns only the \texttt{inventory\_service} schema
+(Section~\ref{sec:design-decisions}) and the Redis inventory keys. The
+behaviour below is specified in \texttt{docs/inventory.md}. Every result in
+this section comes from saved runs on a fresh clone with throwaway Redis,
+RabbitMQ and PostgreSQL instances
+(\texttt{tests/evidence/20261002T051418Z-inventory.log} and
+\texttt{20261002T052244Z-cross-store.log}).
 
-\subsection{Redis data structure and the Lua reservation script}
+\subsection{Redis key and data design}
 
-Actual stock lives in Redis, not Postgres (\texttt{docs/erd.md}): an integer
-key \texttt{inventory:\{productId\}} for available stock, and a set key
-\texttt{processed:\{productId\}} recording which order IDs have already been
-reserved for that product -- the second key is what makes the duplicate
-check possible without touching Postgres at all.
+\begin{center}
+\begin{tabular}{@{}llp{6.8cm}@{}}
+\toprule
+Key & Type & Meaning \\
+\midrule
+\texttt{inventory:\{productId\}} & integer & Units still available \\
+\texttt{processed:\{productId\}} & set & Order ids that hold a reservation for this product \\
+\texttt{sale:open:\{productId\}} & string & Present only after a confirmed warm-up: the sale is open \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Stock lives only in Redis for the asynchronous design. The per-product
+reservation set lets the duplicate check happen inside Redis, in the same
+atomic step as the stock change, without consulting PostgreSQL.
+
+\subsection{Lua reservation logic}
+
+\texttt{scripts/redis/reserve.lua} runs as one atomic \texttt{EVAL}: Redis
+executes a script without interleaving any other command, so the
+check-then-act sequence below cannot race. The C\# side
+(\texttt{InventoryReservationService}) only loads the file and passes keys and
+arguments; it does not reimplement any of the logic.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
-  return 'DUPLICATE'
-end
+-- KEYS: inventory:{id}, processed:{id}, sale:open:{id}   ARGV: order_id
+if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then return 'DUPLICATE' end
+if redis.call('EXISTS', KEYS[3]) == 0 then return 'NOT_OPEN' end
 local stock = tonumber(redis.call('GET', KEYS[1]))
-if stock == nil or stock <= 0 then
-  return 'REJECTED'
-end
+if stock == nil or stock <= 0 then return 'REJECTED' end
 redis.call('DECR', KEYS[1])
 redis.call('SADD', KEYS[2], ARGV[1])
 return 'RESERVED'
 \end{Verbatim}
 
-Redis executes a Lua script as one atomic, single-threaded operation --
-this is what makes the duplicate-check, stock-check, decrement, and
-mark-processed sequence race-free without any application-level locking.
-The three outcomes were verified directly against \texttt{redis-cli}, before
-any C\# integration existed, isolating the script's own correctness from
-the .NET client's:
+The duplicate check comes first, so a redelivered order that already holds a
+unit is answered \texttt{DUPLICATE} even if the sale has since closed.
+Inventory Service maps \texttt{RESERVED} and \texttt{DUPLICATE} to
+\texttt{StockReserved}, and \texttt{REJECTED} and \texttt{NOT\_OPEN} to
+\texttt{StockRejected}.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-> SET inventory:test 1
-> EVAL <script> 2 inventory:test processed:test order-1
-RESERVED
-> EVAL <script> 2 inventory:test processed:test order-1
-DUPLICATE
-> EVAL <script> 2 inventory:test processed:test order-2
-REJECTED
-> GET inventory:test
-0
-\end{Verbatim}
+\subsection{Inventory warm-up and readiness}
 
-All three outcomes matched expectations exactly, and stock never went
-negative or was double-decremented. The C\# side
-(\texttt{InventoryReservationService.cs}, under \texttt{Inventory/}) is a thin wrapper that
-loads this exact script file at startup and passes \texttt{KEYS}/\allowbreak\texttt{ARGV}
-through -- it does not, and must not, reimplement any of the check-then-act
-logic in C\#, since doing so would reintroduce the exact race condition the
-Lua script's atomicity exists to prevent.
+The teacher brief requires that a product opens for sale only after warm-up
+is complete \emph{and confirmed}. The Week 7 code check found no such gate.
+An un-warmed product was answered \texttt{REJECTED} exactly like a sold-out one,
+and nothing recorded whether warm-up had happened.
 
-\subsection{Inventory warm-up}
+\texttt{scripts/warm-up.ps1} now handles each product in one atomic Lua step.
+It sets the stock, clears the reservation set and sets
+\texttt{sale:open:\{productId\}}. It then confirms the product by reading all
+three back, prints \texttt{CONFIRMED} per product, and exits non-zero if any
+product does not confirm. Until the marker exists, \texttt{reserve.lua}
+answers \texttt{NOT\_OPEN} and touches no stock. Re-running warm-up on a product
+whose sale is open is refused, because it would restore stock and forget
+reservations mid-sale. \texttt{-Force} exists for experiment resets only.
 
-\texttt{scripts/warm-up.ps1} loads known starting stock for each test
-product before a Flash-sale "opens". Product availability is conditional on
-this having run by construction, not by convention: an unset inventory key
-reads as Lua's \texttt{nil}, which the script already treats as
-\texttt{REJECTED}, so a product nobody warmed up simply cannot be reserved.
+In the saved run, a reservation attempted before warm-up answered
+\texttt{NOT\_OPEN} with the stock untouched. Warm-up confirmed all six test
+products. A re-run on an open sale was refused (stock stayed at its
+post-sale value) and \texttt{-Force} reset it. End to end through the running
+Inventory Service, an \texttt{OrderPlaced} for a never-warmed product produced
+\texttt{StockRejected} with no Redis key created, and one for a warmed product
+produced \texttt{StockReserved}.
 
-\subsection{OrderPlaced handling}
+\subsection{Inventory invariants under concurrency}
 
-\texttt{Messaging/OrderPlacedConsumer.cs} consumes via the raw
-\texttt{RabbitMQ.Client}, the same choice and for the same reason as Order
-Service's \texttt{OutboxPublisherWorker} (Week 6): messages are published as
-plain JSON with a routing key, not through \texttt{Volo.Abp.EventBus.RabbitMQ}'s
-own envelope format, so a consumer built against that abstraction would not
-be looking at the same message shape. Keeping publish and consume on the
-same primitives end to end avoids that mismatch. Each message is
-deserialized into \texttt{OrderPlacedEto} (\texttt{FlashSale.EventContracts},
-Week 4), reserved via the Lua script above, and manually acknowledged only
-after successful processing -- a failure nacks with requeue, and a
-transient connection failure retries the whole consumer connection with a
-5-second backoff rather than crashing the service. Week 9 replaces this
-simple ack-after-success strategy with the full Inbox-pattern-based
-idempotent acknowledgement.
+For every product, after any amount of concurrent traffic
+(\texttt{docs/inventory.md}):
+(1) \texttt{inventory} $\ge 0$;
+(2) reservations $\le$ initial stock;
+(3) \texttt{inventory} + reservations = initial stock (every unit is either
+available or held by exactly one order);
+(4) no order id is reserved twice, and a repeated order id is answered
+\texttt{DUPLICATE} only if that order already holds a unit.
+\texttt{tests/InventoryProbe} drives the real \texttt{reserve.lua} with all
+requests in flight at once and checks these per product:
 
-Publishing \texttt{StockReserved}/\allowbreak\texttt{StockRejected} back to Order
-Service is Week 8's addition (Section~\ref{sec:week8}); this week's own
-verification below stops at the Lua/consumer boundary, which is sufficient
-to confirm the reservation logic itself end to end before wiring the result
-back out.
+\begin{center}
+\begin{tabular}{@{}p{6.2cm}rrrr@{}}
+\toprule
+Workload & Requests & Reserved & Duplicate & Rejected \\
+\midrule
+Hot product: 100 units; 300 orders + 100 repeats & 400 & 100 & 52 & 248 \\
+4 products: 40/30/20/10 units; demand 50/25/15/10\,\%; 250 orders + 80 repeats & 330 & 100 & 45 & 185 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\paragraph{End-to-end verification.} \unverified{TP-I02}{Week 7} Rather than only checking Redis state
-after the fact, the full path was watched live: an order created via
-\texttt{POST /api/orders} was observed flowing through the Outbox, into
-RabbitMQ, into this consumer, into the Lua script, and into an updated Redis
-key, within about two seconds end to end (RabbitMQ pushes to consumers; this
-is not a polling delay). Both outcomes were exercised through the complete
-pipeline, not just at the Lua/redis-cli level above:
+All four invariants held for every product in both workloads. The number of \texttt{RESERVED} answers equalled the
+reservations recorded in Redis, and equalled $\min(\text{distinct demand},
+\text{stock})$ for every product. Stock ended at exactly zero wherever demand
+exceeded supply. The probe also fails when it should: run before the sale was
+open, every request answered \texttt{NOT\_OPEN} and the conservation checks
+failed.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[INF] OrderPlaced 7918a432-... for product flash-product-1 -> Reserved
-[INF] OrderPlaced 1dd50a8a-... for product out-of-stock-product -> Rejected
-\end{Verbatim}
+\subsection{OrderPlaced handling and the Redis/PostgreSQL boundary}
 
-A useful side effect of building the consumer this week: three
-\texttt{OrderPlaced} messages left over from Week 6's manual verification
-queue (including one that had survived a deliberate RabbitMQ outage) were
-still sitting unconsumed. Starting this consumer drained all three
-automatically on first connection, decrementing \texttt{flash-product-1}'s
-stock from 1000 to 997 and recording exactly three entries in
-\texttt{processed:flash-product-1} -- confirming not only that new messages
-flow through correctly, but that messages published before any consumer
-existed are not lost, exactly what the Outbox pattern from Week 6 was
-supposed to guarantee.
+\texttt{OrderPlacedConsumer} consumes with manual acknowledgement.
+\texttt{OrderPlacedProcessor} checks the Inbox, runs \texttt{reserve.lua},
+then writes the result event to its Outbox and the Inbox row in one
+PostgreSQL transaction. Only after that commit is the message acknowledged. A
+processing error is retried after 1\,s, 2\,s and 4\,s, and then the message is
+dead-lettered (\texttt{OrderPlaced.dlq}), never re-queued in a loop.
+
+\paragraph{PostgreSQL failure after the Redis reservation.} Redis and
+PostgreSQL cannot share a transaction, so the design makes Redis the decision
+and PostgreSQL the record (Section~\ref{sec:design-decisions}). The Week 7 test
+(\texttt{scripts/verify-cross-store.ps1}) revokes the Outbox \texttt{INSERT}
+right after \texttt{reserve.lua} has run. On the old code the consumer
+caught \emph{every} database error as ``a duplicate already recorded this''
+and acknowledged the message. The \texttt{StockReserved} result was then lost
+for good while the unit stayed reserved, and 5 of the test's 11 checks failed.
+The processor now treats only a unique-key violation (PostgreSQL
+\texttt{23505}) as a duplicate; any other error propagates to retry and the
+dead-letter queue. With the fix (11 of 11 checks):
+
+\begin{itemize}
+  \item \textbf{Short outage.} The privilege is restored inside the retry
+    window. The retry reached \texttt{reserve.lua} again, got
+    \texttt{DUPLICATE}, and wrote \texttt{StockReserved}. Stock was deducted
+    exactly once.
+  \item \textbf{Long outage.} The retries were exhausted and the message went
+    to \texttt{OrderPlaced.dlq} with no Inbox row and no result. After the
+    fault was removed, replaying the dead letter rebuilt
+    \texttt{StockReserved}, again with exactly one deduction.
+\end{itemize}
+
+Order Service's \texttt{StockResultProcessor} still contains the same
+catch-all; closing it is the Week 8 database-exception task.
 
 \section{Closing the Loop -- Stock Results and Order State (Week 8)}
 \label{sec:week8}
@@ -2122,7 +2147,7 @@ offered. The final column is the result of
 completed in Week 14.}}
 \begin{tabular}{lrrrl}
 \toprule
-Configuration & Offered & Completed & Rejected & Invariants \\
+Configuration & Offered & Completed & Rejected \\
 \midrule
 C0 -- naive read-then-write    & --- & --- & --- & --- \\
 C1 -- Postgres atomic update   & --- & --- & --- & --- \\
