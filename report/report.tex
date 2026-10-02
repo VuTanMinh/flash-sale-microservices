@@ -1511,50 +1511,62 @@ order against a product forced to zero stock was polled through to
 Service outbox row for the order, with the expected event type and
 \texttt{Published = t}.
 
-\subsection{Automated correctness validation (Step 8.3)}
+\subsection{Automated correctness validation}
+\label{sec:validation}
 
-\texttt{scripts/validate-correctness.ps1} turns the four invariants from
-\texttt{docs/inventory-invariants.md} into a runnable check against the live
-system, parameterized by product id and expected initial stock rather than
-hardcoded -- Weeks 13--14 reuse this exact script, unmodified, against
-several different product/stock configurations, so it cannot bake in one
-week's test values. Two PowerShell-specific bugs surfaced and were fixed
-while building it: passing SQL containing double-quoted, case-sensitive
-Postgres identifiers as a \texttt{docker exec ... -c} argument silently
-stripped the quotes (fixed by piping the SQL via stdin instead, matching
-\texttt{reset-and-seed.ps1}'s existing pattern), and a helper function
-originally named its parameter \texttt{\$args}, which collides with
-PowerShell's own reserved automatic variable of the same name (renamed to
-\texttt{\$redisArgs}).
+\texttt{scripts/validate-correctness.ps1} checks the four inventory
+invariants for one product after a run, with separate rules for C1 and C2
+(\texttt{docs/validation.md}). It takes the configuration, product id and
+initial stock as parameters, so Weeks 13--14 can reuse it unmodified.
 
-\unverified{TP-W02}{Week 8} Run against a clean, controlled batch (Postgres tables truncated, Redis
-re-seeded, five orders created across two products, specifically so the
-script's first real trial wasn't validating against leftover mixed test
-data):
+\paragraph{What the Week 8 code check found.} The earlier validator gave
+false passes. It could not validate C1 at all, because it read Redis and the
+asynchronous \texttt{orders} table while C1 lives in
+\texttt{order\_service.inventory} and \texttt{baseline\_orders}. Two of its
+four checks could never fail. Invariant 3 counted duplicate order
+\emph{primary keys}, which the primary key forbids. Invariant 4 counted
+duplicate \texttt{MessageId}s in \texttt{processed\_messages}, which its unique
+index forbids. On a fixture where 3 units were taken for 2 reserved orders
+(a double deduction), the old validator printed \texttt{PASS} for all four
+invariants and exited 0. The validator results shown in earlier drafts of
+this report were produced by that version, and their invariant 3 and 4
+lines are therefore not evidence.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-Invariant                                        Status    Detail
-1. available_inventory >= 0                      PASS
-2. successful_reservations <= initial_inventory  PASS
-3. <=1 successful reservation per order          PASS      (structurally
-                                                             guaranteed by PK;
-                                                             verified, not
-                                                             assumed)
-4. duplicate delivery never double-deducts stock PENDING   order_service.
-                                                             processed_messages
-                                                             does not exist
-                                                             yet (Week 9)
+\paragraph{Rules.} For C1: stock $\ge 0$; Confirmed decisions $\le$ initial;
+units taken (initial $-$ stock) $=$ Confirmed decisions, so every deduction
+has exactly one logged decision. Invariant 4 is reported \texttt{NOT
+APPLICABLE} with its reason, because C1 has no broker messages. For C2: Redis
+stock $\ge 0$; both Redis reservations and successful orders $\le$ initial.
+The Redis reservation set and the successful orders must be exactly the same
+order ids (one reservation per order). Units taken must equal distinct
+reserved orders (no double deduction), and the Inbox \texttt{MessageId}
+uniqueness must exist in both services. A run with no data, or with a reserved
+order still \texttt{PendingStock}, is \texttt{INCONCLUSIVE}; an unreachable
+store or a failed query is \texttt{SETUP ERROR}. Both exit non-zero, so nothing
+unchecked is ever reported as a pass.
 
-RESULT: All checkable invariants hold.
-\end{Verbatim}
-
-Invariant 4 is reported \texttt{PENDING}, not \texttt{PASS}, because the
-table it needs (\texttt{order\_service.processed\_messages}) is Week 9's
-Inbox pattern and does not exist yet -- the script checks for the table's
-existence first and only runs the real duplicate-message check if present.
-Reporting a fake pass here would be claiming a check that never actually
-ran; the script's exit code (0) reflects only the invariants that were
-actually checkable this week, and \texttt{PENDING} does not fail it.
+\paragraph{Evidence} (fresh clone; \texttt{tests/evidence/}\allowbreak\texttt{20261002T062442Z-validator.log} and
+\texttt{20261002T062442Z-}\allowbreak\texttt{real-runs.log}).
+\texttt{scripts/verify-validator.ps1} feeds the validator correct C1 and C2
+fixtures, which pass, and one broken fixture per failure mode: oversold
+stock, a deduction without a logged decision, a reservation/order mismatch, a
+double deduction, an unsettled run, missing data and an unreachable database.
+Each broken fixture fails the targeted invariant or is reported
+\texttt{INCONCLUSIVE} or \texttt{SETUP ERROR} (12 of 12 checks).
+\texttt{scripts/verify-real-runs.ps1} then validates two real runs.
+\begin{itemize}
+  \item \textbf{C1:} 30 concurrent requests against 20 units. All four
+    invariants hold: stock 0, 20 Confirmed.
+  \item \textbf{C2:} Order Service, Inventory Service and the Process Worker
+    running together. 30 orders plus 10 client retries against 20 units
+    settled as exactly 30 orders: 20 \texttt{Completed} and 10
+    \texttt{Rejected}. The Redis reservation set and the 20 successful orders
+    were the same order ids, and stock was 0.
+\end{itemize}
+While this script was being developed, a second run reused a product id
+whose orders were still in the database from the first run. The validator
+correctly failed it, because the successful orders exceeded the stock that
+had been re-seeded into Redis.
 
 \subsection{Sequence diagrams brought current (Step 8.4)}
 
@@ -1701,28 +1713,11 @@ All three pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261
 currently has 43 tests in total. (An earlier draft said 19; that count is not
 supported by any saved run.)
 
-\unverified{TP-W02}{Week 8} Re-running \texttt{scripts/validate-correctness.ps1} (Step 8.3) against the
-live state left over from the Step 9.3 crash test is the actual point of
-Step 9.4's second instruction, and it is what finally makes Invariant 4 a
-real result instead of a placeholder:
-
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-Invariant                                        Status Detail
-1. available_inventory >= 0                      PASS   Current stock: 998
-2. successful_reservations <= initial_inventory  PASS   5 <= 1000 seeded
-3. <=1 successful reservation per order          PASS   (PK-guaranteed)
-4. duplicate delivery never double-deducts stock PASS   No duplicate message
-                                                          ids in processed_messages
-
-RESULT: All checkable invariants hold.
-\end{Verbatim}
-
-Invariant 4 was reported \texttt{PENDING} in Week 8 because
-\texttt{processed\_messages} didn't exist yet; the script needed no code
-change at all to go from \texttt{PENDING} to a real \texttt{PASS} -- it was
-already written (Step 8.3) to check for the table's existence and run the
-real query once it appeared, precisely so this week wouldn't require
-touching it.
+An earlier draft showed the old validator reporting all four invariants as
+\texttt{PASS} on the state left by the Step 9.3 crash test. That validator's
+invariant 3 and 4 checks could not fail (Section~\ref{sec:validation}), so
+that output is not evidence of exactly-once behaviour. The crash-and-redelivery
+case is re-verified with the repaired validator as test case TP-M01 (Week 9).
 
 \section{Failure Handling and Recovery (Week 10)}
 \label{sec:week10}
