@@ -6,6 +6,7 @@ using FlashSale.InventoryService.Data;
 using FlashSale.InventoryService.Entities;
 using FlashSale.InventoryService.Inventory;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Microsoft.Extensions.Logging;
 
 namespace FlashSale.InventoryService.Messaging;
@@ -107,12 +108,20 @@ public static class OrderPlacedProcessor
             // SaveChangesAsync needs are actually available.
             await dbContext.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // Lost a race with another delivery of the same order (the unique
             // index on OrderId) and/or the same message (the unique index on
             // MessageId) -- someone else's insert already recorded the same
             // fact(s). Nothing further to do.
+            //
+            // ONLY a unique violation means that. Any other database error
+            // (connection lost, permission, ...) must propagate so the message
+            // is retried and finally dead-lettered rather than acked: Redis
+            // has already reserved the unit, and acking here would lose the
+            // StockReserved result for good (docs/design-decisions.md §4).
+            // A retry reaches reserve.lua again, gets DUPLICATE, and writes the
+            // missing result without a second deduction.
         }
 
         return OrderPlacedProcessingOutcome.Applied;
