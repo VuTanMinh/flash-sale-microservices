@@ -59,6 +59,10 @@ Take the earliest unticked checkbox (start at Week 1). For that one box only:
 ## Git conventions
 - Branch names are plain (e.g. `week1-2`, `week3`); never `claude/...` or any
   AI/tool name. Commit messages name the checkbox, with no AI attribution.
+- **Env files stay out of git, always** (user rule, 2026-10-03): `.gitignore`
+  must list `.env`, `.env.*` and `*.env` (allowing only `.env.example`), even
+  when no env file exists yet. Check it before every commit; never commit API
+  keys, passwords or tokens.
 
 ## Gotchas
 - `.gitignore` ignores `*.md` except `/README.md`, `/CLAUDE.md`, `docs/**` and

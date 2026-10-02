@@ -63,3 +63,9 @@ setup-week1.ps1
 !/.claude/skills/**/*.md
 !/docs/*.md
 !/docs/**/*.md
+
+# Secrets: never commit environment files (API keys, passwords, tokens).
+.env
+.env.*
+*.env
+!.env.example
