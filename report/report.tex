@@ -710,8 +710,10 @@ Full diagrams: \texttt{docs/sequence-diagrams.md}. The happy-path and
 rejection diagrams show the code as built: both Outboxes and their 2-second
 publishers, the Redis Lua reservation, the parallel delivery of
 \texttt{StockReserved} to Order Service and the Process Worker, and status
-polling. The earlier end-to-end runs that these diagrams were checked against
-were manual and their output was not saved \unverified{TP-W01}{Week 8}. The
+polling. Individual legs now have saved evidence (Outbox publication TP-O01/O02,
+reservation TP-I01--I03, applying results TP-W01). The earlier runs of the whole
+path in one go were manual and their output was not saved
+\unverified{TP-P03}{Week 11}. The
 \texttt{Processing} hop of the six-state model appears only as a separate
 diagram labelled ``planned''. The Nginx hop is target design until Week 12.
 Inbox checks, retries and DLQ hops are omitted on purpose and covered by the
