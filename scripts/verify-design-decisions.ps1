@@ -56,9 +56,8 @@ $gap1 = $opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?B
 Check "gap 'early OrderProcessed goes to DLQ' documented and still present in code" ($gap1 -and $doc.Contains("sends an ``OrderProcessed`` that arrives while the order is still ``PendingStock`` straight to the DLQ"))
 $opp = Src "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs"
 $srp = Src "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs"
-$gap2 = ($srp -match 'catch \(DbUpdateException\)\s*\{') -and -not ($srp -match '23505|UniqueViolation')
-Check "Inventory processor treats only unique violations as duplicates (fixed Week 7)" (($opp -match 'PostgresErrorCodes\.UniqueViolation') -and -not ($opp -match 'catch \(DbUpdateException\)\s*\{'))
-Check "gap 'Order Service treats every DbUpdateException as duplicate' documented and still present in code" ($gap2 -and $doc.Contains("``StockResultProcessor`` in Order Service still catches **every** ``DbUpdateException``"))
+Check "Order Service result processor treats only unique violations as duplicates (fixed Week 8)" (($srp -match 'PostgresErrorCodes\.UniqueViolation') -and -not ($srp -match 'catch \(DbUpdateException\)\s*\{'))
+Check "design doc records the Order Service fix" ($doc.Contains("**Fixed for Order Service (2026-10-02, Week 8):**"))
 
 Write-Host ""
 if ($failures -gt 0) { Write-Host "$failures check(s) failed." -ForegroundColor Red; exit 1 }

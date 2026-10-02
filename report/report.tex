@@ -838,13 +838,12 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \end{tabular}
 \end{center}
 
-\paragraph{Known gaps in the supported model.} Two cases currently violate
-the design and are assigned to later weeks. First, an \texttt{OrderProcessed}
-that arrives while the order is still \texttt{PendingStock} is dead-lettered
-instead of retried (Weeks 9 and 11). Second, Order Service's result processor
-treats every database update error as a duplicate, which could acknowledge a
-real failure (Week 8, P0). The same defect in Inventory Service was fixed and
-verified in Week 7 (TP-I03).
+\paragraph{Known gaps in the supported model.} One case still violates the
+design: an \texttt{OrderProcessed} that arrives while the order is still
+\texttt{PendingStock} is dead-lettered instead of retried (Weeks 9 and 11). The
+database-error defect, where an error was treated as a duplicate and the result
+lost, was fixed in Inventory Service in Week 7 (TP-I03) and in Order Service in
+Week 8 (TP-W03).
 
 \paragraph{Not supported (out of scope).} Redis, RabbitMQ or PostgreSQL
 cluster failover or replication; loss of Redis data without re-running the
@@ -1438,8 +1437,8 @@ dead-letter queue. With the fix (11 of 11 checks):
     \texttt{StockReserved}, again with exactly one deduction.
 \end{itemize}
 
-Order Service's \texttt{StockResultProcessor} still contains the same
-catch-all; closing it is the Week 8 database-exception task.
+Order Service's \texttt{StockResultProcessor} had the same catch-all; it was
+closed in Week 8 (TP-W03).
 
 \section{Closing the Loop -- Stock Results and Order State (Week 8)}
 \label{sec:week8}

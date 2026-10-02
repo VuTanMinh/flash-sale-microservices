@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace FlashSale.OrderService.Messaging;
 
@@ -87,7 +88,7 @@ public static class StockResultProcessor
             {
                 await saveChangesAsync();
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
             {
                 // Lost a race to a concurrent delivery of the same message; it
                 // already recorded this Inbox row. Nothing further to do.
@@ -107,7 +108,7 @@ public static class StockResultProcessor
         {
             await saveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
             // Lost a race to a concurrent delivery of the exact same message
             // (unique constraint on MessageId) -- the winner already applied
@@ -117,6 +118,14 @@ public static class StockResultProcessor
 
         return ResultProcessingOutcome.Applied;
     }
+
+    // Only a unique-key violation means "a concurrent delivery already recorded
+    // this". Any other database error (connection lost, permission, ...) must
+    // propagate so the consumer retries and finally dead-letters the message;
+    // treating it as a duplicate would ack it and lose the stock result,
+    // leaving the order in PendingStock (docs/design-decisions.md section 4).
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     // Happy-path progression for the "same or earlier state" rule. Rejected
     // is off the path: it only matches itself, so StockRejected after
