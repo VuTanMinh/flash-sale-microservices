@@ -1,0 +1,18 @@
+﻿Commit: 68b5279 (fresh clone, fresh database)
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-cross-store.ps1 -Container verify-env-pg
+Exit code: 0
+
+PASS  setup: xs-product warmed up with 5 units
+PASS  case 1: during the fault Redis already reserved (stock 4, order recorded) but no result row exists
+PASS  case 1: after the fault clears, the retry writes StockReserved
+PASS  case 1: no second deduction (stock still 4, one reservation)
+PASS  case 1: Inbox row recorded for the message
+PASS  case 1: the retry saw DUPLICATE from Redis (no re-reservation)
+PASS  case 2: after retries are exhausted the message is dead-lettered, not acked as done
+PASS  case 2: Redis deducted exactly once (stock 3) and still no result row
+PASS  case 2: no Inbox row was written for the failed message
+PASS  case 2: replaying the dead-lettered message rebuilds StockReserved
+PASS  case 2: no second deduction (stock still 3, two reservations in total)
+
+Cross-store failure verified: one deduction, result rebuilt by retry.
+

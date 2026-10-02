@@ -1,0 +1,40 @@
+﻿Commit: 68b5279 (fresh clone, fresh database)
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-publication.ps1 -Container verify-env-pg
+Exit code: 0
+
+PASS  A valid route: row published and exactly one message in OrderPlaced
+PASS  B queue missing: row stays unpublished
+PASS  B queue missing: publisher logged the failure and keeps retrying
+PASS  B recovery: once the queue exists the row is published and delivered once
+PASS  B recovery: publisher restored the binding
+PASS  C binding removed: binding restored, row published, delivered once
+PASS  D broker down: order accepted, row unpublished
+PASS  D broker back: row published and delivered exactly once
+PASS  E nack: first fills the queue (published); second is nacked and stays unpublished
+PASS  E nack: publisher logged the rejected publish
+PASS  E recovery: after space frees up the row is published and delivered once
+PASS  F return: unroutable mandatory publish raises PublishException(IsReturn=true)
+PASS  G only StockReserved queue exists: row stays unpublished (Process Worker queue missing)
+powershell.exe : ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:10 char:750
++ ... )) { $out = & powershell -ExecutionPolicy Bypass -File ".\scripts\$($ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ConvertFrom-Jso...use it is null.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta-w8b3\script
+s\verify-publication.ps1:78 char:99
++ ... Id) { @($msgs | Where-Object { ($_.payload | ConvertFrom-Json).OrderI ...
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFrom 
+   JsonCommand
+ 
+PASS  G nothing was delivered to the existing StockReserved queue meanwhile
+PASS  G both queues present: published once, one copy in each required queue
+PASS  H OrderProcessed queue missing: worker does not lose the event -- StockReserved is retried, then dead-lettered
+PASS  H worker logged the failed OrderProcessed publish
+PASS  H OrderProcessed queue present: exactly one OrderProcessed with MessageId = OrderId
+
+Routed publication verified: nothing is marked published without reaching every required queue.
+
