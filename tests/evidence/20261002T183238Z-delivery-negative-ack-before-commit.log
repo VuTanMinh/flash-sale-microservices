@@ -1,0 +1,45 @@
+﻿# NEGATIVE CONTROL (ack-before-commit): verify-delivery.ps1 on the fresh clone with ONE deliberate break:
+# OrderPlacedConsumer acks the message BEFORE processing it (ack moved above ProcessWithRetryAsync)
+# expected: non-zero exit; the checks that depend on the broken behaviour fail
+
+== Inbox uniqueness
+PASS  order_service.processed_messages has a unique index on MessageId
+PASS  a second Inbox row with the same MessageId is refused for order_service_user (unique violation)
+PASS  inventory_service.processed_messages has a unique index on MessageId
+PASS  a second Inbox row with the same MessageId is refused for inventory_service_user (unique violation)
+PASS  all three services up; all five consumer queues declared
+PASS  warm-up: dl-183528 has 10 units
+== Local transaction
+FAIL  Inventory, Inbox refused: retried then dead-lettered 
+PASS  Inventory, Inbox refused: the result Outbox row rolled back with it (no row, no Inbox row)
+FAIL  Inventory: after the fault, replaying the dead letter applies it once (Completed, 1 Outbox row, 1 Inbox row, 1 unit taken) -- replayed=0 state=PendingStock stock=9
+FAIL  Order Service, Inbox refused: StockReserved retried then dead-lettered 
+FAIL  Order Service, Inbox refused: the state change rolled back with it (PendingStock, no Inbox row) 
+FAIL  Order Service: after the fault, replaying the dead letters applies each once (Confirmed then Completed, 1 Inbox row each) -- replayed=0/0 state=PendingStock
+== Crash after commit, before ack
+PASS  Inventory crash: the process was killed after its commit (fault log line, process gone)
+FAIL  Inventory crash: work committed before the crash (1 Inbox row, 1 Outbox row, 1 unit taken) 
+PASS  Inventory crash: the unacknowledged OrderPlaced is back in its queue
+PASS  Inventory replay: the same MessageId was redelivered and acked as already processed
+FAIL  Inventory replay: one effect (Completed, 1 Inbox row, 1 Outbox row, still exactly 1 unit taken) 
+FAIL  StockResult crash: the process was killed after its commit 
+FAIL  StockResult crash: Confirmed and 1 Inbox row committed before the crash 
+FAIL  StockResult crash: the unacknowledged StockReserved is back in its queue -- StockReserved=0
+FAIL  StockResult replay: the same MessageId was redelivered and acked as already processed 
+FAIL  StockResult replay: one effect (1 Inbox row, decision timestamp unchanged, then Completed) 
+FAIL  OrderProcessed crash: the process was killed after its commit 
+FAIL  OrderProcessed crash: Completed and 1 Inbox row committed before the crash 
+FAIL  OrderProcessed crash: the unacknowledged OrderProcessed is back in its queue -- OrderProcessed=0
+FAIL  OrderProcessed replay: the same MessageId was redelivered and acked as already processed 
+FAIL  OrderProcessed replay: one effect (1 Inbox row, completion timestamp unchanged) 
+FAIL  Process Worker crash: killed after its confirmed publish of OrderProcessed 
+FAIL  Process Worker crash: the order was completed once by that publish 
+FAIL  Process Worker crash: the unacknowledged StockReserved is back in its queue -- ProcessWorker.StockReserved=0
+FAIL  Process Worker replay: StockReserved redelivered, OrderProcessed published again with the same MessageId 
+FAIL  Process Worker replay: Order Service absorbed the copy (already processed; 1 Inbox row; completion timestamp unchanged) 
+FAIL  stock for dl-183528: 10 - 6 orders = 4, and Redis recorded exactly those 6 orders 
+FAIL  every queue and every DLQ is empty at the end -- OrderPlaced=3,StockReserved=0,StockRejected=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+
+24 check(s) failed.
+
+exit code: 1

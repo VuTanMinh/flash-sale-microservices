@@ -1792,44 +1792,90 @@ sake.
 
 \subsection{Acknowledgement strategy, proven with a real crash (Step 9.3)}
 
-\unverified{TP-M01}{Week 9}
+Every consumer follows the same rule (\texttt{docs/delivery-semantics.md}):
 
-Both consumers already used manual acknowledgement (\texttt{autoAck: false}), acking
-only after the local transaction above commits. Rather than assert this from
-reading the code, it was proven directly: a temporary artificial delay was
-inserted between the "message received" log line and the start of
-processing (removed again before this commit -- \texttt{git diff} on this
-commit shows no trace of it), an order was placed, and the moment Inventory
-Service logged receipt, its process was killed outright
-(\texttt{Stop-Process -Force} on the specific \texttt{FlashSale.InventoryService.exe}
-PID, not the \texttt{dotnet run} wrapper around it):
+\begin{enumerate}
+  \item Check the Inbox.
+  \item Do the business step and insert the Inbox row in one local
+    transaction.
+  \item Acknowledge only after that transaction commits
+    (\texttt{autoAck: false}).
+\end{enumerate}
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[INF] Received OrderPlaced 70d0502d-... for order 6da814db-...
-SUCCESS: The process with PID 3484 has been terminated.
-\end{Verbatim}
+The dangerous moment is between the commit and the ack. If the process dies
+there, the work is done but the broker still holds the message, so it
+delivers it again.
 
-Confirmed directly, before restarting anything: Redis stock unchanged, zero
-outbox rows and zero Inbox rows for this order/message, order still
-\texttt{PendingStock}. The message was never acked, so it was never
-removed from the queue -- exactly what manual acknowledgement is for.
-Restarting Inventory Service triggered RabbitMQ to redeliver that same
-unacked message (confirmed by the identical MessageId reappearing in the new
-process's logs, not a new publish), and this second delivery ran to
-completion:
+\paragraph{What the code check found.} An earlier draft of this section
+described a manual crash test. Its output was never saved, and it killed
+Inventory Service \emph{before} it processed the message. That shows an
+unprocessed message is redelivered. It does not test the case this step is
+about: a crash \emph{after} the commit.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[INF] Received OrderPlaced 70d0502d-... for order 6da814db-...    (redelivery)
-[INF] OrderPlaced 6da814db-... for product flash-product-1 -> Reserved
-\end{Verbatim}
+\paragraph{Fault injection.} Each of the four consumers now calls a fault-injection hook,
+\texttt{CrashBeforeAckIfTargeted}, between its commit and its
+ack:
 
-Final state, checked directly rather than inferred: Redis stock decremented
-by exactly one (999 $\to$ 998, not 997), exactly one outbox row
-(\texttt{Published = t}), exactly one Inbox row for that MessageId, and the
-order transitioned to \texttt{Confirmed} exactly once. RabbitMQ delivered
-the message twice; the system produced the business side effect once -- the
-precise distinction this section opened with, now demonstrated rather than
-asserted.
+\begin{itemize}
+  \item Inventory's \texttt{OrderPlaced} consumer;
+  \item Order Service's stock-result consumer;
+  \item Order Service's \texttt{OrderProcessed} consumer;
+  \item the Process Worker.
+\end{itemize}
+
+The call does nothing unless two test settings name the consumer and one
+correlation id. Neither setting is present in any \texttt{appsettings.json}.
+When both match, the process kills itself (\texttt{Process.Kill}), with no
+graceful shutdown that could still acknowledge the message. Targeting one
+correlation id leaves all other traffic untouched.
+
+\paragraph{Process Worker.} The Process Worker has no database and therefore
+no Inbox. Its only effect is publishing \texttt{OrderProcessed} with
+\texttt{MessageId} equal to the order id. A redelivered
+\texttt{StockReserved} makes it publish the same message again, and Order
+Service's Inbox absorbs the copy.
+
+\paragraph{Evidence} (TP-M01; fresh clone and fresh database; saved as
+\texttt{20261002T183238Z-delivery.log} in \texttt{tests/evidence/}).
+\texttt{scripts/verify-delivery.ps1} passes 34 of 34 checks on the three
+services, a throwaway RabbitMQ and Redis, and PostgreSQL.
+
+\begin{itemize}
+  \item \textbf{Inbox uniqueness.} Both \texttt{processed\_messages} tables
+    have a unique index on \texttt{MessageId}. A second row with the same
+    \texttt{MessageId} is refused as a unique violation for each service's
+    own database account.
+  \item \textbf{Local transaction.} With \texttt{INSERT} on the Inbox
+    revoked, the business write rolled back with it in both services:
+    Inventory wrote no result Outbox row, and the order stayed
+    \texttt{PendingStock}. The message was retried, then dead-lettered.
+    After the privilege was restored, replaying the dead letter applied the
+    message once, and Redis deducted one unit only.
+  \item \textbf{Crash after commit, before ack, for each consumer.} The
+    process was gone and its work was committed: the Inbox row, plus the
+    Outbox row and Redis deduction (Inventory) or the new state (Order
+    Service). The unacknowledged message was back in its queue. After a
+    restart, the same \texttt{MessageId} was redelivered and acknowledged as
+    already processed. For the Worker, \texttt{OrderProcessed} was published
+    again and absorbed by Order Service. Each order still had one Inbox row
+    per message, and its decision and completion timestamps were unchanged.
+  \item \textbf{End state.} Six orders took six of ten units, Redis
+    recorded exactly those six orders, and every queue and DLQ was empty.
+\end{itemize}
+
+\paragraph{Negative controls.} To rule out a false pass, the same run was
+repeated twice, each time with one deliberate break in Inventory Service.
+
+\begin{itemize}
+  \item \textbf{The consumer acknowledged before processing.} The crashed
+    message was not redelivered. The run failed 24 of its 34 checks:
+    acknowledged messages were lost, and the orders behind them never
+    settled.
+  \item \textbf{The Inbox check was skipped.} The redelivery was no longer
+    recognised as already processed (exactly one check failed). The Lua script's
+    \texttt{DUPLICATE} answer still prevented a second deduction, which
+    shows that Inventory is protected by more than one layer.
+\end{itemize}
 
 \subsection{Duplicate-message test and re-validation (Step 9.4)}
 
