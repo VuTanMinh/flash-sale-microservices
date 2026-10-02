@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using FlashSale.EventContracts;
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Entities;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -50,15 +51,18 @@ public class OrderProcessedConsumer : BackgroundService
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderProcessedConsumer> _logger;
+    private readonly IConfiguration _configuration;
     private IConnection? _connection;
     private IChannel? _channel;
 
     public OrderProcessedConsumer(
-        IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderProcessedConsumer> logger)
+        IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderProcessedConsumer> logger,
+        IConfiguration configuration)
     {
         _options = options.Value;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _configuration = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -168,6 +172,8 @@ public class OrderProcessedConsumer : BackgroundService
                     break;
             }
 
+            // Week 9 crash test only (TP-M01): no-op unless configured.
+            FaultInjection.CrashBeforeAckIfTargeted(_configuration, "OrderProcessed", orderProcessed.CorrelationId, _logger);
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
         }
         catch (InvalidOrderStateTransitionException ex)

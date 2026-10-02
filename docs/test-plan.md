@@ -72,7 +72,7 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-M01 | Inbox uniqueness; crash after commit before ack | W09 | Kill the consumer between commit and ack | Redelivery is a no-op; one effect | Planned: `scripts/verify-delivery.ps1` | NOT RUN | — |
+| TP-M01 | Inbox uniqueness and local transaction; crash after commit before ack | W09 | Duplicate Inbox insert as each service account; Inbox INSERT revoked in each service; each of the four consumers killed by fault injection after its commit and before its ack, then restarted | Unique violation on the duplicate; business write rolls back with the Inbox row, dead-lettered, replay applies once; redelivery of the same MessageId is acked as already processed (Worker: republished and absorbed), one effect, timestamps unchanged; queues and DLQs empty | `scripts/verify-delivery.ps1` | NOT RUN | — |
 | TP-M02 | Concurrent duplicates, new MessageId for the same order, out-of-order completion | W09 | Parallel duplicate deliveries; reconciliation re-publish; `OrderProcessed` before `StockReserved` | One stock deduction, one applied result; early completion retried, not dead-lettered (`docs/design-decisions.md` §2 gap) | Planned: `scripts/verify-delivery.ps1` | NOT RUN | — |
 
 ## Failure handling (Week 10)

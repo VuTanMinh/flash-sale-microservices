@@ -56,6 +56,7 @@ public class StockReservedConsumer : BackgroundService
     private readonly ProcessingOptions _processingOptions;
     private readonly OrderProcessedPublisher _publisher;
     private readonly ILogger<StockReservedConsumer> _logger;
+    private readonly IConfiguration _configuration;
     private IConnection? _connection;
     private IChannel? _channel;
     private CancellationToken _stoppingToken;
@@ -64,12 +65,14 @@ public class StockReservedConsumer : BackgroundService
         IOptions<RabbitMqOptions> options,
         IOptions<ProcessingOptions> processingOptions,
         OrderProcessedPublisher publisher,
-        ILogger<StockReservedConsumer> logger)
+        ILogger<StockReservedConsumer> logger,
+        IConfiguration configuration)
     {
         _options = options.Value;
         _processingOptions = processingOptions.Value;
         _publisher = publisher;
         _logger = logger;
+        _configuration = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -169,6 +172,8 @@ public class StockReservedConsumer : BackgroundService
 
             await ProcessWithRetryAsync(stockReserved);
 
+            // Week 9 crash test only (TP-M01): no-op unless configured.
+            FaultInjection.CrashBeforeAckIfTargeted(_configuration, "ProcessWorker", stockReserved.CorrelationId, _logger);
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
         }
         catch (Exception ex)

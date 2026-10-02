@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using FlashSale.EventContracts;
 using FlashSale.InventoryService.Data;
 using FlashSale.InventoryService.Inventory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -61,15 +62,18 @@ public class OrderPlacedConsumer : BackgroundService
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderPlacedConsumer> _logger;
+    private readonly IConfiguration _configuration;
     private IConnection? _connection;
     private IChannel? _channel;
 
     public OrderPlacedConsumer(
-        IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderPlacedConsumer> logger)
+        IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderPlacedConsumer> logger,
+        IConfiguration configuration)
     {
         _options = options.Value;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _configuration = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -188,6 +192,8 @@ public class OrderPlacedConsumer : BackgroundService
                     orderPlaced.MessageId, orderPlaced.OrderId);
             }
 
+            // Week 9 crash test only (TP-M01): no-op unless configured.
+            FaultInjection.CrashBeforeAckIfTargeted(_configuration, "OrderPlaced", orderPlaced.CorrelationId, _logger);
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
         }
         catch (Exception ex)
