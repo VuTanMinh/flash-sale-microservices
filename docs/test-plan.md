@@ -55,8 +55,8 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-I01 | Warm-up readiness gate | W07 | Sales attempted before and after `scripts/warm-up.ps1` | No reservation before warm-up is confirmed | Planned: `scripts/verify-inventory.ps1` | NOT RUN | — |
-| TP-I02 | Lua outcomes and hot-product contention | W07 | Stock N, demand 1.5N on one product, plus repeated order ids | `RESERVED` ≤ N, `DUPLICATE` for repeats, `REJECTED` after sell-out; per-product invariants hold | Planned: `scripts/verify-inventory.ps1` | NOT RUN | — |
+| TP-I01 | Warm-up readiness gate | W07 | Reservation before warm-up (Lua and end to end through Inventory Service); warm-up re-run on an open sale; -Force | NOT_OPEN / StockRejected with no stock touched before a confirmed warm-up; warm-up confirms every product; an open sale is not reset without -Force | `scripts/verify-inventory.ps1` | PASS | `tests/evidence/20261002T051418Z-inventory.log` |
+| TP-I02 | Lua outcomes and hot-product contention | W07 | Hot product: 100 units, 300 distinct orders + 100 repeats concurrently; skewed: 4 products (40/30/20/10 units), 250 orders weighted 50/25/15/10 + 80 repeats | Per product: inventory ≥ 0, reservations ≤ initial, inventory + reservations = initial, RESERVED = min(demand, stock); no order reserved twice; DUPLICATE only for orders holding a unit | `scripts/verify-inventory.ps1` (`tests/InventoryProbe`) | PASS | `tests/evidence/20261002T051418Z-inventory.log` |
 | TP-I03 | PostgreSQL failure after Redis reservation | W07 | Stop PostgreSQL between the Lua call and the Outbox commit | Redelivery yields one deduction and one result (`docs/design-decisions.md` §4) | Planned: `scripts/verify-inventory.ps1` | NOT RUN | — |
 
 ## Workflow and correctness (Week 8)

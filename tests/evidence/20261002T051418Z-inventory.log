@@ -1,0 +1,45 @@
+﻿Commit: e410b6c (fresh clone, fresh database, throwaway Redis and broker)
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-inventory.ps1 -Container verify-env-pg
+Exit code: 0
+
+PASS  hot-product: reservation before warm-up answers NOT_OPEN
+PASS  hot-product: stock untouched (5) and nothing recorded
+PASS  TP-I01 warm-up exits 0 and confirms all 6 products
+PASS  TP-I01 re-running warm-up on an open sale is refused (stock not reset)
+PASS  TP-I01 -Force resets and re-confirms
+INFO  400 concurrent EVALs: RESERVED=100, DUPLICATE=52, REJECTED=248
+PASS  only RESERVED / DUPLICATE / REJECTED outcomes (sale open)
+PASS  hot-product: inventory >= 0 (0)
+PASS  hot-product: reservations <= initial (100 <= 100)
+PASS  hot-product: stock conserved (inventory 0 + reservations 100 = 100)
+PASS  hot-product: RESERVED answers = recorded reservations = min(distinct demand 300, stock 100)
+PASS  no order id received RESERVED more than once
+PASS  every order that received DUPLICATE also holds a reservation
+INFO  330 concurrent EVALs: RESERVED=100, DUPLICATE=45, REJECTED=185
+PASS  only RESERVED / DUPLICATE / REJECTED outcomes (sale open)
+PASS  skew-a: inventory >= 0 (0)
+PASS  skew-a: reservations <= initial (40 <= 40)
+PASS  skew-a: stock conserved (inventory 0 + reservations 40 = 40)
+PASS  skew-a: RESERVED answers = recorded reservations = min(distinct demand 122, stock 40)
+PASS  skew-b: inventory >= 0 (0)
+PASS  skew-b: reservations <= initial (30 <= 30)
+PASS  skew-b: stock conserved (inventory 0 + reservations 30 = 30)
+PASS  skew-b: RESERVED answers = recorded reservations = min(distinct demand 69, stock 30)
+PASS  skew-c: inventory >= 0 (0)
+PASS  skew-c: reservations <= initial (20 <= 20)
+PASS  skew-c: stock conserved (inventory 0 + reservations 20 = 20)
+PASS  skew-c: RESERVED answers = recorded reservations = min(distinct demand 29, stock 20)
+PASS  skew-d: inventory >= 0 (0)
+PASS  skew-d: reservations <= initial (10 <= 10)
+PASS  skew-d: stock conserved (inventory 0 + reservations 10 = 10)
+PASS  skew-d: RESERVED answers = recorded reservations = min(distinct demand 30, stock 10)
+PASS  no order id received RESERVED more than once
+PASS  every order that received DUPLICATE also holds a reservation
+PASS  TP-I01 end to end: OrderPlaced for 'never-warmed' -> StockRejected
+PASS  TP-I01 end to end: OrderPlaced for 'e2e-product' -> StockReserved
+PASS  TP-I01 end to end: no stock created or reserved for the never-warmed product
+PASS  TP-I01 end to end: Inventory Service logged the NotOpen result
+PASS  TP-I01 end to end: the warmed product's single unit is now reserved
+
+Warm-up readiness, Lua outcomes and per-product invariants verified.
+
