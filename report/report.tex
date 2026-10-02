@@ -1672,7 +1672,7 @@ It remains the known gap of Section~\ref{sec:design-decisions}, assigned to
 Weeks 9 and 11.
 
 \paragraph{Evidence} (TP-W04; fresh clone;
-\texttt{tests/evidence/}\allowbreak\texttt{WFSTAMP-workflow.log}).
+\texttt{tests/evidence/}\allowbreak\texttt{20261002T152659Z-workflow.log}).
 The verifier passes its 35 static checks. Each check
 is tied to the code or configuration. For example:
 
@@ -1705,11 +1705,19 @@ a throwaway RabbitMQ and Redis, with three orders:
     \texttt{NOT\_OPEN}, then \texttt{Rejected}. No Redis key was created.
 \end{itemize}
 
-At the end, every queue and every DLQ was empty (LIVECOUNT live checks). Only
+At the end, every queue and every DLQ was empty (27 of 27 live checks). Only
 orderings that cause and effect guarantee are compared, because a publisher
 stamps \texttt{PublishedAt} after the confirm returns. Reconstructing the
 same path from the three services' logs by \texttt{CorrelationId} is the
 Week 11 trace (TP-P03).
+
+\paragraph{Negative control.} To rule out a false pass, the same live run
+was repeated with one deliberate break: the Process Worker was configured to
+require a queue that does not exist before publishing \texttt{OrderProcessed}.
+The verifier then failed 6 checks, all on the broken steps. The order stayed
+\texttt{Confirmed}, the completion step and its logs were missing, and the
+message was in \texttt{ProcessWorker.StockReserved.dlq}
+(\texttt{20261002T152659Z-}\allowbreak\texttt{workflow-negative-control.log}).
 
 \section{Reliability and Idempotency Layer (Week 9)}
 \label{sec:week9}
