@@ -15,7 +15,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
 - Infra: `docker compose -f infra/docker-compose.yml up -d`
 - Build: `dotnet build src/FlashSale.OrderService.slnx`
 - Tests: `dotnet test tests/FlashSale.OrderService.Tests`
-- Reset/seed: `pwsh scripts/reset-and-seed.ps1`; correctness: `pwsh scripts/validate-correctness.ps1`
+- Reset/seed: `pwsh scripts/reset-and-seed.ps1`; correctness: `powershell -File scripts/validate-correctness.ps1 -Config C1|C2 -ProductId <id> -InitialStock <n>`
 
 ## Best-practice references
 - https://github.com/shanraisshan/claude-code-best-practice
