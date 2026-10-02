@@ -57,7 +57,7 @@
 |---|---|---|---|---|---|---|---|
 | TP-I01 | Warm-up readiness gate | W07 | Reservation before warm-up (Lua and end to end through Inventory Service); warm-up re-run on an open sale; -Force | NOT_OPEN / StockRejected with no stock touched before a confirmed warm-up; warm-up confirms every product; an open sale is not reset without -Force | `scripts/verify-inventory.ps1` | PASS | `tests/evidence/20261002T051418Z-inventory.log` |
 | TP-I02 | Lua outcomes and hot-product contention | W07 | Hot product: 100 units, 300 distinct orders + 100 repeats concurrently; skewed: 4 products (40/30/20/10 units), 250 orders weighted 50/25/15/10 + 80 repeats | Per product: inventory ≥ 0, reservations ≤ initial, inventory + reservations = initial, RESERVED = min(demand, stock); no order reserved twice; DUPLICATE only for orders holding a unit | `scripts/verify-inventory.ps1` (`tests/InventoryProbe`) | PASS | `tests/evidence/20261002T051418Z-inventory.log` |
-| TP-I03 | PostgreSQL failure after Redis reservation | W07 | Stop PostgreSQL between the Lua call and the Outbox commit | Redelivery yields one deduction and one result (`docs/design-decisions.md` §4) | Planned: `scripts/verify-inventory.ps1` | NOT RUN | — |
+| TP-I03 | PostgreSQL failure after Redis reservation | W07 | Outbox INSERT revoked after reserve.lua ran; case 1 restored within the retry window; case 2 restored after the message was dead-lettered, then the dead letter replayed | Exactly one deduction; the message is never acked while the result is missing; a retry or replay gets DUPLICATE and writes StockReserved | `scripts/verify-cross-store.ps1` | PASS | `tests/evidence/20261002T052244Z-cross-store.log` |
 
 ## Workflow and correctness (Week 8)
 
