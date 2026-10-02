@@ -706,36 +706,60 @@ alignment check compares those with \texttt{Order.LegalTransitions}.
 \end{figure}
 
 \section{Sequence Diagrams}
-Full diagrams: \texttt{docs/sequence-diagrams.md}. The happy-path and
-rejection diagrams show the code as built: both Outboxes and their 2-second
-publishers, the Redis Lua reservation, the parallel delivery of
-\texttt{StockReserved} to Order Service and the Process Worker, and status
-polling. Individual legs now have saved evidence (Outbox publication TP-O01/O02,
-reservation TP-I01--I03, applying results TP-W01). The earlier runs of the whole
-path in one go were manual and their output was not saved
-\unverified{TP-P03}{Week 11}. The
-\texttt{Processing} hop of the six-state model appears only as a separate
-diagram labelled ``planned''. The Nginx hop is target design until Week 12.
-Inbox checks, retries and DLQ hops are omitted on purpose and covered by the
-event contract.
+The full diagrams are in \texttt{docs/sequence-diagrams.md}, and the numbered
+steps are described in \texttt{docs/workflow.md}
+(Section~\ref{sec:workflow}). The diagrams show the code as built in Week 8,
+and every arrow corresponds to a call in the source:
 
-\begin{figure}[H]
+\begin{itemize}
+  \item both Outboxes, with their 2-second publishers;
+  \item the routed-confirmation check of each event's required queues;
+  \item the Inbox check before each consumer's business step;
+  \item the Lua reservation, including the \texttt{NOT\_OPEN} warm-up gate;
+  \item the concurrent delivery of \texttt{StockReserved} to Order Service
+    and to the Process Worker;
+  \item status polling.
+\end{itemize}
+
+Clients call Order Service directly. Nginx is not drawn, because until
+Week 12 it is a placeholder that forwards nothing. The \texttt{Processing}
+hop of the six-state model appears only in a separate diagram labelled
+``planned''. Retry and DLQ branches are listed per step in
+Section~\ref{sec:workflow} rather than drawn.
+
+The diagrams are checked against the implementation by test case TP-W04
+(\texttt{scripts/verify-workflow.ps1}), in two ways:
+
+\begin{itemize}
+  \item 35 static checks compare each arrow with the code and the
+    \texttt{appsettings.json} files.
+  \item A live run traces real orders through all three services and checks
+    their database rows, timestamps, Redis keys and logs against the step
+    order.
+\end{itemize}
+
+\begin{figure}[p]
   \centering
-  \includegraphics[width=\textwidth]{figures/seq-happy-path.png}
-  \caption{Happy path as built: order accepted, stock reserved, processed,
-  polled as \texttt{Completed}.}
+  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-happy-path.png}
+  \caption{Happy path as built (Week 8): order accepted, stock reserved,
+  result applied, processed, polled as \texttt{Completed}. The step numbers
+  match Table~\ref{tab:workflow}.}
+  \label{fig:seq-happy}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[p]
   \centering
-  \includegraphics[width=\textwidth]{figures/seq-rejection.png}
-  \caption{Rejection path: identical up to the Lua result, then
-  \texttt{StockRejected} and terminal \texttt{Rejected}.}
+  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-rejection.png}
+  \caption{Rejection path: the same as the happy path up to the Lua script.
+  \texttt{REJECTED} (sold out) and \texttt{NOT\_OPEN} (no confirmed warm-up)
+  both lead to \texttt{StockRejected} and the terminal state
+  \texttt{Rejected}. The Process Worker is not involved.}
+  \label{fig:seq-reject}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.75\textwidth]{figures/seq-planned-processing.png}
+  \includegraphics[width=0.6\textwidth]{figures/seq-planned-processing.png}
   \caption{Planned (Week 11), not in code yet: the \texttt{Processing} hop of
   the six-state model.}
 \end{figure}
@@ -1469,46 +1493,46 @@ the consumer treated it as a no-op, a redelivered message would never
 produce a \texttt{StockReserved} row, and that order would sit in
 \texttt{PendingStock} forever despite the reservation having genuinely
 succeeded. Instead, both \texttt{RESERVED} and \texttt{DUPLICATE} run the
-same \texttt{EnsureResultOutboxEventAsync} step: check whether an outbox row
+same step in \texttt{OrderPlacedProcessor}: check whether an outbox row
 for this \texttt{OrderId} already exists, and only insert if it doesn't. The
-unique index turns a possible race between two redeliveries into a caught
-\texttt{DbUpdateException} rather than a duplicate row -- "ensure exists",
-not "insert unconditionally". \texttt{RabbitMqOutboxPublisher} and
-\texttt{OutboxPublisherWorker} on the Inventory Service side are otherwise
-the same design as Order Service's Week 6 versions (raw
-\texttt{RabbitMQ.Client}, publisher confirms, 2s poll interval).
+unique index turns a possible race between two redeliveries into a unique
+violation, which is caught, rather than a duplicate row -- "ensure exists",
+not "insert unconditionally". The Inventory Service \texttt{RabbitMqOutboxPublisher}
+and \texttt{OutboxPublisherWorker} use the same design as Order Service's
+Week 6 versions (raw \texttt{RabbitMQ.Client}, routed confirmation, 2s poll
+interval).
 
 \subsection{Order Service: consuming the result}
 
-\texttt{Messaging/StockResultConsumer.cs} binds two queues,
-\texttt{StockReserved} and \texttt{StockRejected}, to
-\texttt{flashsale.order.exchange}. Both share one handler,
-\texttt{HandleResultAsync}, parameterized by the target state: look up the
-order; if it is already in the target state, acknowledge as a no-op
-(handles redelivery without re-running the transition); otherwise call
-\texttt{Order.TransitionTo}. A transition rejected by the state machine
-(\texttt{InvalidOrderStateTransitionException} -- e.g. a message claims
-\texttt{Reserved} for an order already \texttt{Rejected}) is a genuine
-conflict, not a redelivery, and is logged loudly and nacked \emph{without}
-requeue, since there is no DLQ yet (Week 10) to catch a message that would
-otherwise requeue forever. Any other exception nacks \emph{with} requeue.
-Unlike \texttt{EnsureResultOutboxEventAsync} above,
-\texttt{SaveChangesAsync()} here is called directly rather than through
-ABP's \texttt{SaveChangesOnDbContextAsync} bypass -- this code runs inside a
-real DI scope resolved via \texttt{scope.ServiceProvider}, where the
-services ABP's own \texttt{SaveChangesAsync} depends on (audit logging,
-event dispatch) are actually available; the bypass is only needed when a
-\texttt{DbContext} is constructed directly outside DI, as in an isolated
-unit test.
+\texttt{StockResultConsumer} consumes two queues, \texttt{StockReserved} and
+\texttt{StockRejected}. Each queue has its own dead-letter queue. Both queues
+share one handler, which calls \texttt{StockResultProcessor} with the target
+state. The processor works in this order:
 
-\paragraph{End-to-end verification.} Both outcomes were exercised through
-the complete, real pipeline -- not a unit test double for Redis, RabbitMQ,
-or Postgres. An order posted against a product with available stock was
-polled from \texttt{PendingStock} through to \texttt{Confirmed}; a second
-order against a product forced to zero stock was polled through to
-\texttt{Rejected}. In both cases, Postgres showed exactly one Inventory
-Service outbox row for the order, with the expected event type and
-\texttt{Published = t}.
+\begin{enumerate}
+  \item Check the Inbox. If the \texttt{MessageId} has already been
+    processed, acknowledge and stop.
+  \item Look up the order. If it does not exist, acknowledge and stop.
+  \item If the order is already in the target state, or has moved past it on
+    the happy path, record the Inbox row and treat the message as a no-op.
+  \item Otherwise call \texttt{Order.TransitionTo} and add the Inbox row.
+    Both are committed by one \texttt{SaveChangesAsync}.
+\end{enumerate}
+
+The message is acknowledged only after that commit. Failures are handled in
+three ways:
+
+\begin{itemize}
+  \item \textbf{Conflicting result.} For example, \texttt{StockReserved} for
+    a \texttt{Rejected} order. This is not transient, so it is dead-lettered
+    at once.
+  \item \textbf{Database error.} It is retried after 1, 2 and 4 seconds, then
+    dead-lettered. Only a unique violation counts as a concurrent duplicate
+    (TP-W01, TP-W03).
+  \item \textbf{\texttt{OrderProcessed}.} The Process Worker's event is
+    handled by \texttt{OrderProcessedConsumer}. It reuses the same processor
+    with the target state \texttt{Completed}.
+\end{itemize}
 
 \subsection{Automated correctness validation}
 \label{sec:validation}
@@ -1567,17 +1591,125 @@ whose orders were still in the database from the first run. The validator
 correctly failed it, because the successful orders exceeded the stock that
 had been re-seeded into Redis.
 
-\subsection{Sequence diagrams brought current (Step 8.4)}
+\subsection{The main workflow (Step 8.4)}
+\label{sec:workflow}
 
-\texttt{docs/sequence-diagrams.md}, drafted in Week 4 as target design, was
-revised this week against what was actually built and verified above: the
-response code for order creation is \texttt{201 Created} (the diagram had
-drawn \texttt{202 Accepted}), Inventory Service's result publication is
-shown as the same two-hop Outbox-plus-publisher-worker pattern as Order
-Service's own rather than a single inline publish, and the
-\texttt{DUPLICATE} handling above is called out explicitly rather than left
-implicit. Nginx remains drawn as target design, since routing through it
-isn't exercised until Week 12.
+\texttt{docs/workflow.md} describes the one business workflow, placing an
+order, from the Week 8 code. Its steps are the numbered arrows of
+Figure~\ref{fig:seq-happy}. The order is accepted when its row commits, so
+the client receives \texttt{201 Created} with \texttt{PendingStock}. All
+later steps run asynchronously, and every consumer acknowledges only after
+its own transaction commits.
+Table~\ref{tab:workflow} lists each step with its failure branch.
+
+\begin{table}[tbp]
+\centering
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.1cm}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{5.4cm}>{\raggedright\arraybackslash}p{1.6cm}@{}}
+\toprule
+Steps & What happens & If it fails & Test \\
+\midrule
+1--4 & Validate; look up the \texttt{Idempotency-Key}; insert the order and
+its \texttt{OrderPlaced} Outbox row in one transaction; answer \texttt{201}. &
+\texttt{400}/\texttt{409}, or a replay answered \texttt{200}; a refused
+Outbox insert leaves no order. & A01--A07, O01 \\
+5--9 & Every 2\,s, publish up to 50 unpublished rows (oldest first) after
+checking queue \texttt{OrderPlaced}; mark published after the routed
+confirm. & Not marked published; retried after 1, 2, 4\,s, then next poll;
+same \texttt{MessageId}. & O01, O02 \\
+10--15 & Inventory checks its Inbox, runs \texttt{reserve.lua}, then writes
+the result's Outbox row and its Inbox row in one transaction, then acks. &
+Retried, then dead-lettered; a replay gets \texttt{DUPLICATE}, so there is
+no second deduction. & I01--I03 \\
+16--20 & Publish \texttt{StockReserved} (queues \texttt{StockReserved} and
+\texttt{ProcessWorker.StockReserved}) or \texttt{StockRejected}. & As for
+steps 5--9. & O02 \\
+21--23 & Order Service: Inbox check, \texttt{PendingStock} to
+\texttt{Confirmed}/\texttt{Rejected} and the Inbox row in one transaction. &
+Retried, then dead-lettered; a conflict is dead-lettered at once. & W01,
+W03 \\
+24--27 & Process Worker: fixed 200\,ms delay, publish
+\texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId}. &
+Retried, then dead-lettered; a redelivery republishes the same
+\texttt{MessageId}. & P01 (W11) \\
+28--30 & Order Service: \texttt{Confirmed} to \texttt{Completed} with the
+Inbox row in one transaction. & If the order is still
+\texttt{PendingStock}: dead-lettered (known gap). & W04, M02 \\
+31--32 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404}
+for an unknown id. & A01 \\
+\bottomrule
+\end{tabular}
+\caption{Steps of the main workflow (test case ids without the
+\texttt{TP-} prefix).}
+\label{tab:workflow}
+\end{table}
+
+\paragraph{What the code check found.} The earlier diagrams did not match
+the code in five places:
+
+\begin{itemize}
+  \item They drew Nginx in front of Order Service, but Nginx forwards
+    nothing yet.
+  \item They drew a plain publish and confirm, without the required-queue
+    check and the \texttt{mandatory} flag added in Week 6.
+  \item They left out the Inbox steps.
+  \item They left out the Week 7 warm-up gate (\texttt{NOT\_OPEN}).
+  \item They drew the two consumers of \texttt{StockReserved} one after
+    the other, although they run concurrently.
+\end{itemize}
+
+This section had the same problem. It described a handler that nacked with
+requeue and ``no DLQ yet''. Both points have been out of date since the
+Week 10 retry and DLQ code. The diagrams and the text are now rewritten from
+the code.
+
+\paragraph{The concurrent fork.} The two \texttt{StockReserved} consumers
+are independent. If \texttt{OrderProcessed} reaches Order Service before
+step 22 commits, the order is still \texttt{PendingStock}. The transition to
+\texttt{Completed} is then illegal, and the message is dead-lettered instead
+of retried. The 200\,ms delay makes this unlikely but does not prevent it.
+It remains the known gap of Section~\ref{sec:design-decisions}, assigned to
+Weeks 9 and 11.
+
+\paragraph{Evidence} (TP-W04; fresh clone;
+\texttt{tests/evidence/}\allowbreak\texttt{WFSTAMP-workflow.log}).
+The verifier passes its 35 static checks. Each check
+is tied to the code or configuration. For example:
+
+\begin{itemize}
+  \item Each event's drawn required queues must equal the
+    \texttt{RequiredSubscriberQueues} setting.
+  \item The drawn processing delay must equal the configured one.
+  \item The diagram files in \texttt{report/figures/} must be identical to
+    the diagrams in the document.
+\end{itemize}
+
+The previous diagrams fail 20 of these checks. Changing one setting, such as
+the publish flag, the worker delay or a required queue, fails exactly one
+check.
+
+The live part ran Order Service, Inventory Service and the Process Worker on
+a throwaway RabbitMQ and Redis, with three orders:
+
+\begin{itemize}
+  \item \textbf{A reserved order.} A client replay of the same key returned
+    \texttt{200} with the same order. The order reached \texttt{Completed}.
+    Its rows appeared in the drawn order: the Order Outbox row, then
+    Inventory's Inbox and Outbox rows, then \texttt{Confirmed} with its Inbox
+    row, then \texttt{Completed} with the Inbox row whose
+    \texttt{MessageId} is the order id. Redis deducted one unit.
+  \item \textbf{A sold-out order.} \texttt{REJECTED}, then
+    \texttt{Rejected}. Nothing was deducted, and the Process Worker never
+    saw it.
+  \item \textbf{An order for a product that was never warmed up.}
+    \texttt{NOT\_OPEN}, then \texttt{Rejected}. No Redis key was created.
+\end{itemize}
+
+At the end, every queue and every DLQ was empty (LIVECOUNT live checks). Only
+orderings that cause and effect guarantee are compared, because a publisher
+stamps \texttt{PublishedAt} after the confirm returns. Reconstructing the
+same path from the three services' logs by \texttt{CorrelationId} is the
+Week 11 trace (TP-P03).
 
 \section{Reliability and Idempotency Layer (Week 9)}
 \label{sec:week9}

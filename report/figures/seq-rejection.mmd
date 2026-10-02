@@ -1,35 +1,39 @@
 sequenceDiagram
+    autonumber
     actor Client
-    participant Nginx
-    participant OrderSvc as Order Service
-    participant PGOrd as Postgres (order_service)
-    participant OrdPub as Order Outbox Publisher
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
     participant MQ as RabbitMQ
-    participant InvSvc as Inventory Service
-    participant Redis
-    participant PGInv as Postgres (inventory_service)
-    participant InvPub as Inventory Outbox Publisher
+    participant IS as Inventory Service
+    participant R as Redis
+    participant PGI as PostgreSQL (inventory_service)
+    participant IP as Inventory Outbox publisher
 
-    Client->>Nginx: POST /api/orders
-    Nginx->>OrderSvc: POST /api/orders
-    OrderSvc->>PGOrd: INSERT Order (PendingStock) + OutboxEvent (OrderPlaced) — one transaction
-    PGOrd-->>OrderSvc: committed
-    OrderSvc-->>Client: 201 Created (order id, state=PendingStock)
+    Client->>OS: POST /api/orders (Idempotency-Key, quantity 1)
+    OS->>PGO: one transaction: INSERT order (PendingStock) + Outbox row OrderPlaced
+    OS-->>Client: 201 Created (state PendingStock)
+    Note over OS,MQ: Order Outbox publisher sends OrderPlaced exactly as in the happy path
 
-    OrdPub->>MQ: publish OrderPlacedEto
-    MQ->>InvSvc: deliver OrderPlacedEto
-    InvSvc->>Redis: EVAL reserve.lua (product_id, order_id)
-    Redis-->>InvSvc: REJECTED (stock <= 0)
-    InvSvc->>PGInv: ensure OutboxEvent(OrderId, StockRejected) exists
-    InvSvc->>MQ: ack OrderPlaced
+    MQ->>IS: deliver OrderPlaced
+    IS->>PGI: Inbox: MessageId already processed? (no)
+    IS->>R: EVAL reserve.lua (inventory, processed and sale:open keys)
+    alt sale open, stock is 0
+        R-->>IS: REJECTED (nothing deducted)
+    else no confirmed warm-up (sale:open missing)
+        R-->>IS: NOT_OPEN (nothing deducted)
+    end
+    IS->>PGI: one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row
+    IS->>MQ: ack OrderPlaced
 
-    InvPub->>MQ: publish StockRejectedEto (routing key "StockRejected")
-    MQ->>OrderSvc: deliver StockRejectedEto
-    OrderSvc->>PGOrd: UPDATE Order SET state=Rejected
-    OrderSvc->>MQ: ack StockRejected
+    loop every 2s
+        IP->>PGI: SELECT up to 50 unpublished rows, oldest first
+    end
+    IP->>MQ: check required queue StockRejected, publish StockRejected (mandatory, confirm)
+    IP->>PGI: mark the row published
 
-    Client->>Nginx: GET /api/orders/{id}
-    Nginx->>OrderSvc: GET /api/orders/{id}
-    OrderSvc->>PGOrd: SELECT Order
-    PGOrd-->>OrderSvc: state=Rejected
-    OrderSvc-->>Client: 200 OK (state=Rejected)
+    MQ->>OS: deliver StockRejected
+    OS->>PGO: one transaction: Inbox check, PendingStock to Rejected, Inbox row
+    OS->>MQ: ack StockRejected
+
+    Client->>OS: GET /api/orders/{id}
+    OS-->>Client: 200 OK (state Rejected)
