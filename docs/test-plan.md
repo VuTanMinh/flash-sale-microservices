@@ -63,7 +63,7 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-W01 | StockReserved/StockRejected drive order status | W08 | Stocked and unstocked orders end to end | Confirmed / Rejected with Inbox row in the same commit | Planned: `scripts/verify-workflow.ps1` | NOT RUN | — |
+| TP-W01 | StockReserved/StockRejected drive order status | W08 | Orders via the API; StockReserved / StockRejected published as Inventory would; redelivery; same result as new message; conflicting result; unknown order; Inbox INSERT refused | Confirmed / Rejected with one Inbox row each; duplicates change nothing; conflict dead-lettered with nothing recorded; unknown order acked; refused Inbox insert rolls back the state change | `scripts/verify-stock-results.ps1` | PASS | `tests/evidence/20261002T061249Z-stock-results.log` |
 | TP-W02 | Validator proves all four invariants for C1 and C2, no false green | W08 | Valid runs and deliberately broken data | Validator passes valid runs and fails each broken case | `scripts/validate-correctness.ps1` (to be repaired) | NOT RUN | — |
 | TP-W03 | Database exception P0 | W08 | Non-unique DB error during result processing | Error is retried/dead-lettered, never acked as a duplicate (`docs/design-decisions.md` §4 gap) | Planned: `scripts/verify-workflow.ps1` | NOT RUN | — |
 
