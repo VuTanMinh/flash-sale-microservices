@@ -34,7 +34,7 @@ public class InventoryReservationService
 
         var result = await db.ScriptEvaluateAsync(
             _script,
-            keys: [$"inventory:{productId}", $"processed:{productId}"],
+            keys: [$"inventory:{productId}", $"processed:{productId}", $"sale:open:{productId}"],
             values: [orderId]);
 
         var resultString = (string)result!;
@@ -43,6 +43,7 @@ public class InventoryReservationService
             "RESERVED" => ReservationResult.Reserved,
             "DUPLICATE" => ReservationResult.Duplicate,
             "REJECTED" => ReservationResult.Rejected,
+            "NOT_OPEN" => ReservationResult.NotOpen,
             _ => throw new InvalidOperationException($"Unexpected reserve.lua result: '{resultString}'"),
         };
     }

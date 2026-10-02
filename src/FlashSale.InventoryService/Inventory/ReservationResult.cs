@@ -7,4 +7,7 @@ public enum ReservationResult
     Reserved,
     Duplicate,
     Rejected,
+
+    /// <summary>The product's sale is not open: warm-up has not completed and been confirmed (docs/inventory.md).</summary>
+    NotOpen,
 }

@@ -65,6 +65,9 @@ public static class OrderPlacedProcessor
             ReservationResult.Reserved => "StockReserved",
             ReservationResult.Duplicate => "StockReserved",
             ReservationResult.Rejected => "StockRejected",
+            // Sale not open yet (no confirmed warm-up): nothing was reserved, and the
+            // order is answered rather than left waiting. Logged above with the result.
+            ReservationResult.NotOpen => "StockRejected",
             _ => throw new InvalidOperationException($"Unhandled reservation result: {result}"),
         };
 
