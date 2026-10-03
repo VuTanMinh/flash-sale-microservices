@@ -11,6 +11,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
 - The plan lives in that Notion page, not in local markdown.
 - The teacher's requirements are in `docs/teacher-brief.md` (verbatim); results must satisfy them.
 - One checkbox at a time; tick only with verified evidence.
+- Roles (owner, 2026-10-03): DeepSeek Harness writes the code (AGENTS.md Part 0); Claude briefs it, reviews and re-tests its work, commits, ticks Notion and reports.
 - Env files (`.env`, `.env.*`, `*.env`) are always in `.gitignore`, even before any exist; never commit secrets.
 
 ## Commands

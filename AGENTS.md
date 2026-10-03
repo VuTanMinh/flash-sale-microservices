@@ -15,6 +15,25 @@ Work branch: `week1-2`.
 
 ---
 
+## Part 0. Who does what (owner's decision, 2026-10-03)
+
+- **DeepSeek (dsh) writes the code.** For the box it is given, it does
+  steps 0–5 of Part C: code check, prototype, design spec, implement, tests,
+  debug.
+  - DeepSeek **never touches Notion**, never ticks anything, and never runs
+    `git commit` or `git push` unless Claude's task message says so.
+  - It ends every task with a hand-off report (Part F) and waits.
+- **Claude Code is the checker.**
+  - It writes DeepSeek's task messages.
+  - It reviews DeepSeek's diff against this file.
+  - It re-runs the tests, alpha and beta itself, including negative controls.
+  - It sends work back to DeepSeek with exact findings until it meets the
+    standard.
+  - Then it commits, pushes, updates the report and evidence, ticks the
+    Notion box, and reports to the owner.
+- Claude may also give DeepSeek test-only tasks (for example writing a
+  verifier or a negative control), held to the same standard.
+
 ## Part A. Hard rules (never break these)
 
 ### A1. Notion: one page only
@@ -325,7 +344,23 @@ Append a short note; never tick a milestone early.
   plain. Name failures and their cause.
 - Ask before starting the next week. Within a week, continue box by box when
   the owner has said "proceed with week N".
-- Before you start any task, re-read Part A.
+- Before you start any task, re-read Part 0 and Part A.
+
+### Hand-off report (DeepSeek → Claude), required at the end of every task
+Answer each heading. Write "none" rather than skipping one.
+1. **Code check:** what you read, and every defect or false claim found,
+   with `file:line`.
+2. **Prototype:** what you tried and the result. Confirm it was deleted.
+3. **Design:** the doc file(s) changed and the decision in two or three
+   sentences.
+4. **Changes:** every file you changed or created, each with one line saying
+   why.
+5. **Tests:** the exact commands you ran, with the PASS/FAIL counts copied
+   from the output. Also say which checks you could not run and why
+   (for example, Docker down).
+6. **Negative control:** what you broke and which checks failed.
+7. **Open questions or risks:** anything you are unsure of, or any rule you
+   could not follow.
 
 ---
 

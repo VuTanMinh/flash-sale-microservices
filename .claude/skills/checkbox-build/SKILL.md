@@ -25,6 +25,15 @@ description: Use for ANY roadmap work on this repo — starting, continuing, imp
   acceptance standard (what the result must satisfy), not the plan. Check each
   checkbox's result against it; flag conflicts with Notion to the owners.
 
+## Roles (owner decision 2026-10-03)
+- **DeepSeek Harness codes** (cycle steps 1–5) through its Web UI on
+  http://127.0.0.1:3080, workspace D:\DACNTT. It never touches Notion or git
+  unless told to.
+- **Claude checks:** it writes DeepSeek's task, reviews the diff against
+  AGENTS.md, re-runs tests, alpha, beta and negative controls itself, sends
+  findings back until the work meets the standard, then commits, ticks Notion
+  and reports. Claude may also give DeepSeek test-only tasks.
+
 ## The cycle — per checkbox, never one-shot
 Take the earliest unticked checkbox (start at Week 1). For that one box only:
 
