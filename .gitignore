@@ -73,3 +73,6 @@ setup-week1.ps1
 
 # Local DeepSeek tooling (not part of the project)
 deepseek-mcp-server/
+
+# Task briefs and run outputs exchanged with the coding agent (local only)
+.agent-tasks/

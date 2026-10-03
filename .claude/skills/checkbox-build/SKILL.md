@@ -34,6 +34,13 @@ description: Use for ANY roadmap work on this repo — starting, continuing, imp
   findings back until the work meets the standard, then commits, ticks Notion
   and reports. Claude may also give DeepSeek test-only tasks.
 
+- **DS conduct (AGENTS.md Part 0b, owner 2026-10-04):** DS does only what
+  the task message says and never states anything it has not checked. Claude
+  verifies every DS claim. When DS fails or reports falsely, Claude
+  investigates the real cause, sends a review file in `.agent-tasks/`, allows
+  up to 3 rounds, then fixes the work itself and tells the owner what DS could
+  not do.
+
 ## The cycle — per checkbox, never one-shot
 Take the earliest unticked checkbox (start at Week 1). For that one box only:
 
@@ -74,9 +81,9 @@ Take the earliest unticked checkbox (start at Week 1). For that one box only:
   keys, passwords or tokens.
 
 ## Gotchas
-- `.gitignore` ignores `*.md` except `/README.md`, `/CLAUDE.md`, `docs/**` and
-  this skill folder. Switching branches silently overwrites ignored local copies
-  of tracked docs — back them up first.
+- `.gitignore` ignores `*.md` except `/README.md`, `/CLAUDE.md`, `/AGENTS.md`,
+  `docs/**` and this skill folder. Switching branches silently overwrites
+  ignored local copies of tracked docs — back them up first.
 - The groundwork plugin blocks file writes unless bypassed
   (`/groundwork-specflow:bypass <reason>`, 60 minutes).
 - Branch names (`week11`) do not mean a week is accepted; only ticked boxes with

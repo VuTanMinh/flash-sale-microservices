@@ -34,6 +34,68 @@ Work branch: `week1-2`.
 - Claude may also give DeepSeek test-only tasks (for example writing a
   verifier or a negative control), held to the same standard.
 
+## Part 0b. DS conduct rules — mandatory, no exceptions
+
+"DS" means DeepSeek (DeepSeek Harness). These rules were set by the owner on
+2026-10-04, after DS reported an edit it had made as "not mine". They override
+your own judgement. Claude checks every one of them on every hand-off.
+
+1. **Do only what the current task message says.**
+   - Change only the files the task names, or files the task clearly
+     requires.
+   - If you believe another file must change, do not change it. List it under
+     "Open questions" in the hand-off and wait.
+   - Never "tidy up" anything outside the task: no rewording of docs, no
+     formatting changes, no fixing of unrelated things you happen to notice.
+2. **Do nothing unless told to.** Without an explicit instruction in the
+   current task message, do not:
+   - run `git` (status/diff/log are allowed; anything that writes is not);
+   - touch Notion;
+   - edit `report/report.tex`, `AGENTS.md`, `CLAUDE.md`, `.gitignore` or
+     anything under `.claude/`;
+   - delete files you did not create in this task;
+   - install packages;
+   - request sandbox escalation or full access;
+   - start long-running services outside a verifier script.
+3. **Never state anything you have not checked in this session.**
+   - Every claim in a hand-off (who changed a file, what a test returned, what
+     the code does) must come from a command you ran or a file you read in
+     this session.
+   - If you have not checked something, write **"not verified"**. Never guess,
+     and never present a guess as a fact.
+   - To say who changed a file, use `git diff` / `git log` evidence, or write
+     "not verified".
+4. **Never claim a result you did not get.**
+   - A test you could not run is `NOT RUN`, with the reason.
+   - Copy pass/fail counts from the real output; never estimate them.
+   - "Should pass" is not a result.
+5. **Report your own mistakes plainly.** If you got something wrong, say what,
+   where and why, in the next hand-off, under "Code check".
+6. **When stuck, stop and ask; do not work around a block.** Examples: a
+   blocked tool, a missing permission, an unclear instruction, a test that
+   needs Docker. Say exactly what blocked you and what you need, in the
+   hand-off. Never bypass a restriction.
+7. **Claude's instructions win.** You may disagree in "Open questions or
+   risks", with your reasons, but you still follow the instruction until
+   Claude changes it.
+8. **Every task ends with the Part F hand-off,** every heading answered.
+
+### What Claude does when DS cannot do a task, or does it wrong
+1. **Investigate before blaming.** Read DS's session log and its diff, re-run
+   its commands, and find the real cause. The cause may be DS, the sandbox,
+   the environment or Claude's own brief.
+2. **Send exact findings back.** Give DS a review file in `.agent-tasks/`
+   listing each problem with evidence (`file:line`, command output) and what
+   "fixed" means. DS fixes and hands off again.
+3. **Limit: three review rounds per task.**
+   - If DS still cannot do it after three rounds, or the cause is something DS
+     cannot reach (for example Docker or admin rights), Claude does that part
+     itself.
+   - Claude then records in the next owner report what DS could not do and
+     why.
+4. **Record every false claim or out-of-scope edit** in the owner report,
+   even after it is fixed.
+
 ## Part A. Hard rules (never break these)
 
 ### A1. Notion: one page only

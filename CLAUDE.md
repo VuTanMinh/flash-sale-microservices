@@ -12,6 +12,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
 - The teacher's requirements are in `docs/teacher-brief.md` (verbatim); results must satisfy them.
 - One checkbox at a time; tick only with verified evidence.
 - Roles (owner, 2026-10-03): DeepSeek Harness writes the code (AGENTS.md Part 0); Claude briefs it, reviews and re-tests its work, commits, ticks Notion and reports.
+- DS (DeepSeek) must obey AGENTS.md Part 0b: do only what the task says, nothing unless told, never state unverified claims. When DS cannot do a task or does it wrong, Claude investigates why, sends exact findings back (max 3 rounds), then fixes it itself and reports what DS could not do.
 - Env files (`.env`, `.env.*`, `*.env`) are always in `.gitignore`, even before any exist; never commit secrets.
 
 ## Commands
