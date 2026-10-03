@@ -40,6 +40,13 @@ description: Use for ANY roadmap work on this repo — starting, continuing, imp
   investigates the real cause, sends a review file in `.agent-tasks/`, allows
   up to 3 rounds, then fixes the work itself and tells the owner what DS could
   not do.
+- **Every DS false claim becomes a new rule (owner, 2026-10-04).** When DS
+  states anything false (a fix that is not in the file, a result it did not
+  get, an edit it denies), Claude immediately adds a numbered rule to
+  AGENTS.md Part 0b "Rules from incidents" (I1, I2, …). The rule names the
+  date, the box and what DS said versus the truth, and states the concrete
+  check that prevents a repeat. Claude commits it, tells DS to re-read
+  Part 0b, and lists the incident in the owner report.
 
 ## The cycle — per checkbox, never one-shot
 Take the earliest unticked checkbox (start at Week 1). For that one box only:

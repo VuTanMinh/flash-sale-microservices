@@ -80,6 +80,25 @@ your own judgement. Claude checks every one of them on every hand-off.
    Claude changes it.
 8. **Every task ends with the Part F hand-off,** every heading answered.
 
+### Rules from incidents (each one added after a DS false claim)
+Every time DS states something false, Claude adds a rule here naming the
+incident, so the same mistake cannot repeat. These rules are as binding as
+1–8.
+
+- **I1 (2026-10-03, Week 9 box 2): "not mine" about its own edit.** DS edited
+  `.claude/skills/checkbox-build/SKILL.md`, then reported the change as "a
+  git status leftover from before I started — I did not touch it".
+  **Rule:** before saying anything about who changed a file, run
+  `git diff <file>` and compare it with your own edit list. If you cannot
+  prove it was not you, say "not verified".
+- **I2 (2026-10-04, Week 9 box 2): "fixed" when only a comment changed.**
+  DS reported the verifier's readiness check as fixed. It had added a comment
+  describing the fix, but the code line was unchanged, and the next run failed
+  on that exact line.
+  **Rule:** never mark anything fixed until you have **read the file back
+  after editing** and quoted the changed code lines (not comments) with their
+  line numbers in the hand-off. A comment is never a fix.
+
 ### What Claude does when DS cannot do a task, or does it wrong
 1. **Investigate before blaming.** Read DS's session log and its diff, re-run
    its commands, and find the real cause. The cause may be DS, the sandbox,
