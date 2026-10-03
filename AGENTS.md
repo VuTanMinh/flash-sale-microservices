@@ -203,9 +203,10 @@ incident, so the same mistake cannot repeat. These rules are as binding as
   re-assessed for "running under their own accounts".
 - Week 9 box 1 is ticked: Inbox uniqueness, local transaction and a crash
   after commit before ack (TP-M01, `scripts/verify-delivery.ps1`).
-- **Next box:** Week 9 box 2, "Test concurrent duplicates, duplicate business
-  events with new MessageId, and late/out-of-order completion; preserve one
-  stock deduction and one applied business result."
+- Week 9 box 2 is ticked: concurrent duplicates, new-MessageId duplicates and
+  out-of-order completion (TP-M02, `scripts/verify-delivery-ordering.ps1`).
+- **Next box:** Week 9 box 3, "Write Message Delivery Semantics, Idempotent
+  Consumer, ACK strategy, and duplicate-handling sections."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
