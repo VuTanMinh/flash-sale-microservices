@@ -1,0 +1,17 @@
+﻿# verify-stock-results.ps1 -Container verify-env-pg -DbPort 55432
+# fresh clone at b0b9d51; fresh database (verify-environment.ps1 -Mode Fresh: All checks passed (Fresh).); 20261003T181814Z
+
+PASS  StockReserved -> order Confirmed with ConfirmedOrRejectedAt stamped
+PASS  StockReserved -> exactly one Inbox row for its MessageId
+PASS  StockRejected -> order Rejected with ConfirmedOrRejectedAt stamped
+PASS  StockRejected -> exactly one Inbox row for its MessageId
+PASS  same StockReserved redelivered: state and timestamp unchanged, still one Inbox row
+PASS  same result with a new MessageId: recorded in the Inbox, state and timestamp unchanged
+PASS  StockRejected for a Confirmed order: dead-lettered, order still Confirmed, no Inbox row
+PASS  result for an unknown order: acknowledged without action (no Inbox row, not dead-lettered)
+PASS  applied transitions (2) match their Inbox rows (2)
+PASS  Inbox insert refused: order stays PendingStock and no Inbox row (state change rolled back with it)
+
+Stock results drive the order state with Inbox and business change committed together.
+
+exit code: 0

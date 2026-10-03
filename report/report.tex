@@ -1898,7 +1898,7 @@ save-delegate-injectable overload so these tests can substitute
 \texttt{SaveChangesAsync} -- the same documented limitation
 \texttt{OutboxAtomicityTests} already works around, not a new one.
 All three pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx} (TP-E03); the suite
-currently has 43 tests in total. (An earlier draft said 19; that count is not
+had 43 tests at that run; two more for the early-completion case were added in Week 9 (45 in total, TP-M02 below). (An earlier draft said 19; that count is not
 supported by any saved run.)
 
 An earlier draft showed the old validator reporting all four invariants as
@@ -1906,6 +1906,88 @@ An earlier draft showed the old validator reporting all four invariants as
 invariant 3 and 4 checks could not fail (Section~\ref{sec:validation}), so
 that output is not evidence of exactly-once behaviour. The crash-and-redelivery
 case is re-verified with the repaired validator as test case TP-M01 (Week 9).
+
+\subsection{Concurrent duplicates and out-of-order completion (TP-M02)}
+
+Three ordering risks remain once each consumer has an Inbox:
+\begin{itemize}
+  \item many copies of one message arriving at the same moment;
+  \item the same business fact arriving again under a new
+    \texttt{MessageId} (the reconciliation job does exactly this);
+  \item a completion arriving before the result it depends on.
+\end{itemize}
+
+\paragraph{What the code check found.} The third case was the open gap of
+Section~\ref{sec:design-decisions}. The Process Worker and Order Service both
+consume \texttt{StockReserved} in parallel. So \texttt{OrderProcessed} could
+reach Order Service while the order was still \texttt{PendingStock}. The
+transition to \texttt{Completed} was then illegal, so the message was
+dead-lettered and the completion was lost.
+\texttt{scripts/verify-design-decisions.ps1} still asserted this defective
+behaviour, and \texttt{docs/order-state-machine.md} described a retry that
+did not exist in the code.
+
+\paragraph{Fix.} \texttt{StockResultProcessor} has a new outcome,
+\texttt{NotYetApplicable}, for exactly this case. It writes nothing, not
+even an Inbox row, so the message can still be applied later.
+\texttt{OrderProcessedConsumer} then:
+\begin{enumerate}
+  \item republishes the message onto a delayed retry queue
+    (\texttt{OrderProcessed.retry.1}--\texttt{3}, with TTLs of 2, 4 and
+    8\,s, each bound to the dead-letter exchange);
+  \item uses a channel with publisher confirms for that publish;
+  \item acknowledges the original only after the confirm.
+\end{enumerate}
+Each retry queue dead-letters back onto \texttt{OrderProcessed}, and the
+completion is applied once the order is \texttt{Confirmed}. If it is still
+early after three requeues, it goes to the DLQ instead of waiting forever.
+The 1, 2, 4\,s in-process retry for database errors is unchanged and kept
+separate.
+
+\paragraph{Evidence} (fresh clone of \texttt{b0b9d51} and fresh database;
+saved as \texttt{20261003T181814Z-delivery-ordering.log} in
+\texttt{tests/evidence/}). The verifier,
+\texttt{verify-delivery-ordering.ps1} in \texttt{scripts/}, passes 44 of 44
+checks:
+\begin{itemize}
+  \item \textbf{Concurrent duplicates.} Eight simultaneous deliveries of one
+    \texttt{StockReserved} confirm the order once, with one Inbox row and
+    none dead-lettered. Eight simultaneous deliveries of the same fact under
+    eight \texttt{MessageId}s also confirm it once: all eight are recorded
+    in the Inbox, none is dead-lettered, and the decision time is never
+    re-stamped.
+  \item \textbf{A new \texttt{MessageId} for the same fact.} A re-published
+    \texttt{OrderPlaced} makes Redis answer \texttt{DUPLICATE}. No second
+    unit is taken, and there is no second result Outbox row. A duplicate
+    \texttt{StockReserved} is a no-op that is not dead-lettered.
+  \item \textbf{Early completion.} \texttt{OrderProcessed} is requeued onto a
+    bound retry queue, not dead-lettered, and writes no Inbox row while it
+    is unapplied. It is applied exactly once after \texttt{StockReserved}
+    lands. An orphan completion with no \texttt{StockReserved} is requeued
+    three times, then dead-lettered.
+  \item \textbf{Late result.} A \texttt{StockReserved} after
+    \texttt{Completed} is a no-op, and both timestamps are unchanged.
+\end{itemize}
+Every order took one unit at most, and every run queue, retry queue and
+result DLQ ended empty.
+
+In the same fresh clone, the earlier checks still pass: TP-M01 (34/34),
+TP-W04 (62/62), TP-W01 (10/10) and the unit tests (45/45, including two new
+tests for the early case).
+
+\paragraph{Negative control.} The fix was reverted in a scratch copy and the
+run repeated on a fresh database. 16 checks failed: the retry queues did not
+exist, the early completion was dead-lettered, and that order never reached
+\texttt{Completed}.
+
+\paragraph{How it was built.} DeepSeek Harness wrote the code, the documents
+and the verifier. Claude reviewed and re-ran every result, over three review
+rounds. The reviews found and returned:
+\begin{itemize}
+  \item an unbound retry queue that silently lost the requeued message;
+  \item several verifier defects;
+  \item two hand-off claims that were false.
+\end{itemize}
 
 \section{Failure Handling and Recovery (Week 10)}
 \label{sec:week10}
