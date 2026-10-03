@@ -69,3 +69,6 @@ setup-week1.ps1
 .env.*
 *.env
 !.env.example
+
+# Local DeepSeek tooling (not part of the project)
+deepseek-mcp-server/
