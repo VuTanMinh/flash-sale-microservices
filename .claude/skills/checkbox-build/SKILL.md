@@ -73,6 +73,11 @@ Take the earliest unticked checkbox (start at Week 1). For that one box only:
 - Branch names (`week11`) do not mean a week is accepted; only ticked boxes with
   evidence do.
 
+## Detailed rulebook
+- `AGENTS.md` at the repo root spells out every rule and every step above in
+  detail, for DeepSeek Harness and other agents. When the owner adds or
+  changes a rule, update SKILL.md, CLAUDE.md and AGENTS.md together.
+
 ## References
 - https://github.com/shanraisshan/claude-code-best-practice — short CLAUDE.md,
   skills as folders with trigger-focused descriptions and a Gotchas section,

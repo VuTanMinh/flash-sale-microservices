@@ -5,6 +5,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
 
 ## Rules
 - **All roadmap work follows `.claude/skills/checkbox-build/SKILL.md`.**
+- `AGENTS.md` is the full, step-by-step rulebook for any agent (Claude Code, DeepSeek Harness); keep it in sync when a rule changes.
   It holds the hard Notion rule: only the "05 — 15-Week Roadmap and Submission"
   page may be read or written; no other Notion page, database or workspace.
 - The plan lives in that Notion page, not in local markdown.

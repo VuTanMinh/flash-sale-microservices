@@ -60,6 +60,7 @@ setup-week1.ps1
 *.md
 !/README.md
 !/CLAUDE.md
+!/AGENTS.md
 !/.claude/skills/**/*.md
 !/docs/*.md
 !/docs/**/*.md
