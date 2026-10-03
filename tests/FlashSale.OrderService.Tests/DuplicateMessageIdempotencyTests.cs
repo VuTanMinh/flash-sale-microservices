@@ -114,6 +114,70 @@ public class DuplicateMessageIdempotencyTests : IDisposable
     }
 
     [Fact]
+    public async Task OrderProcessed_arriving_before_StockReserved_is_not_applied_and_not_recorded()
+    {
+        // Week 9 box 2 (docs/design-decisions.md section 2): the Process Worker
+        // consumes StockReserved in parallel with this service, so a completion
+        // can arrive first. Before the fix this threw
+        // InvalidOrderStateTransitionException (PendingStock has no transition
+        // to Completed), which the consumer treated as deterministic and sent
+        // straight to the DLQ -- the completion was then lost for good and the
+        // order stayed PendingStock.
+        var order = NewPendingOrder();
+        _dbContext.Orders.Add(order);
+        await _dbContext.SaveChangesOnDbContextAsync(true);
+
+        var earlyMessageId = Guid.NewGuid();
+        var outcome = await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed);
+
+        Assert.Equal(ResultProcessingOutcome.NotYetApplicable, outcome);
+
+        await using var freshDbContext = FreshDbContext();
+        Assert.Equal(OrderState.PendingStock, (await freshDbContext.Orders.SingleAsync(o => o.Id == order.Id)).State);
+        // Critical, and the reason the retried copy can still work: a message
+        // that was not applied must not be recorded as processed, or the
+        // requeued copy would be dropped by the Inbox check when it comes back.
+        Assert.False(await freshDbContext.ProcessedMessages.AnyAsync(m => m.MessageId == earlyMessageId));
+        Assert.Empty(await freshDbContext.ProcessedMessages.ToListAsync());
+    }
+
+    [Fact]
+    public async Task OrderProcessed_is_applied_once_StockReserved_has_landed()
+    {
+        // The other half of the same case: the retried completion must be
+        // applied normally once the order is Confirmed, exactly once.
+        var order = NewPendingOrder();
+        _dbContext.Orders.Add(order);
+        await _dbContext.SaveChangesOnDbContextAsync(true);
+
+        var earlyMessageId = Guid.NewGuid();
+        Assert.Equal(
+            ResultProcessingOutcome.NotYetApplicable,
+            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+
+        Assert.Equal(
+            ResultProcessingOutcome.Applied,
+            await ProcessWithBypassAsync(order.Id, Guid.NewGuid(), OrderState.Confirmed));
+
+        // The retried copy, same MessageId as the early one -- the Inbox has
+        // nothing recorded for it, so it applies.
+        Assert.Equal(
+            ResultProcessingOutcome.Applied,
+            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+
+        await using var freshDbContext = FreshDbContext();
+        var persisted = await freshDbContext.Orders.SingleAsync(o => o.Id == order.Id);
+        Assert.Equal(OrderState.Completed, persisted.State);
+        Assert.NotNull(persisted.CompletedAt);
+        Assert.Equal(1, await freshDbContext.ProcessedMessages.CountAsync(m => m.MessageId == earlyMessageId));
+
+        // And a further redelivery of that same message stays a no-op.
+        Assert.Equal(
+            ResultProcessingOutcome.AlreadyProcessed,
+            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+    }
+
+    [Fact]
     public async Task Conflicting_result_for_an_already_Rejected_order_throws_and_is_not_recorded()
     {
         var order = NewPendingOrder();

@@ -1,12 +1,13 @@
-﻿# ============================================================
+# ============================================================
 # Checks docs/design-decisions.md against the code (Week 4).
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-design-decisions.ps1
 #
 # 1. Every mechanism the doc cites exists in the named file.
 # 2. The four required topics are defined.
-# 3. Each "Known gap" still matches the code. When a gap is fixed (Week 8/9),
-#    this check fails on purpose so the doc is updated in the same change.
+# 3. Each check below asserts the state of the code as it should be today, so
+#    it fails on purpose when a gap is fixed (or reintroduced) and this doc is
+#    not updated in the same change.
 # Exits 1 on any mismatch.
 # ============================================================
 $ErrorActionPreference = "Stop"
@@ -50,12 +51,19 @@ foreach ($h in "## 1. Transport versus business idempotency", "## 2. Event order
 }
 Check "business idempotency covers a new MessageId for the same OrderId" ($doc -match 'new `MessageId` for the same `OrderId`')
 
-# 3. Known gaps must still be true in code (fails once fixed -> update the doc)
+# 3. Known gaps: each check asserts the *current* state of the code, so it
+#    fails on purpose when a gap is fixed or reintroduced and the doc is not
+#    updated in the same change (Week 8 fixed two, Week 9 fixed the third).
 $opc = Src "src\FlashSale.OrderService\Messaging\OrderProcessedConsumer.cs"
-$gap1 = $opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?BasicNackAsync\([^)]*requeue: false'
-Check "gap 'early OrderProcessed goes to DLQ' documented and still present in code" ($gap1 -and $doc.Contains("sends an ``OrderProcessed`` that arrives while the order is still ``PendingStock`` straight to the DLQ"))
-$opp = Src "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs"
 $srp = Src "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs"
+$gap1 = ($srp -match 'private static bool IsAwaitingPrerequisite[\s\S]{0,400}?target == OrderState\.Completed && current == OrderState\.PendingStock') -and
+        ($srp -match 'IsAwaitingPrerequisite\(order\.State, targetState\)[\s\S]{0,300}?NotYetApplicable') -and
+        ($opc -match 'RequeueForRetryAsync\(') -and
+        ($opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?BasicNackAsync\([^)]*requeue: false')
+Check "early OrderProcessed is requeued for bounded retry, not dead-lettered (fixed Week 9)" (
+    $gap1 -and $doc.Contains("the prerequisite has not been applied yet, so the message is **requeued onto a delayed retry queue, never dead-lettered**"))
+Check "design doc records the out-of-order completion fix" ($doc.Contains("**Fixed for out-of-order completion (2026-10-03, Week 9):**"))
+$opp = Src "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs"
 Check "Order Service result processor treats only unique violations as duplicates (fixed Week 8)" (($srp -match 'PostgresErrorCodes\.UniqueViolation') -and -not ($srp -match 'catch \(DbUpdateException\)\s*\{'))
 Check "design doc records the Order Service fix" ($doc.Contains("**Fixed for Order Service (2026-10-02, Week 8):**"))
 

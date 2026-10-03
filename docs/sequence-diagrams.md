@@ -101,12 +101,13 @@ The Process Worker has no Inbox. A redelivered `StockReserved` makes it
 publish `OrderProcessed` again with the same `MessageId` (the `OrderId`), and
 Order Service's Inbox absorbs that copy.
 
-**Known race in the `par` block.** The two branches are independent. If
-`OrderProcessed` (step 28) reaches Order Service before step 22 has committed,
-the order is still `PendingStock`. `PendingStock` to `Completed` is not a
-legal transition, so the message goes to the DLQ instead of being retried.
-The 200 ms delay makes this unlikely but does not prevent it. This is the
-known gap in `docs/design-decisions.md` and is assigned to Weeks 9 and 11.
+**Race in the `par` block (handled since Week 9).** The two branches are
+independent. If `OrderProcessed` (step 28) reaches Order Service before step
+22 has committed, the order is still `PendingStock`. Order Service then writes
+nothing for it and republishes it onto a delayed retry queue
+(`OrderProcessed.retry.1`–`.3`, 2 s / 4 s / 8 s). It is applied once the order
+is `Confirmed`, and dead-lettered only if it is still early after three
+requeues (`docs/design-decisions.md` §2, TP-M02).
 
 ## Rejection path: sold out, or sale not open
 

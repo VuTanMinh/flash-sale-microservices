@@ -24,6 +24,25 @@ public enum ResultProcessingOutcome
 
     /// <summary>The order id on the message doesn't exist -- ack, nothing to transition.</summary>
     OrderNotFound,
+
+    /// <summary>
+    /// The event arrived before the event it depends on. Concretely, the only
+    /// case today: an <c>OrderProcessed</c> (target <see cref="OrderState.Completed"/>)
+    /// for an order still in <see cref="OrderState.PendingStock"/>, because
+    /// Inventory Service's <c>StockReserved</c> has not been applied yet --
+    /// the Process Worker consumes the same event in parallel, so under
+    /// backlog the completion can genuinely win the race.
+    ///
+    /// This is deliberately NOT an error and NOT a no-op. It is not an error
+    /// because nothing is wrong: the completion is still owed, the order is
+    /// simply behind. It is not a no-op because the completion has not
+    /// happened: writing an Inbox row or transitioning here would either
+    /// lose the completion or invent a state change the state machine does
+    /// not allow. So nothing is written at all, and the caller requeues the
+    /// message for a bounded retry instead of dead-lettering it
+    /// (docs/design-decisions.md section 2).
+    /// </summary>
+    NotYetApplicable,
 }
 
 /// <summary>
@@ -69,6 +88,16 @@ public static class StockResultProcessor
         if (order is null)
         {
             return ResultProcessingOutcome.OrderNotFound;
+        }
+
+        if (IsAwaitingPrerequisite(order.State, targetState))
+        {
+            // OrderProcessed for an order whose StockReserved has not been
+            // applied yet (see NotYetApplicable). Checked before the
+            // IsAtOrPast no-op rule below, which would otherwise classify it
+            // as "already past" -- Completed outranks PendingStock on the
+            // happy path, but the order has not travelled that path yet.
+            return ResultProcessingOutcome.NotYetApplicable;
         }
 
         if (IsAtOrPast(order.State, targetState))
@@ -144,4 +173,13 @@ public static class StockResultProcessor
         var targetRank = Array.IndexOf(Progression, target);
         return currentRank >= 0 && targetRank >= 0 && currentRank > targetRank;
     }
+
+    // "Can this event never be applied until a later one arrives?" -- the one
+    // case the state machine allows today. Kept as a named rule rather than an
+    // inline condition so the caller's requeue decision reads as what it is
+    // (an ordering fact), and so a second such event can be added here rather
+    // than by weakening the IsAtOrPast no-op rule above, which must keep
+    // meaning "someone already applied this".
+    private static bool IsAwaitingPrerequisite(OrderState current, OrderState target) =>
+        target == OrderState.Completed && current == OrderState.PendingStock;
 }

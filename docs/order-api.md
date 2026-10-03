@@ -43,7 +43,7 @@ Legal transitions (`Order.LegalTransitions`): `PendingStock → Confirmed`, `Pen
 | already past the target on `PendingStock → Confirmed → Completed` (stale, e.g. `StockReserved` after `Completed`) | Ack, no transition; the Inbox row is recorded |
 | in a conflicting state (e.g. `StockRejected` after `Confirmed`, anything after `Rejected` except `StockRejected`) | `InvalidOrderStateTransitionException`, nothing recorded, so the consumer dead-letters it |
 | unknown order id | Ack as `OrderNotFound`, nothing recorded |
-| `OrderProcessed` while still `PendingStock` (early) | **Known gap:** dead-lettered today; defined behaviour is retry (`docs/design-decisions.md` §2, Week 9) |
+| `OrderProcessed` while still `PendingStock` (early) | Not applied and not recorded; requeued onto a delayed retry queue (2 s / 4 s / 8 s) and applied once `StockReserved` lands; dead-lettered only after 3 requeues (Week 9, TP-M02, `docs/design-decisions.md` §2) |
 
 Verified by `OrderStateBehaviourTests` (full 4×4 transition matrix and the event cases above; TP-A06).
 

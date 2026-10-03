@@ -40,6 +40,13 @@ namespace FlashSale.OrderService.Messaging;
 /// </summary>
 public class OrderProcessedConsumer : BackgroundService
 {
+    // Two independent ladders, deliberately not one array.
+    //
+    // RetryDelays bounds how often a *failing* handler is retried in-process
+    // before the message is dead-lettered (a database error, a lost
+    // connection). It is 1/2/4 s because that is the schedule every other
+    // consumer and OutboxPublisherWorker in this system uses, and that is what
+    // docs/delivery-semantics.md and docs/outbox.md document.
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromSeconds(1),
@@ -48,12 +55,43 @@ public class OrderProcessedConsumer : BackgroundService
     ];
     private const int MaxAttempts = 4; // 1 initial + 3 retries, per RetryDelays above
 
+    // RequeueDelays is a different mechanism with a different job: how long an
+    // OrderProcessed that arrived *before* its StockReserved waits, on a broker
+    // queue, before it is tried again. It is longer than the in-process
+    // schedule because the thing being waited for is another service crossing
+    // the same broker (Inventory's StockReserved), not a transient local error
+    // -- and it is bounded the same way, so an order whose StockReserved never
+    // arrives surfaces in the DLQ instead of waiting forever. Element i is the
+    // TTL of OrderProcessed.retry.{i+1}.
+    private static readonly TimeSpan[] RequeueDelays =
+    [
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(4),
+        TimeSpan.FromSeconds(8),
+    ];
+
+    // Set on every requeued copy, so it knows which retry queue to go to next
+    // and when to give up. A header rather than a database column: the retry
+    // state belongs to the delivery, not to the order, and the order's own
+    // Inbox must stay empty until the completion is actually applied.
+    private const string RetryAttemptHeader = "x-order-processed-attempts";
+
+    /// <summary>
+    /// Delayed retry queue for the copy that follows a message already requeued
+    /// <paramref name="retryIndex"/> times (0 = the first arrival was requeued,
+    /// so it waits <c>RequeueDelays[0]</c>).
+    /// </summary>
+    private static string RetryQueueName(int retryIndex) => $"OrderProcessed.retry.{retryIndex + 1}";
+
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderProcessedConsumer> _logger;
     private readonly IConfiguration _configuration;
     private IConnection? _connection;
     private IChannel? _channel;
+
+    /// <summary>Publisher-confirming channel, used only by <see cref="RequeueForRetryAsync"/>.</summary>
+    private IChannel? _requeueChannel;
 
     public OrderProcessedConsumer(
         IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderProcessedConsumer> logger,
@@ -98,6 +136,44 @@ public class OrderProcessedConsumer : BackgroundService
                     _options.EventBus.OrderProcessedDeadLetterQueueName, _options.EventBus.DeadLetterExchangeName,
                     routingKey: "OrderProcessed", cancellationToken: stoppingToken);
 
+                // Delayed retry queues (Week 9, out-of-order completion). An
+                // OrderProcessed that arrives before the order's StockReserved
+                // must be retried, not dead-lettered (docs/design-decisions.md
+                // section 2), and RabbitMQ has no per-message redelivery delay,
+                // so each attempt gets a queue whose whole point is a TTL: the
+                // message is simply left there and dead-lettered back onto
+                // flashsale.order.exchange with routing key "OrderProcessed"
+                // once it expires. That is why the dead-letter routing key is
+                // set explicitly here and not on the main queue: these queues
+                // receive the message under a ".retry.N" key, so preserving the
+                // key would dead-letter it back to a retry queue instead of the
+                // main one.
+                //
+                // The binding to the dead-letter exchange is what makes the
+                // requeue publish routable at all (RequeueForRetryAsync
+                // publishes to that exchange with the queue name as its routing
+                // key). Without it the publish is dropped as unroutable -- and
+                // because the original is only acked after that publish is
+                // *confirmed*, an unroutable copy would throw instead of
+                // disappearing, but binding it here is what makes the retry
+                // actually happen.
+                for (var attempt = 1; attempt <= RequeueDelays.Length; attempt++)
+                {
+                    var retryQueue = RetryQueueName(attempt - 1);
+                    await _channel.QueueDeclareAsync(
+                        retryQueue, durable: true, exclusive: false, autoDelete: false,
+                        arguments: new Dictionary<string, object?>
+                        {
+                            ["x-message-ttl"] = (int)RequeueDelays[attempt - 1].TotalMilliseconds,
+                            ["x-dead-letter-exchange"] = _options.EventBus.ExchangeName,
+                            ["x-dead-letter-routing-key"] = "OrderProcessed",
+                        },
+                        cancellationToken: stoppingToken);
+                    await _channel.QueueBindAsync(
+                        retryQueue, _options.EventBus.DeadLetterExchangeName, routingKey: retryQueue,
+                        cancellationToken: stoppingToken);
+                }
+
                 await _channel.QueueDeclareAsync(
                     _options.EventBus.OrderProcessedQueueName, durable: true, exclusive: false, autoDelete: false,
                     arguments: new Dictionary<string, object?>
@@ -116,6 +192,22 @@ public class OrderProcessedConsumer : BackgroundService
                 await _channel.BasicConsumeAsync(
                     _options.EventBus.OrderProcessedQueueName, autoAck: false, consumerTag: string.Empty,
                     noLocal: false, exclusive: false, arguments: null, consumer, stoppingToken);
+
+                // A second channel, used only to requeue an early completion,
+                // with publisher confirms and confirmation tracking on -- the
+                // same two flags Order Service's own outbox publisher uses, for
+                // the same reason (RabbitMqOutboxPublisher's doc comment). They
+                // are on a separate channel rather than on the consuming one
+                // because turning confirms on changes how the consumer's own
+                // ack/nack path is framed, and this channel exists to make one
+                // thing true: an unroutable or nacked requeue publish throws
+                // instead of returning quietly, so the original is never acked
+                // for a retry that never actually reached a queue.
+                _requeueChannel = await _connection.CreateChannelAsync(
+                    new CreateChannelOptions(
+                        publisherConfirmationsEnabled: true,
+                        publisherConfirmationTrackingEnabled: true),
+                    cancellationToken: stoppingToken);
 
                 _logger.LogInformation(
                     "Consuming OrderProcessed from queue '{Queue}'", _options.EventBus.OrderProcessedQueueName);
@@ -156,6 +248,40 @@ public class OrderProcessedConsumer : BackgroundService
                     OrderMetrics.OrdersByOutcome.WithLabels(nameof(OrderState.Completed)).Inc();
                     _logger.LogInformation("Order {OrderId} -> Completed", orderProcessed.OrderId);
                     break;
+                case ResultProcessingOutcome.NotYetApplicable:
+                    // The completion is real but early: the order has not been
+                    // Confirmed yet, because Inventory Service's StockReserved
+                    // has not been applied here. Nothing was written for it --
+                    // not even an Inbox row, so the copy that comes back is
+                    // still processable. Requeue it with a delay and ack the
+                    // original, which is the bounded-retry treatment
+                    // docs/design-decisions.md section 2 defines for this case.
+                    // If the ladder is already exhausted the message goes to
+                    // the DLQ instead of waiting forever, exactly as a
+                    // persistent processing failure would.
+                    var attempt = RequeueAttempt(eventArgs);
+                    if (attempt < RequeueDelays.Length)
+                    {
+                        var nextAttempt = attempt + 1;
+                        _logger.LogInformation(
+                            "OrderProcessed {MessageId} for order {OrderId} arrived before its StockReserved; requeuing attempt {Attempt}/{MaxAttempts} to '{Queue}'",
+                            orderProcessed.MessageId, orderProcessed.OrderId, nextAttempt, RequeueDelays.Length,
+                            RetryQueueName(nextAttempt - 1));
+                        // RequeueForRetryAsync throws if the copy does not reach
+                        // a queue (see its own doc comment), so this ack only
+                        // runs once the retry is confirmed and the completion
+                        // cannot be lost; a throw lands in the generic catch
+                        // below and dead-letters the original loudly instead.
+                        await RequeueForRetryAsync(eventArgs, orderProcessed, nextAttempt);
+                        await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+                        return;
+                    }
+
+                    _logger.LogError(
+                        "OrderProcessed {MessageId} for order {OrderId} is still early after {MaxAttempts} attempts; the order is still {State}; routing to DLQ",
+                        orderProcessed.MessageId, orderProcessed.OrderId, RequeueDelays.Length, OrderState.PendingStock);
+                    await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                    return;
                 case ResultProcessingOutcome.OrderNotFound:
                     _logger.LogWarning(
                         "Received a completion for unknown order {OrderId}; acking without action",
@@ -230,8 +356,83 @@ public class OrderProcessedConsumer : BackgroundService
         throw new UnreachableException(); // the loop above always returns or rethrows
     }
 
+    /// <summary>
+    /// How many times this delivery has already been requeued for being early
+    /// (0 on its first arrival). Carried in a header, so it survives the round
+    /// trip through a retry queue and the broker's own dead-lettering.
+    /// </summary>
+    private static int RequeueAttempt(BasicDeliverEventArgs eventArgs)
+    {
+        if (eventArgs.BasicProperties?.Headers is null ||
+            !eventArgs.BasicProperties.Headers.TryGetValue(RetryAttemptHeader, out var value))
+        {
+            return 0;
+        }
+
+        // RabbitMQ hands an AMQP field-table integer back as a byte (the type
+        // the publisher chose), but a message crafted by hand or by a future
+        // producer could use a wider type -- accept any of them rather than
+        // failing the delivery over an encoding choice.
+        return value switch
+        {
+            byte b => b,
+            sbyte sb => sb,
+            short s => s,
+            int i => i,
+            long l => (int)l,
+            _ => 0,
+        };
+    }
+
+    /// <summary>
+    /// Publishes the next copy of an early completion onto the retry queue for
+    /// the given attempt (see RetryQueueName): a fresh publish with the attempt
+    /// header incremented. A new message rather than a nack-with-requeue
+    /// because RabbitMQ has no per-message redelivery delay, and requeueing
+    /// straight back onto the main queue would spin this message against a
+    /// limited number of consumer threads for the whole ladder instead of
+    /// letting it wait.
+    ///
+    /// Two things make this publish trustworthy, and both are load-bearing:
+    /// the retry queues are bound to the dead-letter exchange (ExecuteAsync), so
+    /// the message is routable; and the publish goes out on
+    /// <see cref="_requeueChannel"/>, which has publisher confirms and
+    /// confirmation tracking enabled, so <c>BasicPublishAsync</c> returns only
+    /// once the broker has confirmed the message and *throws*
+    /// (<c>PublishException</c>) if it was returned as unroutable or nacked.
+    /// That is what lets the caller ack the original afterwards in good faith:
+    /// with a plain channel and no binding this publish returned successfully
+    /// while the message went nowhere, and the acked original was simply lost.
+    ///
+    /// Publishing before the caller acks is deliberate, and matches every other
+    /// producer here: a crash in between leaves the original unacknowledged, so
+    /// the broker redelivers it and the retry happens again -- at worst a
+    /// duplicate copy, never a lost completion.
+    /// </summary>
+    private async Task RequeueForRetryAsync(
+        BasicDeliverEventArgs eventArgs, OrderProcessedEto orderProcessed, int nextAttempt)
+    {
+        var properties = new BasicProperties
+        {
+            Persistent = true,
+            ContentType = "application/json",
+            Type = "OrderProcessed",
+            CorrelationId = orderProcessed.CorrelationId,
+            Headers = new Dictionary<string, object?> { [RetryAttemptHeader] = (byte)nextAttempt },
+        };
+
+        await _requeueChannel!.BasicPublishAsync(
+            _options.EventBus.DeadLetterExchangeName,
+            RetryQueueName(nextAttempt - 1),
+            mandatory: true,
+            basicProperties: properties,
+            body: eventArgs.Body,
+            cancellationToken: CancellationToken.None);
+    }
+
     public override void Dispose()
     {
+        _requeueChannel?.Dispose();
         _channel?.Dispose();
         _connection?.Dispose();
         base.Dispose();

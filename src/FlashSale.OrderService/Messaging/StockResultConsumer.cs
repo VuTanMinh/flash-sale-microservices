@@ -208,6 +208,19 @@ public class StockResultConsumer : BackgroundService
                         "{EventType} {MessageId} for order {OrderId} already processed; acking as no-op",
                         eventType, messageId, orderId);
                     break;
+                case ResultProcessingOutcome.NotYetApplicable:
+                    // Unreachable for a stock result: "the prerequisite has not
+                    // been applied yet" only describes OrderProcessed arriving
+                    // before StockReserved, and StockReserved is that
+                    // prerequisite (StockResultProcessor.IsAwaitingPrerequisite).
+                    // Handled explicitly rather than left out so that if a stock
+                    // result ever gets here, the switch says so instead of
+                    // quietly acking a result the order never received.
+                    _logger.LogError(
+                        "{EventType} {MessageId} for order {OrderId} reported as waiting for a prerequisite; a stock result has none",
+                        eventType, messageId, orderId);
+                    OrderMetrics.OrdersByOutcome.WithLabels("NotYetApplicable").Inc();
+                    break;
             }
 
             // Week 9 crash test only (TP-M01): no-op unless configured.

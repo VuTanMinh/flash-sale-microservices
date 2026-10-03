@@ -206,10 +206,10 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 - **Next box:** Week 9 box 2, "Test concurrent duplicates, duplicate business
   events with new MessageId, and late/out-of-order completion; preserve one
   stock deduction and one applied business result."
-- **Known open gap (design decision, do not hide it):** if `OrderProcessed`
-  reaches Order Service while the order is still `PendingStock`, the message
-  is dead-lettered instead of retried. It is assigned to Weeks 9 and 11
-  (`docs/design-decisions.md`).
+- **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
+  that reaches Order Service while the order is still `PendingStock` is
+  requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
+  is dead-lettered only after three requeues.
 - **Decisions already made:**
   - The order state model is the teacher's six states: PendingStock,
     Confirmed, Rejected, Processing, Completed, ProcessingFailed.

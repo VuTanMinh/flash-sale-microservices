@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # Checks the report's Order Service section (label sec:order-service)
 # against the saved Week 5 evidence and the test plan.
 #
@@ -51,7 +51,7 @@ foreach ($id in "TP-A01", "TP-A02", "TP-A03", "TP-A04", "TP-A05", "TP-A06", "TP-
 foreach ($stale in "there is no event publication yet", "currently has no legal outgoing transition", "Verified manually against the running service", "Passed: 17") {
     Check "no stale claim: '$stale'" (-not $sec.Contains($stale))
 }
-Check "known gap (early OrderProcessed) is stated" ($sec.Contains("dead-lettered instead of retried"))
+Check "early OrderProcessed: the Week 9 fix (TP-M02) is stated" ($sec.Contains("fixed in Week 9 (TP-M02)"))
 
 Write-Host ""
 if ($failures -gt 0) { Write-Host "$failures check(s) failed." -ForegroundColor Red; exit 1 }

@@ -862,9 +862,11 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \end{tabular}
 \end{center}
 
-\paragraph{Known gaps in the supported model.} One case still violates the
-design: an \texttt{OrderProcessed} that arrives while the order is still
-\texttt{PendingStock} is dead-lettered instead of retried (Weeks 9 and 11). The
+\paragraph{Known gaps in the supported model.} None remain open in the
+delivery path. An \texttt{OrderProcessed} that arrives while the order is still
+\texttt{PendingStock} used to be dead-lettered. Since Week 9 it is requeued
+onto delayed retry queues and applied once the order is \texttt{Confirmed}
+(TP-M02). The
 database-error defect, where an error was treated as a duplicate and the result
 lost, was fixed in Inventory Service in Week 7 (TP-I03) and in Order Service in
 Week 8 (TP-W03).
@@ -1142,9 +1144,10 @@ Result events are applied by \texttt{StockResultProcessor}:
   \item an event for an unknown order is acknowledged and not recorded.
 \end{itemize}
 
-One case still violates the design. An \texttt{OrderProcessed} that arrives
-while the order is \texttt{PendingStock} is dead-lettered instead of retried.
-It belongs to the Week 9 out-of-order box (TP-M02).
+An \texttt{OrderProcessed} that arrives while the order is
+\texttt{PendingStock} used to be dead-lettered instead of retried. That was
+fixed in Week 9 (TP-M02): it is requeued until the order is
+\texttt{Confirmed}.
 
 \subsection{Test cases}
 
@@ -1634,7 +1637,7 @@ Retried, then dead-lettered; a redelivery republishes the same
 \texttt{MessageId}. & P01 (W11) \\
 28--30 & Order Service: \texttt{Confirmed} to \texttt{Completed} with the
 Inbox row in one transaction. & If the order is still
-\texttt{PendingStock}: dead-lettered (known gap). & W04, M02 \\
+\texttt{PendingStock}: requeued (2, 4, 8\,s), then applied. & W04, M02 \\
 31--32 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404}
 for an unknown id. & A01 \\
 \bottomrule
@@ -1666,10 +1669,10 @@ the code.
 \paragraph{The concurrent fork.} The two \texttt{StockReserved} consumers
 are independent. If \texttt{OrderProcessed} reaches Order Service before
 step 22 commits, the order is still \texttt{PendingStock}. The transition to
-\texttt{Completed} is then illegal, and the message is dead-lettered instead
-of retried. The 200\,ms delay makes this unlikely but does not prevent it.
-It remains the known gap of Section~\ref{sec:design-decisions}, assigned to
-Weeks 9 and 11.
+\texttt{Completed} is not yet legal. Until Week 9 the message was then
+dead-lettered. Now Order Service writes nothing for it, republishes it onto a
+delayed retry queue (2, 4, then 8\,s) and applies it once the order is
+\texttt{Confirmed} (TP-M02).
 
 \paragraph{Evidence} (TP-W04; fresh clone;
 \texttt{tests/evidence/}\allowbreak\texttt{20261002T152659Z-workflow.log}).
