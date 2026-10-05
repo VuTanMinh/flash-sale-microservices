@@ -1725,73 +1725,106 @@ message was in \texttt{ProcessWorker.StockReserved.dlq}
 \section{Reliability and Idempotency Layer (Week 9)}
 \label{sec:week9}
 
-RabbitMQ's own guarantee is at-least-once delivery -- a message can be, and
-in the Step 9.3 test below actually was, delivered more than once. Weeks
-6--8 already made every individual state write safe against that
-(Order.TransitionTo has no legal self-loop, and reserve.lua's own
-\texttt{DUPLICATE} result and the Week 8 outbox's unique-OrderId index both
-tolerate replays). Week 9 adds the piece those didn't cover: a broker-message-
-level Inbox, so a redelivered message is recognized and skipped \emph{before}
-any of that per-message logic even runs, and so the report can state
-precisely what turns RabbitMQ's at-least-once delivery into effectively-once
-\emph{side effects} -- because those are not the same guarantee, and the
-distinction is exactly what this section is required to make explicit.
+\subsection{Message delivery semantics}
 
-\subsection{Two idempotency layers, not one (Step 9.1)}
+RabbitMQ delivers at-least-once. A message is removed from its queue only
+when the consumer acknowledges it. If the consumer dies first, or its
+connection drops, the broker delivers the same message again. Duplicates
+therefore cannot be avoided at the transport. The system's goal is the next
+best thing: every side effect happens effectively once, however many times
+a message arrives.
 
-It would be easy to assume Redis's \texttt{processed:\{productId\}} set
-(Week 7) already covers this. It doesn't -- it answers a different question.
-That set dedupes by \emph{order id}, at the business level: two different
-messages must not both reserve stock for the same order. The new
-\texttt{processed\_messages} table (one per schema, \texttt{order\_service}
-and \texttt{inventory\_service}, docs/erd.md) dedupes by \emph{MessageId}, at
-the broker-delivery level: the exact same physical RabbitMQ message must not
-be processed twice. A bug that somehow re-published \texttt{OrderPlaced} for
-an order with a fresh MessageId would be caught by the Redis-level check but
-sail straight through a naive MessageId-only check, and vice versa for a
-literal broker redelivery -- keeping both is not redundancy, it's covering
-two different failure shapes with one constraint each. Both tables share the
-same shape (\texttt{id uuid PK}, \texttt{message\_id uuid UK}, \texttt{message\_type},
-\texttt{processed\_at}), applied via \texttt{dotnet ef migrations add
-AddProcessedMessages} against each service, and confirmed directly:
+Two kinds of duplicate have to be absorbed, by two different layers.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-order_service.processed_messages:     "MessageId" UNIQUE, btree
-inventory_service.processed_messages: "MessageId" UNIQUE, btree
-\end{Verbatim}
+\begin{itemize}
+  \item \textbf{Transport duplicates.} The same broker message (same
+    \texttt{MessageId}) arrives again, for example after a crash or a
+    connection loss. The \emph{Inbox} absorbs it. Each service has a
+    \texttt{processed\_messages} table with a unique index on
+    \texttt{MessageId}, created by the \texttt{AddProcessedMessages}
+    migration of each service.
+  \item \textbf{Business duplicates.} The same fact arrives under a
+    \emph{new} \texttt{MessageId}. The reconciliation job does exactly this
+    when it re-publishes \texttt{OrderPlaced}. The Inbox cannot see these,
+    because the \texttt{MessageId} is new. Business rules absorb them
+    instead:
+    \begin{itemize}
+      \item Redis's \texttt{processed:\{product\}} set makes the Lua script
+        answer \texttt{DUPLICATE} for an order that already holds a unit;
+      \item Inventory's result Outbox has one row per order id;
+      \item Order Service treats a result for a state the order already
+        has, or has passed, as a no-op.
+    \end{itemize}
+\end{itemize}
 
-\subsection{Idempotent consumer logic (Step 9.2)}
+Table~\ref{tab:consumers} lists every consumer. Only a PostgreSQL unique
+violation (23505) is treated as ``already processed''. Any other database
+error is retried and then dead-lettered, so a failed write is never
+acknowledged as done (Week 8, TP-W03).
 
-Both consumers' actual correctness logic was pulled out of the
-RabbitMQ-facing classes into two small static classes --
-\texttt{StockResultProcessor} (Order Service) and \texttt{OrderPlacedProcessor}
-(Inventory Service) -- leaving \texttt{StockResultConsumer} and
-\texttt{OrderPlacedConsumer} as pure broker plumbing (ack/nack,
-deserialization) around them. Both follow the same shape: check the Inbox by
-MessageId first; if present, ack as a no-op without touching the business
-state at all; if absent, apply the business change and insert the Inbox row,
-both tracked on the same DbContext and committed by one
-\texttt{SaveChangesAsync} call, so a crash between "state changed" and
-"MessageId recorded" is impossible by construction -- either both happened
-in that one transaction, or neither did.
+\begin{table}[tbp]
+\centering
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{3.1cm}@{}}
+\toprule
+Consumer & Inbox & One local transaction & Acknowledged \\
+\midrule
+Inventory: \texttt{OrderPlaced}\allowbreak\texttt{Consumer} & Inventory's & result Outbox row (one per order) and Inbox row & after the commit \\
+Order: \texttt{StockResult}\allowbreak\texttt{Consumer} & Order Service's & state change and Inbox row & after the commit \\
+Order: \texttt{OrderProcessed}\allowbreak\texttt{Consumer} & Order Service's & \texttt{Confirmed}$\to$\texttt{Completed} and Inbox row; an early completion writes nothing and is requeued & after the commit, or after the confirmed requeue \\
+Process Worker: \texttt{StockReserved}\allowbreak\texttt{Consumer} & no Inbox (no database) & none: it only publishes \texttt{OrderProcessed} with \texttt{MessageId} = order id & after the confirmed publish \\
+\bottomrule
+\end{tabular}
+\caption{Every consumer, its Inbox, its local transaction and when it
+acknowledges (\texttt{docs/delivery-semantics.md}).}
+\label{tab:consumers}
+\end{table}
 
-One deliberate departure from a naive "if already in target state, skip"
-check: \texttt{Order.TransitionTo} has no legal self-loop for
-\texttt{Confirmed}/\allowbreak\texttt{Rejected} (both map to an empty list in
-\texttt{Order.LegalTransitions}), so calling it again on an order already in
-the target state would incorrectly throw
-\texttt{InvalidOrderStateTransitionException} on a perfectly legitimate
-redelivery. \texttt{StockResultProcessor} branches around this explicitly --
-skipping the transition call itself while still recording the Inbox row --
-rather than letting that exception do double duty for both "genuine
-conflict" and "safe redelivery", which would make the two indistinguishable
-to the caller.
+The Process Worker has no Inbox because it writes nothing locally. A
+redelivered \texttt{StockReserved} makes it publish the same
+\texttt{OrderProcessed} again, with the same \texttt{MessageId}. Order
+Service's Inbox then absorbs that copy.
 
-On the Inventory Service side, the Postgres-level Inbox check runs
-\emph{before} the Lua script is even called -- an exact redelivery is
-recognized and skipped without a Redis round trip at all, which is a real
-efficiency gain, not just symmetry with the Order Service side for its own
-sake.
+\subsection{Idempotent consumer}
+
+The correctness logic lives in two small classes that a test can drive
+directly. \texttt{OrderPlacedProcessor} serves Inventory Service, and
+\texttt{StockResultProcessor} serves both Order Service consumers. The
+consumer classes around them only deserialize, retry, and acknowledge or
+reject. Each processor works in this order:
+\begin{enumerate}
+  \item \textbf{Check the Inbox.} If the \texttt{MessageId} is recorded,
+    report ``already processed'' and touch nothing. In Inventory Service
+    this check runs before the Lua script, so an exact redelivery never
+    reaches Redis.
+  \item \textbf{Decide.}
+    \begin{itemize}
+      \item Inventory runs the Lua reservation.
+      \item Order Service compares the order's state with the result. A
+        result for the same or an earlier state on the happy path (for
+        example a late \texttt{StockReserved} after \texttt{Completed}) is a
+        no-op. A completion that arrives while the order is still
+        \texttt{PendingStock} returns \texttt{NotYetApplicable}: it writes
+        nothing and the consumer requeues it. Any other mismatch is a
+        genuine conflict, which throws and is dead-lettered.
+    \end{itemize}
+  \item \textbf{Commit once.} The business change (Inventory's result
+    Outbox row, or Order Service's new state) and the Inbox row are added
+    to one \texttt{DbContext}. One \texttt{SaveChangesAsync} commits both,
+    so either both happen or neither does.
+  \item \textbf{Absorb the race.} Two deliveries can pass step 1 together.
+    The unique index then rejects the second insert, and that unique
+    violation, and only that one, is reported as ``already processed''.
+\end{enumerate}
+
+\texttt{Order.TransitionTo} has no self-loop for \texttt{Confirmed} or
+\texttt{Rejected}. That is why the processor detects ``already in this
+state'' itself. Otherwise a legitimate redelivery would throw the same
+exception as a genuine conflict, and the two would be indistinguishable.
+
+The local transaction was tested directly (TP-M01). With \texttt{INSERT} on
+the Inbox revoked, the business write rolled back with it in both services,
+the message was retried and then dead-lettered, and a replay applied it once.
 
 \subsection{Acknowledgement strategy, proven with a real crash (Step 9.3)}
 
@@ -1880,32 +1913,35 @@ repeated twice, each time with one deliberate break in Inventory Service.
     shows that Inventory is protected by more than one layer.
 \end{itemize}
 
-\subsection{Duplicate-message test and re-validation (Step 9.4)}
+\subsection{Duplicate handling}
 
-\texttt{DuplicateMessageIdempotencyTests.cs} drives
-\texttt{StockResultProcessor} directly with the same MessageId twice (the
-same SQLite-real-engine reasoning as \texttt{OutboxAtomicityTests}: a unique
-constraint is the thing under test, and EF Core's InMemory provider doesn't
-enforce those). Three cases: a redelivered message is a no-op and leaves
-exactly one Inbox row; two \emph{different} messages for an order already in
-its target state are both safely absorbed without throwing; and a genuine
-conflict (a second message claiming a different terminal state for an
-already-Rejected order) still throws
-\texttt{InvalidOrderStateTransitionException} and leaves no Inbox row behind
-for the failed attempt. \texttt{StockResultProcessor} exposes a
-save-delegate-injectable overload so these tests can substitute
-\texttt{SaveChangesOnDbContextAsync} for the real, DI-dependent
-\texttt{SaveChangesAsync} -- the same documented limitation
-\texttt{OutboxAtomicityTests} already works around, not a new one.
-All three pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx} (TP-E03); the suite
-had 43 tests at that run; two more for the early-completion case were added in Week 9 (45 in total, TP-M02 below). (An earlier draft said 19; that count is not
-supported by any saved run.)
+Duplicates are handled at three levels, and each level has its own test.
+
+\begin{itemize}
+  \item \textbf{Unit level.} \texttt{DuplicateMessageIdempotencyTests}
+    drives \texttt{StockResultProcessor} on a real SQLite engine, because the
+    unique index is the thing under test and EF Core's in-memory provider
+    does not enforce it. The tests cover:
+    \begin{itemize}
+      \item a redelivered message, which is a no-op with one Inbox row;
+      \item two different messages for an order already in its target state,
+        which are both absorbed;
+      \item a genuine conflict, which throws and records nothing;
+      \item an early completion, which is not applied and not recorded, and
+        is then applied exactly once after \texttt{StockReserved}.
+    \end{itemize}
+    The suite has 45 tests, and all pass in
+    \texttt{tests/evidence/20261003T181814Z-unit-tests.log}.
+  \item \textbf{Crash and redelivery.} A consumer killed after its commit and
+    before its ack replays safely (Section above, TP-M01).
+  \item \textbf{Concurrent, business-level and out-of-order duplicates.}
+    These are covered on the running system, as described below (TP-M02).
+\end{itemize}
 
 An earlier draft showed the old validator reporting all four invariants as
-\texttt{PASS} on the state left by the Step 9.3 crash test. That validator's
-invariant 3 and 4 checks could not fail (Section~\ref{sec:validation}), so
-that output is not evidence of exactly-once behaviour. The crash-and-redelivery
-case is re-verified with the repaired validator as test case TP-M01 (Week 9).
+\texttt{PASS} on the state left by a crash test. That validator's invariant 3
+and 4 checks could not fail (Section~\ref{sec:validation}), so the output was
+withdrawn. The crash case is now covered by TP-M01 above.
 
 \subsection{Concurrent duplicates and out-of-order completion (TP-M02)}
 
