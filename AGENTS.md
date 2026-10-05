@@ -205,8 +205,10 @@ incident, so the same mistake cannot repeat. These rules are as binding as
   after commit before ack (TP-M01, `scripts/verify-delivery.ps1`).
 - Week 9 box 2 is ticked: concurrent duplicates, new-MessageId duplicates and
   out-of-order completion (TP-M02, `scripts/verify-delivery-ordering.ps1`).
-- **Next box:** Week 9 box 3, "Write Message Delivery Semantics, Idempotent
-  Consumer, ACK strategy, and duplicate-handling sections."
+- Week 9 box 3 is ticked: report sections plus `scripts/verify-delivery-report.ps1`
+  (TP-M03). Week 9 milestone W09 is closed.
+- **Next box:** Week 10 box 1, "Verify bounded transient retry and
+  poison/exhausted messages reaching the correct service DLQ."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
