@@ -174,6 +174,34 @@ public class OrderPlacedConsumer : BackgroundService
             var orderPlaced = JsonSerializer.Deserialize<OrderPlacedEto>(body)
                 ?? throw new InvalidOperationException("OrderPlacedEto deserialized to null.");
 
+            // Week 10 (Step 10.2): a message that deserializes but has an empty
+            // MessageId/OrderId/ProductId is permanent -- retrying identical
+            // bytes cannot fix it -- so it is nacked straight to this service's
+            // DLQ with no retries and no Inbox/Redis/outbox effect (see
+            // docs/failure-handling.md). Before this check, an empty-identity
+            // OrderPlaced ran the Lua script with empty keys and wrote a
+            // StockRejected for order 00000000-…, and a second message with an
+            // empty MessageId was wrongly skipped as "already processed".
+            var invalidField = InvalidField(orderPlaced);
+            if (invalidField is not null)
+            {
+                _logger.LogError("Invalid OrderPlaced message: {Field} is empty; routing to DLQ", invalidField);
+                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
+            // Week 10 (03 P1): the reservation scope is exactly one unit, and
+            // the API already rejects other quantities -- the message boundary
+            // must too. A Quantity other than 1 is a permanent defect (retrying
+            // identical bytes cannot fix it), so it is nacked straight to the
+            // DLQ with no Lua call, no Redis change and no rows.
+            if (orderPlaced.Quantity != 1)
+            {
+                _logger.LogError("Invalid OrderPlaced message: Quantity must be 1; routing to DLQ");
+                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
             // Week 11, Step 11.2: tags every log line produced while handling
             // this message -- including OrderPlacedProcessor's and the Lua
             // wrapper's, since LogContext flows across the awaits below -- with
@@ -256,6 +284,21 @@ public class OrderPlacedConsumer : BackgroundService
         }
 
         throw new UnreachableException(); // the loop above always returns or rethrows
+    }
+
+    /// <summary>
+    /// Week 10 (Step 10.2): the name of the first empty identity field, or null
+    /// when the message is well-formed. An empty MessageId/OrderId/ProductId is
+    /// a permanent defect, not a transient failure, so the caller nacks it
+    /// straight to the DLQ instead of running the retry ladder
+    /// (docs/failure-handling.md).
+    /// </summary>
+    private static string? InvalidField(OrderPlacedEto orderPlaced)
+    {
+        if (orderPlaced.MessageId == Guid.Empty) return "MessageId";
+        if (orderPlaced.OrderId == Guid.Empty) return "OrderId";
+        if (string.IsNullOrWhiteSpace(orderPlaced.ProductId)) return "ProductId";
+        return null;
     }
 
     public override void Dispose()

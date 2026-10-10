@@ -234,6 +234,19 @@ public class OrderProcessedConsumer : BackgroundService
             var orderProcessed = JsonSerializer.Deserialize<OrderProcessedEto>(body)
                 ?? throw new InvalidOperationException("OrderProcessedEto deserialized to null.");
 
+            // Week 10 (Step 10.2): an empty MessageId/OrderId is permanent (a
+            // completion for a non-existent order can never be applied), so it
+            // is nacked straight to this service's DLQ with no retries and no
+            // Inbox or state change -- see OrderPlacedConsumer for the fuller
+            // reasoning (docs/failure-handling.md).
+            var invalidField = InvalidField(orderProcessed.OrderId, orderProcessed.MessageId);
+            if (invalidField is not null)
+            {
+                _logger.LogError("Invalid OrderProcessed message: {Field} is empty; routing to DLQ", invalidField);
+                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
             using var correlationScope = LogContext.PushProperty("CorrelationId", orderProcessed.CorrelationId);
 
             _logger.LogInformation(
@@ -354,6 +367,18 @@ public class OrderProcessedConsumer : BackgroundService
         }
 
         throw new UnreachableException(); // the loop above always returns or rethrows
+    }
+
+    /// <summary>
+    /// Week 10 (Step 10.2): the name of the first empty identity field, or null
+    /// when the message is well-formed. OrderProcessed has no ProductId, so only
+    /// MessageId and OrderId are checked (docs/failure-handling.md).
+    /// </summary>
+    private static string? InvalidField(Guid orderId, Guid messageId)
+    {
+        if (messageId == Guid.Empty) return "MessageId";
+        if (orderId == Guid.Empty) return "OrderId";
+        return null;
     }
 
     /// <summary>

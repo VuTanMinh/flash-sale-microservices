@@ -159,25 +159,37 @@ public class StockResultConsumer : BackgroundService
         HandleResultAsync(eventArgs, OrderState.Confirmed, "StockReserved", body =>
         {
             var eto = JsonSerializer.Deserialize<StockReservedEto>(body);
-            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId);
+            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId, eto.ProductId);
         });
 
     private Task OnStockRejectedAsync(object sender, BasicDeliverEventArgs eventArgs) =>
         HandleResultAsync(eventArgs, OrderState.Rejected, "StockRejected", body =>
         {
             var eto = JsonSerializer.Deserialize<StockRejectedEto>(body);
-            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId);
+            return eto is null ? null : (eto.OrderId, eto.MessageId, eto.CorrelationId, eto.ProductId);
         });
 
     private async Task HandleResultAsync(
         BasicDeliverEventArgs eventArgs, OrderState targetState, string eventType,
-        Func<string, (Guid OrderId, Guid MessageId, string CorrelationId)?> extract)
+        Func<string, (Guid OrderId, Guid MessageId, string CorrelationId, string ProductId)?> extract)
     {
         try
         {
             var body = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
-            var (orderId, messageId, correlationId) = extract(body)
+            var (orderId, messageId, correlationId, productId) = extract(body)
                 ?? throw new InvalidOperationException("Result event deserialized with no OrderId/MessageId.");
+
+            // Week 10 (Step 10.2): see OrderPlacedConsumer for the fuller
+            // reasoning -- an empty identity field is permanent and is nacked
+            // straight to this service's DLQ, with no retries and no Inbox or
+            // state change (docs/failure-handling.md).
+            var invalidField = InvalidField(orderId, messageId, productId);
+            if (invalidField is not null)
+            {
+                _logger.LogError("Invalid {EventType} message: {Field} is empty; routing to DLQ", eventType, invalidField);
+                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
 
             // Week 11, Step 11.2 -- see OrderPlacedConsumer for the fuller note.
             using var correlationScope = LogContext.PushProperty("CorrelationId", correlationId);
@@ -300,6 +312,20 @@ public class StockResultConsumer : BackgroundService
         }
 
         throw new UnreachableException(); // the loop above always returns or rethrows
+    }
+
+    /// <summary>
+    /// Week 10 (Step 10.2): the name of the first empty identity field, or null
+    /// when the message is well-formed. An empty MessageId/OrderId/ProductId is
+    /// permanent, so the caller nacks it straight to the DLQ rather than
+    /// running the retry ladder (docs/failure-handling.md).
+    /// </summary>
+    private static string? InvalidField(Guid orderId, Guid messageId, string productId)
+    {
+        if (messageId == Guid.Empty) return "MessageId";
+        if (orderId == Guid.Empty) return "OrderId";
+        if (string.IsNullOrWhiteSpace(productId)) return "ProductId";
+        return null;
     }
 
     public override void Dispose()

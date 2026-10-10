@@ -80,7 +80,7 @@
 
 | ID | Case | Roadmap | Inputs | Expected outcome | Command | Status | Evidence |
 |---|---|---|---|---|---|---|---|
-| TP-F01 | Bounded retry and service DLQ | W10 | Transient then permanent handler failure | 4 attempts (1 s/2 s/4 s), then the correct service's DLQ | Planned: `scripts/verify-failures.ps1` | NOT RUN | — |
+| TP-F01 | Bounded retry and service DLQ | W10 | For each of the four consumers: a transient fault fixed inside the retry window (an Inbox `INSERT` revoked then restored ~2 s; for the Worker, a required `OrderProcessed` queue deleted then recreated); a fault that outlasts the ladder; malformed JSON; a well-formed message with an empty `MessageId`; two different empty-`MessageId` messages; an `OrderPlaced` with `Quantity` = 2; and a replay of the dead letter | Transient: applied once, nothing dead-lettered, the log shows retries. Exhausted: exactly 4 attempts logged with ~1 s/2 s/4 s gaps (timestamps), the message in that service's DLQ with `x-death` naming the source queue and reason `rejected`, the main queue empty (no loop), every other DLQ unchanged (isolation). Poison (malformed JSON or empty `MessageId`): that service's DLQ after one attempt, no retry log lines, no Inbox row, no Redis or state change; both empty-`MessageId` messages reach the DLQ. Quantity != 1 is permanent (DLQ, no Lua/Redis, no rows). Replay: the dead letter republished unchanged applies once | `scripts/verify-failures.ps1` | NOT RUN | — |
 | TP-F02 | Stuck PendingStock detection and recovery | W10 | Order with no stock result | Reconciliation re-triggers after the timeout; outcome preserved across restart | Planned: `scripts/verify-failures.ps1` | NOT RUN | — |
 
 ## Worker and observability (Week 11)

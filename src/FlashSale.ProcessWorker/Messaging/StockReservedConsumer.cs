@@ -161,6 +161,19 @@ public class StockReservedConsumer : BackgroundService
             var stockReserved = JsonSerializer.Deserialize<StockReservedEto>(body)
                 ?? throw new InvalidOperationException("StockReservedEto deserialized to null.");
 
+            // Week 10 (Step 10.2): an empty MessageId/OrderId/ProductId is
+            // permanent, so it is nacked straight to this service's DLQ with no
+            // retries and no OrderProcessed published -- see Order Service's
+            // OrderPlacedConsumer for the fuller reasoning
+            // (docs/failure-handling.md).
+            var invalidField = InvalidField(stockReserved);
+            if (invalidField is not null)
+            {
+                _logger.LogError("Invalid StockReserved message: {Field} is empty; routing to DLQ", invalidField);
+                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
             // Every log line below carries the correlation id this order
             // started with (Step 11.2) -- including the publisher's, since
             // LogContext flows through the awaits.
@@ -239,6 +252,20 @@ public class StockReservedConsumer : BackgroundService
         }
 
         throw new UnreachableException(); // the loop above always returns or rethrows
+    }
+
+    /// <summary>
+    /// Week 10 (Step 10.2): the name of the first empty identity field, or null
+    /// when the message is well-formed. An empty MessageId/OrderId/ProductId is
+    /// permanent, so the caller nacks it straight to the DLQ rather than
+    /// running the retry ladder (docs/failure-handling.md).
+    /// </summary>
+    private static string? InvalidField(StockReservedEto stockReserved)
+    {
+        if (stockReserved.MessageId == Guid.Empty) return "MessageId";
+        if (stockReserved.OrderId == Guid.Empty) return "OrderId";
+        if (string.IsNullOrWhiteSpace(stockReserved.ProductId)) return "ProductId";
+        return null;
     }
 
     public override void Dispose()
