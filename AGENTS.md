@@ -117,14 +117,15 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 
 ## Part A. Hard rules (never break these)
 
-### A1. Notion: one page only
-- In Notion you may read or write **only** the page
-  "05 — 15-Week Roadmap and Submission", id `3eb89157-367c-81c8-b7f6-f08dd8ff0fa5`.
-  It holds the roadmap and the submission checklist.
-- Never open, search, read or write any other Notion page, database or
-  workspace. This includes pages that this page @-mentions (the execution
-  reports, the evidence page, the acceptance page). Fetch the page by its id
-  and never use Notion search.
+### A1. Notion: the project hub tree only (owner, updated 2026-10-10)
+- Allowed: the hub "Flash-Sale Microservices — Project Plan and Progress Hub"
+  and its subpages 00, 01, 02, 03 (with 03A–03D), 04, 05 and 06. Nothing
+  outside that tree, not even pages it links to. The ids are in
+  `.claude/skills/checkbox-build/SKILL.md`. Fetch by id; never use Notion
+  search.
+- 05 is the weekly plan. 03 and 03A–03D are the correctness checklist: every
+  code check must satisfy the 03 items and the matching scenario rows (for
+  example B-09). DS never touches Notion at all; Claude does.
 - **Edit minimally.** Never rewrite, reorder, restyle or reword the page. The
   only allowed edits are:
   1. flip one box from `- [ ]` to `- [x]`;

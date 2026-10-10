@@ -1,24 +1,61 @@
 ---
 name: checkbox-build
-description: Use for ANY roadmap work on this repo — starting, continuing, implementing, testing or ticking a week/checkbox from the Notion "05 — 15-Week Roadmap and Submission" page, or touching Notion at all. Enforces the Notion scope rule and the one-checkbox-at-a-time build cycle.
+description: Use for ANY roadmap work on this repo — starting, continuing, implementing, testing or ticking a week/checkbox from the Notion "05 — 15-Week Roadmap and Submission" page, checking the 03 Correctness worklist, or touching Notion at all. Enforces the Notion scope rule (the project hub tree only) and the one-checkbox-at-a-time build cycle.
 ---
 
 # Checkbox build process
 
-## HARD RULE — Notion scope
-- In Notion, read or write **only** the page "05 — 15-Week Roadmap and Submission"
-  (id `3eb89157-367c-81c8-b7f6-f08dd8ff0fa5`). It holds both the roadmap and the
-  submission checklist.
-- Never open, search into, read or write any other Notion page, database or
-  workspace — not even pages it @-mentions. Fetch this page by id; do not search.
+## HARD RULE — Notion scope (owner, updated 2026-10-10)
+- In Notion, use **only** the hub "Flash-Sale Microservices — Project Plan and
+  Progress Hub" (id `3eb89157-367c-81e9-9afb-cd791dfe2cea`), its seven
+  numbered subpages, and the subpages inside those. Fetch them by id and never
+  use Notion search.
+
+  | Page | Id |
+  |---|---|
+  | 00 — Requirements and Acceptance | `3eb89157-367c-81bf-bbd3-e7e389647221` |
+  | 01 — Architecture and Class Diagram | `3eb89157-367c-8164-9429-c15a2e9a4b4e` |
+  | 02 — Current Progress and Grade | `3eb89157-367c-811a-acc7-f7b8dc79b587` |
+  | 03 — Correctness and Reliability Worklist | `3eb89157-367c-8119-8877-fdc4478c3cea` |
+  | 03A — Baseline, Order API and Lifecycle | `3ec89157-367c-8172-a871-fd409963d097` |
+  | 03B — Inventory and Reliable Messaging | `3ec89157-367c-813a-abae-c386a91cbaf3` |
+  | 03C — Worker, Trace and Observability | `3ec89157-367c-8165-ad71-ee5c6790221f` |
+  | 03D — Deployment, Experiments and Submission | `3ec89157-367c-81fa-8b57-cbebb366fb11` |
+  | 04 — Experiment Plan and Metrics | `3eb89157-367c-8174-835a-e41056930dd7` |
+  | 05 — 15-Week Roadmap and Submission | `3eb89157-367c-81c8-b7f6-f08dd8ff0fa5` |
+  | 06 — 9+ Grade Score Plan | `3eb89157-367c-8108-80d7-e7ca027f71e2` |
+
+- **Do not touch anything else.** Never open, read or write any page,
+  database or workspace that is not in that tree. This includes links that
+  point outside it, such as the hub's "Structure reference" (the Flutter
+  plan). Within the tree, use only what is listed in these pages.
+- **How each page is used:**
+  - 05 is the weekly plan; tick its boxes one at a time.
+  - **03 and its 03A–03D reports are the correctness checklist.** During every
+    code check, read the 03 items and the 03A/B/C/D scenario rows (for
+    example B-09) that cover the box. The work must satisfy them too. Tick a
+    03 or 03A–D box only when its own text is fully proven, with a note.
+  - 00 is the requirements and acceptance register.
+  - 01 holds the architecture.
+  - 02 holds the evidence and grade.
+  - 04 holds the experiment plan.
+  - 06 holds the 9+ grade gates ("go here" for grading standards).
 - If Notion is unreachable, say so and stop ticking; do not fall back to guesses.
-- **Edit Notion minimally.** Never rewrite, reorder or restyle the page. Only
-  flip `[ ]`/`[x]` and append a short evidence note after the box's own text,
-  keeping the original wording intact. Never change a box's wording so it
-  deviates from the teacher's brief (`docs/teacher-brief.md`).
+- **Edit Notion minimally, on every page.** Never rewrite, reorder or restyle.
+  Only flip `[ ]`/`[x]` and append a short evidence note after the box's own
+  text, keeping the original wording intact. Never change a box's wording so
+  it deviates from the teacher's brief (`docs/teacher-brief.md`).
+
+## Study guide (owner's reference)
+`.claude/skills/checkbox-build/study-guide.md` summarises the owner's "Flash
+Sale Microservices Study Guide" (523V0012, 7 Oct 2026). Before each code
+check, read the guide's chapter for that week's topic and hold the work to it.
+For example, chapter 9 covers retries, the DLQ, compensation and the failure
+matrix for Week 10. Its examples are teaching material, not claims about this
+code.
 
 ## Source of truth for the plan
-- The plan is the Notion page above. Do **not** use the local
+- The plan is the Notion 05 page above (with 03 as the correctness checklist). Do **not** use the local
   `FLASHSALE_EXECUTION_CHECKLIST.md` or any other local plan markdown as the plan.
 - The repo (code, `docs/`, `report/report.tex`) is the evidence, not the plan.
 - The teacher's brief is saved verbatim in `docs/teacher-brief.md`. It is the
