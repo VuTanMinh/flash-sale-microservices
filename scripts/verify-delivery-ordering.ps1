@@ -365,7 +365,12 @@ try {
     $o4 = Post-Order $p ("do-early-" + [guid]::NewGuid())
     $earlyMsg = $o4     # OrderProcessed.MessageId is the OrderId
     Publish "OrderProcessed" (OrderProcessedPayload $o4)
-    $queued = Wait-Until { (QueueCount "OrderProcessed.retry.1") -ge 1 } 30
+    # Detect the first requeue from the Order Service log line, not the retry.1
+    # queue count: the message sits in retry.1 only for its 2 s TTL while the
+    # management API's queue statistics refresh about every 5 s, so a queue-count
+    # wait can miss it and then hold the INSERT revoke for the full 30 s timeout
+    # (dead-lettering the real StockReserved and cascading the later checks).
+    $queued = Wait-Until { (Log "FlashSale.OrderService") -match "OrderProcessed $earlyMsg for order $o4 arrived before its StockReserved; requeuing attempt 1/3" } 30
     $stillPending = (State $o4) -eq "PendingStock"
     $notRecorded = (OrdInbox $earlyMsg) -eq 0
     $notDead = (QueueCount "OrderProcessed.dlq") -eq $opDlqBefore
