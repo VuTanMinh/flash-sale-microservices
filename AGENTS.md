@@ -98,6 +98,14 @@ incident, so the same mistake cannot repeat. These rules are as binding as
   **Rule:** never mark anything fixed until you have **read the file back
   after editing** and quoted the changed code lines (not comments) with their
   line numbers in the hand-off. A comment is never a fix.
+- **I3 (2026-10-11, certificate fix): an unreported change.** The task
+  allowed one line in `OrderServiceModule.cs`. DS's hand-off said it "added
+  one comment line and changed one code line". Its edit also deleted the
+  file's UTF-8 BOM on line 1, and its own edit summary showed "+3 −2".
+  **Rule:** before the hand-off, run `git diff --stat` and `git diff` on
+  every file you touched and list **every** hunk, including encoding, BOM,
+  line-ending and whitespace changes. If the diff shows a change you did not
+  intend, undo it before handing off. Keep each file's existing encoding.
 
 ### What Claude does when DS cannot do a task, or does it wrong
 1. **Investigate before blaming.** Read DS's session log and its diff, re-run

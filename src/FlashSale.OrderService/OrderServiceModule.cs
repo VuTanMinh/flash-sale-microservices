@@ -137,7 +137,8 @@ public class OrderServiceModule : AbpModule
 
             PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
             {
-                serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", "99426be9-e087-4c7d-b9cb-566835df936d");
+                // EphemeralKeySet keeps the key in memory only: no admin rights needed, and the key is never persisted to the machine store.
+                serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", "99426be9-e087-4c7d-b9cb-566835df936d", System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.EphemeralKeySet);
             });
         }
         
