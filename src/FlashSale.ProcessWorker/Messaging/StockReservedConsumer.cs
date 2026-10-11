@@ -155,10 +155,11 @@ public class StockReservedConsumer : BackgroundService
     private async Task OnMessageReceivedAsync(object sender, BasicDeliverEventArgs eventArgs)
     {
         var body = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
+        StockReservedEto? stockReserved = null;
 
         try
         {
-            var stockReserved = JsonSerializer.Deserialize<StockReservedEto>(body)
+            stockReserved = JsonSerializer.Deserialize<StockReservedEto>(body)
                 ?? throw new InvalidOperationException("StockReservedEto deserialized to null.");
 
             // Week 10 (Step 10.2): an empty MessageId/OrderId/ProductId is
@@ -188,6 +189,18 @@ public class StockReservedConsumer : BackgroundService
             // Week 9 crash test only (TP-M01): no-op unless configured.
             FaultInjection.CrashBeforeAckIfTargeted(_configuration, "ProcessWorker", stockReserved.CorrelationId, _logger);
             await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+        }
+        catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
+        {
+            // A graceful host shutdown (Ctrl+C / SIGTERM) is not a failed
+            // attempt: the order is returned to the queue, not retried, not
+            // logged as an error, not counted and not dead-lettered. Leaving
+            // the message unacked makes the closing channel requeue it, so no
+            // BasicNack is issued here (which also avoids racing the channel's
+            // Dispose during shutdown).
+            _logger.LogInformation(
+                "Shutdown during processing of order {OrderId}; returning it to the queue",
+                stockReserved?.OrderId);
         }
         catch (Exception ex)
         {
@@ -232,6 +245,12 @@ public class StockReservedConsumer : BackgroundService
                     "Order {OrderId} processed in {ElapsedMs}ms; published OrderProcessed",
                     stockReserved.OrderId, stopwatch.ElapsedMilliseconds);
                 return;
+            }
+            catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
+            {
+                // Graceful shutdown: not a failed attempt. Rethrow so the caller
+                // requeues the message instead of running the retry ladder.
+                throw;
             }
             catch (Exception ex)
             {
