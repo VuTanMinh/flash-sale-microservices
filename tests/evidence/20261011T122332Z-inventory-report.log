@@ -1,0 +1,33 @@
+﻿PASS  Inventory Service section found
+PASS  Lua statement in both script and report: SISMEMBER', KEYS[2], ARGV[1]) == 1
+PASS  Lua statement in both script and report: EXISTS', KEYS[3]) == 0
+PASS  Lua statement in both script and report: 'NOT_OPEN'
+PASS  Lua statement in both script and report: redis.call('DECR', KEYS[1])
+PASS  Lua statement in both script and report: redis.call('SADD', KEYS[2], ARGV[1])
+PASS  Lua statement in both script and report: return 'RESERVED'
+PASS  inventory log: exit 0 and no FAIL
+PASS  inventory log has two bursts
+PASS  report table row for the 400-request burst matches the log (& 400 & 100 & 52 & 248)
+PASS  report table row for the 330-request burst matches the log (& 330 & 100 & 45 & 185)
+PASS  report states warm-up confirmed all six products
+PASS  inventory log shows the end-to-end readiness results
+PASS  cross-store log: exit 0, 11 PASS
+PASS  report states 11 of 11 cross-store checks and the old code failing 5
+PASS  report cites both evidence logs
+PASS  report covers: Redis key and data design
+PASS  report covers: Lua reservation logic
+PASS  report covers: Inventory warm-up and readiness
+PASS  report covers: Inventory invariants under concurrency
+PASS  report covers: OrderPlaced handling and the Redis/PostgreSQL boundary
+PASS  no stale text: 'a failure nacks with requeue'
+PASS  no stale text: 'already treats as'
+PASS  no stale text: 'drained all three'
+PASS  no stale text: '29 of 30'
+PASS  no stale text: '\unverified{TP-I02}'
+PASS  TP-I01 is PASS in the test plan
+PASS  TP-I02 is PASS in the test plan
+PASS  TP-I03 is PASS in the test plan
+
+Inventory Service report section matches the Week 7 evidence.
+
+Exit code: 0

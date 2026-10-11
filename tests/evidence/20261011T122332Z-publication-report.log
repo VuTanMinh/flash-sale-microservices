@@ -1,0 +1,29 @@
+﻿PASS  Event Publication Reliability section found
+PASS  outbox log: exit 0, 11 PASS, 0 FAIL
+PASS  report states 11 of 11 checks for outbox and cites the log
+PASS  publication log: exit 0, 18 PASS, 0 FAIL
+PASS  report states 18 of 18 checks for publication and cites the log
+PASS  evidence contains a passing case 'A valid route'
+PASS  evidence contains a passing case 'B queue missing'
+PASS  evidence contains a passing case 'C binding removed'
+PASS  evidence contains a passing case 'D broker'
+PASS  evidence contains a passing case 'E nack'
+PASS  evidence contains a passing case 'F return'
+PASS  evidence contains a passing case 'G both queues present'
+PASS  evidence contains a passing case 'H OrderProcessed queue missing'
+PASS  report states the old code fails 8 checks
+PASS  report covers: Outbox workflow
+PASS  report covers: Routed confirmation
+PASS  report covers: Failure scenarios
+PASS  report covers: The same guarantee on the real database
+PASS  dual-write explanation present
+PASS  report states mandatory: true and RequiredSubscriberQueues
+PASS  no stale text: 'Since Inventory Service does not exist until Week 7'
+PASS  no stale text: 'verification scaffolding'
+PASS  no stale text: 'this was verified against a real outage, not simulated'
+PASS  no stale text: '20261001T114318Z-unit-tests.trx'
+PASS  TP-O01 and TP-O02 are PASS in the test plan
+
+Event Publication Reliability section matches the Week 6 evidence.
+
+Exit code: 0
