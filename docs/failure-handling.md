@@ -134,3 +134,95 @@ For each of the four consumers the verifier shows:
 
 `docs/test-plan.md` holds the case row (TP-F01); `scripts/verify-failures.ps1`
 prints `PASS`/`FAIL` per check and exits non-zero on any failure.
+
+## Reconciliation: stuck PendingStock detection and recovery (Week 10 box 2)
+
+Retries and the DLQ cover *messages*; reconciliation is the safety net for
+*orders*. It asks one question — "is any order still `PendingStock` long after
+it should have been answered?" — and acts on the answer with a bounded,
+observable procedure. It is not a replacement for Outbox, retry or the DLQ
+(`docs/teacher-brief.md` §5), and it never changes an order's state to paper
+over a problem.
+
+### Detection and cadence
+
+`ReconciliationWorker` (Order Service) polls every
+`Reconciliation:PollIntervalSeconds` (default 30 s) for orders that are
+`PendingStock` with `RequestAcceptedAt` older than
+`Reconciliation:StuckTimeoutSeconds` (default 30 s). For each one it inserts a
+fresh `OrderPlaced` Outbox row (a new `MessageId`), which re-runs the ordinary
+pipeline. The cadence is capped at once per timeout window: an order whose last
+`OrderPlaced` row is newer than the cutoff is skipped, so one stuck order is not
+re-triggered on every poll tick.
+
+### Bound and alert
+
+The re-trigger is bounded. The attempt count is derived from the order's own
+`OrderPlaced` Outbox rows — the row written at creation is the original
+delivery, so an order with `N` rows has been re-triggered `N-1` times. An order
+is **given up** only when the count reaches `Reconciliation:MaxAttempts`
+(default 3) **and** the last re-trigger is no longer recent (it has had its full
+timeout window to take effect), so the alert never fires while a re-trigger is
+still in flight:
+
+- it is no longer re-triggered;
+- one **Error** is logged naming the order, the attempt count and its age
+  (`... giving up and surfacing as unresolved`), once per process lifetime —
+  after an Order Service restart a still-stuck order is logged once more (the
+  dedup set is per process), which is acceptable as a fresh alert;
+- it stays `PendingStock` — reconciliation never invents `Rejected` or any
+  other state change;
+- it is exposed as unresolved through the metrics below.
+
+The dedup set is pruned every tick: an order that later leaves `PendingStock`
+(for example Inventory comes back and its queued `OrderPlaced` is consumed) is
+removed, so the set does not grow without bound. Deriving the count from the
+database (not an in-memory counter) is what makes the bound survive an Order
+Service restart: a restarted worker resumes from the same rows instead of
+resetting the count.
+
+### Recovering a known outcome
+
+A re-trigger must not lose a decision Inventory already made. When Inventory's
+`OrderPlacedProcessor` receives an `OrderPlaced` whose order already has a
+result Outbox row that is `Published` (the result was sent, but Order Service
+lost the copy — most likely dead-lettered and the DLQ purged), it re-queues that
+**same stored result** for re-publication: same payload, same `MessageId`, no
+second Lua deduction (`reserve.lua` already answered `DUPLICATE`) and no new
+result row. Order Service's Inbox then applies the copy exactly once — or
+absorbs it as a no-op if it was somehow already applied. A reserved order stays
+reserved; a rejected order stays rejected; neither is rewritten as
+"out of stock".
+
+### Metrics
+
+`OrderMetrics` exposes, on `/metrics`:
+
+| Metric | Kind | Meaning |
+|---|---|---|
+| `flashsale_reconciliation_retriggers_total` | Counter | `OrderPlaced` re-publishes issued |
+| `flashsale_reconciliation_given_up_total` | Counter | orders stopped after `MaxAttempts` |
+| `flashsale_reconciliation_stuck_orders` | Gauge | orders currently `PendingStock` past the timeout |
+
+### Operator steps
+
+A stuck or given-up order is not "fixed" by resetting stock or deleting queues.
+The procedure is:
+
+1. Inspect the order, its Outbox rows, and the queue/DLQ state — in that order
+   (`docs/delivery-semantics.md` incident order). The give-up Error names the
+   order and its age.
+2. Find the missing transition: a `StockReserved`/`StockRejected` dead-letter in
+   `StockReserved.dlq`/`StockRejected.dlq` means the result was lost and can be
+   replayed; an empty `OrderPlaced.dlq` with the order still stuck means
+   Inventory never answered (it is down or its consumer is failing).
+3. Fix the root cause (restore the dependency, the grant, or the queue), then
+   replay the dead letter **unchanged** — same body, so the same `MessageId`
+   (see "Replay after the fix" above).
+4. Never reset stock or delete queues as a "repair". A stuck order already
+   holds a reservation, or holds none; rewriting Redis or clearing queues
+   discards the evidence and risks an invented out-of-stock.
+
+`scripts/verify-reconciliation.ps1` (test case TP-F02) proves detection,
+cadence, the bound, the alert, the metrics, the known-outcome recovery, and the
+restart behaviour end to end.

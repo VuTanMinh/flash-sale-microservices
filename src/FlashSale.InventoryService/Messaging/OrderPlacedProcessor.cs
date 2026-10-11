@@ -72,8 +72,8 @@ public static class OrderPlacedProcessor
             _ => throw new InvalidOperationException($"Unhandled reservation result: {result}"),
         };
 
-        var outboxRowExists = await dbContext.OutboxEvents.AnyAsync(e => e.OrderId == orderPlaced.OrderId);
-        if (!outboxRowExists)
+        var existingResult = await dbContext.OutboxEvents.FirstOrDefaultAsync(e => e.OrderId == orderPlaced.OrderId);
+        if (existingResult is null)
         {
             // MessageId is fresh per outbound event (each service owns its own
             // broker-level idempotency key); CorrelationId is copied through
@@ -96,6 +96,22 @@ public static class OrderPlacedProcessor
                 });
 
             dbContext.OutboxEvents.Add(new OutboxEvent(Guid.NewGuid(), orderPlaced.OrderId, eventType, payload));
+        }
+        else if (existingResult.Published)
+        {
+            // Week 10 box 2: a result was already published for this order, but
+            // the downstream copy was lost before Order Service applied it (most
+            // likely dead-lettered and purged) -- that is the only reason a
+            // re-triggered OrderPlaced reaches here with a result row already
+            // Published. Re-send that same stored result (same payload, same
+            // MessageId) instead of writing a new row or running a second
+            // deduction: reserve.lua already answered DUPLICATE above, so no
+            // extra unit was taken. Order Service's Inbox absorbs the copy if
+            // it was somehow already applied, so the re-send is idempotent.
+            existingResult.MarkForRepublish();
+            logger.LogWarning(
+                "OrderPlaced {OrderId}: stored result {EventType} is already published; re-queuing it for re-publication",
+                orderPlaced.OrderId, existingResult.EventType);
         }
 
         dbContext.ProcessedMessages.Add(new ProcessedMessage(Guid.NewGuid(), orderPlaced.MessageId, "OrderPlaced"));

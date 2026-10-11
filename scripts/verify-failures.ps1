@@ -67,7 +67,14 @@ function Mq([string]$method, [string]$path, $body = $null) {
     if ($null -ne $body) { $req.Body = ($body | ConvertTo-Json -Depth 20 -Compress); $req.ContentType = "application/json" }
     try { return Invoke-RestMethod @req } catch { return $null }
 }
-function QueueCount([string]$q) { $r = Mq Get "/queues/%2F/$q"; if ($r) { return [int]$r.messages } else { return -1 } }
+# The management API's message counts are statistics that can lag the real
+# queue for many seconds, which made "queue empty" and "DLQ drained" checks
+# flaky. Every queue count here is read from the broker itself instead.
+function QueueCount([string]$q) { return (QueueDepth $q) }
+function QueueDepth([string]$q) {
+    $line = docker exec $mq rabbitmqctl -q list_queues name messages --no-table-headers 2>$null | Where-Object { ($_ -split "`t")[0] -eq $q }
+    if ($line) { return [int](($line -split "`t")[1]) } else { return -1 }
+}
 function QueueExists([string]$q) { return ($null -ne (Mq Get "/queues/%2F/$q")) }
 function Wait-Until([scriptblock]$cond, [int]$seconds = 30) { for ($i = 0; $i -lt $seconds; $i++) { if (& $cond) { return $true }; Start-Sleep 1 }; return (& $cond) }
 function Redis([string[]]$cmd) { return (docker exec $redis redis-cli @cmd | Out-String).Trim() }
@@ -250,8 +257,8 @@ try {
     Check "A.2 Inventory exhausted: retried then dead-lettered to OrderPlaced.dlq" $dead "dlq=$(QueueCount 'OrderPlaced.dlq')"
     CheckRetryLadder "FlashSale.InventoryService" $ma2 "A.2 Inventory"
     Check "A.2 Inventory exhausted: x-death names source OrderPlaced and reason rejected" (DeathHas $msg "OrderPlaced" "rejected")
-    $drained = Wait-Until { (QueueCount "OrderPlaced") -eq 0 } 15
-    Check "A.2 Inventory exhausted: main queue empty (no loop)" $drained "OrderPlaced=$(QueueCount 'OrderPlaced')"
+    $drained = Wait-Until { (QueueDepth "OrderPlaced") -eq 0 } 15
+    Check "A.2 Inventory exhausted: main queue empty (no loop)" $drained "OrderPlaced=$(QueueDepth 'OrderPlaced')"
     Check "A.2 Inventory exhausted: no Inbox row, no Outbox row, stock reserved exactly once on attempt 1" ((InvInbox $ma2) -eq 0 -and (InvOutbox $a2) -eq 0 -and [int](Stock $p) -eq ($stockBefore - 1)) "stock=$($stockBefore)->$(Stock $p)"
     Check "A.2 Inventory exhausted: every other DLQ unchanged (isolation)" ((IsolationDrift $dlqSnap "OrderPlaced.dlq") -eq "") (IsolationDrift $dlqSnap "OrderPlaced.dlq")
 
@@ -322,8 +329,8 @@ try {
     Check "B.2 StockResult exhausted: retried then dead-lettered to StockReserved.dlq" $dead "dlq=$(QueueCount 'StockReserved.dlq')"
     CheckRetryLadder "FlashSale.OrderService" $mb2 "B.2 StockResult"
     Check "B.2 StockResult exhausted: x-death names source StockReserved and reason rejected" (DeathHas $msg "StockReserved" "rejected")
-    $drained = Wait-Until { (QueueCount "StockReserved") -eq 0 } 15
-    Check "B.2 StockResult exhausted: main queue empty (no loop)" $drained "StockReserved=$(QueueCount 'StockReserved')"
+    $drained = Wait-Until { (QueueDepth "StockReserved") -eq 0 } 15
+    Check "B.2 StockResult exhausted: main queue empty (no loop)" $drained "StockReserved=$(QueueDepth 'StockReserved')"
     Check "B.2 StockResult exhausted: order still PendingStock, no Inbox row" ((State $b2) -eq "PendingStock" -and (OrdInbox $mb2) -eq 0) "state=$(State $b2)"
     Check "B.2 StockResult exhausted: every other DLQ unchanged (isolation)" ((IsolationDrift $dlqSnap "StockReserved.dlq") -eq "") (IsolationDrift $dlqSnap "StockReserved.dlq")
 
@@ -385,8 +392,8 @@ try {
     Check "C.2 OrderProcessed exhausted: retried then dead-lettered to OrderProcessed.dlq" $dead "dlq=$(QueueCount 'OrderProcessed.dlq')"
     CheckRetryLadder "FlashSale.OrderService" $mc2 "C.2 OrderProcessed"
     Check "C.2 OrderProcessed exhausted: x-death names source OrderProcessed and reason rejected" (DeathHas $msg "OrderProcessed" "rejected")
-    $drained = Wait-Until { (QueueCount "OrderProcessed") -eq 0 } 15
-    Check "C.2 OrderProcessed exhausted: main queue empty (no loop)" $drained "OrderProcessed=$(QueueCount 'OrderProcessed')"
+    $drained = Wait-Until { (QueueDepth "OrderProcessed") -eq 0 } 15
+    Check "C.2 OrderProcessed exhausted: main queue empty (no loop)" $drained "OrderProcessed=$(QueueDepth 'OrderProcessed')"
     Check "C.2 OrderProcessed exhausted: order still Confirmed, no Inbox row" ((State $c2) -eq "Confirmed" -and (OrdInbox $mc2) -eq 0) "state=$(State $c2)"
     Check "C.2 OrderProcessed exhausted: every other DLQ unchanged (isolation)" ((IsolationDrift $dlqSnap "OrderProcessed.dlq") -eq "") (IsolationDrift $dlqSnap "OrderProcessed.dlq")
 
@@ -448,8 +455,8 @@ try {
     Check "D.2 Worker exhausted: retried then dead-lettered to ProcessWorker.StockReserved.dlq" $dead "dlq=$(QueueCount 'ProcessWorker.StockReserved.dlq')"
     CheckRetryLadder "FlashSale.ProcessWorker" $d2 "D.2 Worker"
     Check "D.2 Worker exhausted: x-death names source ProcessWorker.StockReserved and reason rejected" (DeathHas $msg "ProcessWorker.StockReserved" "rejected")
-    $drained = Wait-Until { (QueueCount "ProcessWorker.StockReserved") -eq 0 } 15
-    Check "D.2 Worker exhausted: main queue empty (no loop)" $drained "ProcessWorker.StockReserved=$(QueueCount 'ProcessWorker.StockReserved')"
+    $drained = Wait-Until { (QueueDepth "ProcessWorker.StockReserved") -eq 0 } 15
+    Check "D.2 Worker exhausted: main queue empty (no loop)" $drained "ProcessWorker.StockReserved=$(QueueDepth 'ProcessWorker.StockReserved')"
     Check "D.2 Worker exhausted: every other DLQ unchanged (isolation)" ((IsolationDrift $dlqSnap "ProcessWorker.StockReserved.dlq") -eq "") (IsolationDrift $dlqSnap "ProcessWorker.StockReserved.dlq")
 
     # D.2 replay: recreate the queue, republish the dead letter -> published once

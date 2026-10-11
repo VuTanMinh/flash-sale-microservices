@@ -193,9 +193,10 @@ out-of-order case needs it, so nothing is racing accidentally:
 2. **Duplicate business event with a new `MessageId`.** The real `OrderPlaced`
    is delivered again, byte for byte, with a fresh `MessageId` — exactly what
    `ReconciliationWorker` does. Redis answers `DUPLICATE`, no second unit is
-   deducted, there is no second result Outbox row, and no second stock result
-   is published. The same is done for the real `StockReserved` on a
-   `Completed` order, which must stay a no-op.
+   deducted, and there is no second result Outbox row: the already-published
+   result is re-sent instead (same payload, same `MessageId`), which Order
+   Service's Inbox absorbs as a no-op. The same is done for the real
+   `StockReserved` on a `Completed` order, which must stay a no-op.
 3. **Out-of-order completion.** An `OrderProcessed` for an order still in
    `PendingStock`, published while the Process Worker is stopped. It must land
    in a retry queue within a few seconds, with the DLQ still empty and no

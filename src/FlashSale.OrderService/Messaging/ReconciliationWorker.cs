@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,12 +37,38 @@ namespace FlashSale.OrderService.Messaging;
 /// Inventory Service's ensure-exists outbox (Week 8), and this service's own
 /// Inbox (Week 9) all mean a genuine duplicate in-flight message converges
 /// to the same one-time effect as the original, rather than double-applying.
+///
+/// Week 10 box 2 bounds that re-ask: after Reconciliation:MaxAttempts
+/// re-triggers (counted from the OrderPlaced rows themselves, so the bound
+/// survives a restart) an order is given up on -- but only once the last
+/// re-trigger has had its full timeout window, so the alert never fires while a
+/// re-trigger is still in flight. A given-up order is logged as an Error,
+/// exposed via Prometheus metrics as unresolved, and left PendingStock, never
+/// invented as Rejected. The Error is logged once per process lifetime; after
+/// an Order Service restart it is logged once more for a still-stuck order (the
+/// dedup set is per process), which is acceptable -- it is a fresh alert. The
+/// recovery of a *known* outcome (a result Inventory already published but
+/// Order Service lost) is handled on the Inventory side: a re-triggered
+/// OrderPlaced makes Inventory re-send its stored result rather than change
+/// anything here (see OrderPlacedProcessor).
 /// </summary>
 public class ReconciliationWorker : BackgroundService
 {
     private readonly ReconciliationOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ReconciliationWorker> _logger;
+
+    /// <summary>
+    /// Orders whose "given up" Error has already been logged this process
+    /// lifetime. The attempt count itself lives in the database (the number of
+    /// OrderPlaced rows), so it survives a restart; this set only stops the
+    /// same order's Error from being logged on every subsequent poll tick. The
+    /// set is pruned every tick (an order that later leaves PendingStock is
+    /// removed), and it is per-process: after an Order Service restart the set
+    /// is empty, so a still-stuck order's Error is logged once more -- that is
+    /// acceptable, and intended, as a fresh alert.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, byte> _givenUpLogged = new();
 
     public ReconciliationWorker(
         IOptions<ReconciliationOptions> options, IServiceScopeFactory scopeFactory, ILogger<ReconciliationWorker> logger)
@@ -91,38 +118,69 @@ public class ReconciliationWorker : BackgroundService
             .Where(o => o.State == OrderState.PendingStock && o.RequestAcceptedAt < cutoff)
             .ToListAsync(stoppingToken);
 
+        OrderMetrics.ReconciliationStuckOrders.Set(stuckOrders.Count);
+
+        // Prune the "already alerted" set every tick: an order that has since
+        // left PendingStock (for example Inventory came back and its queued
+        // OrderPlaced was consumed) is no longer stuck, so remove it -- the set
+        // must not grow without bound over the process lifetime.
+        var stuckOrderIds = stuckOrders.Select(o => o.Id).ToHashSet();
+        foreach (var alertedId in _givenUpLogged.Keys.ToList())
+        {
+            if (!stuckOrderIds.Contains(alertedId))
+            {
+                _givenUpLogged.TryRemove(alertedId, out _);
+            }
+        }
+
         foreach (var order in stuckOrders)
         {
-            // Don't re-trigger an order within StuckTimeoutSeconds of its last
-            // re-trigger -- caps how often this fires for one order at once
-            // per timeout window, rather than on literally every poll tick.
-            // Confirmed live (Step 10.2's poison-message test, which leaves a
-            // permanently-stuck order behind on purpose): an order that is
-            // STILL stuck after a re-trigger gets re-triggered again once the
-            // next full timeout window elapses, and keeps doing so for as
-            // long as it stays stuck -- this is intended, not a runaway loop.
-            // A message that recovers quickly (the normal case a transient
-            // hiccup) simply leaves PendingStock before the next tick and
-            // stops matching the query above; only a genuinely still-broken
-            // order keeps getting picked up, at this bounded, loudly-logged
-            // cadence -- which is exactly the "high intervention rate is
-            // itself an important result" signal this step's own warning
-            // calls for, not something to suppress.
-            var recentlyRetriggered = await dbContext.OutboxEvents.AnyAsync(
-                e => e.OrderId == order.Id && e.EventType == "OrderPlaced" && e.CreatedAt >= cutoff,
-                stoppingToken);
+            // The attempt count is derived from the OrderPlaced outbox rows:
+            // the row written at creation is the original delivery, and every
+            // further row is one reconciliation re-trigger. Deriving it (rather
+            // than storing a counter) is what makes the bound survive an Order
+            // Service restart -- the rows are in the database, so a restarted
+            // worker resumes from the same count instead of resetting it.
+            var orderPlacedRows = await dbContext.OutboxEvents
+                .Where(e => e.OrderId == order.Id && e.EventType == "OrderPlaced")
+                .ToListAsync(stoppingToken);
 
-            if (recentlyRetriggered)
+            var pastRetriggers = ReconciliationPolicy.PastRetriggers(orderPlacedRows.Count);
+            var recentlyRetriggered = orderPlacedRows.Any(e => e.CreatedAt >= cutoff);
+
+            switch (ReconciliationPolicy.Decide(pastRetriggers, recentlyRetriggered, _options.MaxAttempts))
             {
-                continue;
+                case ReconciliationPolicy.Decision.GivenUp:
+                    // Week 10 box 2: stop re-triggering and surface the order as
+                    // unresolved. The state is deliberately NOT changed (no
+                    // invented Rejected): the order genuinely has no outcome yet,
+                    // and the operator must look at why (Inventory down, a lost
+                    // result, ...). Logged once per process lifetime; the gauge
+                    // above keeps reporting the order as stuck on every tick.
+                    if (_givenUpLogged.TryAdd(order.Id, 0))
+                    {
+                        OrderMetrics.ReconciliationGivenUp.Inc();
+                        _logger.LogError(
+                            "Reconciliation: order {OrderId} still PendingStock after {Attempts} re-triggers (age {Age}); giving up and surfacing as unresolved",
+                            order.Id, pastRetriggers, DateTime.UtcNow - order.RequestAcceptedAt);
+                    }
+                    break;
+
+                case ReconciliationPolicy.Decision.ReTrigger:
+                    OrderMetrics.ReconciliationRetriggers.Inc();
+                    _logger.LogWarning(
+                        "Reconciliation: order {OrderId} stuck in PendingStock for over {Timeout} (accepted {RequestAcceptedAt}); re-publishing OrderPlaced (re-trigger {Attempt}/{MaxAttempts})",
+                        order.Id, stuckTimeout, order.RequestAcceptedAt, pastRetriggers + 1, _options.MaxAttempts);
+
+                    dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
+                    await dbContext.SaveChangesAsync(stoppingToken);
+                    break;
+
+                case ReconciliationPolicy.Decision.RecentlyReTriggered:
+                    // Within StuckTimeoutSeconds of the last re-trigger -- wait
+                    // for the next full timeout window before acting again.
+                    break;
             }
-
-            _logger.LogWarning(
-                "Reconciliation: order {OrderId} stuck in PendingStock for over {Timeout} (accepted {RequestAcceptedAt}); re-publishing OrderPlaced",
-                order.Id, stuckTimeout, order.RequestAcceptedAt);
-
-            dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
-            await dbContext.SaveChangesAsync(stoppingToken);
         }
     }
 }

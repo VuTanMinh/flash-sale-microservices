@@ -61,4 +61,19 @@ public class OutboxEvent
         Published = true;
         PublishedAt = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Week 10 box 2: re-queue an already-published result so
+    /// OutboxPublisherWorker sends it again, byte for byte (same payload, same
+    /// MessageId). Used when Order Service re-triggers an OrderPlaced for an
+    /// order whose result was published but never reached it (dead-lettered and
+    /// purged, most likely): re-sending the *stored* result preserves the
+    /// outcome instead of inventing a new one or deducting stock a second time.
+    /// PublishedAt is cleared so the next MarkPublished re-stamps the re-send.
+    /// </summary>
+    public void MarkForRepublish()
+    {
+        Published = false;
+        PublishedAt = null;
+    }
 }

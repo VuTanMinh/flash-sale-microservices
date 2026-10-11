@@ -33,4 +33,23 @@ public static class OrderMetrics
         "flashsale_orders_outcome_total",
         "Order state transitions applied by this service's consumers.",
         new CounterConfiguration { LabelNames = ["outcome"] });
+
+    /// <summary>
+    /// Reconciliation metrics (Week 10 box 2). A counter per action plus a
+    /// gauge of the current backlog: the two counters answer "did the safety
+    /// net fire, and did it give up on anything?", while the gauge answers
+    /// "how many orders are stuck right now?" -- the number an operator alerts
+    /// on, rather than the cumulative history the counters accumulate.
+    /// </summary>
+    public static readonly Counter ReconciliationRetriggers = Metrics.CreateCounter(
+        "flashsale_reconciliation_retriggers_total",
+        "OrderPlaced re-publishes issued by ReconciliationWorker for stuck PendingStock orders.");
+
+    public static readonly Counter ReconciliationGivenUp = Metrics.CreateCounter(
+        "flashsale_reconciliation_given_up_total",
+        "Stuck PendingStock orders ReconciliationWorker stopped re-triggering after MaxAttempts.");
+
+    public static readonly Gauge ReconciliationStuckOrders = Metrics.CreateGauge(
+        "flashsale_reconciliation_stuck_orders",
+        "Orders currently PendingStock past the reconciliation timeout.");
 }
