@@ -216,8 +216,18 @@ incident, so the same mistake cannot repeat. These rules are as binding as
   out-of-order completion (TP-M02, `scripts/verify-delivery-ordering.ps1`).
 - Week 9 box 3 is ticked: report sections plus `scripts/verify-delivery-report.ps1`
   (TP-M03). Week 9 milestone W09 is closed.
-- **Next box:** Week 10 box 1, "Verify bounded transient retry and
-  poison/exhausted messages reaching the correct service DLQ."
+- Week 10 box 1 is ticked: bounded retry, poison and exhausted messages to
+  the correct service DLQ (TP-F01, `scripts/verify-failures.ps1`).
+- Week 10 box 2 is ticked: bounded reconciliation with an alert and metrics,
+  and Inventory re-sends a stored result (TP-F02,
+  `scripts/verify-reconciliation.ps1`).
+- Order Service loads its certificate with `EphemeralKeySet`, so no admin
+  rights are needed (eb28f0a).
+- Queue counts in `verify-failures.ps1` come from `rabbitmqctl`, not from
+  the management API statistics, which lag. Use the same approach in any new
+  verifier that waits for a queue to empty.
+- **Next box:** Week 10 box 3, "Write Failure Handling and Recovery plus
+  supported/unsupported failure modes."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
