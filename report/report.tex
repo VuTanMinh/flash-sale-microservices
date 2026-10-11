@@ -850,12 +850,12 @@ Failure & Handling & Verification \\
 \midrule
 Client retries the same request (also concurrently) & \texttt{Idempotency-Key}: same body returns the original order, different body returns 409; a lost unique-index race is answered as a replay & Verified: TP-A03--A05 (W05) \\
 Broker redelivers a message & Inbox (unique \texttt{MessageId}) in the same transaction; ack after commit & Unit tests pass (TP-E03); live: TP-M01 (W09) \\
-Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Designed; TP-M02 (W09) \\
-Crash after commit, before ack & Redelivery hits the Inbox and is acked & Designed; TP-M01 (W09) \\
+Same order arrives as a new message & Redis \texttt{DUPLICATE}; unique \texttt{OrderId} on Inventory Outbox; guarded state machine & Verified: TP-M02 (W09) \\
+Crash after commit, before ack & Redelivery hits the Inbox and is acked & Verified: TP-M01 (W09) \\
 Broker unreachable while publishing & Outbox row stays unpublished; publisher retries; consumers reconnect every 5\,s & Verified: TP-O01, TP-O02 (W06) \\
 PostgreSQL fails after Redis reserved & Not acked: retried, then dead-lettered; a retry or replay gets Lua \texttt{DUPLICATE} and writes the missing result once & Verified: TP-I03 (W07) \\
-Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Designed; TP-F01 (W10) \\
-Poison message or state conflict & Straight to the service's DLQ, no retry & Designed; TP-F01 (W10) \\
+Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Verified: TP-F01 (W10) \\
+Poison message or state conflict & Straight to the service's DLQ, no retry & Verified: TP-F01 (W10) \\
 Order stuck in \texttt{PendingStock} & Reconciliation job re-publishes \texttt{OrderPlaced} after a timeout (safety net only) & Designed; TP-F02 (W10) \\
 Overload & Nginx rate limit, application concurrency limit, bounded queue; reject before creating an order & Not built; TP-L01--L02 (W12) \\
 \bottomrule
@@ -2036,70 +2036,112 @@ explicit throughout: this is bounded retry, a DLQ, and a safety-net job --
 not Redis Cluster failover, Postgres replication failover, or multi-region,
 none of which are in scope (docs/00-scope-lock.md).
 
-\subsection{Bounded retry with backoff (Step 10.1)}
+\subsection{Classify, then retry a bounded number of times}
 
-\texttt{Volo.Abp.EventBus.RabbitMQ} was checked, per this step's own
-instruction not to assume -- it doesn't apply at all, since this project
-doesn't use it (see \texttt{RabbitMqOutboxPublisher}'s Week 6 reasoning:
-publisher confirms and a non-enveloped message format neither this package
-nor its consumer counterpart accommodate). Retry is implemented directly in
-both consumers, reusing \texttt{OutboxPublisherWorker}'s own schedule
-(1s, 2s, 4s; 4 total attempts) for consistency: on a processing exception,
-log a warning and retry in-process, up to \texttt{MaxAttempts}; on the final
-failure, log an error and let the exception propagate to the broker-facing
-catch block, which nacks without requeue. Retrying the whole processing call
-(not just its riskiest sub-step) is safe because both processors are already
-idempotent (Week 9) -- a retry that lands after an earlier attempt actually
-succeeded just sees \texttt{AlreadyProcessed} and returns cleanly.
+A failure is classified before it is retried
+(\texttt{docs/failure-handling.md}). There are three classes:
+\begin{itemize}
+  \item \textbf{Transient}, such as a brief database outage or a missing
+    queue: retried.
+  \item \textbf{Permanent (poison)}: never retried.
+  \item \textbf{Business rejection}, a genuine state conflict: a decision,
+    not something to retry.
+\end{itemize}
+Retry is implemented directly in each of the four consumers. These are
+Inventory's \texttt{OrderPlacedConsumer}, Order Service's
+\texttt{StockResultConsumer} and \texttt{OrderProcessedConsumer}, and the
+Process Worker's \texttt{StockReservedConsumer}. ABP's RabbitMQ event bus is
+not used (Week 6).
 
-One exception is deliberately \emph{not} retried:
-\texttt{InvalidOrderStateTransitionException} on the Order Service side is a
-genuine, deterministic conflict (the order's actual state disagrees with
-what a message claims) -- retrying it three times with backoff would
-reproduce the identical exception three times for no benefit, so
-\texttt{StockResultConsumer.ProcessWithRetryAsync} catches and rethrows it
-immediately, skipping the retry loop entirely.
+All four use the same in-process ladder as \texttt{OutboxPublisherWorker}:
+four attempts, with 1\,s, 2\,s and 4\,s waits. After the fourth attempt the
+consumer logs an error and nacks the message without requeue, so the message
+is dead-lettered with its body intact rather than looping forever. Retrying
+the whole processing call is safe because every processor is idempotent
+(Week 9): a retry that follows an attempt which had in fact succeeded sees
+the Inbox row and returns cleanly. Only a PostgreSQL unique violation (23505)
+counts as ``a concurrent duplicate already recorded this''. Every other
+database error is retried and then dead-lettered.
 
-\subsection{Dead-Letter Queue (Step 10.2)}
+The two non-transient classes skip the ladder entirely:
+\begin{itemize}
+  \item \textbf{Business rejection.} \texttt{InvalidOrderStateTransitionException}
+    is deterministic, so retrying it would reproduce the same conflict four
+    times. It is nacked to the DLQ at once.
+  \item \textbf{Permanent (poison).} Each consumer validates the message's
+    identity fields straight after deserialization, before any Redis, SQL or
+    Inbox work. An empty \texttt{MessageId}, \texttt{OrderId} or
+    \texttt{ProductId} is permanent (\texttt{OrderProcessed} carries no
+    \texttt{ProductId}). So is an \texttt{OrderPlaced} whose
+    \texttt{Quantity} is not 1, because the reservation scope is exactly one
+    unit. Such a message is nacked without requeue after one attempt, and
+    the consumer logs \texttt{Invalid <Event> message: <Field> is empty;
+    routing to DLQ}.
+\end{itemize}
 
-Each of the three main queues (\texttt{OrderPlaced}, \texttt{StockReserved},
-\texttt{StockRejected}) declares an \texttt{x-dead-letter-exchange} argument
-pointing at a new \texttt{flashsale.dlx} exchange, distinct from the
-ordinary \texttt{flashsale.order.exchange} every normal message flows
-through. A message nacked without requeue (retries exhausted, or a
-non-retryable conflict) is automatically re-published by RabbitMQ to that
-exchange with its original routing key preserved, landing in a matching DLQ
-(\texttt{OrderPlaced.dlq}, etc.) bound with that same routing key. Declaring
-these arguments required deleting and recreating the three pre-existing
-queues first -- RabbitMQ refuses to redeclare a queue with different
-arguments, and the queues from Weeks 6--9 had none.
+The validation fixed a real bug, not just a gap. Before it, an
+\texttt{OrderPlaced} with an empty \texttt{MessageId} was processed as if it
+were real. The Inbox then recorded \texttt{Guid.Empty}, so a
+\emph{second, different} invalid message was wrongly skipped as ``already
+processed''.
 
-\paragraph{Verified with a real poison message, not a hypothetical one.} A
-temporary fault injection (removed before this commit) made
-\texttt{OrderPlacedProcessor} throw unconditionally for one specific test
-product id. An order placed against that id produced exactly the expected
-sequence, captured directly from the running service's own logs:
+\subsection{A dead-letter queue per service, and replay}
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[WRN] ...(attempt 1/4); retrying in 00:00:01
-[WRN] ...(attempt 2/4); retrying in 00:00:02
-[WRN] ...(attempt 3/4); retrying in 00:00:04
-[ERR] ...after 4 attempts; routing to DLQ
-\end{Verbatim}
+Every main queue declares \texttt{x-dead-letter-exchange=flashsale.dlx}.
+That exchange routes each dead letter into exactly one service's DLQ:
+\begin{itemize}
+  \item \texttt{OrderPlaced.dlq} for Inventory;
+  \item \texttt{StockReserved.dlq}, \texttt{StockRejected.dlq} and
+    \texttt{OrderProcessed.dlq} for Order Service;
+  \item \texttt{ProcessWorker.StockReserved.dlq} for the Worker.
+\end{itemize}
+The Worker's queue also rewrites the dead-letter routing key.
+\texttt{flashsale.dlx} is a direct exchange shared by all three services.
+Without the rewritten key, a Worker dead letter (original key
+\texttt{StockReserved}) would be copied into Order Service's
+\texttt{StockReserved.dlq} as well. The rewrite keeps each DLQ limited to its
+own service's failures.
 
-\texttt{rabbitmqctl list\_queues} confirmed \texttt{OrderPlaced.dlq} held
-exactly one message afterward, and the RabbitMQ management API's own message
-inspection showed the dead-lettered message's \texttt{x-death} header --
-proof of the mechanism, not just its absence of errors:
+A DLQ repairs nothing by itself, so it has a documented owner and replay
+procedure:
+\begin{enumerate}
+  \item Inspect the dead letter. Its \texttt{x-death} header names the source
+    queue and the reason.
+  \item Fix the root cause.
+  \item Republish the message unchanged, so it keeps the same
+    \texttt{MessageId}.
+\end{enumerate}
+The Inbox, and \texttt{reserve.lua}'s \texttt{DUPLICATE} answer, make the
+replay apply exactly once.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-"x-death": [{"count":1,"exchange":"flashsale.order.exchange",
-             "queue":"OrderPlaced","reason":"rejected", ...}]
-\end{Verbatim}
+\paragraph{Verification (TP-F01).} \texttt{scripts/verify-failures.ps1}
+runs all three services on a throwaway broker and Redis. For each of the four
+consumers it checks four things:
+\begin{itemize}
+  \item \textbf{Transient fault.} A revoked Inbox \texttt{INSERT}, or a
+    deleted queue for the Worker, is restored inside the window. The message
+    is applied once and nothing is dead-lettered.
+  \item \textbf{Exhausted retries.} A fault that outlasts the ladder produces
+    exactly four attempts, about 1\,s, 2\,s and 4\,s apart according to the
+    log timestamps. The message is then in that service's DLQ, with
+    \texttt{x-death} reason \texttt{rejected}. The main queue is empty and
+    every other DLQ is unchanged.
+  \item \textbf{Poison.} Malformed JSON, an empty \texttt{MessageId} (two
+    different such messages) and \texttt{Quantity}~=~2 are each
+    dead-lettered after one attempt. None leaves an Inbox row or a Redis
+    effect.
+  \item \textbf{Replay.} The dead letter, republished unchanged, applies
+    exactly once.
+\end{itemize}
 
-The DLQ was purged immediately after capturing this evidence, per this
-step's own warning against letting a poison message contaminate later
-weeks' measurements.
+The fresh-clone run passed all 74 checks
+(\texttt{tests/evidence/20261011T084521Z-failures.log}). A negative control
+disabled the Inventory empty-\texttt{MessageId} check. Five checks then
+failed and the script exited 1
+(saved alongside it as \texttt{...-failures-negative.log}), which shows the
+poison checks have teeth. The Week 9 regressions still pass on the same
+clone: TP-M01 34/34, TP-M02 44/44, and the workflow and stock-result
+verifiers.
 
 \subsection{Timeout handling and reconciliation (Step 10.3)}
 
