@@ -92,6 +92,7 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{amsmath}
 % [H] for the Results chapter's tables: each one belongs to the section that
 % explains it, and LaTeX's default float placement was drifting them a page
@@ -2028,13 +2029,15 @@ rounds. The reviews found and returned:
 \section{Failure Handling and Recovery (Week 10)}
 \label{sec:week10}
 
-Weeks 6--9 made every individual message idempotent. Week 10 makes the
-system tolerate the failures that happen \emph{around} that idempotency --
-a handler that throws, a message nobody can ever process, and an order that
-somehow falls through every other net. Proposal §5's own boundary is kept
-explicit throughout: this is bounded retry, a DLQ, and a safety-net job --
-not Redis Cluster failover, Postgres replication failover, or multi-region,
-none of which are in scope (docs/00-scope-lock.md).
+Weeks 6--9 made every individual message idempotent. Week 10 handles the
+failures \emph{around} that idempotency: a handler that throws, a message
+nobody can ever process, and an order that slips through every other net.
+The mechanisms are bounded retry, a dead-letter queue per service, and a
+reconciliation safety net. The chapter ends with the failure model: which
+failures are verified, which are only designed, and which are not supported.
+Following the teacher brief, payment failure, compensation, Redis Cluster,
+RabbitMQ Cluster, PostgreSQL replication and multi-region deployment are out
+of scope.
 
 \subsection{Classify, then retry a bounded number of times}
 
@@ -2228,22 +2231,88 @@ A fresh-clone run passed all 30 checks
 removed the Inventory re-send. Case A then stayed \texttt{PendingStock} with
 its result never re-sent, and the script exited 1.
 
-\subsection{What's handled and what's explicitly out of scope}
+\subsection{Supported and unsupported failure modes}
 
-Handled by design, each to be re-verified by a test-plan case (TP-O02,
-TP-M01, TP-M02, TP-F01, TP-F02); the earlier manual checks were not saved as
-evidence: a temporarily
-unreachable broker (Weeks 6--7's 5s reconnect loop, unrelated to this
-week's consumer-level retries), a consumer crash mid-processing (Week 9's
-kill test), duplicate message delivery (Weeks 7--9's three idempotency
-layers), and a poison message that can never succeed (this week's DLQ and
-reconciliation tests together). Out of scope, per
-\texttt{docs/00-scope-lock.md} and unchanged by this week's work: Redis
-Cluster failover, Postgres replication failover, and multi-region
-deployment -- none of which this project's single-instance
-Docker Compose infrastructure could exercise even if implemented, and none
-of which bear on the correctness-under-load question the later
-Experimental Design and Results chapters actually measure.
+Table~\ref{tab:failure-modes} is the failure model this system claims. It uses
+four statuses:
+\begin{itemize}
+  \item \textbf{Verified}: a test case with a saved PASS log covers the
+    failure.
+  \item \textbf{Designed}: the mechanism exists in code, but the failure was
+    never injected at that exact point.
+  \item \textbf{Not supported}: a stated gap, not one hidden by wording.
+  \item \textbf{Out of scope}: excluded by the teacher brief.
+\end{itemize}
+The same table is kept in \texttt{docs/failure-handling.md}. The check
+script for this chapter (TP-F03) fails if the two disagree, or if a row
+marked Verified cites a test case that has not passed.
+
+\begin{table}[tbp]
+\centering
+\scriptsize
+\caption{Failure modes, how each is handled, and the evidence behind it.}
+\label{tab:failure-modes}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.6cm}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{1.55cm}>{\raggedright\arraybackslash}p{1.6cm}@{}}
+\toprule
+\# & Failure & Handling & Status & Evidence \\
+\midrule
+F1 & Client retries, also after commit but before the HTTP reply & \texttt{Idempotency-Key} returns the original order; a changed body gets 409 & Verified & TP-A03--A05, TP-A07 \\
+F2 & Outbox write fails with the order write & One transaction: no order, no event & Verified & TP-O01 \\
+F3 & Broker down; queue or binding missing; nack; return & Outbox row stays unpublished and is retried; delivered once after recovery & Verified & TP-O02 \\
+F4 & PostgreSQL write fails after Redis reserved & Retried, then DLQ; replay gets \texttt{DUPLICATE} and writes the result once & Verified & TP-I03, TP-F01 \\
+F5 & Order Service write fails while applying a result & Retried, then DLQ; replay applies it once & Verified & TP-W03, TP-F01 \\
+F6 & Consumer crash after commit, before ack (all four) & Redelivery hits the Inbox; acked as already processed & Verified & TP-M01 \\
+F7 & Duplicate deliveries, concurrent or with a new \texttt{MessageId} & Inbox, Redis \texttt{DUPLICATE}, one result row per order & Verified & TP-M02 \\
+F8 & Completion arrives before the stock result & Requeued with 2/4/8\,s delays; DLQ after 3 requeues & Verified & TP-M02 \\
+F9 & Transient handler fault & Four attempts (1/2/4\,s), then the service's DLQ & Verified & TP-F01 \\
+F10 & Poison: malformed JSON, empty id, \texttt{Quantity} $\neq$ 1 & The service's DLQ after one attempt, no effect & Verified & TP-F01 \\
+F11 & Exhausted message & That service's DLQ only; replayed unchanged, applied once & Verified & TP-F01 \\
+F12 & Published result lost (dead-lettered, DLQ purged) & Reconciliation re-triggers; Inventory re-sends the stored result & Verified & TP-F02 \\
+F13 & Inventory down for a while & Work drains after restart, one outcome per order & Verified & TP-F02 \\
+F14 & Inventory down for good & 3 re-triggers, one Error alert and metrics; stays \texttt{PendingStock} & Verified & TP-F02 \\
+F15 & Order Service restarts while an order is stuck & Attempt count read from the database, not reset & Verified & TP-F02 \\
+F16 & Crash after broker confirm, before the Outbox row is marked & Re-published with the same \texttt{MessageId}; the consumer's Inbox absorbs it & Designed & -- \\
+F17 & PostgreSQL server outage & Same path as F4/F5; tests revoke privileges, never stop the server & Designed & -- \\
+F18 & Redis data loss or restart & Not automatic: re-run warm-up before reopening; persistence not verified & Not supported & -- \\
+F19 & Overload beyond capacity & Nginx, application and queue limits are Week 12 work & Not supported yet & TP-L01, TP-L02 \\
+F20 & Downstream processing fails (\texttt{ProcessingFailed}) & The Process Worker is success-only; no event reaches this state & Out of scope & Brief \\
+F21 & Payment failure and compensation & Not part of the system & Out of scope & Brief \\
+F22 & Redis Cluster, RabbitMQ Cluster, PostgreSQL replication, multi-region & Single instances on one host & Out of scope & Brief \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Reading the table.} Fifteen failure modes are verified. The
+crash-point matrix of the study guide is covered as follows:
+\begin{itemize}
+  \item a crash before or after the accept commit is F1;
+  \item a crash after the SQL effect but before the ack is F6;
+  \item a failure after Redis but before the SQL result is F4 and F12.
+\end{itemize}
+``After the ack, before the effect'' cannot happen, because every consumer
+acks only after its commit. The Week 9 negative control, which acks before
+processing, fails 24 checks (TP-M01).
+
+Two rows are only designed:
+\begin{itemize}
+  \item \textbf{F16.} Absorbing a same-\texttt{MessageId} copy is verified
+    (TP-M01, TP-M02). A crash at exactly that point was not injected.
+  \item \textbf{F17.} Every database fault in these tests was a revoked
+    privilege, not a stopped PostgreSQL server.
+\end{itemize}
+
+Redis data loss (F18) is the main unsupported case. After a Redis loss, the
+warm-up must be repeated before sales reopen (Week 7). Whether Redis
+persistence survives a crash without loss has not been verified.
+
+Two rules hold for every row:
+\begin{itemize}
+  \item No recovery changes an order's state to hide a failure. A stuck order
+    stays \texttt{PendingStock} and is surfaced, never rewritten as
+    \texttt{Rejected}.
+  \item No recovery resets stock or deletes queues. Recovery is always a
+    replay of the original message, or a re-send of a stored result.
+\end{itemize}
 
 \section{Process Worker and Observability (Week 11)}
 \label{sec:week11}

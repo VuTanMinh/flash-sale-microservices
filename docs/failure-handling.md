@@ -226,3 +226,50 @@ The procedure is:
 `scripts/verify-reconciliation.ps1` (test case TP-F02) proves detection,
 cadence, the bound, the alert, the metrics, the known-outcome recovery, and the
 restart behaviour end to end.
+
+## Supported and unsupported failure modes (Week 10 box 3)
+
+This table is the failure model the report states. Each row says how the
+system handles one failure and how strongly that is backed:
+
+- **Verified** means a test case with a saved PASS log covers it.
+- **Designed** means the mechanism exists in code, but the failure was never
+  injected at that exact point.
+- **Not supported** and **Out of scope** are stated limits, not gaps hidden
+  by wording.
+
+| # | Failure | Handling | Status | Evidence |
+|---|---|---|---|---|
+| F1 | Client retries, including after the order commit but before the HTTP reply | `Idempotency-Key`: the same body returns the original order, a changed body gets 409 | Verified | TP-A03–A05, TP-A07 |
+| F2 | The Outbox write fails with the order write | One transaction: no order, no event | Verified | TP-O01 |
+| F3 | Broker down, queue or binding missing, nack, return | The Outbox row stays unpublished and is retried; it is delivered once after recovery | Verified | TP-O02 |
+| F4 | PostgreSQL write fails after Redis reserved | Not acked: retried, then dead-lettered; a replay gets `DUPLICATE` and writes the result once | Verified | TP-I03, TP-F01 A.2 |
+| F5 | Order Service write fails while applying a stock result or completion | Retried, then dead-lettered; a replay applies it once | Verified | TP-W03, TP-F01 B/C |
+| F6 | A consumer crashes after commit, before ack (all four consumers) | Redelivery hits the Inbox and is acked as already processed | Verified | TP-M01 |
+| F7 | Duplicate deliveries, concurrent or with a new `MessageId` | Inbox, Redis `DUPLICATE`, one result row per order | Verified | TP-M02 |
+| F8 | Completion arrives before the stock result | Requeued with a 2/4/8 s delay; dead-lettered after 3 requeues | Verified | TP-M02 |
+| F9 | Transient handler fault | 4 attempts with 1/2/4 s waits, then the service's DLQ | Verified | TP-F01 |
+| F10 | Poison message: malformed JSON, an empty id, or `Quantity` ≠ 1 | That service's DLQ after one attempt, with no effect | Verified | TP-F01 |
+| F11 | Exhausted message | That service's DLQ only; replayed unchanged, applied once | Verified | TP-F01 |
+| F12 | A published result is lost (dead-lettered, DLQ purged) | Reconciliation re-triggers; Inventory re-sends the stored result | Verified | TP-F02 A |
+| F13 | Inventory down for a while | Work drains after restart, one outcome per order | Verified | TP-F02 B |
+| F14 | Inventory down for good | 3 re-triggers, one Error alert and metrics; the order stays `PendingStock` | Verified | TP-F02 C |
+| F15 | Order Service restarts while an order is stuck | The attempt count is read from the database, not reset | Verified | TP-F02 D |
+| F16 | Crash after the broker confirm, before the Outbox row is marked published | The row is published again with the same `MessageId`, and the consumer's Inbox absorbs it. Absorbing a same-`MessageId` copy is verified (TP-M01, TP-M02); the crash at this exact point was not injected | Designed | — |
+| F17 | PostgreSQL server outage | Same path as F4/F5. The tests inject the failure by revoking privileges; stopping the PostgreSQL server itself was not tested | Designed | — |
+| F18 | Redis data loss or restart | Not handled automatically. Warm-up must be re-run before sales reopen; Redis persistence is not verified (`docs/design-decisions.md`) | Not supported | — |
+| F19 | Overload: more requests than capacity | Nginx, application and queue limits are Week 12 work | Not supported yet | TP-L01, TP-L02 (planned) |
+| F20 | Downstream processing fails (`ProcessingFailed`) | The Process Worker is success-only, so no event reaches `ProcessingFailed` | Out of scope | Teacher brief |
+| F21 | Payment failure and compensation | Not part of the system | Out of scope | Teacher brief |
+| F22 | Redis Cluster, RabbitMQ Cluster, PostgreSQL replication, multi-region | Single instances on one host | Out of scope | Teacher brief |
+
+Two rules hold for every row:
+
+- **No row changes an order's state to hide a failure.** A stuck order stays
+  `PendingStock` and is surfaced; it is never rewritten as `Rejected`.
+- **No row resets stock or deletes queues as a repair.** Recovery is a
+  replay of the original message, or a re-send of a stored result.
+
+`scripts/verify-failure-report.ps1` (TP-F03) checks that the report states
+this same model, that every "Verified" row cites a test case marked PASS in
+`docs/test-plan.md`, and that the unsupported rows are listed.
