@@ -226,8 +226,14 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 - Queue counts in `verify-failures.ps1` come from `rabbitmqctl`, not from
   the management API statistics, which lag. Use the same approach in any new
   verifier that waits for a queue to empty.
-- **Next box:** Week 10 box 3, "Write Failure Handling and Recovery plus
-  supported/unsupported failure modes."
+- Week 10 box 3 is ticked: the failure-mode chapter (F1–F22) plus
+  `scripts/verify-failure-report.ps1` (TP-F03). Week 10 milestone W10 is
+  closed.
+- Evidence logs must end with an `Exit code: N` line;
+  `scripts/verify-test-plan.ps1` only accepts a PASS when that line is there.
+- **Next box:** Week 11 box 1, "Verify deterministic successful downstream
+  work and one applied completion result per order under replay, restart,
+  and event reordering."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
