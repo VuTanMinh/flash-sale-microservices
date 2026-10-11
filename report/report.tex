@@ -2386,7 +2386,52 @@ a fresh one per hop as every other event does. A redelivered
 \texttt{StockReserved} therefore regenerates a byte-identical
 \texttt{OrderProcessed}, which Order Service's Week 9 Inbox recognises and
 drops: the idempotency key travels in the message rather than living in a
-store. \unverified{TP-P01}{Week 11}
+store.
+
+\paragraph{A restart defect found and fixed.} The code check found that a
+\emph{graceful} shutdown of the Worker (Ctrl+C, or SIGTERM from
+\texttt{docker stop}) dead-lettered accepted work. Stopping the host cancels
+the processing delay. The cancellation was caught as a failed attempt, the
+retry wait then threw again, and the message was nacked to the DLQ. The
+broker had already pushed every queued message to the Worker, so each of
+those failed the same way. A throwaway prototype with 10 queued orders
+dead-lettered 9 of them on one Ctrl+C. Now a cancellation caused by
+shutdown is not a failed attempt. The message is left unacknowledged, so
+the closing channel returns it to the queue, and one Information line names
+the order. Real failures still take the 1/2/4\,s ladder to the DLQ.
+
+\paragraph{Verification (TP-P01).} \texttt{scripts/verify-worker.ps1} runs
+all three services on a throwaway broker and Redis
+(\texttt{docs/process-worker.md}). It covers seven cases:
+\begin{itemize}
+  \item \textbf{Deterministic success.} With a 500\,ms delay, 5 orders
+    complete. Each Worker duration is at least 500\,ms; the measured values
+    were 517--643\,ms. Each applied completion has
+    \texttt{MessageId = OrderId}.
+  \item \textbf{Replay with the same identity, a duplicate with a new
+    \texttt{MessageId}, and 5 concurrent copies.} The Worker repeats the
+    work, and its attempt counter rises by the number of copies. Order
+    Service still has one completion Inbox row, an unchanged
+    \texttt{CompletedAt}, and no dead letter. Attempts and applied results
+    are counted separately.
+  \item \textbf{Graceful restart (a real Ctrl+C) and a crash.} Each restart
+    happens with 5 orders in flight. The DLQ stays empty and the Worker logs
+    no DLQ routing or error. After the restart, all 5 orders complete with
+    one applied completion each.
+  \item \textbf{Reordering.} A completion that arrives while the order is
+    still \texttt{PendingStock} is requeued, not dead-lettered. It is applied
+    exactly once after the stock result, with
+    \texttt{ConfirmedOrRejectedAt} $\le$ \texttt{CompletedAt}. A late stock
+    result after completion is a no-op.
+\end{itemize}
+
+The fresh-clone run passed all 51 checks
+(\texttt{tests/evidence/20261011T160720Z-worker.log}). With the shutdown fix reverted,
+the Worker logged 5 DLQ routings and 5 errors during shutdown, and the
+script exited 1. The dead-letter count alone was not a reliable signal: the
+reverted Worker's rejections sometimes reached the broker after the channel
+had closed, and those messages were requeued anyway. So the check reads what
+the Worker did, not only where the messages ended up.
 
 \subsection{Correlation IDs across three services (Step 11.2)}
 
