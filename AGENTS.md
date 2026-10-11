@@ -231,9 +231,19 @@ incident, so the same mistake cannot repeat. These rules are as binding as
   closed.
 - Evidence logs must end with an `Exit code: N` line;
   `scripts/verify-test-plan.ps1` only accepts a PASS when that line is there.
-- **Next box:** Week 11 box 1, "Verify deterministic successful downstream
-  work and one applied completion result per order under replay, restart,
-  and event reordering."
+- Week 11 box 1 is ticked: deterministic Worker work and one applied
+  completion under replay, restart and reordering (TP-P01,
+  `scripts/verify-worker.ps1`). A graceful Worker shutdown now requeues
+  in-flight orders instead of dead-lettering them (3303954).
+- A verifier must never call `FreeConsole` in its own process (send Ctrl+C
+  from a helper process), and `Check` counts before it prints, so a broken
+  console cannot turn a failure into a pass.
+- **The code still has four order states** (`OrderState.cs`: PendingStock,
+  Confirmed, Rejected, Completed). The six-state decision of 2026-10-01 is
+  not yet in the code; that is Week 11 box 2.
+- **Next box:** Week 11 box 2, "Implement/verify the agreed Processing
+  state/history and document the success-only interpretation of
+  ProcessingFailed."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
