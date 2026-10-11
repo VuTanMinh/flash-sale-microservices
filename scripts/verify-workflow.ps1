@@ -121,8 +121,9 @@ Check "outcome mapping: RESERVED/DUPLICATE -> StockReserved, REJECTED/NOT_OPEN -
     $proc -match 'ReservationResult\.Reserved => "StockReserved"' -and $proc -match 'ReservationResult\.Duplicate => "StockReserved"' -and
     $proc -match 'ReservationResult\.Rejected => "StockRejected"' -and $proc -match 'ReservationResult\.NotOpen => "StockRejected"' -and
     $hp.Contains("RESERVED (") -and $rj.Contains("REJECTED (nothing deducted)") -and $rj.Contains("NOT_OPEN (nothing deducted)"))
-Check "step 14: Outbox row (only if none for the OrderId) and Inbox row in one SaveChangesAsync" (
-    $proc.Contains("OutboxEvents.AnyAsync(e => e.OrderId == orderPlaced.OrderId)") -and (Before $proc "OutboxEvents.Add(" "SaveChangesAsync") -and
+Check "step 14: Outbox row (only if none for the OrderId; an already-published one is re-sent) and Inbox row in one SaveChangesAsync" (
+    $proc.Contains("OutboxEvents.FirstOrDefaultAsync(e => e.OrderId == orderPlaced.OrderId)") -and $proc.Contains("existingResult.MarkForRepublish()") -and
+    (Before $proc "OutboxEvents.Add(" "SaveChangesAsync") -and
     (Before $proc "ProcessedMessages.Add(" "SaveChangesAsync") -and ([regex]::Matches($proc, 'SaveChangesAsync\(').Count -eq 1) -and
     $hp.Contains("one transaction: Outbox row StockReserved (if none for this OrderId) + Inbox row") -and
     $rj.Contains("one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row"))

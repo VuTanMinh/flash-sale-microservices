@@ -856,7 +856,7 @@ Broker unreachable while publishing & Outbox row stays unpublished; publisher re
 PostgreSQL fails after Redis reserved & Not acked: retried, then dead-lettered; a retry or replay gets Lua \texttt{DUPLICATE} and writes the missing result once & Verified: TP-I03 (W07) \\
 Transient handler error & Bounded retry (4 attempts: 1\,s, 2\,s, 4\,s), then the service's DLQ & Verified: TP-F01 (W10) \\
 Poison message or state conflict & Straight to the service's DLQ, no retry & Verified: TP-F01 (W10) \\
-Order stuck in \texttt{PendingStock} & Reconciliation job re-publishes \texttt{OrderPlaced} after a timeout (safety net only) & Designed; TP-F02 (W10) \\
+Order stuck in \texttt{PendingStock} & Reconciliation job re-publishes \texttt{OrderPlaced} after a timeout, at most 3 times, then an alert; Inventory re-sends a stored result (safety net only) & Verified: TP-F02 (W10) \\
 Overload & Nginx rate limit, application concurrency limit, bounded queue; reject before creating an order & Not built; TP-L01--L02 (W12) \\
 \bottomrule
 \end{tabular}
@@ -2143,42 +2143,90 @@ poison checks have teeth. The Week 9 regressions still pass on the same
 clone: TP-M01 34/34, TP-M02 44/44, and the workflow and stock-result
 verifiers.
 
-\subsection{Timeout handling and reconciliation (Step 10.3)}
+\subsection{Reconciliation: stuck orders, a bound and an alert}
 
-\texttt{ReconciliationWorker} (another \texttt{IHostedService}, Order
-Service) polls for orders in \texttt{PendingStock} past a configurable
-timeout and re-publishes a fresh \texttt{OrderPlaced} outbox row for each
-one found -- nothing more. It cannot do anything more: Order Service has no
-access to Inventory Service's own schema (docs/erd.md's schema-per-service
-boundary), so the only lever this service has over its own data is asking
-the pipeline to run again from the top. That re-ask is safe precisely
-because Weeks 7--9 already made every downstream step idempotent (Redis's
-order-level dedup, Inventory Service's ensure-exists outbox, this service's
-own Inbox) -- a genuine duplicate in-flight message converges to the same
-one-time effect as the original rather than double-applying.
+Retries and the DLQ deal with \emph{messages}. Reconciliation is the safety
+net for \emph{orders}: it finds an order that is still
+\texttt{PendingStock} long after it should have been answered, and acts in a
+bounded, visible way. It does not replace the Outbox, retry or the DLQ, and
+it never changes an order's state to hide a problem
+(\texttt{docs/failure-handling.md}).
 
-Every intervention is logged at Warning, matching this step's own explicit
-warning against a silent second path that masks real Outbox/retry/DLQ bugs.
-The stuck order left behind by Step 10.2's poison-message test (its
-\texttt{OrderPlaced} was permanently dead-lettered, so it never left
-\texttt{PendingStock}) served as a real, unplanned test case for this
-worker rather than a synthetic one:
+\paragraph{Detection and cadence.} \texttt{ReconciliationWorker} (Order
+Service) polls on a configurable interval (30\,s by default). It looks for
+orders still \texttt{PendingStock} whose request was accepted longer ago than
+a configurable timeout (also 30\,s by default). For each one it inserts
+a fresh \texttt{OrderPlaced} Outbox row, which re-runs the normal pipeline. It
+acts on an order at most once per timeout window, so a stuck order is not
+re-triggered on every poll.
 
-\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
-[WRN] Reconciliation: order 15b2781f-... stuck in PendingStock for over
-      00:00:30 (accepted ...); re-publishing OrderPlaced
-\end{Verbatim}
+\paragraph{The bound and the alert.} The attempt count comes from the order's
+own \texttt{OrderPlaced} Outbox rows: the first row is the original delivery,
+and every later row is one re-trigger. Because the count lives in the
+database, it survives an Order Service restart. An order is given up only
+when two things are both true: the count has reached \texttt{MaxAttempts}
+(3), and the last re-trigger has had its full window to work. A given-up
+order:
+\begin{itemize}
+  \item is no longer re-triggered;
+  \item produces one Error log line naming the order, its attempts and its
+    age;
+  \item stays \texttt{PendingStock}, because no \texttt{Rejected} is invented;
+  \item is counted in three Prometheus metrics: re-triggers, orders given
+    up, and orders currently stuck.
+\end{itemize}
 
-\unverified{TP-F02}{Week 10} This fired again on the following poll tick, since the order was still
-genuinely stuck (the fault injection was still active) -- confirmed live,
-this is the intended behavior, not a runaway loop: an order that recovers
-quickly leaves \texttt{PendingStock} before the next tick and simply stops
-matching the query; only a still-broken order keeps getting picked up, at a
-bounded, loudly-logged cadence. Removing the fault injection and letting the
-next re-trigger run its course resolved the order to \texttt{Rejected}
-(the test product genuinely has no Redis stock) -- demonstrated end to end,
-not asserted: detection, intervention, and eventual resolution, all visible
-in the same log stream.
+\paragraph{Recovering a known outcome.} Before Week 10, a re-trigger often
+could not recover anything. Suppose Inventory had already published a result
+and Order Service lost it, for example because it was dead-lettered and the
+DLQ was purged. Inventory then saw that a result row existed and wrote
+nothing, so the order stayed stuck while being re-triggered forever. Now a
+re-triggered \texttt{OrderPlaced} for an order whose result was already
+published re-sends that \emph{same stored result}: the same payload and the
+same \texttt{MessageId}. There is no second Lua deduction
+(\texttt{reserve.lua} answers \texttt{DUPLICATE}) and no new row. Order
+Service's Inbox applies the result once, or ignores it if it was already
+applied. A reserved order therefore stays reserved and is never rewritten as
+out of stock.
+
+The operator procedure is in \texttt{docs/failure-handling.md}: inspect the
+order, its Outbox rows and the DLQs; fix the cause; then replay the dead
+letter unchanged. Stock is never reset and queues are never deleted as a
+``repair''.
+
+\paragraph{Verification (TP-F02).} \texttt{scripts/verify-reconciliation.ps1}
+runs all three services with short timeouts (5\,s, a 2\,s poll, a bound of
+3). It covers six cases:
+\begin{itemize}
+  \item \textbf{A, lost result.} A reserved order's \texttt{StockReserved} is
+    dead-lettered and the DLQ purged. Reconciliation re-triggers it, and
+    Inventory re-sends the stored result, whose \texttt{PublishedAt} is
+    re-stamped after the purge. The order ends \texttt{Completed}, with one
+    deduction, one result row and the \emph{original} result
+    \texttt{MessageId}.
+  \item \textbf{B, transient outage.} Inventory is stopped, three orders are
+    placed, and only Inventory is restarted. All three drain to
+    \texttt{Completed} with one deduction each, and none is
+    \texttt{Rejected}.
+  \item \textbf{C, permanent fault.} With Inventory kept down, the order is
+    re-triggered exactly three times. The give-up Error is logged exactly
+    once, and the metrics read 3 re-triggers, 1 given up and 1 stuck. The
+    order stays \texttt{PendingStock}.
+  \item \textbf{D, Order Service restart.} The restarted service resumes from
+    the stored count. It stops at the bound and does not start again from
+    zero.
+  \item \textbf{E, no false positive.} A normally completed order is never
+    re-triggered.
+  \item \textbf{F, outcome preserved.} When Inventory returns, the given-up
+    orders from C and D complete with exactly one result each. The stuck
+    gauge returns to 0, and the stock is conserved: 20 units minus 7 orders
+    leaves 13.
+\end{itemize}
+
+A fresh-clone run passed all 30 checks
+(\texttt{tests/evidence/20261011T102304Z-reconciliation.log}). A negative control
+removed the Inventory re-send. Case A then stayed \texttt{PendingStock} with
+its result never re-sent, and the script exited 1.
 
 \subsection{What's handled and what's explicitly out of scope}
 
