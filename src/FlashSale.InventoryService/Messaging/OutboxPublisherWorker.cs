@@ -66,6 +66,8 @@ public class OutboxPublisherWorker : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<InventoryServiceDbContext>();
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxMessagePublisher>();
 
+        await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
+
         var pending = await dbContext.OutboxEvents
             .Where(e => !e.Published)
             .OrderBy(e => e.CreatedAt)
@@ -82,6 +84,23 @@ public class OutboxPublisherWorker : BackgroundService
                 await dbContext.SaveChangesAsync(stoppingToken);
             }
         }
+
+        await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
+    }
+
+    /// <summary>
+    /// Week 11 (TP-P04): the Outbox backlog as Prometheus gauges -- every
+    /// unpublished row (not just this poll's batch of 50) and the age of the
+    /// oldest one in seconds (0 when the Outbox is empty). Refreshed at the
+    /// start and end of every poll.
+    /// </summary>
+    private static async Task UpdateBacklogGaugesAsync(InventoryServiceDbContext dbContext, CancellationToken stoppingToken)
+    {
+        var unpublished = dbContext.OutboxEvents.Where(e => !e.Published);
+        var count = await unpublished.CountAsync(stoppingToken);
+        var oldest = count == 0 ? (DateTime?)null : await unpublished.MinAsync(e => (DateTime?)e.CreatedAt, stoppingToken);
+        InventoryMetrics.Unpublished.Set(count);
+        InventoryMetrics.OldestUnpublishedAgeSeconds.Set(oldest is null ? 0 : Math.Max(0, (DateTime.UtcNow - oldest.Value).TotalSeconds));
     }
 
     private async Task<bool> TryPublishWithRetryAsync(

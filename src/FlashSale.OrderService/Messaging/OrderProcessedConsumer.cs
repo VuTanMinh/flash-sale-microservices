@@ -107,6 +107,8 @@ public class OrderProcessedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Week 11 (TP-P04): export this consumer's metric series at 0 from start-up.
+        ConsumerMetrics.Initialize("OrderProcessed", requeuesEarly: true);
         var factory = new ConnectionFactory
         {
             HostName = _options.Connections.Default.HostName,
@@ -245,6 +247,7 @@ public class OrderProcessedConsumer : BackgroundService
             if (invalidField is not null)
             {
                 _logger.LogError("Invalid OrderProcessed message: {Field} is empty; routing to DLQ", invalidField);
+                ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -287,6 +290,7 @@ public class OrderProcessedConsumer : BackgroundService
                         // runs once the retry is confirmed and the completion
                         // cannot be lost; a throw lands in the generic catch
                         // below and dead-letters the original loudly instead.
+                        ConsumerMetrics.RequeuedEarly.WithLabels("OrderProcessed").Inc();
                         await RequeueForRetryAsync(eventArgs, orderProcessed, nextAttempt);
                         await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
                         return;
@@ -295,6 +299,7 @@ public class OrderProcessedConsumer : BackgroundService
                     _logger.LogError(
                         "OrderProcessed {MessageId} for order {OrderId} is still early after {MaxAttempts} attempts; the order is still {State}; routing to DLQ",
                         orderProcessed.MessageId, orderProcessed.OrderId, RequeueDelays.Length, OrderState.PendingStock);
+                    ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "exhausted").Inc();
                     await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                     return;
                 case ResultProcessingOutcome.OrderNotFound:
@@ -307,6 +312,7 @@ public class OrderProcessedConsumer : BackgroundService
                     // MessageId from OrderId, so a redelivered StockReserved
                     // produces the identical completion message and the Week 9
                     // Inbox recognises it here.
+                    ConsumerMetrics.Duplicates.WithLabels("OrderProcessed").Inc();
                     _logger.LogInformation(
                         "OrderProcessed {MessageId} for order {OrderId} already processed; acking as no-op",
                         orderProcessed.MessageId, orderProcessed.OrderId);
@@ -324,11 +330,13 @@ public class OrderProcessedConsumer : BackgroundService
             // to the DLQ, loudly, exactly as StockResultConsumer treats the
             // same class of conflict.
             _logger.LogError(ex, "Order state conflict processing a completion event; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "conflict").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process completion event after retries; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
     }
@@ -361,6 +369,7 @@ public class OrderProcessedConsumer : BackgroundService
                 }
 
                 var delay = RetryDelays[attempt - 1];
+                ConsumerMetrics.Retries.WithLabels("OrderProcessed").Inc();
                 _logger.LogWarning(
                     ex,
                     "Failed to process OrderProcessed {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",

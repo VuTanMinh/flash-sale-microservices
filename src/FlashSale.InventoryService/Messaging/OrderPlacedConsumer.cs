@@ -78,6 +78,9 @@ public class OrderPlacedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Week 11 (TP-P04): export this consumer's metric series at 0 from start-up.
+        ConsumerMetrics.Initialize("OrderPlaced");
+        InventoryMetrics.Initialize();
         var factory = new ConnectionFactory
         {
             HostName = _options.Connections.Default.HostName,
@@ -186,6 +189,7 @@ public class OrderPlacedConsumer : BackgroundService
             if (invalidField is not null)
             {
                 _logger.LogError("Invalid OrderPlaced message: {Field} is empty; routing to DLQ", invalidField);
+                ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -198,6 +202,7 @@ public class OrderPlacedConsumer : BackgroundService
             if (orderPlaced.Quantity != 1)
             {
                 _logger.LogError("Invalid OrderPlaced message: Quantity must be 1; routing to DLQ");
+                ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -215,6 +220,7 @@ public class OrderPlacedConsumer : BackgroundService
 
             if (outcome == OrderPlacedProcessingOutcome.AlreadyProcessed)
             {
+                ConsumerMetrics.Duplicates.WithLabels("OrderPlaced").Inc();
                 _logger.LogInformation(
                     "OrderPlaced {MessageId} for order {OrderId} already processed; acking as no-op",
                     orderPlaced.MessageId, orderPlaced.OrderId);
@@ -233,6 +239,7 @@ public class OrderPlacedConsumer : BackgroundService
             // x-dead-letter-exchange argument, Step 10.2) instead of looping
             // it back onto this same queue forever.
             _logger.LogError(ex, "Failed to process OrderPlaced message; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
     }
@@ -275,6 +282,7 @@ public class OrderPlacedConsumer : BackgroundService
                 }
 
                 var delay = RetryDelays[attempt - 1];
+                ConsumerMetrics.Retries.WithLabels("OrderPlaced").Inc();
                 _logger.LogWarning(
                     ex,
                     "Failed to process OrderPlaced {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",

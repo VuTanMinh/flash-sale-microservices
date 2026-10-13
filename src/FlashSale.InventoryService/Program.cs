@@ -22,6 +22,7 @@ public class Program
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", "FlashSale.InventoryService")
             // JSON file sink / plain console -- see Order Service's Program.cs
             // for the full reasoning (Week 11, Step 11.3). Identical on all
             // three services so one log-reading tool works across the whole

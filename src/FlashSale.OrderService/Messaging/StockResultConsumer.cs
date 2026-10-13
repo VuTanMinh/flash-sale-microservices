@@ -73,6 +73,8 @@ public class StockResultConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Week 11 (TP-P04): export this consumer's metric series at 0 from start-up.
+        ConsumerMetrics.Initialize("StockResult");
         var factory = new ConnectionFactory
         {
             HostName = _options.Connections.Default.HostName,
@@ -187,6 +189,7 @@ public class StockResultConsumer : BackgroundService
             if (invalidField is not null)
             {
                 _logger.LogError("Invalid {EventType} message: {Field} is empty; routing to DLQ", eventType, invalidField);
+                ConsumerMetrics.DeadLettered.WithLabels("StockResult", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -216,6 +219,7 @@ public class StockResultConsumer : BackgroundService
                     _logger.LogWarning("Received a result for unknown order {OrderId}; acking without action", orderId);
                     break;
                 case ResultProcessingOutcome.AlreadyProcessed:
+                    ConsumerMetrics.Duplicates.WithLabels("StockResult").Inc();
                     _logger.LogInformation(
                         "{EventType} {MessageId} for order {OrderId} already processed; acking as no-op",
                         eventType, messageId, orderId);
@@ -250,6 +254,7 @@ public class StockResultConsumer : BackgroundService
             // can't fix. Logged loudly and routed to the DLQ (Step 10.2) for
             // manual inspection rather than silently dropped or retried forever.
             _logger.LogError(ex, "Order state conflict processing a result event; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("StockResult", "conflict").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
         catch (Exception ex)
@@ -259,6 +264,7 @@ public class StockResultConsumer : BackgroundService
             // either). Nack without requeue routes it to the DLQ instead of
             // looping it back onto this same queue forever.
             _logger.LogError(ex, "Failed to process result event after retries; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("StockResult", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
     }
@@ -303,6 +309,7 @@ public class StockResultConsumer : BackgroundService
                 }
 
                 var delay = RetryDelays[attempt - 1];
+                ConsumerMetrics.Retries.WithLabels("StockResult").Inc();
                 _logger.LogWarning(
                     ex,
                     "Failed to process {EventType} {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",

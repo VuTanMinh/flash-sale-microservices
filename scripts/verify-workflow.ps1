@@ -287,7 +287,7 @@ SELECT concat_ws('|',
         Check "A step 13: Redis deducted one unit and recorded the order" ((Redis "GET", "inventory:$p") -eq "0" -and (Redis "SISMEMBER", "processed:$p", $idA) -eq "1")
         $invLog = Log "FlashSale.InventoryService"; $wrkLog = Log "FlashSale.ProcessWorker"; $ordLog = Log "FlashSale.OrderService"
         Check "A steps 10-13: Inventory logged the reservation as Reserved" ($invLog.Contains("OrderPlaced $idA for product $p -> Reserved"))
-        Check "A steps 24-26: Process Worker received StockReserved and published OrderProcessed" (Before $wrkLog "Received StockReserved for order $idA" "Order $idA processed in")
+        Check "A steps 24-26: Process Worker received StockReserved and published OrderProcessed" (Before $wrkLog " for order $idA; starting downstream processing" "Order $idA processed in")
         Check "A: Order Service logged Confirmed before Completed" (Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Completed")
         Check "A: Order Service logged the Processing step (start event) between Confirmed and Completed" ((Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Processing") -and (Before $ordLog "Order $idA -> Processing" "Order $idA -> Completed"))
         Check "A: still exactly one order for the replayed key" ((Sql "SELECT count(*) FROM order_service.orders WHERE `"IdempotencyKey`" = '$keyA';") -eq "1")

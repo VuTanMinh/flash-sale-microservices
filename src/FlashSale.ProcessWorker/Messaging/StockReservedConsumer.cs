@@ -84,6 +84,8 @@ public class StockReservedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Week 11 (TP-P04): export this consumer's metric series at 0 from start-up.
+        ConsumerMetrics.Initialize("ProcessWorker.StockReserved");
         _stoppingToken = stoppingToken;
 
         var factory = new ConnectionFactory
@@ -178,6 +180,7 @@ public class StockReservedConsumer : BackgroundService
             if (invalidField is not null)
             {
                 _logger.LogError("Invalid StockReserved message: {Field} is empty; routing to DLQ", invalidField);
+                ConsumerMetrics.DeadLettered.WithLabels("ProcessWorker.StockReserved", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -188,8 +191,8 @@ public class StockReservedConsumer : BackgroundService
             using var correlationScope = LogContext.PushProperty("CorrelationId", stockReserved.CorrelationId);
 
             _logger.LogInformation(
-                "Received StockReserved for order {OrderId}; starting downstream processing",
-                stockReserved.OrderId);
+                "Received StockReserved {MessageId} for order {OrderId}; starting downstream processing",
+                stockReserved.MessageId, stockReserved.OrderId);
 
             await ProcessWithRetryAsync(stockReserved);
 
@@ -214,6 +217,7 @@ public class StockReservedConsumer : BackgroundService
             // Either the payload never deserialized (retrying identical bytes
             // cannot help) or ProcessWithRetryAsync exhausted its attempts.
             DeadLetteredTotal.Inc();
+            ConsumerMetrics.DeadLettered.WithLabels("ProcessWorker.StockReserved", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             _logger.LogError(ex, "Failed to process StockReserved message; routing to DLQ");
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
@@ -292,6 +296,7 @@ public class StockReservedConsumer : BackgroundService
                 }
 
                 var delay = RetryDelays[attempt - 1];
+                ConsumerMetrics.Retries.WithLabels("ProcessWorker.StockReserved").Inc();
                 _logger.LogWarning(
                     ex, "Failed to process order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",
                     stockReserved.OrderId, attempt, MaxAttempts, delay);

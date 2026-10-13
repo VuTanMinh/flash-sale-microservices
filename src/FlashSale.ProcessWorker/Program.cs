@@ -18,6 +18,7 @@ public class Program
 #endif
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", "FlashSale.ProcessWorker")
             // JSON to the file sink, human-readable to the console: Step 11.3
             // wants logs queryable later, and Week 13/14 will be reading these
             // files with tooling rather than eyes. The console stays plain

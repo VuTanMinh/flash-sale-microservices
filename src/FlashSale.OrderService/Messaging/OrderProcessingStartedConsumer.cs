@@ -80,6 +80,8 @@ public class OrderProcessingStartedConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Week 11 (TP-P04): export this consumer's metric series at 0 from start-up.
+        ConsumerMetrics.Initialize("OrderProcessingStarted", requeuesEarly: true);
         var factory = new ConnectionFactory
         {
             HostName = _options.Connections.Default.HostName,
@@ -189,6 +191,7 @@ public class OrderProcessingStartedConsumer : BackgroundService
             if (invalidField is not null)
             {
                 _logger.LogError("Invalid OrderProcessingStarted message: {Field} is empty; routing to DLQ", invalidField);
+                ConsumerMetrics.DeadLettered.WithLabels("OrderProcessingStarted", "invalid").Inc();
                 await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
@@ -216,6 +219,7 @@ public class OrderProcessingStartedConsumer : BackgroundService
                             "OrderProcessingStarted {MessageId} for order {OrderId} arrived before its StockReserved; requeuing attempt {Attempt}/{MaxAttempts} to '{Queue}'",
                             orderProcessingStarted.MessageId, orderProcessingStarted.OrderId, nextAttempt, RequeueDelays.Length,
                             RetryQueueName(nextAttempt - 1));
+                        ConsumerMetrics.RequeuedEarly.WithLabels("OrderProcessingStarted").Inc();
                         await RequeueForRetryAsync(eventArgs, orderProcessingStarted, nextAttempt);
                         await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
                         return;
@@ -224,6 +228,7 @@ public class OrderProcessingStartedConsumer : BackgroundService
                     _logger.LogError(
                         "OrderProcessingStarted {MessageId} for order {OrderId} is still early after {MaxAttempts} attempts; the order is still {State}; routing to DLQ",
                         orderProcessingStarted.MessageId, orderProcessingStarted.OrderId, RequeueDelays.Length, OrderState.PendingStock);
+                    ConsumerMetrics.DeadLettered.WithLabels("OrderProcessingStarted", "exhausted").Inc();
                     await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
                     return;
                 case ResultProcessingOutcome.OrderNotFound:
@@ -238,6 +243,7 @@ public class OrderProcessingStartedConsumer : BackgroundService
                     // recognises it. Also the "same or earlier state" no-op for a
                     // start event that arrives after the order is already
                     // Processing or Completed.
+                    ConsumerMetrics.Duplicates.WithLabels("OrderProcessingStarted").Inc();
                     _logger.LogInformation(
                         "OrderProcessingStarted {MessageId} for order {OrderId} already processed; acking as no-op",
                         orderProcessingStarted.MessageId, orderProcessingStarted.OrderId);
@@ -251,11 +257,13 @@ public class OrderProcessingStartedConsumer : BackgroundService
         catch (InvalidOrderStateTransitionException ex)
         {
             _logger.LogError(ex, "Order state conflict processing a start event; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("OrderProcessingStarted", "conflict").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process start event after retries; routing to DLQ");
+            ConsumerMetrics.DeadLettered.WithLabels("OrderProcessingStarted", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
         }
     }
@@ -288,6 +296,7 @@ public class OrderProcessingStartedConsumer : BackgroundService
                 }
 
                 var delay = RetryDelays[attempt - 1];
+                ConsumerMetrics.Retries.WithLabels("OrderProcessingStarted").Inc();
                 _logger.LogWarning(
                     ex,
                     "Failed to process OrderProcessingStarted {MessageId} for order {OrderId} (attempt {Attempt}/{MaxAttempts}); retrying in {Delay}",

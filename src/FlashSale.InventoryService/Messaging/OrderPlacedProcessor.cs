@@ -123,6 +123,20 @@ public static class OrderPlacedProcessor
             // where the LazyServiceProvider-backed services AbpDbContext's own
             // SaveChangesAsync needs are actually available.
             await dbContext.SaveChangesAsync();
+
+            // Week 11 (TP-P04): one committed business decision per call. The
+            // label is the business outcome, not the raw Lua answer: when this
+            // commit writes the order's FIRST result it counts as reserved /
+            // rejected / not_open (even if Lua said DUPLICATE because an
+            // earlier attempt reserved before its save failed); when a result
+            // already existed it is a duplicate.
+            var decision = existingResult is not null ? "duplicate" : result switch
+            {
+                ReservationResult.Rejected => "rejected",
+                ReservationResult.NotOpen => "not_open",
+                _ => "reserved",
+            };
+            InventoryMetrics.StockDecisions.WithLabels(decision).Inc();
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

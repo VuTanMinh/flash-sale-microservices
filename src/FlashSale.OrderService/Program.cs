@@ -23,6 +23,7 @@ public class Program
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", "FlashSale.OrderService")
             // Week 11, Step 11.3: the file sink is JSON (one object per line,
             // CompactJsonFormatter) rather than the plain text this used to
             // write. Structured output is what makes the correlation id added
