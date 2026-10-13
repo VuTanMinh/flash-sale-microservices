@@ -603,9 +603,12 @@ role script now moves Inventory's history rows into
 \texttt{inventory\_service}. Both the fresh and the existing-database paths
 are checked by \texttt{scripts/verify-environment.ps1}.
 
-The order status-history table required by the adopted six-state model
-(Section~\ref{sec:order-state-machine}) is not shown, because it does not exist
-in code yet. It is added by the Week 11 implementation task.
+Since Week 11, the Order Service schema also holds
+\texttt{order\_status\_history}, the per-order transition history required by
+the six-state model (Section~\ref{sec:order-state-machine}). Each row records
+the from-state, the to-state, the triggering \texttt{MessageId}, the time, and
+whether the step was implied. An identity column, \texttt{Seq}, gives the
+order in which the rows were written, and every read of the history uses it.
 
 \section{Class Diagram}
 \label{sec:class-diagram}
@@ -632,11 +635,9 @@ entity classes, only the event contracts.
   \texttt{MessageId} (Inbox key) and a \texttt{CorrelationId} (trace key).}
 \end{figure}
 
-The six-state model adds \texttt{OrderState.Processing},
-\texttt{OrderState.ProcessingFailed}, an \texttt{OrderProcessingStartedEto}
-and an order status-history entity. These are not in the code yet. They are
-drawn only in the ``Planned'' list of \texttt{docs/class-diagram.md} and are
-built by the Week 11 task.
+Week 11 added the six-state model to the code: \texttt{OrderState.Processing},
+\texttt{OrderState.ProcessingFailed}, the \texttt{OrderProcessingStartedEto}
+event and the \texttt{OrderStatusHistory} entity. All of them are drawn above.
 
 \section{API Contract}
 ABP generates the OpenAPI document from the running controllers; it is
@@ -681,8 +682,8 @@ Event & Publisher & Consumer(s) & Transition \\
 \texttt{OrderPlacedEto} & Order Service (Outbox) & Inventory Service & new $\to$ \texttt{PendingStock} \\
 \texttt{StockReservedEto} & Inventory Service (Outbox) & Order Service, Process Worker & \texttt{PendingStock} $\to$ \texttt{Confirmed} \\
 \texttt{StockRejectedEto} & Inventory Service (Outbox) & Order Service & \texttt{PendingStock} $\to$ \texttt{Rejected} \\
-\texttt{OrderProcessedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Completed} (code); \texttt{Processing} $\to$ \texttt{Completed} (model) \\
-\texttt{OrderProcessingStartedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Processing}; \emph{planned, Week 11} \\
+\texttt{OrderProcessingStartedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Processing} \\
+\texttt{OrderProcessedEto} & Process Worker & Order Service & \texttt{Processing} $\to$ \texttt{Completed} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -691,7 +692,7 @@ Each event carries \texttt{MessageId}, regenerated at every hop because each
 consumer keeps its own Inbox, and \texttt{CorrelationId}, copied unchanged from
 the inbound request so one value traces the whole journey. The Process Worker
 sets \texttt{MessageId} equal to \texttt{OrderId}, because it has no database
-of its own; a replay then produces an identical message that the Inbox drops.
+of its own; a replay then carries the same \texttt{MessageId}, and the Inbox drops it.
 \texttt{StockRejectedEto} has no \texttt{Reason} field, because insufficient
 stock is the only rejection cause in scope.
 
@@ -711,11 +712,10 @@ a deterministic, successful outcome only, so no in-scope event produces it
 absorbed by explicit rules (stale events are no-ops; an early
 \texttt{OrderProcessed} applies an implied \texttt{Processing} step in the
 same transaction), and every transition is appended to an order status
-history. Aligning the source code with this model is the Week 11
-implementation task. Until it closes, the running code has four states and
-three transitions (\texttt{PendingStock} $\to$ \texttt{Confirmed} or
-\texttt{Rejected}, then \texttt{Confirmed} $\to$ \texttt{Completed}); the
-alignment check compares those with \texttt{Order.LegalTransitions}.
+history. Since Week 11 the code implements exactly this model, and the
+alignment check compares the transition table with
+\texttt{Order.LegalTransitions}. The implementation and its verification are
+described in Section~\ref{sec:week11}.
 
 \begin{figure}[H]
   \centering
@@ -779,8 +779,9 @@ The diagrams are checked against the implementation by test case TP-W04
 \begin{figure}[tbp]
   \centering
   \includegraphics[width=0.6\textwidth]{figures/seq-planned-processing.png}
-  \caption{Planned (Week 11), not in code yet: the \texttt{Processing} hop of
-  the six-state model.}
+  \caption{The \texttt{Processing} hop of the six-state model (Week 11): the
+  Worker's start event moves the order to \texttt{Processing}, and its
+  completion moves it to \texttt{Completed}.}
 \end{figure}
 
 \section{Idempotency, Ordering and Ownership}
@@ -2361,36 +2362,85 @@ the same event independently. Sharing one queue would have made them compete
 for messages, and roughly half of all orders would never have been processed
 at all.
 
-\paragraph{Superseded (2026-10-01).} The reasoning below records why the
-four-state model was adopted in Week 11. The project has since adopted the
-teacher's six-state model instead (see the Order State Machine section); the
-code change is tracked as an open Week 11 task.
-
-\paragraph{Resolving the Week 1 open question.} The checklist specifies one
-input event and one output event for this worker. That is what settles the
-state machine: Order Service learns exactly two facts about an order after it
-is placed -- ``stock reserved'' and ``processing finished'' -- and never a
-third, distinct ``processing has started'' fact to transition on. So
-\texttt{Processing} and \texttt{ProcessingFailed} were \emph{removed} from
-the domain rather than given invented triggers:
-
+\paragraph{The six named states in the code.} An earlier Week 11 draft
+removed \texttt{Processing} and \texttt{ProcessingFailed}, because Order
+Service only learned two facts after placement. The project then adopted the
+teacher's six named states (Section~\ref{sec:order-state-machine}), and the
+code now implements them.
 \begin{itemize}
-  \item \texttt{Processing} would have required inventing a second event
-    purely so a state could exist -- a contract, a queue, a consumer and an
-    Inbox path added to a simulator, for a state no reader of the order would
-    act on differently. Where work is genuinely in flight is already
-    observable where it actually lives: the depth of the Process Worker's own
-    queue, which this week's Prometheus setup scrapes.
-  \item \texttt{ProcessingFailed} has no reachable trigger at all under the
-    scope lock, since the simulated result is deterministically successful.
+  \item \textbf{A real trigger for \texttt{Processing}.} When the Process
+    Worker begins work on a reserved order, it publishes
+    \texttt{OrderProcessingStarted} (routed, with publisher confirms). Its
+    \texttt{MessageId} is derived from the order id: a name-based UUID that
+    differs from the \texttt{OrderProcessed} id (\texttt{MessageId =
+    OrderId}). This keeps the two events apart in the Inbox, and a replay
+    still regenerates the same id.
+  \item \textbf{A consumer like the others.} Order Service consumes the event
+    on its own queue, with the Inbox, the 1/2/4\,s retry ladder, validation
+    and a DLQ.
+  \item \textbf{\texttt{ProcessingFailed} is declared but unreachable.} The
+    Worker is success-only by design, so no event and no code path sets it.
+    A unit test and a source scan prove this.
 \end{itemize}
 
-Both were deleted from the \texttt{OrderState} enum, not merely left
-unreachable, so the code cannot drift back into claiming them. Week 1's rule
-was ``don't allow any transition you can't name the trigger for''; this
-applies the same rule one level up, to states. The conditions that would
-bring each back are recorded in \texttt{docs/order-state-machine.md} rather
-than pre-built.
+\paragraph{History, and events that arrive out of order.} Every transition
+writes a row to \texttt{order\_status\_history}, in the same transaction as
+the state change. The order's creation writes the first row. A duplicate or
+stale event is a no-op and writes no row. The API's polling response returns
+the history.
+
+The Worker consumes \texttt{StockReserved} in parallel with Order Service, so
+its events often arrive before the order is \texttt{Confirmed}. They are then
+requeued on bounded delayed retry queues, never dropped. If the completion
+arrives before the start event, Order Service applies \texttt{Confirmed}
+$\to$ \texttt{Processing} $\to$ \texttt{Completed} in one transaction. It
+marks the \texttt{Processing} row as implied, and the start event later
+becomes a no-op.
+
+The review found two defects in the first version:
+\begin{itemize}
+  \item The implied row took the Worker's start time. That time can be
+    earlier than the moment Order Service recorded \texttt{Confirmed}, so the
+    history sorted \texttt{Processing} before \texttt{Confirmed}.
+  \item The two rows written together could be inserted in either order.
+\end{itemize}
+The fix has three parts:
+\begin{itemize}
+  \item The history is read by the identity column \texttt{Seq}, not by time.
+  \item The implied row's time is the later of the Worker's start time and
+    the confirmation time.
+  \item The implied path saves the \texttt{Processing} row and the
+    \texttt{Completed} row in two steps inside one transaction, so their
+    order is fixed and the change stays atomic.
+\end{itemize}
+A completion without a start time, such as one published by an older Worker,
+uses the time it is applied, instead of the year 0001.
+
+\paragraph{Verification (TP-P02).} The unit tests (90) cover:
+\begin{itemize}
+  \item the transition table;
+  \item every 5-event sequence over the three Worker-facing events, 150 in
+    total, each ending \texttt{Completed} with the four-step history;
+  \item the clamped, kept and missing start times;
+  \item the \texttt{Seq} order.
+\end{itemize}
+\texttt{scripts/verify-processing.ps1} runs all three services and covers
+these cases:
+\begin{itemize}
+  \item normal orders by either legal path;
+  \item a deterministic direct path, with the derived start id;
+  \item duplicates, which change nothing;
+  \item the late start event, which gives an implied row clamped to the
+    confirmation time, then a no-op;
+  \item 10 orders on the implied path, all in \texttt{Seq} order;
+  \item Worker events while \texttt{PendingStock}, which are requeued and
+    then applied;
+  \item no \texttt{ProcessingFailed} anywhere;
+  \item a poison start event, which goes to its DLQ.
+\end{itemize}
+The fresh-clone run passed all 41 checks
+(\texttt{tests/evidence/20261013T145229Z-processing.log}). A negative control that writes the implied row
+as not implied fails two checks, and the script exits 1.
 
 \paragraph{Idempotency with no database.} The Process Worker is the only
 service here with no persistent store, and deliberately so: it holds no
@@ -2401,9 +2451,9 @@ apply. Step 11.1's requirement that it ``use \texttt{order\_id} as its own
 idempotency key'' is met by deriving the published message's
 \texttt{MessageId} from the order id (they are set equal) instead of minting
 a fresh one per hop as every other event does. A redelivered
-\texttt{StockReserved} therefore regenerates a byte-identical
-\texttt{OrderProcessed}, which Order Service's Week 9 Inbox recognises and
-drops: the idempotency key travels in the message rather than living in a
+\texttt{StockReserved} therefore regenerates an \texttt{OrderProcessed}
+with the same \texttt{MessageId}, which Order Service's Week 9 Inbox recognises
+and drops (only its start time can differ): the idempotency key travels in the message rather than living in a
 store.
 
 \paragraph{A restart defect found and fixed.} The code check found that a

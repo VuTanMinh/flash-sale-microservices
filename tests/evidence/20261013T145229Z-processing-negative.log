@@ -1,0 +1,55 @@
+﻿== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: pr-135552 has 20 units
+== A. Normal path (3 real orders)
+PASS  A: 3 orders accepted through the API -- orders=3
+PASS  A: every order ends Completed -- 44346a63-81fd-4a42-a985-bf7472ae690c=Completed,78ea84d6-3874-41c8-a2d5-54825f3d29c4=Completed,d338a38b-1fe5-46a2-827e-1b03d8f1446c=Completed
+PASS  A: each order's history is the four transitions in Seq order, Implied true only on the Processing row -- 44346a63-81fd-4a42-a985-bf7472ae690c=4,78ea84d6-3874-41c8-a2d5-54825f3d29c4=4,d338a38b-1fe5-46a2-827e-1b03d8f1446c=4
+PASS  A: the MessageId rule for each path taken (direct: derived; implied: OrderId + no-op start Inbox) -- 44346a63-81fd-4a42-a985-bf7472ae690c=direct start=985b1d48-0233-5255-93f4-575f8a539e70,78ea84d6-3874-41c8-a2d5-54825f3d29c4=direct start=8bb45802-0c5f-b656-aec5-8cf4b6ac8240,d338a38b-1fe5-46a2-827e-1b03d8f1446c=direct start=5aaf19f1-8361-e350-8c14-bf9fcb4be2ef
+PASS  A: history At values are non-decreasing -- 2026-10-13 13:56:40.134162 -> 2026-10-13 13:56:44.241856 -> 2026-10-13 13:56:44.601930 -> 2026-10-13 13:56:44.917842,2026-10-13 13:56:40.977669 -> 2026-10-13 13:56:44.291826 -> 2026-10-13 13:56:44.979358 -> 2026-10-13 13:56:45.205714,2026-10-13 13:56:41.020614 -> 2026-10-13 13:56:44.306614 -> 2026-10-13 13:56:45.220676 -> 2026-10-13 13:56:45.439310
+PASS  A: the API history array matches the database history (Seq order, implied flags) -- 44346a63-81fd-4a42-a985-bf7472ae690c=api-ok,78ea84d6-3874-41c8-a2d5-54825f3d29c4=api-ok,d338a38b-1fe5-46a2-827e-1b03d8f1446c=api-ok
+PASS  A: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== A2. Deterministic direct path (Worker stopped until Confirmed)
+PASS  A2: the order is Confirmed before the Worker starts (Worker stopped) -- order=e49c2487-d383-4c27-9a33-77a25567fbf9 state=Confirmed
+PASS  A2: the order ends Completed -- state=Completed
+PASS  A2: the Processing row is NOT implied and carries the derived MessageId -- proc=Confirmed|Processing|be0b0d2b-5b8c-d35a-85fc-39116f0f9daa|false|2026-10-13 13:57:07.476824
+PASS  A2: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== B. Duplicates (same ids, plus a new-id StockReserved)
+PASS  B: republishing the start and completion (same ids) and a new-id StockReserved adds no history rows -- history=4->4
+PASS  B: state and timestamps unchanged -- state=Completed decided=2026-10-13 13:56:44.241856 completed=2026-10-13 13:56:44.917842
+PASS  B: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== C. Start event late (completion while Confirmed)
+PASS  C: the order is Confirmed before the completion arrives (Worker stopped) -- order=1f437501-f7a0-495c-a01f-97dd54710008 state=Confirmed
+PASS  C: the completion while Confirmed applied the implied path (order Completed) -- state=Completed
+FAIL  C: the implied Processing row is clamped to the confirmation time (At = ConfirmedOrRejectedAt, not the earlier crafted start) -- implied=Confirmed|Processing|1f437501-f7a0-495c-a01f-97dd54710008|false|2026-10-13 13:57:46.639156 decided=2026-10-13 13:57:46.639156
+PASS  C: the late start event is a no-op (no new history row, order stays Completed) -- history=4->4 state=Completed
+PASS  C: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== C2. Implied-path Seq order (10 orders)
+PASS  C2: 10 orders accepted -- orders=10
+PASS  C2: all 10 orders are Confirmed before the completions arrive (Worker stopped) -- cf6159af-0c66-40aa-bd41-e552e5184e44=Confirmed,0146fadd-1415-42f6-a883-b12142dc27f0=Confirmed,bcddf30e-3f96-4ccb-ab53-e42b6b98cf43=Confirmed,5cddd289-5365-4c9a-8a70-ab0c81a0e926=Confirmed,f5399789-e94d-40f4-9b36-013c871e3d37=Confirmed,0a45962f-bd13-4bc8-9bc3-830ed617a54f=Confirmed,5fd16afd-7bd8-4253-a305-386986b032aa=Confirmed,a4b66fb6-c21f-4ee9-b42a-0e3f84031260=Confirmed,23c86f87-ffff-4ce8-8d72-b7f2e50fdf3d=Confirmed,e91feb49-3d2f-4b1e-a3f2-9fa36e72f2a0=Confirmed
+PASS  C2: all 10 orders end Completed -- cf6159af-0c66-40aa-bd41-e552e5184e44=Completed,0146fadd-1415-42f6-a883-b12142dc27f0=Completed,bcddf30e-3f96-4ccb-ab53-e42b6b98cf43=Completed,5cddd289-5365-4c9a-8a70-ab0c81a0e926=Completed,f5399789-e94d-40f4-9b36-013c871e3d37=Completed,0a45962f-bd13-4bc8-9bc3-830ed617a54f=Completed,5fd16afd-7bd8-4253-a305-386986b032aa=Completed,a4b66fb6-c21f-4ee9-b42a-0e3f84031260=Completed,23c86f87-ffff-4ce8-8d72-b7f2e50fdf3d=Completed,e91feb49-3d2f-4b1e-a3f2-9fa36e72f2a0=Completed
+FAIL  C2: by Seq each history is Confirmed->Processing (implied) then Processing->Completed (not implied) -- cf6159af-0c66-40aa-bd41-e552e5184e44=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),0146fadd-1415-42f6-a883-b12142dc27f0=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),bcddf30e-3f96-4ccb-ab53-e42b6b98cf43=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),5cddd289-5365-4c9a-8a70-ab0c81a0e926=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),f5399789-e94d-40f4-9b36-013c871e3d37=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),0a45962f-bd13-4bc8-9bc3-830ed617a54f=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),5fd16afd-7bd8-4253-a305-386986b032aa=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),a4b66fb6-c21f-4ee9-b42a-0e3f84031260=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),23c86f87-ffff-4ce8-8d72-b7f2e50fdf3d=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false),e91feb49-3d2f-4b1e-a3f2-9fa36e72f2a0=proc(Confirmed>Processing,implied=false) done(Processing>Completed,implied=false)
+PASS  C2: the Worker backlog drained; every late start event is a no-op -- workerQ=0 noopInbox=10/10
+== D. Worker events while PendingStock (both requeued)
+PASS  D: an order was accepted -- order=eb347cff-2c4d-4cc2-bf44-19403ad94064
+PASS  D: the order is still PendingStock while its StockReserved is held -- state=PendingStock
+PASS  D: the start event was requeued, not dead-lettered -- start-requeued=True
+PASS  D: the completion was requeued, not dead-lettered -- completion-requeued=True
+PASS  D: after StockReserved lands the order ends Completed with the full four-row history -- state=Completed rows=4
+PASS  D: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== E. ProcessingFailed is unreachable
+PASS  E: no order in the database has State=ProcessingFailed -- rows=0
+PASS  E: no production code calls TransitionTo(OrderState.ProcessingFailed) -- matches=0
+PASS  E: OrderState still declares ProcessingFailed (declared, not removed) -- declared
+== F. Poison start event (empty ids)
+PASS  F: a poison start event (empty ids) is dead-lettered after one attempt -- dlq=1 before=0
+PASS  F: the poison start logged the validation error
+PASS  F: no Inbox row and no state change for the poison -- inbox=0
+== End state
+PASS  every main and retry queue is empty -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderProcessingStarted.retry.1=0,OrderProcessingStarted.retry.2=0,OrderProcessingStarted.retry.3=0,OrderProcessed.retry.1=0,OrderProcessed.retry.2=0,OrderProcessed.retry.3=0
+PASS  every DLQ is empty except the one deliberate F poison in OrderProcessingStarted.dlq -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=1,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  one Redis deduction per order (SCARD = 16, stock = initial - orders) -- scard=16 stock=4
+
+2 check(s) failed.
+
+Exit code: 1

@@ -1,0 +1,5 @@
+﻿Week 11 box 2 beta, 20261013T145229Z
+Fresh clone of D:\DACNTT at 897c3bb, run without admin rights; each runtime verifier on a fresh database (verify-environment -Mode Fresh).
+order-api: Order Service started from the clone on http://localhost:5100 against verify-env-pg, broker port pointed at an unused port, as the script header documents.
+runtime-accounts: against the local Compose stack after the history migration was applied to infra-postgres-1 as order_service_user (pg_dump backup taken first).
+processing-negative: verify-processing.ps1 on a scratch copy where the implied Processing row is written with implied=false; exit 1, cases C and C2 fail.
