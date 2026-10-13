@@ -27,6 +27,6 @@ Thiết kế và đánh giá hệ thống microservices xử lý giao dịch son
 | `docs/` | Scope, architecture, correctness, experiment, and API documents |
 | `report/` | LaTeX report and bibliography |
 
-## Current setup notes
+## Quickstart
 
-The local dependency stack is defined in `infra/docker-compose.yml`. Verify its startup and document the reproduction steps as part of the Week 2 infrastructure gate. The teacher brief also requires Terraform and AWS EC2 deployment; Terraform is not present in this branch yet.
+Run the local stack and the three services exactly as described in [Local infrastructure — Running the application on the local stack](docs/infrastructure.md#running-the-application-on-the-local-stack): Compose up, apply the role script on an existing volume, migrate with each service's own account, create the certificate, warm up, then `dotnet run` each service. The own-account runtime is verified by `scripts/verify-runtime-accounts.ps1`. The teacher brief also requires Terraform and AWS EC2 deployment; Terraform is not present in this branch yet.

@@ -1,0 +1,6 @@
+﻿M1 audit, 20261013T060811Z
+environment-existing: verify-environment -Mode Existing on a copy of the local Compose database before the fix (clone at 92931ee).
+The real local database (infra-postgres-1) then had the documented role script and both own-account migrations applied, after a pg_dump backup.
+runtime-accounts: scripts/verify-runtime-accounts.ps1 (TP-E04) against the local Compose stack, from a clean clone at 92931ee plus the six M1 files only.
+runtime-accounts-negative: the same with Inventory's connection string switched to the admin account flashsale (exit 1, 3 checks fail).
+environment-fresh, requirements-trace, unit-tests: W02 gates re-run from the clean clone at 92931ee.

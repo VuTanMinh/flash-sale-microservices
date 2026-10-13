@@ -499,6 +499,24 @@ On 2026-10-01 it passed from a fresh clone with 0 build errors and 0 warnings.
 With \texttt{-Mode Existing}, the same checks run on a copy of an existing
 database after the role script is applied twice.
 
+\paragraph{Runtime check on the local stack (TP-E04).} The checks above use
+temporary databases. A 2026-10-13 audit found that the project's own local
+Compose database had never had the role script applied: it had no service
+accounts, and every table was owned by the admin account. The documented
+existing-database procedure was re-run on a copy (49/49), then applied to the
+real database after a backup. \texttt{scripts/verify-runtime-accounts.ps1}
+then starts all three services with their checked-in settings against the
+local Compose stack and places three orders, which all complete. While the
+services run, every Order Service database session belongs to
+\texttt{order\_service\_user}, and every Inventory session to
+\texttt{inventory\_service\_user}. Each connection string sets an
+\texttt{Application Name}, so every session can be tied to its service. No
+service connects as the admin account, and the Process Worker has no database
+at all. With the services' own credentials, each cross-schema read is refused
+(``permission denied for schema''), and each own-schema read succeeds. The
+check passed 61/61, including the ERD comparison. A negative control that
+switches Inventory to the admin account fails three checks.
+
 Run project commands from the repository root and resolve script paths relative to
 the script location. Do not rely on a machine-specific drive letter or an
 untracked setup checklist.
