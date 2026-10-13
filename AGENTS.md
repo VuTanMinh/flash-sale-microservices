@@ -156,8 +156,10 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 - The repository (code, `docs/`, `report/report.tex`, `tests/evidence/`) is the
   evidence, not the plan.
 - `docs/teacher-brief.md` is the teacher's note, saved verbatim. It is the
-  acceptance standard: every result must satisfy it. If Notion and the brief
-  disagree, say so to the owner. Do not resolve it silently.
+  acceptance standard: every result must satisfy it. Notion must follow the
+  brief (owner, 2026-10-13). When a Notion item deviates from it, Claude
+  corrects the item with a minimal edit that restores the brief's meaning,
+  and reports the correction to the owner. DS never edits Notion.
 
 ### A3. Secrets
 - `.gitignore` must always list `.env`, `.env.*` and `*.env` (allowing only

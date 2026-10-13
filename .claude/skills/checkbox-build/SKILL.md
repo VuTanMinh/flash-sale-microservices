@@ -60,7 +60,10 @@ code.
 - The repo (code, `docs/`, `report/report.tex`) is the evidence, not the plan.
 - The teacher's brief is saved verbatim in `docs/teacher-brief.md`. It is the
   acceptance standard (what the result must satisfy), not the plan. Check each
-  checkbox's result against it; flag conflicts with Notion to the owners.
+  checkbox's result against it. **Notion must follow the brief (owner,
+  2026-10-13):** when a Notion item deviates from the brief, correct it with
+  a minimal edit that restores the brief's meaning. Do not restyle the page.
+  Report every such correction to the owner.
 
 ## Roles (owner decision 2026-10-03)
 - **DeepSeek Harness codes** (cycle steps 1–5) through its Web UI on

@@ -12,7 +12,7 @@ Redis, RabbitMQ and Nginx. Capstone project; the report is `report/report.tex`.
   weekly plan; 03 and 03A–03D are the correctness checklist for every code check.
 - The owner's study guide is summarised in `.claude/skills/checkbox-build/study-guide.md`.
 - The plan lives in that Notion page, not in local markdown.
-- The teacher's requirements are in `docs/teacher-brief.md` (verbatim); results must satisfy them.
+- The teacher's requirements are in `docs/teacher-brief.md` (verbatim); results must satisfy them. Notion must follow the brief: correct any Notion item that deviates from it with a minimal edit, and report it (owner, 2026-10-13).
 - One checkbox at a time; tick only with verified evidence.
 - Roles (owner, 2026-10-03): DeepSeek Harness writes the code (AGENTS.md Part 0); Claude briefs it, reviews and re-tests its work, commits, ticks Notion and reports.
 - DS (DeepSeek) must obey AGENTS.md Part 0b: do only what the task says, nothing unless told, never state unverified claims. When DS cannot do a task or does it wrong, Claude investigates why, sends exact findings back (max 3 rounds), then fixes it itself and reports what DS could not do.
