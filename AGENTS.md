@@ -208,8 +208,12 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 
 - Weeks 1–8 are fully ticked in Notion, and so are milestones W01–W08, M2 and
   M3.
-- **M1 is still open.** Inventory Service and the Process Worker have not been
-  re-assessed for "running under their own accounts".
+- **M1 is closed (2026-10-13).** The local Compose database now has the
+  service roles and ownership. A backup taken before the change is kept
+  outside the repo. `scripts/verify-runtime-accounts.ps1` (TP-E04) proves
+  the runtime accounts on the local stack. Run it after any change to
+  connection strings, roles or migrations. Never run the role script or
+  migrations against the local database without a backup.
 - Week 9 box 1 is ticked: Inbox uniqueness, local transaction and a crash
   after commit before ack (TP-M01, `scripts/verify-delivery.ps1`).
 - Week 9 box 2 is ticked: concurrent duplicates, new-MessageId duplicates and
