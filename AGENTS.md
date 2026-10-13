@@ -244,12 +244,13 @@ incident, so the same mistake cannot repeat. These rules are as binding as
 - A verifier must never call `FreeConsole` in its own process (send Ctrl+C
   from a helper process), and `Check` counts before it prints, so a broken
   console cannot turn a failure into a pass.
-- **The code still has four order states** (`OrderState.cs`: PendingStock,
-  Confirmed, Rejected, Completed). The six-state decision of 2026-10-01 is
-  not yet in the code; that is Week 11 box 2.
-- **Next box:** Week 11 box 2, "Implement/verify the agreed Processing
-  state/history and document the success-only interpretation of
-  ProcessingFailed."
+- Week 11 box 2 is ticked: six states, the OrderProcessingStarted event and
+  `order_status_history` (ordered by `Seq`, implied step clamped) (TP-P02,
+  `scripts/verify-processing.ps1`). The local Compose database has the
+  history migration applied (backup in `.agent-tasks/backups/`).
+- **Next box:** Week 11 box 3, "Trace one order across all services using
+  CorrelationId/OrderId/MessageId and stage timestamps; verify metrics
+  definitions and exports."
 - **Early completion (fixed in Week 9 box 2, TP-M02):** an `OrderProcessed`
   that reaches Order Service while the order is still `PendingStock` is
   requeued onto delayed retry queues (2 s / 4 s / 8 s), not dead-lettered. It
