@@ -18,8 +18,15 @@ classDiagram
         +Guid MessageId
         +string CorrelationId
     }
+    class OrderProcessingStartedEto {
+        +Guid OrderId
+        +Guid MessageId
+        +string CorrelationId
+        +DateTime StartedAt
+    }
     class OrderProcessedEto {
         +Guid OrderId
         +Guid MessageId
         +string CorrelationId
+        +DateTime? ProcessingStartedAt
     }

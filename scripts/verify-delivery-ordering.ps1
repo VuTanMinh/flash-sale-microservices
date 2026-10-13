@@ -64,6 +64,7 @@ $p = "do-$runId"                 # warmed product, used by every real order
 $pForged = "do-forged-$runId"    # never warmed: forged StockReserved only
 $servicePorts = 5129, 5130, 5131
 $retryQueues = "OrderProcessed.retry.1", "OrderProcessed.retry.2", "OrderProcessed.retry.3"
+$startRetryQueues = "OrderProcessingStarted.retry.1", "OrderProcessingStarted.retry.2", "OrderProcessingStarted.retry.3"
 
 function Check([string]$name, [bool]$ok, [string]$detail = "") {
     if ($ok) { Write-Host "PASS  $name" -ForegroundColor Green }
@@ -216,15 +217,16 @@ try {
     # Only the queues the two *running* services declare, in this start order:
     # OrderPlaced is declared by Inventory Service's OrderPlacedConsumer,
     # StockReserved and StockRejected by Order Service's StockResultConsumer, and
-    # OrderProcessed (plus the retry queues checked below) by Order Service's
-    # OrderProcessedConsumer. ProcessWorker.StockReserved is deliberately NOT in
+    # OrderProcessed (plus its retry queues) by Order Service's
+    # OrderProcessedConsumer, and OrderProcessingStarted (plus its retry queues)
+    # by OrderProcessingStartedConsumer. ProcessWorker.StockReserved is deliberately NOT in
     # this list: it is declared by the Process Worker, which this script starts
     # only in case 3, so waiting for it here is what made the first version of
     # this script fail its readiness check even though both services were up. It
     # is instead pre-declared in the RabbitMQ definitions above, with no
     # consumer, so Inventory Service's outbox publisher sees it and publishes
     # StockReserved while the Worker is still absent.
-    $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed"
+    $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed"
     $ready = Wait-Until { @($queues | Where-Object { -not (QueueExists $_) }).Count -eq 0 } 120
     Check "Order Service and Inventory Service are up; every run queue they declare exists" $ready (($queues | ForEach-Object { "$_=$(QueueCount $_)" }) -join ",")
     if (-not $ready) { throw "services did not come up" }
@@ -428,7 +430,7 @@ try {
     # dead-letters the orphan's completion. Both were asserted at the point they
     # happened. Here only the run queues, the retry queues and the stock-result
     # DLQs (which must stay empty) are required to be drained.
-    $all = $queues + @("StockReserved.dlq", "StockRejected.dlq") + $retryQueues
+    $all = $queues + @("StockReserved.dlq", "StockRejected.dlq") + $retryQueues + $startRetryQueues
     $empty = Wait-Until { @($all | Where-Object { (QueueCount $_) -ne 0 }).Count -eq 0 } 60
     Check "every run queue, retry queue and stock-result DLQ is empty at the end" $empty (($all | ForEach-Object { "$_=$(QueueCount $_)" }) -join ",")
     Check "one unit deducted per applied order and no more: 30 - 2 = 28, Redis holds exactly those two orders" (

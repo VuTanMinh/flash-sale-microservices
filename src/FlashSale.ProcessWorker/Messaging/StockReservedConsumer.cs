@@ -11,23 +11,27 @@ using Serilog.Context;
 namespace FlashSale.ProcessWorker.Messaging;
 
 /// <summary>
-/// The Process Worker itself (Step 11.1): consumes StockReserved, waits a
-/// deterministic delay, publishes OrderProcessed. That is the entire
-/// service. Proposal §3 scopes it to simulating downstream processing with
-/// a deterministic delay and a success result -- there is deliberately no
+/// The Process Worker itself (Step 11.1, extended by Week 11 box 2): consumes
+/// StockReserved, publishes OrderProcessingStarted (before the delay), waits a
+/// deterministic delay, publishes OrderProcessed. That is the entire service.
+/// Proposal §3 scopes it to simulating downstream processing with a
+/// deterministic delay and a success result -- there is deliberately no
 /// payment step, no failure injection and no compensation logic here, since
 /// docs/00-scope-lock.md excludes all three and Step 11.1 warns specifically
 /// against adding them "just in case".
 ///
 /// Idempotency (Step 11.1's "uses order_id as its own idempotency key")
 /// without any local store: the published OrderProcessed carries
-/// MessageId = OrderId (see OrderProcessedEto). A redelivered StockReserved
-/// therefore regenerates a byte-identical OrderProcessed, which Order
-/// Service's Week 9 Inbox recognises and drops. Contrast Inventory Service
-/// in Week 8, which DID need its own outbox table: its business fact landed
-/// in Redis while the notification had to land in Postgres, so the two could
-/// disagree. Nothing here writes anything locally, so there is nothing to
-/// disagree with.
+/// MessageId = OrderId (see OrderProcessedEto), and the published
+/// OrderProcessingStarted carries a MessageId derived deterministically from
+/// the OrderId (see OrderProcessingStartedEto.DeriveMessageId) -- a distinct
+/// value, so the Inbox can tell the start event apart from the completion.
+/// A redelivered StockReserved therefore regenerates start and completion
+/// messages with the same MessageIds (only their start time can differ), which Order Service's Week 9 Inbox recognises and
+/// drops. Contrast Inventory Service in Week 8, which DID need its own outbox
+/// table: its business fact landed in Redis while the notification had to land
+/// in Postgres, so the two could disagree. Nothing here writes anything
+/// locally, so there is nothing to disagree with.
 /// </summary>
 public class StockReservedConsumer : BackgroundService
 {
@@ -55,6 +59,7 @@ public class StockReservedConsumer : BackgroundService
     private readonly RabbitMqOptions _options;
     private readonly ProcessingOptions _processingOptions;
     private readonly OrderProcessedPublisher _publisher;
+    private readonly OrderProcessingStartedPublisher _startPublisher;
     private readonly ILogger<StockReservedConsumer> _logger;
     private readonly IConfiguration _configuration;
     private IConnection? _connection;
@@ -65,12 +70,14 @@ public class StockReservedConsumer : BackgroundService
         IOptions<RabbitMqOptions> options,
         IOptions<ProcessingOptions> processingOptions,
         OrderProcessedPublisher publisher,
+        OrderProcessingStartedPublisher startPublisher,
         ILogger<StockReservedConsumer> logger,
         IConfiguration configuration)
     {
         _options = options.Value;
         _processingOptions = processingOptions.Value;
         _publisher = publisher;
+        _startPublisher = startPublisher;
         _logger = logger;
         _configuration = configuration;
     }
@@ -216,10 +223,31 @@ public class StockReservedConsumer : BackgroundService
     {
         var stopwatch = Stopwatch.StartNew();
 
+        // Captured once, before the delay and outside the retry loop, so the
+        // start event and the completion carry the same "when work began"
+        // instant (Week 11 box 2). A retry re-publishes both events with the
+        // same identities, which Order Service's Inbox dedupes.
+        var startedAt = DateTime.UtcNow;
+
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             try
             {
+                // Publish the start event BEFORE the delay, so Order Service
+                // observes Confirmed -> Processing instead of guessing. The
+                // MessageId is derived from the order id (never the OrderId
+                // itself, which the completion uses), so a redelivered
+                // StockReserved regenerates the identical start message.
+                await _startPublisher.PublishAsync(
+                    new OrderProcessingStartedEto
+                    {
+                        OrderId = stockReserved.OrderId,
+                        MessageId = OrderProcessingStartedEto.DeriveMessageId(stockReserved.OrderId),
+                        CorrelationId = stockReserved.CorrelationId,
+                        StartedAt = startedAt,
+                    },
+                    _stoppingToken);
+
                 // The simulated downstream work. Deterministic by design
                 // (ProcessingOptions explains why), and deliberately INSIDE
                 // the retry loop: a retry re-does the work rather than
@@ -234,6 +262,7 @@ public class StockReservedConsumer : BackgroundService
                         // Not a fresh Guid: see OrderProcessedEto.MessageId.
                         MessageId = stockReserved.OrderId,
                         CorrelationId = stockReserved.CorrelationId,
+                        ProcessingStartedAt = startedAt,
                     },
                     _stoppingToken);
 

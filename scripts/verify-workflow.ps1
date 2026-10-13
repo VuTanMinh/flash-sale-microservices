@@ -45,11 +45,11 @@ $doc = [IO.File]::ReadAllText($DiagramDoc)
 $blocks = @([regex]::Matches($doc, '(?s)```mermaid\r?\n(.*?)```') | ForEach-Object { Norm $_.Groups[1].Value })
 $hp = ""; $rj = ""; $pl = ""
 foreach ($b in $blocks) {
-    if ($b.Contains("PLANNED (Week 11)")) { $pl = $b }
+    if ($b.Contains("OrderProcessingStartedEto")) { $pl = $b }
     elseif ($b.Contains("Process Worker")) { $hp = $b }
     else { $rj = $b }
 }
-Check "doc has a happy-path, a rejection and a planned diagram" ($hp -and $rj -and $pl)
+Check "doc has a happy-path, a rejection and a processing-hop diagram" ($hp -and $rj -and $pl)
 foreach ($pair in @(@("seq-happy-path", $hp), @("seq-rejection", $rj), @("seq-planned-processing", $pl))) {
     $fig = Norm (Src "report\figures\$($pair[0]).mmd")
     Check "report/figures/$($pair[0]).mmd is identical to the diagram in the doc" ($fig -eq $pair[1])
@@ -62,7 +62,8 @@ $ipw = Code "src\FlashSale.InventoryService\Messaging\OutboxPublisherWorker.cs"
 $publishers = @{
     "Order" = Code "src\FlashSale.OrderService\Messaging\RabbitMqOutboxPublisher.cs"
     "Inventory" = Code "src\FlashSale.InventoryService\Messaging\RabbitMqOutboxPublisher.cs"
-    "Process Worker" = Code "src\FlashSale.ProcessWorker\Messaging\OrderProcessedPublisher.cs"
+    "Process Worker (completed)" = Code "src\FlashSale.ProcessWorker\Messaging\OrderProcessedPublisher.cs"
+    "Process Worker (started)" = Code "src\FlashSale.ProcessWorker\Messaging\OrderProcessingStartedPublisher.cs"
 }
 $proc = Code "src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs"
 $res = Code "src\FlashSale.InventoryService\Inventory\InventoryReservationService.cs"
@@ -98,14 +99,14 @@ foreach ($name in $publishers.Keys) {
         $p.Contains("QueueDeclarePassiveAsync") -and $p.Contains("mandatory: true") -and $p.Contains("publisherConfirmationTrackingEnabled: true") -and
         (Before $p "QueueDeclarePassiveAsync" "BasicPublishAsync"))
 }
-Check "every publish arrow is drawn as mandatory with a confirm" ([regex]::Matches($both, 'publish \w+ \([^)]*mandatory[^)]*confirm').Count -eq 4)
+Check "every publish arrow is drawn as mandatory with a confirm" ([regex]::Matches($both, 'publish \w+ \([^)]*mandatory[^)]*confirm').Count -eq 5)
 
 # Required subscriber queues per event, from each service's appsettings.json
 $required = @{}
 foreach ($cfg in @($orderCfg, $invCfg, $wrkCfg)) {
     foreach ($prop in $cfg.RabbitMQ.EventBus.RequiredSubscriberQueues.PSObject.Properties) { $required[$prop.Name] = @($prop.Value) }
 }
-foreach ($evt in "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed") {
+foreach ($evt in "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed") {
     $qs = @($required[$evt])
     $text = if ($qs.Count -eq 1) { "check required queue $($qs[0])" } else { "check required queues " + ($qs -join " and ") }
     Check "$evt is drawn with exactly its configured required queues ($($qs -join ', '))" ($qs.Count -ge 1 -and $both.Contains($text)) $text
@@ -138,12 +139,13 @@ foreach ($c in @(
     Check "$($c[0]) consumer acks only after processing (autoAck off)" ((Before $s "await ProcessWithRetryAsync(" "BasicAckAsync") -and $s.Contains("autoAck: false"))
 }
 
-# Steps 21-23 and 28-30: applying results in Order Service
-Check "steps 22/29: Inbox check, transition and Inbox row in one save (StockResultProcessor)" (
-    (Before $srp "ProcessedMessages.AnyAsync" "order.TransitionTo(targetState)") -and (Before ($srp.Substring([Math]::Max(0, $srp.IndexOf("order.TransitionTo(targetState);")))) "ProcessedMessages.Add(" "await saveChangesAsync()") -and
+# Steps 21-23 and 28-31: applying results in Order Service
+Check "steps 22/29/30: Inbox check, transition, history and Inbox row in one save (StockResultProcessor)" (
+    (Before $srp "ProcessedMessages.AnyAsync" "order.TransitionTo(targetState)") -and (Before ($srp.Substring([Math]::Max(0, $srp.IndexOf("order.TransitionTo(targetState);")))) "OrderStatusHistory.Add(" "ProcessedMessages.Add(") -and (Before ($srp.Substring([Math]::Max(0, $srp.IndexOf("order.TransitionTo(targetState);")))) "ProcessedMessages.Add(" "await saveChangesAsync()") -and
     $hp.Contains("one transaction: Inbox check, PendingStock to Confirmed, Inbox row") -and $rj.Contains("one transaction: Inbox check, PendingStock to Rejected, Inbox row") -and
-    $hp.Contains("one transaction: Inbox check, Confirmed to Completed, Inbox row"))
-Check "step 29: OrderProcessed reuses StockResultProcessor with target Completed" ($opc.Contains('StockResultProcessor.ProcessAsync(') -and $opc.Contains('"OrderProcessed", OrderState.Completed'))
+    $hp.Contains("one transaction: Inbox check, Confirmed to Processing, Inbox row") -and
+    $hp.Contains("one transaction: Inbox check, Processing to Completed, Inbox row"))
+Check "OrderProcessed uses StockResultProcessor.ProcessCompletionAsync with ProcessingStartedAt" ($opc.Contains('StockResultProcessor.ProcessCompletionAsync(') -and $opc.Contains('orderProcessed.ProcessingStartedAt'))
 
 # Steps 21-27: the fork
 $osQueue = $orderCfg.RabbitMQ.EventBus.StockReservedQueueName; $pwQueue = $wrkCfg.RabbitMQ.EventBus.StockReservedQueueName
@@ -151,14 +153,15 @@ Check "the fork is drawn as par over the two configured queues ($osQueue, $pwQue
 $delay = $wrkCfg.Processing.DelayMilliseconds
 Check "step 25: Process Worker delay is the configured ${delay} ms" ($hp.Contains("fixed processing delay ($delay ms)") -and $wcon.Contains("Task.Delay(_processingOptions.DelayMilliseconds"))
 Check "step 26: OrderProcessed MessageId = OrderId (code and diagram)" ($wcon.Contains("MessageId = stockReserved.OrderId") -and $hp.Contains("MessageId = OrderId"))
+Check "step 25b: OrderProcessingStarted MessageId is derived from OrderId (code and diagram)" ($wcon.Contains('OrderProcessingStartedEto.DeriveMessageId(stockReserved.OrderId)') -and $hp.Contains('publish OrderProcessingStarted (derived MessageId'))
 Check "Process Worker binds only StockReserved, and the rejection path does not draw it" (
     $wcon.Contains('routingKey: "StockReserved"') -and -not $wcon.Contains('"StockRejected"') -and -not $rj.Contains("Process Worker"))
 
-# Steps 31-32, Nginx and the planned hop
+# Steps 31-32, Nginx and the Processing hop
 Check "steps 31-32: polling returns the final state" ($hp.Contains("200 OK (state Completed)") -and $rj.Contains("200 OK (state Rejected)"))
 $nginxForwards = $nginx -match 'proxy_pass'
 Check "Nginx is drawn only if infra/nginx.conf forwards requests (forwards: $nginxForwards)" (($both -match 'Nginx') -eq $nginxForwards)
-Check "Processing is drawn only as PLANNED while OrderState has no Processing" ((-not ($states -match '\bProcessing\b')) -and $pl.Contains("PLANNED (Week 11), not in code yet") -and -not ($both -match 'state=Processing|to Processing'))
+Check "Processing is drawn as a real hop, matching OrderState (no PLANNED note)" (($states -match '\bProcessing\b') -and $pl.Contains('publish OrderProcessingStartedEto') -and -not $pl.Contains('PLANNED') -and $hp.Contains('Confirmed to Processing') -and $hp.Contains('Processing to Completed'))
 
 # ================================================================ live
 if ($Container) {
@@ -255,9 +258,9 @@ SELECT concat_ws('|',
         Start-Svc "FlashSale.OrderService" @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
         Start-Svc "FlashSale.InventoryService" @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
         Start-Svc "FlashSale.ProcessWorker" @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
-        $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed", "ProcessWorker.StockReserved"
+        $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed", "ProcessWorker.StockReserved"
         $ready = Wait-Until { @($queues | Where-Object { $null -eq (Mq "/queues/%2F/$_") }).Count -eq 0 } 120
-        Check "all three services up; all five consumer queues declared" $ready
+        Check "all three services up; all six consumer queues declared" $ready
         if (-not $ready) { throw "services did not come up; see $env:TEMP\verify-wf-*.log" }
 
         & (Join-Path $repoRoot "scripts\warm-up.ps1") -Container $redis -Products @{ $p = 1 } -Force *> $null
@@ -286,6 +289,7 @@ SELECT concat_ws('|',
         Check "A steps 10-13: Inventory logged the reservation as Reserved" ($invLog.Contains("OrderPlaced $idA for product $p -> Reserved"))
         Check "A steps 24-26: Process Worker received StockReserved and published OrderProcessed" (Before $wrkLog "Received StockReserved for order $idA" "Order $idA processed in")
         Check "A: Order Service logged Confirmed before Completed" (Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Completed")
+        Check "A: Order Service logged the Processing step (start event) between Confirmed and Completed" ((Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Processing") -and (Before $ordLog "Order $idA -> Processing" "Order $idA -> Completed"))
         Check "A: still exactly one order for the replayed key" ((Sql "SELECT count(*) FROM order_service.orders WHERE `"IdempotencyKey`" = '$keyA';") -eq "1")
 
         # ---------- B: sold out ----------

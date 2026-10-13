@@ -21,15 +21,12 @@ Each event maps directly onto a transition in `docs/order-state-machine.md`.
 **Update (Week 11):** this contract gained the fourth event,
 `OrderProcessedEto`, below, and every event gained a `CorrelationId`.
 
-**Update (2026-10-01, Week 4 alignment):** the project adopted the teacher's
-six-state model (`docs/order-state-machine.md`). In that model, `Processing` is
-entered on a fifth event, `OrderProcessingStartedEto`, and `ProcessingFailed`
-is declared but has no producer (success-only Process Worker). The fifth event
-is **not in code yet**; it is the Week 11 task "Implement/verify the agreed
-Processing state/history". Until then the four events below are everything
-that is actually published, and `OrderProcessedEto` drives `Confirmed →
-Completed` directly. The Week 11 note that `Processing` was removed is
-superseded.
+**Update (Week 11 box 2):** the fifth event, `OrderProcessingStartedEto`, is now
+in code — published by the Process Worker before its deterministic delay — and
+`OrderProcessedEto` gained `ProcessingStartedAt`. `OrderProcessedEto` now drives
+`Processing → Completed` (or the implied `Confirmed → Processing → Completed`
+when the start event has not arrived). `ProcessingFailed` is declared but has no
+producer (success-only Process Worker) and stays unreachable by design.
 
 ## `OrderPlacedEto`
 
@@ -78,31 +75,34 @@ cause exists, not speculatively.
 ## `OrderProcessedEto`
 
 Published by the Process Worker, consumed by Order Service.
-Triggers `Confirmed → Completed` in the current code. Under the adopted
-six-state model it will trigger `Processing → Completed` once Week 11 adds
-`OrderProcessingStartedEto`. Added Week 11.
+Triggers `Processing → Completed`; if it arrives while the order is still
+`Confirmed` (the start event has not landed), Order Service applies
+`Confirmed → Processing → Completed` in one transaction with the `Processing`
+history row implied. Added Week 11.
 
 | Field | Type | Notes |
 |---|---|---|
 | `OrderId` | `Guid` | The order whose downstream processing finished. |
-| `MessageId` | `Guid` | **Set equal to `OrderId`**, unlike every other event here, which mints a fresh value per hop. Step 11.1 specifies that the Process Worker "uses order_id as its own idempotency key", and it is the one service with no database to record what it has already handled. Deriving the key from the order id means a redelivered `StockReserved` regenerates a byte-identical `OrderProcessed`, which Order Service's Week 9 Inbox then drops — the idempotency key travels in the message instead of living in a store. Verified live in Week 11, not just argued: a republished `StockReserved` caused a second processing run whose completion was deduped, leaving `completed_at` unchanged. *(Not re-verified; see TP-P01 in `docs/test-plan.md`.)* |
+| `MessageId` | `Guid` | **Set equal to `OrderId`**, unlike every other event here, which mints a fresh value per hop. Step 11.1 specifies that the Process Worker "uses order_id as its own idempotency key", and it is the one service with no database to record what it has already handled. Deriving the key from the order id means a redelivered `StockReserved` regenerates an `OrderProcessed`, which Order Service's Week 9 Inbox then drops — the idempotency key travels in the message instead of living in a store. Verified live in Week 11, not just argued: a republished `StockReserved` caused a second processing run whose completion was deduped, leaving `completed_at` unchanged. *(Not re-verified; see TP-P01 in `docs/test-plan.md`.)* |
 | `CorrelationId` | `string` | Carried through from `StockReservedEto`. |
+| `ProcessingStartedAt` | `DateTime?` | The Worker's start time (Week 11 box 2) — the same instant it published `OrderProcessingStartedEto.StartedAt`, copied here so an out-of-order completion can record the implied `Processing` history row with the Worker's start time. Nullable because an `OrderProcessed` from an earlier Worker version omits it; when absent, Order Service stamps the implied row with the apply time. |
 
 No `Result`/`Success` field, and no `ProductId` — see the class's own doc
 comment: the outcome is deterministically successful under the current scope
 lock, and a flag with one possible value carries no information.
 
-## `OrderProcessingStartedEto` — planned (Week 11), not in code yet
+## `OrderProcessingStartedEto`
 
-Published by the Process Worker when it starts work on a reserved order;
-consumed by Order Service. Triggers `Confirmed → Processing`.
+Published by the Process Worker when it begins work on a reserved order (before
+its deterministic delay), consumed by Order Service. Triggers
+`Confirmed → Processing`. Added Week 11 box 2.
 
 | Field | Type | Notes |
 |---|---|---|
 | `OrderId` | `Guid` | The order whose processing started. |
-| `MessageId` | `Guid` | Derived from the order id (as for `OrderProcessedEto`), so a redelivery produces an identical message. Exact derivation is fixed in Week 11. |
+| `MessageId` | `Guid` | Derived deterministically from `OrderId` (never a fresh Guid, never the `OrderId` itself), so a redelivered `StockReserved` regenerates a message with the same `MessageId` (its `StartedAt` can differ; the Inbox dedupes by `MessageId`). The derivation is a name-based UUID (v5-style, SHA-1) over the fixed namespace GUID `9e1b5c2a-3d4f-4a6b-8c7d-0e9f1a2b3c4d` plus the `OrderId` bytes (`Guid.ToByteArray()`), with the version-5 and RFC 4122 variant bits set; see `OrderProcessingStartedEto.DeriveMessageId`. It must differ from `OrderId` (which `OrderProcessedEto` uses) so the Inbox can tell a start event apart from the completion it precedes. |
 | `CorrelationId` | `string` | Carried through from `StockReservedEto`. |
-| `StartedAt` | `DateTime` | When processing began, also carried on `OrderProcessedEto` so an out-of-order completion can record an implied `Processing` step (see `docs/order-state-machine.md`). |
+| `StartedAt` | `DateTime` | When processing began (before the delay), also carried on `OrderProcessedEto.ProcessingStartedAt` so an out-of-order completion can record an implied `Processing` step (see `docs/order-state-machine.md`). |
 
 ## Routing (as configured in code)
 
@@ -111,6 +111,7 @@ consumed by Order Service. Triggers `Confirmed → Processing`.
 | `OrderPlacedEto` | `flashsale.order.exchange` (direct) | `OrderPlaced` | `OrderPlaced` (Inventory Service) |
 | `StockReservedEto` | `flashsale.order.exchange` | `StockReserved` | `StockReserved` (Order Service), `ProcessWorker.StockReserved` (Process Worker) |
 | `StockRejectedEto` | `flashsale.order.exchange` | `StockRejected` | `StockRejected` (Order Service) |
+| `OrderProcessingStartedEto` | `flashsale.order.exchange` | `OrderProcessingStarted` | `OrderProcessingStarted` (Order Service) |
 | `OrderProcessedEto` | `flashsale.order.exchange` | `OrderProcessed` | Order Service's `OrderProcessed` queue |
 
 Dead-lettering goes through `flashsale.dlx`; retry and DLQ behaviour belongs to

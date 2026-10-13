@@ -365,8 +365,13 @@ public class OrderServiceModule : AbpModule
         context.Services.AddHostedService<StockResultConsumer>();
 
         // Step 11.1 -- consumes the Process Worker's completion event and
-        // closes the order out (Confirmed -> Completed).
+        // closes the order out (Processing -> Completed, or the implied
+        // Confirmed -> Processing -> Completed).
         context.Services.AddHostedService<OrderProcessedConsumer>();
+
+        // Week 11 box 2 -- consumes the Process Worker's start event and moves
+        // the order into Processing (Confirmed -> Processing).
+        context.Services.AddHostedService<OrderProcessingStartedConsumer>();
 
         // Step 10.3 -- safety net for orders stuck in PendingStock past a
         // configurable timeout; see ReconciliationWorker's own doc comment.

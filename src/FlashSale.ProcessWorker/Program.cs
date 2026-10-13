@@ -35,6 +35,7 @@ public class Program
             builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
             builder.Services.Configure<ProcessingOptions>(builder.Configuration.GetSection("Processing"));
             builder.Services.AddSingleton<OrderProcessedPublisher>();
+            builder.Services.AddSingleton<OrderProcessingStartedPublisher>();
             builder.Services.AddHostedService<StockReservedConsumer>();
 
             var app = builder.Build();

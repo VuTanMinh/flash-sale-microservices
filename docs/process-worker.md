@@ -8,51 +8,60 @@ built and what the verifier checks.
 
 ## Deterministic delay, and why
 
-The Worker simulates downstream processing by waiting a fixed
-`Processing:DelayMilliseconds` (default 200 ms, configurable) and then publishing
-`OrderProcessed` — see `ProcessingOptions.cs`. The delay is deliberately a fixed
-value, not a random or normally-distributed one: a deterministic service time
-means any variance measured in end-to-end latency comes from queueing,
-contention and the architecture itself, not from the simulator adding noise of
-its own (the reason Week 13/14 vary this value). The delay is *inside* the
-retry loop, so a retry re-does the work rather than publishing a completion for
-processing that never actually ran to completion.
+The Worker simulates downstream processing by publishing `OrderProcessingStarted`
+(the start event, Week 11 box 2), waiting a fixed `Processing:DelayMilliseconds`
+(default 200 ms, configurable), and then publishing `OrderProcessed` — see
+`ProcessingOptions.cs`. The delay is deliberately a fixed value, not a random or
+normally-distributed one: a deterministic service time means any variance
+measured in end-to-end latency comes from queueing, contention and the
+architecture itself, not from the simulator adding noise of its own (the reason
+Week 13/14 vary this value). The start publish and the delay are *inside* the
+retry loop, so a retry re-publishes the start event and re-does the work rather
+than publishing a completion for processing that never actually ran to
+completion.
 
 Case A of `verify-worker.ps1` asserts the delay: with
 `Processing__DelayMilliseconds=500`, each Worker line
 `Order {OrderId} processed in {ElapsedMs}ms` is at least 500 ms and below
 500 ms + a stated tolerance (1500 ms).
 
-## Completion identity: `MessageId = OrderId`
+## Event identities: `MessageId = OrderId`, and a derived start id
 
 The Worker has no database of its own, so it cannot record what it has already
 handled. It derives the published `OrderProcessed` message identity from the
-order id: `MessageId = OrderId` (see `OrderProcessedEto.cs`). A redelivered
-`StockReserved` therefore regenerates a byte-identical `OrderProcessed`, which
-Order Service's Week 9 Inbox dedupes with no extra machinery — the idempotency
-key travels in the message rather than living in a store.
+order id: `MessageId = OrderId` (see `OrderProcessedEto.cs`), and the published
+`OrderProcessingStarted` identity deterministically from the same order id with
+a distinct name-based UUID (`OrderProcessingStartedEto.DeriveMessageId`) — a
+*different* value, so Order Service's Inbox can tell a start event apart from the
+completion it precedes. A redelivered `StockReserved` therefore regenerates
+both events with the same `MessageId`s (only their start time can differ), which Order Service's Week 9 Inbox dedupes
+with no extra machinery — the idempotency keys travel in the messages rather
+than living in a store.
 
-Case A asserts this: every applied `OrderProcessed` has one Order Inbox row with
-`MessageId = OrderId`.
+Case A asserts the completion half: every applied `OrderProcessed` has one Order
+Inbox row with `MessageId = OrderId`. `verify-processing.ps1` (TP-P02) asserts
+the start half: the `Processing` history row's `MessageId` is the derived id.
 
-## ACK after the confirmed publish
+## ACK after the confirmed publishes
 
-The Worker publishes `OrderProcessed` with publisher confirmations enabled and
-tracked, so `BasicPublishAsync` returns only once the broker has confirmed the
-message (`OrderProcessedPublisher.cs`). The input `StockReserved` is acked only
-*after* that confirmed publish (and after the Week 9 fault-injection hook that
-is a no-op unless configured). There is no Outbox here, and that is not an
+The Worker publishes both `OrderProcessingStarted` and `OrderProcessed` with
+publisher confirmations enabled and tracked, so each `BasicPublishAsync` returns
+only once the broker has confirmed the message (`OrderProcessingStartedPublisher.cs`,
+`OrderProcessedPublisher.cs`). The input `StockReserved` is acked only *after*
+both confirmed publishes (and after the Week 9 fault-injection hook that is a
+no-op unless configured). There is no Outbox here, and that is not an
 inconsistency: an Outbox exists to stop a local business write and a publish
-from disagreeing, and the Worker performs no local write — it only waits, then
-publishes. A crash anywhere in the sequence leaves the input unacknowledged, so
-the broker redelivers it.
+from disagreeing, and the Worker performs no local write — it only publishes,
+waits, then publishes again. A crash anywhere in the sequence leaves the input
+unacknowledged, so the broker redelivers it.
 
 ## Crash and graceful shutdown
 
 On a **crash** (`Stop-Process -Force`, or a power loss) the Worker dies with the
 input unacknowledged. The broker redelivers the `StockReserved`, the Worker
-re-runs the deterministic delay, and publishes the byte-identical completion,
-which Order Service dedupes. Exactly one completion is applied.
+re-publishes the start event, re-runs the deterministic delay, and publishes the
+completion with the same `MessageId` — Order Service dedupes both. Exactly one completion
+is applied.
 
 On a **graceful shutdown** (Ctrl+C / SIGTERM) the host's stopping token is
 cancelled. Before this fix, the cancelled delay surfaced as an

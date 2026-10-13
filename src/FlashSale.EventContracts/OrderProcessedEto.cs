@@ -31,8 +31,8 @@ public class OrderProcessedEto
     /// Process Worker is the one service here with no database of its own to
     /// record what it has already handled (see its own README/doc comment for
     /// why it needs none). Deriving the MessageId from the order id instead
-    /// means a redelivered StockReserved produces a byte-identical
-    /// OrderProcessed, which Order Service's Week 9 Inbox then dedupes with
+    /// means a redelivered StockReserved produces an OrderProcessed with the
+    /// same MessageId (only ProcessingStartedAt can differ), which Order Service's Week 9 Inbox then dedupes with
     /// no extra machinery -- the idempotency key travels in the message
     /// rather than living in a store.
     /// </summary>
@@ -44,4 +44,17 @@ public class OrderProcessedEto
     /// correlation-ID propagation (Step 11.2).
     /// </summary>
     public string CorrelationId { get; set; } = null!;
+
+    /// <summary>
+    /// The Worker's start time (Week 11 box 2) -- the same instant it published
+    /// <see cref="OrderProcessingStartedEto.StartedAt"/>, copied here so an
+    /// out-of-order completion (one that reaches Order Service while the order
+    /// is still Confirmed, because the started event has not arrived) can record
+    /// the implied Processing history row with the Worker's start time.
+    ///
+    /// Nullable because an <c>OrderProcessed</c> published by an earlier Worker
+    /// version has no such field; when it is absent Order Service treats it as
+    /// unknown and stamps the implied row with the apply time (review R2).
+    /// </summary>
+    public DateTime? ProcessingStartedAt { get; set; }
 }

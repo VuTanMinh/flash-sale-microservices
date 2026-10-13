@@ -21,8 +21,9 @@ namespace FlashSale.OrderService.Messaging;
 
 /// <summary>
 /// Consumes OrderProcessed from the Process Worker (Week 11) and closes the
-/// order out: Confirmed -> Completed, the transition that was an open
-/// question in docs/order-state-machine.md from Week 1 until this week.
+/// order out: Processing -> Completed, or -- when the started event has not
+/// arrived yet -- the implied Confirmed -> Processing -> Completed in one
+/// transaction (docs/order-state-machine.md, Week 11 box 2).
 ///
 /// A separate class from StockResultConsumer rather than a third queue
 /// bolted onto it: that consumer exists to handle Inventory Service's two
@@ -34,9 +35,10 @@ namespace FlashSale.OrderService.Messaging;
 /// RabbitMqOptions, which exists three times on purpose.
 ///
 /// The idempotent state transition itself is NOT duplicated -- it reuses
-/// StockResultProcessor, which despite its Week 8 name is state-agnostic:
-/// it takes a target state and applies it under an Inbox check, which is
-/// exactly what is needed here too.
+/// StockResultProcessor (its ProcessCompletionAsync entry point), which despite
+/// its Week 8 name is state-agnostic: it applies a completion under an Inbox
+/// check and writes the status history, which is exactly what is needed here
+/// too.
 /// </summary>
 public class OrderProcessedConsumer : BackgroundService
 {
@@ -339,8 +341,9 @@ public class OrderProcessedConsumer : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
-                return await StockResultProcessor.ProcessAsync(
-                    dbContext, orderProcessed.OrderId, orderProcessed.MessageId, "OrderProcessed", OrderState.Completed);
+                return await StockResultProcessor.ProcessCompletionAsync(
+                    dbContext, orderProcessed.OrderId, orderProcessed.MessageId, "OrderProcessed",
+                    orderProcessed.ProcessingStartedAt);
             }
             catch (InvalidOrderStateTransitionException)
             {

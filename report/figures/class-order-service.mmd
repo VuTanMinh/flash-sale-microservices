@@ -16,7 +16,19 @@ classDiagram
         PendingStock
         Confirmed
         Rejected
+        Processing
         Completed
+        ProcessingFailed
+    }
+    class OrderStatusHistory {
+        +Guid Id
+        +long Seq
+        +Guid OrderId
+        +OrderState? FromState
+        +OrderState ToState
+        +Guid? MessageId
+        +DateTime At
+        +bool Implied
     }
     class OutboxEvent {
         +Guid Id
@@ -38,4 +50,5 @@ classDiagram
     class InvalidOrderStateTransitionException
     Order --> OrderState : State
     Order ..> InvalidOrderStateTransitionException : throws on illegal transition
+    OrderStatusHistory ..> Order : OrderId (logical, same transaction)
     OutboxEvent ..> Order : OrderId (logical, same transaction)

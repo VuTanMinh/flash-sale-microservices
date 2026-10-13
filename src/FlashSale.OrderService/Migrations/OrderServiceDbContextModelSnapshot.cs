@@ -68,6 +68,44 @@ namespace FlashSale.OrderService.Migrations
                     b.ToTable("orders", "order_service");
                 });
 
+            modelBuilder.Entity("FlashSale.OrderService.Entities.OrderStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("FromState")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Implied")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Seq")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Seq"));
+
+                    b.Property<string>("ToState")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("order_status_history", "order_service");
+                });
+
             modelBuilder.Entity("FlashSale.OrderService.Entities.OutboxEvent", b =>
                 {
                     b.Property<Guid>("Id")

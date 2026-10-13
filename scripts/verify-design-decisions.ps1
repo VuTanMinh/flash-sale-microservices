@@ -56,7 +56,7 @@ Check "business idempotency covers a new MessageId for the same OrderId" ($doc -
 #    updated in the same change (Week 8 fixed two, Week 9 fixed the third).
 $opc = Src "src\FlashSale.OrderService\Messaging\OrderProcessedConsumer.cs"
 $srp = Src "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs"
-$gap1 = ($srp -match 'private static bool IsAwaitingPrerequisite[\s\S]{0,400}?target == OrderState\.Completed && current == OrderState\.PendingStock') -and
+$gap1 = ($srp -match 'private static bool IsAwaitingPrerequisite[\s\S]{0,400}?target == OrderState\.Processing \|\| target == OrderState\.Completed') -and
         ($srp -match 'IsAwaitingPrerequisite\(order\.State, targetState\)[\s\S]{0,300}?NotYetApplicable') -and
         ($opc -match 'RequeueForRetryAsync\(') -and
         ($opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?BasicNackAsync\([^)]*requeue: false')

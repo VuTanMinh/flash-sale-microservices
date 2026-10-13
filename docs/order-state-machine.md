@@ -36,7 +36,7 @@ stateDiagram-v2
 Events can arrive late, twice or out of order. Order Service applies them like this:
 
 - **Same or earlier state:** an event whose target state is the current state or an earlier one in `PendingStock → Confirmed → Processing → Completed` is acknowledged as a no-op. Example: a late `OrderProcessingStarted` arriving after `Completed`.
-- **`OrderProcessed` while `Confirmed`:** the started event has not arrived yet. Order Service applies `Confirmed → Processing → Completed` in one transaction. The `Processing` history row is marked as implied and takes the Worker's start time, carried on `OrderProcessed`.
+- **`OrderProcessed` while `Confirmed`:** the started event has not arrived yet. Order Service applies `Confirmed → Processing → Completed` in one transaction. The `Processing` history row is marked as implied and takes the **later** of the Worker's start time (carried on `OrderProcessed.ProcessingStartedAt`) and the confirmation time.
 - **Worker event while `PendingStock`:** the `StockReserved` result has not been applied yet. The message is nacked for bounded retry and is not dropped.
 
 A throwaway prototype checked these rules on 2026-10-01. It replayed every 5-event sequence that contained all three of `StockReserved`, `OrderProcessingStarted` and `OrderProcessed`, with duplicates and reordering allowed: 150 sequences. All of them ended `Completed`, with the history `PendingStock → Confirmed → Processing → Completed`. The prototype was deleted after the check.
@@ -45,22 +45,25 @@ A throwaway prototype checked these rules on 2026-10-01. It replayed every 5-eve
 
 Every transition appends a row to an order status history: order ID, from-state, to-state, the triggering MessageId, the time, and whether it was implied. The history is written in the same transaction as the state change. The current `orders` timestamp columns stay as they are.
 
+- **Ordering is by `Seq`**, a `bigint` identity column the database assigns in insertion order. History is read ordered by `Seq` (the API, the docs and the verifiers), never by `At` then `Id` — `At` can arrive out of order and `Id` is a random Guid.
+- **The Worker can start before Order Service records `Confirmed`**: both services consume `StockReserved` in parallel, so the Worker may publish `OrderProcessingStarted` (and stamp its start time) before Order Service applies `StockReserved`.
+- **The implied `Processing` row's time is therefore the later of** the Worker's start time (`OrderProcessed.ProcessingStartedAt`) and the confirmation time, so the history time never goes backwards. If `ProcessingStartedAt` is missing (a completion from an earlier Worker version), the apply time is used.
+
 ## Source alignment status
 
 | Item | Status |
 |---|---|
 | This document (adopted model) | Done, 2026-10-01 (Week 1) |
-| `OrderState` enum, transitions, `OrderProcessingStarted` event, Worker publish, history table, tests | **Open:** Week 11 box "Implement/verify the agreed Processing state/history and document the success-only interpretation of ProcessingFailed" |
-| ERD, class diagram, API/event contracts, sequence diagrams | Aligned 2026-10-01 (Week 2 ERD box, Week 4 alignment box); planned parts are labelled as Week 11 |
+| `OrderState` enum, transitions, `OrderProcessingStarted` event, Worker publish, history table, tests | **Done:** Week 11 box 2 (TP-P02, `scripts/verify-processing.ps1`) |
+| ERD, class diagram, API/event contracts, sequence diagrams | Aligned 2026-10-01 (Week 2 ERD box, Week 4 alignment box); the planned parts were promoted to the running code in Week 11 box 2 |
 
-Until the Week 11 box closes, the running code still has four states. Do not report six-state behaviour as implemented until then.
+Transitions in the code (`Order.LegalTransitions`):
 
-Transitions in the current code (`Order.LegalTransitions`):
-
-| Current code transition | Trigger |
+| Code transition | Trigger |
 |---|---|
 | `PendingStock` → `Confirmed` | `StockReserved` |
 | `PendingStock` → `Rejected` | `StockRejected` |
-| `Confirmed` → `Completed` | `OrderProcessed` (becomes `Processing` → `Completed` in Week 11) |
+| `Confirmed` → `Processing` | `OrderProcessingStarted` |
+| `Processing` → `Completed` | `OrderProcessed` (an `OrderProcessed` that arrives while the order is still `Confirmed` applies `Confirmed → Processing → Completed` in one transaction, with the `Processing` history row implied) |
 
-An accepted order that stays in `PendingStock` or `Processing` is a liveness failure to investigate, not a success. Retry, dead-letter and reconciliation are covered by the later week gates.
+`ProcessingFailed` is terminal and unreachable by design (success-only Worker, §"Interpretation of each teacher state" above). An accepted order that stays in `PendingStock` or `Processing` is a liveness failure to investigate, not a success. Retry, dead-letter and reconciliation are covered by the later week gates.

@@ -39,6 +39,8 @@ public class OrdersController : AbpController
 
     public record CreateOrderRequest(string ProductId, int Quantity);
 
+    public record OrderHistoryItem(string? From, string To, DateTime At, bool Implied);
+
     public record OrderResponse(
         Guid Id,
         string ProductId,
@@ -46,7 +48,8 @@ public class OrdersController : AbpController
         string State,
         DateTime RequestAcceptedAt,
         DateTime? ConfirmedOrRejectedAt,
-        DateTime? CompletedAt);
+        DateTime? CompletedAt,
+        IReadOnlyList<OrderHistoryItem> History);
 
     // Documented outcomes (exported to docs/api-contract-v1.json; behaviour
     // specified in docs/order-api.md): 201 new order, 200 replay of the same
@@ -116,7 +119,7 @@ public class OrdersController : AbpController
                 return Conflict("This Idempotency-Key was already used with a different request.");
             }
 
-            return Ok(ToResponse(existing));
+            return Ok(await ToResponseAsync(existing));
         }
 
         var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity, correlationId);
@@ -127,6 +130,10 @@ public class OrdersController : AbpController
         // dual-write problem Outbox exists to eliminate: either the order or
         // the "an event needs publishing" fact could commit without the other.
         _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
+        // Week 11 box 2: the creation history row (FromState = null) is written
+        // in this same transaction, so the history can never lag the order.
+        _dbContext.OrderStatusHistory.Add(new OrderStatusHistory(
+            Guid.NewGuid(), order.Id, null, OrderState.PendingStock, null, order.RequestAcceptedAt, false));
         try
         {
             await _dbContext.SaveChangesAsync();
@@ -149,7 +156,7 @@ public class OrdersController : AbpController
                 return Conflict("This Idempotency-Key was already used with a different request.");
             }
 
-            return Ok(ToResponse(winner));
+            return Ok(await ToResponseAsync(winner));
         }
 
         // Counted only after the commit, not before: an order that failed to
@@ -158,7 +165,7 @@ public class OrdersController : AbpController
         // divergence.
         OrderMetrics.OrdersAccepted.Inc();
 
-        return StatusCode(201, ToResponse(order));
+        return StatusCode(201, await ToResponseAsync(order));
     }
 
     // No ownership check: any caller with the id can read it. Deliberate, not
@@ -177,20 +184,41 @@ public class OrdersController : AbpController
             return NotFound();
         }
 
-        return Ok(ToResponse(order));
+        return Ok(await ToResponseAsync(order));
     }
 
     // Timestamps are stored as UTC in a "timestamp without time zone" column
     // and come back with Kind = Unspecified; marking them UTC keeps the "Z"
     // suffix, so a replayed order serialises exactly like the original.
-    private static OrderResponse ToResponse(Order order) => new(
-        order.Id,
-        order.ProductId,
-        order.Quantity,
-        order.State.ToString(),
-        AsUtc(order.RequestAcceptedAt),
-        order.ConfirmedOrRejectedAt is { } decidedAt ? AsUtc(decidedAt) : null,
-        order.CompletedAt is { } completedAt ? AsUtc(completedAt) : null);
+    private async Task<OrderResponse> ToResponseAsync(Order order)
+    {
+        // Week 11 box 2: expose the status history read-only, ordered by the
+        // database-assigned insertion-order key Seq (review R1). Ordering by At
+        // then Id is wrong: At can arrive out of order (the Worker can start
+        // before Order Service records Confirmed) and Id is a random Guid.
+        var rows = await _dbContext.OrderStatusHistory
+            .Where(h => h.OrderId == order.Id)
+            .OrderBy(h => h.Seq)
+            .ToListAsync();
+
+        var history = rows
+            .Select(h => new OrderHistoryItem(
+                h.FromState.HasValue ? h.FromState.Value.ToString() : null,
+                h.ToState.ToString(),
+                AsUtc(h.At),
+                h.Implied))
+            .ToList();
+
+        return new OrderResponse(
+            order.Id,
+            order.ProductId,
+            order.Quantity,
+            order.State.ToString(),
+            AsUtc(order.RequestAcceptedAt),
+            order.ConfirmedOrRejectedAt is { } decidedAt ? AsUtc(decidedAt) : null,
+            order.CompletedAt is { } completedAt ? AsUtc(completedAt) : null,
+            history);
+    }
 
     private static DateTime AsUtc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);
 }

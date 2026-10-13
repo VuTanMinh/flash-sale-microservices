@@ -70,9 +70,9 @@ $initialStock = 40
 $elapsedToleranceMs = 1500           # case A: elapsed must be >= delay (500) and < delay + this
 $workerExe = Join-Path $repoRoot "src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.exe"
 $workerJsonLog = Join-Path $repoRoot "src\FlashSale.ProcessWorker\bin\Debug\net10.0\Logs\logs.json"
-$allQueues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed", "ProcessWorker.StockReserved"
-$allDlqs = "OrderPlaced.dlq", "StockReserved.dlq", "StockRejected.dlq", "OrderProcessed.dlq", "ProcessWorker.StockReserved.dlq"
-$retryQueues = "OrderProcessed.retry.1", "OrderProcessed.retry.2", "OrderProcessed.retry.3"
+$allQueues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed", "ProcessWorker.StockReserved"
+$allDlqs = "OrderPlaced.dlq", "StockReserved.dlq", "StockRejected.dlq", "OrderProcessingStarted.dlq", "OrderProcessed.dlq", "ProcessWorker.StockReserved.dlq"
+$retryQueues = "OrderProcessingStarted.retry.1", "OrderProcessingStarted.retry.2", "OrderProcessingStarted.retry.3", "OrderProcessed.retry.1", "OrderProcessed.retry.2", "OrderProcessed.retry.3"
 
 # ------------------------------------------------------------------ helpers
 function Check([string]$name, [bool]$ok, [string]$detail = "") {

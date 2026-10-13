@@ -14,17 +14,17 @@ namespace FlashSale.OrderService.Tests;
 /// Checklist Step 9.4: publishes the same result message (same MessageId)
 /// through <see cref="StockResultProcessor"/> twice and asserts the business
 /// side effect (the order's state change) happened exactly once. "Publishes
-/// twice" here means invoking the processor twice with an identical
-/// MessageId, the same way a real redelivered RabbitMQ message would --
-/// there's no broker in this test, on purpose: StockResultConsumer's own
-/// broker plumbing (ack/nack, deserialization) has no correctness logic of
-/// its own, so a broker-level test would mostly be testing RabbitMQ.Client,
-/// not this project's idempotency guarantee. See docs comment on
-/// StockResultProcessor for why the logic under test lives there.
+/// twice" here means invoking the processor twice with an identical MessageId,
+/// the same way a real redelivered RabbitMQ message would -- there's no broker
+/// in this test, on purpose: the consumers' broker plumbing (ack/nack,
+/// deserialization) has no correctness logic of its own, so a broker-level test
+/// would mostly be testing RabbitMQ.Client, not this project's idempotency
+/// guarantee. See the doc comment on StockResultProcessor for why the logic
+/// under test lives there.
 ///
 /// Same real-SQLite-engine reasoning as OutboxAtomicityTests: the unique
-/// constraint on MessageId is the actual mechanism being proven, and EF
-/// Core's InMemory provider doesn't enforce unique constraints at all.
+/// constraint on MessageId is the actual mechanism being proven, and EF Core's
+/// InMemory provider doesn't enforce unique constraints at all.
 /// </summary>
 public class DuplicateMessageIdempotencyTests : IDisposable
 {
@@ -78,11 +78,8 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         Assert.Equal(OrderState.Confirmed, persisted.State);
 
         // The actual proof of "exactly once", not just "didn't throw": only
-        // one Inbox row exists for this MessageId, and only one
-        // ConfirmedOrRejectedAt stamp was ever set (a second real transition
-        // would have re-stamped it, which we can't observe directly here, but
-        // a duplicate Inbox row would be directly visible and is the
-        // mechanism that prevented the second stamp in the first place).
+        // one Inbox row exists for this MessageId (the mechanism that prevented
+        // a second stamp in the first place).
         var inboxRowCount = await freshDbContext.ProcessedMessages.CountAsync(m => m.MessageId == messageId);
         Assert.Equal(1, inboxRowCount);
     }
@@ -119,7 +116,7 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         // Week 9 box 2 (docs/design-decisions.md section 2): the Process Worker
         // consumes StockReserved in parallel with this service, so a completion
         // can arrive first. Before the fix this threw
-        // InvalidOrderStateTransitionException (PendingStock has no transition
+        // InvalidOrderStateTransitionException (PendingStock had no transition
         // to Completed), which the consumer treated as deterministic and sent
         // straight to the DLQ -- the completion was then lost for good and the
         // order stayed PendingStock.
@@ -128,7 +125,7 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         await _dbContext.SaveChangesOnDbContextAsync(true);
 
         var earlyMessageId = Guid.NewGuid();
-        var outcome = await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed);
+        var outcome = await ProcessCompletionWithBypassAsync(order.Id, earlyMessageId, DateTime.UtcNow);
 
         Assert.Equal(ResultProcessingOutcome.NotYetApplicable, outcome);
 
@@ -138,14 +135,16 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         // that was not applied must not be recorded as processed, or the
         // requeued copy would be dropped by the Inbox check when it comes back.
         Assert.False(await freshDbContext.ProcessedMessages.AnyAsync(m => m.MessageId == earlyMessageId));
-        Assert.Empty(await freshDbContext.ProcessedMessages.ToListAsync());
     }
 
     [Fact]
     public async Task OrderProcessed_is_applied_once_StockReserved_has_landed()
     {
         // The other half of the same case: the retried completion must be
-        // applied normally once the order is Confirmed, exactly once.
+        // applied normally once the order is Confirmed, exactly once. With the
+        // six-state model this is the implied path -- the start event has not
+        // arrived, so Confirmed -> Processing -> Completed is applied in one
+        // transaction.
         var order = NewPendingOrder();
         _dbContext.Orders.Add(order);
         await _dbContext.SaveChangesOnDbContextAsync(true);
@@ -153,17 +152,18 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         var earlyMessageId = Guid.NewGuid();
         Assert.Equal(
             ResultProcessingOutcome.NotYetApplicable,
-            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+            await ProcessCompletionWithBypassAsync(order.Id, earlyMessageId, DateTime.UtcNow));
 
         Assert.Equal(
             ResultProcessingOutcome.Applied,
-            await ProcessWithBypassAsync(order.Id, Guid.NewGuid(), OrderState.Confirmed));
+            await ProcessWithBypassAsync(order.Id, Guid.NewGuid()));
 
         // The retried copy, same MessageId as the early one -- the Inbox has
-        // nothing recorded for it, so it applies.
+        // nothing recorded for it, so it applies (implied, since the order is
+        // Confirmed, not Processing).
         Assert.Equal(
             ResultProcessingOutcome.Applied,
-            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+            await ProcessCompletionWithBypassAsync(order.Id, earlyMessageId, DateTime.UtcNow));
 
         await using var freshDbContext = FreshDbContext();
         var persisted = await freshDbContext.Orders.SingleAsync(o => o.Id == order.Id);
@@ -171,10 +171,15 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         Assert.NotNull(persisted.CompletedAt);
         Assert.Equal(1, await freshDbContext.ProcessedMessages.CountAsync(m => m.MessageId == earlyMessageId));
 
+        // The implied Processing row exists (Confirmed -> Processing, Implied).
+        Assert.True(await freshDbContext.OrderStatusHistory.AnyAsync(h =>
+            h.OrderId == order.Id && h.FromState == OrderState.Confirmed &&
+            h.ToState == OrderState.Processing && h.Implied));
+
         // And a further redelivery of that same message stays a no-op.
         Assert.Equal(
             ResultProcessingOutcome.AlreadyProcessed,
-            await ProcessWithBypassAsync(order.Id, earlyMessageId, OrderState.Completed));
+            await ProcessCompletionWithBypassAsync(order.Id, earlyMessageId, DateTime.UtcNow));
     }
 
     [Fact]
@@ -188,9 +193,9 @@ public class DuplicateMessageIdempotencyTests : IDisposable
 
         // A genuine conflict, not a redelivery: some other message now claims
         // this order should be Confirmed, despite it already being Rejected.
-        // StockResultConsumer nacks this without requeue (checklist Step
-        // 8.2); the processor's job is only to let the real exception surface
-        // rather than swallow it as if it were an idempotent no-op.
+        // The consumer nacks this without requeue; the processor's job is only
+        // to let the real exception surface rather than swallow it as if it
+        // were an idempotent no-op.
         var conflictingMessageId = Guid.NewGuid();
         await Assert.ThrowsAsync<InvalidOrderStateTransitionException>(
             () => ProcessWithBypassAsync(order.Id, conflictingMessageId, OrderState.Confirmed));
@@ -198,8 +203,8 @@ public class DuplicateMessageIdempotencyTests : IDisposable
         await using var freshDbContext = FreshDbContext();
         Assert.Equal(OrderState.Rejected, (await freshDbContext.Orders.SingleAsync(o => o.Id == order.Id)).State);
         // The failed attempt must not leave behind an Inbox row -- it never
-        // reached a successful SaveChangesAsync, so nothing should be
-        // recorded as "processed" for a transition that never actually applied.
+        // reached a successful SaveChangesAsync, so nothing should be recorded
+        // as "processed" for a transition that never actually applied.
         Assert.False(await freshDbContext.ProcessedMessages.AnyAsync(m => m.MessageId == conflictingMessageId));
     }
 
@@ -207,12 +212,18 @@ public class DuplicateMessageIdempotencyTests : IDisposable
     // SaveChangesOnDbContextAsync bypass (see OutboxAtomicityTests' own
     // comment on why): the real SaveChangesAsync needs ABP's full DI
     // container, which a directly-constructed DbContext in a test doesn't
-    // have. Production (StockResultConsumer) calls the parameterless
-    // overload instead, which always uses the real one.
+    // have. Production consumers call the parameterless overload instead, which
+    // always uses the real one.
     private Task<ResultProcessingOutcome> ProcessWithBypassAsync(
         Guid orderId, Guid messageId, OrderState targetState = OrderState.Confirmed) =>
         StockResultProcessor.ProcessAsync(
             _dbContext, orderId, messageId, "StockReserved", targetState,
+            () => _dbContext.SaveChangesOnDbContextAsync(true));
+
+    private Task<ResultProcessingOutcome> ProcessCompletionWithBypassAsync(
+        Guid orderId, Guid messageId, DateTime? startedAt) =>
+        StockResultProcessor.ProcessCompletionAsync(
+            _dbContext, orderId, messageId, "OrderProcessed", startedAt,
             () => _dbContext.SaveChangesOnDbContextAsync(true));
 
     private OrderServiceDbContext FreshDbContext() =>

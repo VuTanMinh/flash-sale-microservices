@@ -1,36 +1,34 @@
 namespace FlashSale.OrderService.Entities;
 
 /// <summary>
-/// Matches docs/order-state-machine.md exactly.
+/// The teacher's six named states, as adopted by the owners on 2026-10-01 and
+/// transcribed in docs/order-state-machine.md: <see cref="PendingStock"/>,
+/// <see cref="Confirmed"/>, <see cref="Rejected"/>, <see cref="Processing"/>,
+/// <see cref="Completed"/>, <see cref="ProcessingFailed"/>.
 ///
-/// Week 11 update: Processing and ProcessingFailed were REMOVED from this
-/// enum, not merely left unreachable. The Week 1 draft declared them because
-/// the Process Worker's design was still an open question; now that it is
-/// built (Step 11.1), neither state has a trigger that the system can
-/// actually observe:
+/// Week 11 box 2 (TP-P02) promoted <see cref="Processing"/> from a declared-but-
+/// absent value to a real, reachable state: the Process Worker publishes an
+/// <c>OrderProcessingStarted</c> event when it begins work on a reserved order,
+/// and Order Service observes it instead of guessing. The transition
+/// <c>Confirmed → Completed</c> is now split into <c>Confirmed → Processing →
+/// Completed</c>; an <c>OrderProcessed</c> that arrives while the order is still
+/// <c>Confirmed</c> applies both legs in one transaction and records the
+/// <c>Processing</c> history row as implied.
 ///
-///   * Processing -- the Process Worker consumes the same StockReserved
-///     event Order Service does and publishes exactly one completion event.
-///     Order Service therefore learns two facts about an order ("stock
-///     reserved", "processing finished") and never a third one in between.
-///     Inventing a second "processing started" event purely to make this
-///     state reachable would add a contract, a queue, a consumer and an
-///     inbox path to a simulator, for a state no reader of the order would
-///     act on. Where the work actually is mid-flight is already observable
-///     where it genuinely lives: the Process Worker's own queue depth.
-///   * ProcessingFailed -- the Process Worker's result is deterministically
-///     successful by design (Proposal §3), and docs/00-scope-lock.md
-///     excludes payment failure and compensation, so nothing in scope can
-///     produce this outcome. A state no code path can reach is a claim the
-///     system does not keep.
-///
-/// Keeping either one as a declared-but-dead value would have left exactly
-/// the kind of aspirational-diagram gap this project has refused elsewhere.
+/// <see cref="ProcessingFailed"/> stays in the enum but is declared, not
+/// reachable: the Process Worker's outcome is deterministically successful by
+/// design (docs/00-scope-lock.md excludes payment failure and compensation), so
+/// no event in scope produces it. It is kept so the model matches the teacher's
+/// six states, and is documented as unreachable-by-design (success-only). It
+/// becomes reachable only if a failing Worker outcome is added to scope with its
+/// own event.
 /// </summary>
 public enum OrderState
 {
     PendingStock,
     Confirmed,
     Rejected,
+    Processing,
     Completed,
+    ProcessingFailed,
 }

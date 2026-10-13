@@ -29,6 +29,7 @@ function Get-CsProperties([string]$rel) {
 $cd = Read "docs\class-diagram.md"
 $classMap = [ordered]@{
     "Order"                     = "src\FlashSale.OrderService\Entities\Order.cs"
+    "OrderStatusHistory"        = "src\FlashSale.OrderService\Entities\OrderStatusHistory.cs"
     "OutboxEvent"               = "src\FlashSale.OrderService\Entities\OutboxEvent.cs"
     "ProcessedMessage"          = "src\FlashSale.OrderService\Entities\ProcessedMessage.cs"
     "InventoryOutboxEvent"      = "src\FlashSale.InventoryService\Entities\OutboxEvent.cs"
@@ -36,6 +37,7 @@ $classMap = [ordered]@{
     "OrderPlacedEto"            = "src\FlashSale.EventContracts\OrderPlacedEto.cs"
     "StockReservedEto"          = "src\FlashSale.EventContracts\StockReservedEto.cs"
     "StockRejectedEto"          = "src\FlashSale.EventContracts\StockRejectedEto.cs"
+    "OrderProcessingStartedEto" = "src\FlashSale.EventContracts\OrderProcessingStartedEto.cs"
     "OrderProcessedEto"         = "src\FlashSale.EventContracts\OrderProcessedEto.cs"
 }
 foreach ($cls in $classMap.Keys) {
@@ -48,21 +50,21 @@ foreach ($cls in $classMap.Keys) {
 $enumCode = [regex]::Match((Read "src\FlashSale.OrderService\Entities\OrderState.cs"), 'enum OrderState\s*\{([^}]*)\}').Groups[1].Value -split '[,\s]+' | Where-Object { $_ } | Sort-Object
 $enumDrawn = [regex]::Match($cd, 'class OrderState \{\s*<<enumeration>>([^}]*)\}').Groups[1].Value -split '\s+' | Where-Object { $_ } | Sort-Object
 Check "class diagram OrderState values = code enum" (($enumCode -join ",") -eq ($enumDrawn -join ",")) "code: $($enumCode -join ',') drawn: $($enumDrawn -join ',')"
-Check "class diagram labels the six-state additions as planned Week 11" ($cd -match "## Planned \(Week 11, not in code yet\)" -and $cd -match "OrderProcessingStartedEto")
+Check "class diagram draws the six-state additions as implemented (not planned)" (-not ($cd -match "## Planned \(Week 11, not in code yet\)") -and $cd -match "OrderProcessingStartedEto" -and $cd -match "OrderStatusHistory")
 
 # ---------------------------------------------------------------- event contract
 $ec = Read "docs\event-contract.md"
-foreach ($eto in "OrderPlacedEto", "StockReservedEto", "StockRejectedEto", "OrderProcessedEto") {
+foreach ($eto in "OrderPlacedEto", "StockReservedEto", "StockRejectedEto", "OrderProcessingStartedEto", "OrderProcessedEto") {
     $sec = [regex]::Match($ec, "## ``$eto``(.*?)(?=\n## )", 'Singleline').Groups[1].Value
     $rows = @([regex]::Matches($sec, '^\|\s*`([A-Za-z]+)`\s*\|\s*`([A-Za-z?]+)`', 'Multiline') | ForEach-Object { "$($_.Groups[1].Value):$($_.Groups[2].Value)" } | Sort-Object)
     $code = Get-CsProperties $classMap[$eto]
     Check "event contract $eto fields = code" (($rows -join ",") -eq ($code -join ",")) "doc: $($rows -join ', ') | code: $($code -join ', ')"
 }
-Check "event contract marks OrderProcessingStartedEto as planned" ($ec -match "OrderProcessingStartedEto`` — planned \(Week 11\), not in code yet")
+Check "event contract documents OrderProcessingStartedEto as implemented (derivation recorded)" ($ec -match '## `OrderProcessingStartedEto`' -and $ec -match 'DeriveMessageId' -and $ec -match '9e1b5c2a-3d4f-4a6b-8c7d-0e9f1a2b3c4d')
 # Routing keys appear as string literals in the messaging code, either as
 # routingKey: "X" or as a positional argument to the queue bind/publish helpers.
 $routingCode = (Get-ChildItem (Join-Path $root "src") -Recurse -Filter *.cs | Where-Object { $_.FullName -like "*\Messaging\*" -or $_.Name -like "*Processor.cs" } | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
-foreach ($key in "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed") {
+foreach ($key in "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed") {
     Check "routing key '$key' in event contract is used in code" ($ec -match "\| ``$key`` \|" -and $routingCode -match "`"$key`"")
 }
 Check "exchange name in event contract matches configuration" ($ec -match 'flashsale\.order\.exchange' -and (Read "src\FlashSale.OrderService\appsettings.json") -match '"ExchangeName": "flashsale.order.exchange"')
@@ -80,7 +82,7 @@ foreach ($t in $codeTransitions) {
     $f, $to = $t.Split('>')
     Check "state doc lists current-code transition $f -> $to" ($sm -match "\| ``$f`` → ``$to`` \|")
 }
-Check "state doc says the code still has four states until Week 11" ($sm -match "running code still has four states")
+Check "state doc says the six-state model is implemented (Week 11 box 2 / TP-P02)" ($sm -match 'TP-P02' -and $sm -match '`ProcessingFailed`')
 
 # ---------------------------------------------------------------- sequence diagrams
 $sq = Read "docs\sequence-diagrams.md"
@@ -91,7 +93,7 @@ Check "sequence diagram Outbox poll interval matches code (${poll}s)" ($sq -matc
 foreach ($key in [regex]::Matches($sq, 'routing key "(\w+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique) {
     Check "sequence diagram routing key '$key' exists in code" ($routingCode -match "`"$key`"")
 }
-Check "sequence diagrams draw the Processing hop only as PLANNED" ($sq -match "PLANNED \(Week 11\), not in code yet")
+Check "sequence diagrams draw the Processing hop as real (no PLANNED note)" (($sq -notmatch "PLANNED \(Week 11\), not in code yet") -and $sq -match 'publish OrderProcessingStartedEto')
 foreach ($stale in "turned out not to exist", "never passes through a ``Processing``", "removed from the domain") {
     Check "no stale claim '$stale' in design docs" (-not (($sq + $ec + $cd + $sm) -match [regex]::Escape($stale)))
 }

@@ -84,30 +84,41 @@ sequenceDiagram
         OS->>MQ: ack StockReserved
     and queue ProcessWorker.StockReserved
         MQ->>PW: deliver StockReserved
+        PW->>MQ: check required queue OrderProcessingStarted, publish OrderProcessingStarted (derived MessageId, mandatory, confirm)
         PW->>PW: fixed processing delay (200 ms)
-        PW->>MQ: check required queue OrderProcessed, publish OrderProcessed (MessageId = OrderId, mandatory, confirm)
+        PW->>MQ: check required queue OrderProcessed, publish OrderProcessed (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
         PW->>MQ: ack StockReserved
     end
 
+    MQ->>OS: deliver OrderProcessingStarted
+    OS->>PGO: one transaction: Inbox check, Confirmed to Processing, Inbox row
+    OS->>MQ: ack OrderProcessingStarted
+
     MQ->>OS: deliver OrderProcessed
-    OS->>PGO: one transaction: Inbox check, Confirmed to Completed, Inbox row
+    OS->>PGO: one transaction: Inbox check, Processing to Completed, Inbox row
     OS->>MQ: ack OrderProcessed
 
     Client->>OS: GET /api/orders/{id}
     OS-->>Client: 200 OK (state Completed)
 ```
 
-The Process Worker has no Inbox. A redelivered `StockReserved` makes it
-publish `OrderProcessed` again with the same `MessageId` (the `OrderId`), and
-Order Service's Inbox absorbs that copy.
+The Process Worker has no Inbox. A redelivered `StockReserved` makes it publish
+`OrderProcessingStarted` again with the same derived `MessageId` and
+`OrderProcessed` again with `MessageId = OrderId`; Order Service's Inbox absorbs
+both copies.
 
-**Race in the `par` block (handled since Week 9).** The two branches are
-independent. If `OrderProcessed` (step 28) reaches Order Service before step
-22 has committed, the order is still `PendingStock`. Order Service then writes
-nothing for it and republishes it onto a delayed retry queue
-(`OrderProcessed.retry.1`–`.3`, 2 s / 4 s / 8 s). It is applied once the order
-is `Confirmed`, and dead-lettered only if it is still early after three
-requeues (`docs/design-decisions.md` §2, TP-M02).
+**Races in the `par` block (handled since Week 9).** The two branches are
+independent, and each Worker event (`OrderProcessingStarted`, then
+`OrderProcessed`) is a separate hop. If either reaches Order Service before
+step 22 has committed, the order is still `PendingStock`. Order Service then
+writes nothing for it and republishes it onto that event's own delayed retry
+queues (`OrderProcessingStarted.retry.1`–`.3` and `OrderProcessed.retry.1`–`.3`,
+2 s / 4 s / 8 s). It is applied once the order is `Confirmed`, and dead-lettered
+only if it is still early after three requeues (`docs/design-decisions.md` §2,
+TP-M02). A completion that arrives while the order is `Confirmed` (the start
+event is still in flight) is applied as `Confirmed → Processing → Completed` in
+one transaction, with the `Processing` history row implied
+(`docs/order-state-machine.md`).
 
 ## Rejection path: sold out, or sale not open
 
@@ -162,10 +173,10 @@ maps to `StockReserved` without deducting again. Because the Outbox row is
 "ensure it exists for this OrderId", a redelivery cannot leave the order
 waiting with no result.
 
-## Planned hop: Processing (Week 11)
+## Processing hop: the Worker events (Week 11 box 2)
 
-The adopted six-state model (`docs/order-state-machine.md`) adds one hop that
-is not built yet:
+The two Worker events and the state changes they drive, shown on their own
+(they are also part of the happy path above):
 
 ```mermaid
 sequenceDiagram
@@ -173,21 +184,22 @@ sequenceDiagram
     participant OrderSvc as Order Service
     participant PGOrd as Postgres (order_service)
     participant ProcSvc as Process Worker
-    Note over ProcSvc,OrderSvc: PLANNED (Week 11), not in code yet
     MQ->>ProcSvc: deliver StockReservedEto
-    ProcSvc->>MQ: publish OrderProcessingStartedEto
+    ProcSvc->>MQ: publish OrderProcessingStartedEto (derived MessageId, StartedAt, mandatory, confirm)
     MQ->>OrderSvc: deliver OrderProcessingStartedEto
-    OrderSvc->>PGOrd: UPDATE Order SET state=Processing + history row
+    OrderSvc->>PGOrd: one transaction: Inbox check, Confirmed to Processing, Inbox row (+ history)
     ProcSvc->>ProcSvc: deterministic processing delay
-    ProcSvc->>MQ: publish OrderProcessedEto (carries StartedAt)
+    ProcSvc->>MQ: publish OrderProcessedEto (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
     MQ->>OrderSvc: deliver OrderProcessedEto
-    OrderSvc->>PGOrd: UPDATE Order SET state=Completed + history row
+    OrderSvc->>PGOrd: one transaction: Inbox check, Processing to Completed, Inbox row (+ history)
 ```
 
 If `OrderProcessedEto` arrives before the started event, Order Service applies
 `Confirmed → Processing → Completed` in one transaction, with the `Processing`
-history row marked as implied. `ProcessingFailed` has no producer
-(success-only Process Worker).
+history row marked as implied and `At` = the later of `ProcessingStartedAt` and
+the confirmation time (the Worker can start before `Confirmed` is recorded).
+`ProcessingFailed` has no producer (success-only Process Worker) and is
+unreachable by design.
 
 ## Not drawn as arrows
 

@@ -122,9 +122,9 @@ try {
         -p "${amqp}:5672" -p "${mgmt}:15672" rabbitmq:3-management | Out-Null
     if (-not (Wait-Until { $null -ne (Mq Get "/overview") } 90)) { throw "throwaway RabbitMQ did not start" }
     foreach ($proj in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { Start-Svc $proj "start" }
-    $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed", "ProcessWorker.StockReserved"
+    $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed", "ProcessWorker.StockReserved"
     $ready = Wait-Until { @($queues | Where-Object { $null -eq (Mq Get "/queues/%2F/$_") }).Count -eq 0 } 120
-    Check "all three services up; all five consumer queues declared" $ready
+    Check "all three services up; all six consumer queues declared" $ready
     if (-not $ready) { throw "services did not come up" }
     & (Join-Path $repoRoot "scripts\warm-up.ps1") -Container $redis -Products @{ $p = 10 } -Force *> $null
     Check "warm-up: $p has 10 units" ((Redis "GET", "inventory:$p") -eq "10")
@@ -145,23 +145,33 @@ try {
         $n -eq 1 -and $done -and (InvOutbox $o1) -eq 1 -and (InvInbox $m1) -eq 1 -and (Redis "GET", "inventory:$p") -eq "9") "replayed=$n state=$(State $o1) stock=$(Redis 'GET', "inventory:$p")"
 
     # ---------------------------------------------------------- local transaction: Order Service
-    $srBefore = QueueCount "StockReserved.dlq"; $opBefore = QueueCount "OrderProcessed.dlq"
+    $srBefore = QueueCount "StockReserved.dlq"; $opBefore = QueueCount "OrderProcessed.dlq"; $opsBefore = QueueCount "OrderProcessingStarted.dlq"
     Sql "REVOKE INSERT ON order_service.processed_messages FROM order_service_user;" | Out-Null
     $o2 = Post-Order $p ("dl-tx-ord-" + [guid]::NewGuid())
     $dead = Wait-Until { (QueueCount "StockReserved.dlq") -eq ($srBefore + 1) } 60
     $r2 = ResultMsg $o2
     Check "Order Service, Inbox refused: StockReserved retried then dead-lettered" $dead
     Check "Order Service, Inbox refused: the state change rolled back with it (PendingStock, no Inbox row)" ((State $o2) -eq "PendingStock" -and (OrdInbox $r2) -eq 0 -and (Ts $o2 "ConfirmedOrRejectedAt") -eq "-")
-    # The Process Worker's OrderProcessed reaches a PendingStock order and is
-    # dead-lettered: the known Week 9/11 gap (docs/design-decisions.md).
+    # The Process Worker's two events (OrderProcessingStarted, then
+    # OrderProcessed) both reach a PendingStock order and are dead-lettered
+    # after their bounded requeue: the known Week 9/11 gap
+    # (docs/design-decisions.md section 2).
     Wait-Until { (QueueCount "OrderProcessed.dlq") -eq ($opBefore + 1) } 30 | Out-Null
+    Wait-Until { (QueueCount "OrderProcessingStarted.dlq") -eq ($opsBefore + 1) } 30 | Out-Null
     Sql "GRANT INSERT ON order_service.processed_messages TO order_service_user;" | Out-Null
     $n = Replay "StockReserved.dlq" "StockReserved"
-    $ok = Wait-Until { (State $o2) -eq "Confirmed" } 30
+    # Six-state aware: the replayed StockReserved applies Confirmed, but the
+    # Process Worker re-publishes its start event for that replayed
+    # StockReserved, so the order can already be Processing or Completed by the
+    # time this wait runs (the start event applies in between).
+    $ok = Wait-Until { (State $o2) -in @("Confirmed", "Processing", "Completed") } 30
+    $o2ConfirmedRows = [int](Sql "SELECT count(*) FROM order_service.order_status_history WHERE `"OrderId`" = '$o2' AND `"ToState`" = 'Confirmed';")
     $n2 = Replay "OrderProcessed.dlq" "OrderProcessed"
     $done = Wait-Until { (State $o2) -eq "Completed" } 30
-    Check "Order Service: after the fault, replaying the dead letters applies each once (Confirmed then Completed, 1 Inbox row each)" (
-        $n -eq 1 -and $ok -and $done -and (OrdInbox $r2) -eq 1 -and (OrdInbox $o2) -eq 1) "replayed=$n/$n2 state=$(State $o2)"
+    $n3 = Replay "OrderProcessingStarted.dlq" "OrderProcessingStarted"
+    Check "Order Service: after the fault, replaying the dead letters applies each once (Confirmed then Completed, 1 Inbox row each; the start event is then a no-op)" (
+        $n -eq 1 -and $ok -and $done -and (OrdInbox $r2) -eq 1 -and (OrdInbox $o2) -eq 1 -and $n3 -eq 1) "replayed=$n/$n2/$n3 state=$(State $o2)"
+    Check "Order Service: the StockReserved replay wrote exactly one Confirmed history row" ($o2ConfirmedRows -eq 1) "confirmedRows=$o2ConfirmedRows state=$(State $o2)"
 
     # ---------------------------------------------------------- crash after commit, before ack
     Write-Host "== Crash after commit, before ack"
@@ -193,7 +203,7 @@ try {
     Start-Svc "FlashSale.OrderService" "restart-sr"
     $done = Wait-Until { (State $o4) -eq "Completed" } 60
     Check "StockResult replay: the same MessageId was redelivered and acked as already processed" ((Log "FlashSale.OrderService") -match "StockReserved $r4 for order $o4 already processed")
-    Check "StockResult replay: one effect (1 Inbox row, decision timestamp unchanged, then Completed)" ($done -and (OrdInbox $r4) -eq 1 -and (Ts $o4 "ConfirmedOrRejectedAt") -eq $decided)
+    Check "StockResult replay: one effect (1 Inbox row, decision timestamp unchanged, then Completed)" ($done -and (OrdInbox $r4) -eq 1 -and (Ts $o4 "ConfirmedOrRejectedAt") -eq $decided) "done=$done inbox=$(OrdInbox $r4) decidedNow=$(Ts $o4 'ConfirmedOrRejectedAt') decidedThen=$decided completedAt=$(Ts $o4 'CompletedAt') state=$(State $o4)"
 
     # 3. Order Service OrderProcessed
     $k = "dl-crash-op-" + [guid]::NewGuid()

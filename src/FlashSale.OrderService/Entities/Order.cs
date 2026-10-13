@@ -65,25 +65,30 @@ public class Order
     }
 
     /// <summary>
-    /// docs/order-state-machine.md, transcribed directly. Week 11 closed the
-    /// open question that kept Confirmed terminal through Weeks 5-10: the
-    /// Process Worker consumes StockReserved, waits its deterministic delay,
-    /// and publishes exactly one OrderProcessed, which drives
-    /// Confirmed -> Completed here.
+    /// docs/order-state-machine.md, transcribed directly. The six states and
+    /// their transitions (Week 11 box 2, TP-P02):
     ///
-    /// That single completion event is also why Processing and
-    /// ProcessingFailed no longer exist as states at all (see OrderState):
-    /// with one input event and one output event, this service never learns
-    /// a distinct "processing has begun" fact to transition ON, and the
-    /// scope lock rules out the failure path that ProcessingFailed existed
-    /// for. Both were retired rather than left declared-but-unreachable.
+    ///   PendingStock -> Confirmed   (StockReserved)
+    ///   PendingStock -> Rejected    (StockRejected)
+    ///   Confirmed     -> Processing (OrderProcessingStarted)
+    ///   Processing    -> Completed  (OrderProcessed)
+    ///
+    /// Rejected, Completed and ProcessingFailed are terminal. Every other pair
+    /// throws InvalidOrderStateTransitionException. There is deliberately no
+    /// self-loop on any state, which is what lets StockResultProcessor tell a
+    /// redelivered event (a no-op) apart from a genuine conflict (an exception).
+    ///
+    /// ProcessingFailed is not in the table: nothing in scope can set it
+    /// (success-only Worker), so no transition leads to it (see OrderState).
     /// </summary>
     private static readonly Dictionary<OrderState, OrderState[]> LegalTransitions = new()
     {
         [OrderState.PendingStock] = [OrderState.Confirmed, OrderState.Rejected],
-        [OrderState.Confirmed] = [OrderState.Completed],
+        [OrderState.Confirmed] = [OrderState.Processing],
+        [OrderState.Processing] = [OrderState.Completed],
         [OrderState.Rejected] = [],
         [OrderState.Completed] = [],
+        [OrderState.ProcessingFailed] = [],
     };
 
     public void TransitionTo(OrderState newState)

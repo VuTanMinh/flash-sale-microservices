@@ -18,7 +18,7 @@
 - **Column names are PascalCase and quoted** (EF Core default, for example `"IdempotencyKey"`). Only the raw-SQL baseline tables use snake_case.
 - **Timestamps** in EF-migrated tables are `timestamp without time zone` holding UTC values (`DateTime.UtcNow`). The baseline table uses `timestamptz`.
 - **Stock is not in PostgreSQL** for the asynchronous design. Redis holds `inventory:{productId}` (available stock) and `processed:{productId}` (set of order ids already reserved). The Lua script checks and decrements both atomically.
-- **Order states** follow `docs/order-state-machine.md`: six adopted states. The `State` column currently stores four of them (`PendingStock`, `Confirmed`, `Rejected`, `Completed`) until the Week 11 implementation task adds `Processing` and the status-history table. That table is **not** in this ERD because it does not exist in code yet.
+- **Order states** follow `docs/order-state-machine.md`: six adopted states. The `State` column stores all six (Week 11 box 2 added `Processing`; `ProcessingFailed` is declared but unreachable, success-only Worker), and the `order_status_history` table below records every transition, one row per applied state change.
 
 ## `order_service` schema (Order Service, EF Core)
 
@@ -51,9 +51,21 @@ erDiagram
         text MessageType
         timestamp ProcessedAt
     }
+    order_status_history {
+        uuid Id PK
+        bigint Seq "identity; insertion order, the read ordering key"
+        uuid OrderId "logical ref to orders.Id, no FK, indexed"
+        text FromState "nullable; null for the creation row"
+        text ToState
+        uuid MessageId "nullable; the triggering event's MessageId"
+        timestamp At
+        boolean Implied "true only for an implied Processing row"
+    }
 ```
 
-`processed_messages` (the Inbox) has no relationship to `orders`. It records which broker messages (`StockReserved`, `StockRejected`, `OrderProcessed`) this service has already applied.
+`processed_messages` (the Inbox) has no relationship to `orders`. It records which broker messages (`StockReserved`, `StockRejected`, `OrderProcessingStarted`, `OrderProcessed`) this service has already applied.
+
+`order_status_history` records every order state change in the same transaction as the change itself. Its `OrderId` is a logical reference to `orders.Id` (no FK, like the Outbox), indexed for the per-order read in `GET /api/orders/{id}`. `Seq` is the database-assigned `bigint` identity column every history read is ordered by (review R1).
 
 ## `inventory_service` schema (Inventory Service, EF Core)
 
@@ -115,17 +127,18 @@ Order Service is an ABP application. Its first migration (`20260812083054_Initia
 | `inventory_service.outbox_events."OrderId"` | At most one stock-result event per order |
 | Primary keys on every table | Row identity. The published `MessageId` is not the Outbox row id: it is generated once when the Outbox row is written and stored inside `Payload`, so every retry republishes the same value |
 
-Non-unique indexes: `orders."CorrelationId"` (trace lookup), `outbox_events."Published"` in both schemas (publisher polling).
+Non-unique indexes: `orders."CorrelationId"` (trace lookup), `order_status_history."OrderId"` (per-order history read), `outbox_events."Published"` in both schemas (publisher polling).
 
 ## Verified schema manifest
 
-`scripts/verify-erd.ps1` parses this table and compares it with a live database. Keep it in sync with the diagrams above. Column syntax: `name:type`, with a trailing `?` for nullable. Types: `uuid`, `text`, `integer`, `boolean`, `jsonb`, `timestamp` (without time zone), `timestamptz`.
+`scripts/verify-erd.ps1` parses this table and compares it with a live database. Keep it in sync with the diagrams above. Column syntax: `name:type`, with a trailing `?` for nullable. Types: `uuid`, `text`, `integer`, `bigint`, `boolean`, `jsonb`, `timestamp` (without time zone), `timestamptz`.
 
 | Table | Columns | Unique (non-PK) | Owner |
 |---|---|---|---|
 | order_service.orders | Id:uuid, IdempotencyKey:text, ProductId:text, Quantity:integer, State:text, RequestAcceptedAt:timestamp, ConfirmedOrRejectedAt:timestamp?, CompletedAt:timestamp?, CorrelationId:text | IdempotencyKey | order_service_user |
 | order_service.outbox_events | Id:uuid, OrderId:uuid, EventType:text, Payload:jsonb, Published:boolean, CreatedAt:timestamp, PublishedAt:timestamp? | - | order_service_user |
 | order_service.processed_messages | Id:uuid, MessageId:uuid, MessageType:text, ProcessedAt:timestamp | MessageId | order_service_user |
+| order_service.order_status_history | Id:uuid, Seq:bigint, OrderId:uuid, FromState:text?, ToState:text, MessageId:uuid?, At:timestamp, Implied:boolean | - | order_service_user |
 | order_service.inventory | product_id:text, stock:integer | - | order_service_user |
 | order_service.baseline_orders | id:uuid, config:text, product_id:text, result:text, created_at:timestamptz | - | order_service_user |
 | inventory_service.outbox_events | Id:uuid, OrderId:uuid, EventType:text, Payload:jsonb, Published:boolean, CreatedAt:timestamp, PublishedAt:timestamp? | OrderId | inventory_service_user |

@@ -26,3 +26,13 @@ erDiagram
         text MessageType
         timestamp ProcessedAt
     }
+    order_status_history {
+        uuid Id PK
+        bigint Seq "identity; insertion order, the read ordering key"
+        uuid OrderId "logical ref to orders.Id, no FK, indexed"
+        text FromState "nullable; null for the creation row"
+        text ToState
+        uuid MessageId "nullable; the triggering event's MessageId"
+        timestamp At
+        boolean Implied "true only for an implied Processing row"
+    }

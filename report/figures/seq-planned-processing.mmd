@@ -3,12 +3,11 @@ sequenceDiagram
     participant OrderSvc as Order Service
     participant PGOrd as Postgres (order_service)
     participant ProcSvc as Process Worker
-    Note over ProcSvc,OrderSvc: PLANNED (Week 11), not in code yet
     MQ->>ProcSvc: deliver StockReservedEto
-    ProcSvc->>MQ: publish OrderProcessingStartedEto
+    ProcSvc->>MQ: publish OrderProcessingStartedEto (derived MessageId, StartedAt, mandatory, confirm)
     MQ->>OrderSvc: deliver OrderProcessingStartedEto
-    OrderSvc->>PGOrd: UPDATE Order SET state=Processing + history row
+    OrderSvc->>PGOrd: one transaction: Inbox check, Confirmed to Processing, Inbox row (+ history)
     ProcSvc->>ProcSvc: deterministic processing delay
-    ProcSvc->>MQ: publish OrderProcessedEto (carries StartedAt)
+    ProcSvc->>MQ: publish OrderProcessedEto (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
     MQ->>OrderSvc: deliver OrderProcessedEto
-    OrderSvc->>PGOrd: UPDATE Order SET state=Completed + history row
+    OrderSvc->>PGOrd: one transaction: Inbox check, Processing to Completed, Inbox row (+ history)

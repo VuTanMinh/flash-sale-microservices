@@ -10585,6 +10585,34 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlashSale.OrderService.Controllers.OrdersController+OrderHistoryItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FlashSale.OrderService.Controllers.OrdersController+OrderHistoryItem": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "implied": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

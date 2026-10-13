@@ -26,26 +26,27 @@ A rejected request creates **no** order row and **no** Outbox row. A product id 
 
 | Request | Response |
 |---|---|
-| `GET /api/orders/{id}` for an existing order | 200 with current `state` and the stage timestamps |
+| `GET /api/orders/{id}` for an existing order | 200 with current `state`, the stage timestamps, and a read-only `history` array (`from`, `to`, `at`, `implied`), ordered by the database-assigned insertion key `seq` |
 | Unknown id | 404 |
 
 ## One order per key
 
 Guaranteed by the unique index `IX_orders_IdempotencyKey` plus the race handling above. Checked under mixed load: 50 keys × 4 concurrent requests must produce exactly 50 orders and 50 Outbox rows, one `201` per key, and the same order id in all four responses for a key (TP-A07).
 
-## State behaviour (current four-state code)
+## State behaviour (six-state code)
 
-Legal transitions (`Order.LegalTransitions`): `PendingStock → Confirmed`, `PendingStock → Rejected`, `Confirmed → Completed`. Every other pair throws `InvalidOrderStateTransitionException` and changes nothing. Result events are applied by `StockResultProcessor`:
+Legal transitions (`Order.LegalTransitions`): `PendingStock → Confirmed`, `PendingStock → Rejected`, `Confirmed → Processing`, `Processing → Completed`. `Rejected`, `Completed` and `ProcessingFailed` are terminal. Every other pair throws `InvalidOrderStateTransitionException` and changes nothing. Result events are applied by `StockResultProcessor`:
 
 | Event arrives when the order is… | Outcome |
 |---|---|
 | in the event's target state (duplicate, any `MessageId`) | Ack, no transition; the Inbox row is recorded |
-| already past the target on `PendingStock → Confirmed → Completed` (stale, e.g. `StockReserved` after `Completed`) | Ack, no transition; the Inbox row is recorded |
+| already past the target on `PendingStock → Confirmed → Processing → Completed` (stale, e.g. `StockReserved` or `OrderProcessingStarted` after `Completed`) | Ack, no transition; the Inbox row is recorded |
 | in a conflicting state (e.g. `StockRejected` after `Confirmed`, anything after `Rejected` except `StockRejected`) | `InvalidOrderStateTransitionException`, nothing recorded, so the consumer dead-letters it |
 | unknown order id | Ack as `OrderNotFound`, nothing recorded |
-| `OrderProcessed` while still `PendingStock` (early) | Not applied and not recorded; requeued onto a delayed retry queue (2 s / 4 s / 8 s) and applied once `StockReserved` lands; dead-lettered only after 3 requeues (Week 9, TP-M02, `docs/design-decisions.md` §2) |
+| `OrderProcessed` or `OrderProcessingStarted` while still `PendingStock` (early) | Not applied and not recorded; requeued onto its own delayed retry queue (2 s / 4 s / 8 s) and applied once `StockReserved` lands; dead-lettered only after 3 requeues (Week 9, TP-M02, `docs/design-decisions.md` §2) |
+| `OrderProcessed` while `Confirmed` (the started event has not arrived) | `Confirmed → Processing → Completed` in one transaction; the `Processing` history row is implied (Week 11, `docs/order-state-machine.md`) |
 
-Verified by `OrderStateBehaviourTests` (full 4×4 transition matrix and the event cases above; TP-A06).
+Every applied transition writes one `order_status_history` row in the same transaction (a no-op writes none). `ProcessingFailed` is declared but unreachable by design (success-only Worker). Verified by `OrderStateBehaviourTests` and `ProcessingHistoryTests` (TP-A06, TP-P02).
 
 ## Timestamps
 

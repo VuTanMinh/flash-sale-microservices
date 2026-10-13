@@ -46,8 +46,8 @@ $logs = @{}
 $runId = (Get-Date).ToUniversalTime().ToString("HHmmss")
 $p = "fl-$runId"
 $empty = "00000000-0000-0000-0000-000000000000"
-$allDlqs = "OrderPlaced.dlq", "StockReserved.dlq", "StockRejected.dlq", "OrderProcessed.dlq", "ProcessWorker.StockReserved.dlq"
-$allQueues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessed", "ProcessWorker.StockReserved"
+$allDlqs = "OrderPlaced.dlq", "StockReserved.dlq", "StockRejected.dlq", "OrderProcessingStarted.dlq", "OrderProcessed.dlq", "ProcessWorker.StockReserved.dlq"
+$allQueues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed", "ProcessWorker.StockReserved"
 
 function Check([string]$name, [bool]$ok, [string]$detail = "") {
     if ($ok) { Write-Host "PASS  $name" -ForegroundColor Green }

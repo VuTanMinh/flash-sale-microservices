@@ -2,7 +2,7 @@
 
 Domain entities and event contracts as they exist in code (checked by `scripts/verify-design-alignment.ps1`). Persistence mapping is in `docs/erd.md`, and event semantics are in `docs/event-contract.md`.
 
-**Six-state model.** The adopted state model (`docs/order-state-machine.md`) adds `Processing` to `OrderState`, a new `OrderProcessingStartedEto` and an order status-history entity. None of these exist in code yet; they are the Week 11 task "Implement/verify the agreed Processing state/history". They are listed under "Planned" below, not drawn as if built.
+**Six-state model (implemented Week 11 box 2).** `OrderState` now has all six teacher states, the Process Worker publishes `OrderProcessingStartedEto`, and Order Service records every state change in `OrderStatusHistory`. `ProcessingFailed` is declared but unreachable (success-only Worker). All of these are drawn below, not listed as planned.
 
 ## Order Service (`src/FlashSale.OrderService/Entities`)
 
@@ -25,7 +25,19 @@ classDiagram
         PendingStock
         Confirmed
         Rejected
+        Processing
         Completed
+        ProcessingFailed
+    }
+    class OrderStatusHistory {
+        +Guid Id
+        +long Seq
+        +Guid OrderId
+        +OrderState? FromState
+        +OrderState ToState
+        +Guid? MessageId
+        +DateTime At
+        +bool Implied
     }
     class OutboxEvent {
         +Guid Id
@@ -47,6 +59,7 @@ classDiagram
     class InvalidOrderStateTransitionException
     Order --> OrderState : State
     Order ..> InvalidOrderStateTransitionException : throws on illegal transition
+    OrderStatusHistory ..> Order : OrderId (logical, same transaction)
     OutboxEvent ..> Order : OrderId (logical, same transaction)
 ```
 
@@ -97,10 +110,17 @@ classDiagram
         +Guid MessageId
         +string CorrelationId
     }
+    class OrderProcessingStartedEto {
+        +Guid OrderId
+        +Guid MessageId
+        +string CorrelationId
+        +DateTime StartedAt
+    }
     class OrderProcessedEto {
         +Guid OrderId
         +Guid MessageId
         +string CorrelationId
+        +DateTime? ProcessingStartedAt
     }
 ```
 
@@ -109,10 +129,5 @@ classDiagram
 | `OrderPlacedEto` | Order Service (Outbox) | Inventory Service |
 | `StockReservedEto` | Inventory Service (Outbox) | Order Service, Process Worker |
 | `StockRejectedEto` | Inventory Service (Outbox) | Order Service |
+| `OrderProcessingStartedEto` | Process Worker | Order Service |
 | `OrderProcessedEto` | Process Worker | Order Service |
-
-## Planned (Week 11, not in code yet)
-
-- `OrderState.Processing` and `OrderState.ProcessingFailed`. `ProcessingFailed` is declared but has no producer (success-only).
-- `OrderProcessingStartedEto { Guid OrderId, Guid MessageId, string CorrelationId, DateTime StartedAt }`, published by the Process Worker.
-- `OrderStatusHistory { Guid Id, Guid OrderId, OrderState? FromState, OrderState ToState, Guid? MessageId, DateTime At, bool Implied }`.

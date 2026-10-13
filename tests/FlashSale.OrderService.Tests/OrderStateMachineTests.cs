@@ -5,17 +5,16 @@ using Xunit;
 namespace FlashSale.OrderService.Tests;
 
 /// <summary>
-/// Every legal transition from docs/order-state-machine.md succeeds; a
-/// representative sample of illegal ones throws.
+/// Every legal transition from docs/order-state-machine.md succeeds and stamps
+/// the right order timestamp; the illegal ones throw.
 ///
-/// Week 11 rewrote this file along with the state machine it tests. Until
-/// then Confirmed was terminal, because the Confirmed -> Processing ->
-/// Completed leg had no named trigger; the Process Worker (Step 11.1) gave
-/// it one, and in doing so also retired Processing and ProcessingFailed
-/// entirely (see OrderState for why). So the "Confirmed is terminal for now"
-/// test that used to live here is gone -- replaced by the real transition it
-/// was a placeholder for -- and the illegal-target theories no longer
-/// enumerate two states that no longer exist.
+/// Week 11 box 2 promoted Processing from a declared-but-absent state to a real
+/// one: Confirmed -> Completed was split into Confirmed -> Processing ->
+/// Completed, driven by a new OrderProcessingStarted event plus the existing
+/// OrderProcessed event. The full transition matrix (legal and illegal) lives in
+/// OrderStateBehaviourTests; this class pins the timestamp stamps and the
+/// representative illegal cases, including the now-illegal Confirmed -> Completed
+/// shortcut and the terminal ProcessingFailed.
 /// </summary>
 public class OrderStateMachineTests
 {
@@ -54,13 +53,30 @@ public class OrderStateMachineTests
 
         Assert.Equal(OrderState.Rejected, order.State);
         Assert.NotNull(order.ConfirmedOrRejectedAt);
+        Assert.Null(order.CompletedAt);
     }
 
     [Fact]
-    public void Confirmed_to_Completed_succeeds_and_stamps_CompletedAt()
+    public void Confirmed_to_Processing_succeeds_without_stamping_CompletedAt()
     {
         var order = NewPendingOrder();
         order.TransitionTo(OrderState.Confirmed);
+
+        order.TransitionTo(OrderState.Processing);
+
+        Assert.Equal(OrderState.Processing, order.State);
+        // Processing has no order timestamp column (docs/order-state-machine.md
+        // keeps the existing columns as they are): its history row carries the
+        // time, not a column on the order.
+        Assert.Null(order.CompletedAt);
+    }
+
+    [Fact]
+    public void Processing_to_Completed_succeeds_and_stamps_CompletedAt()
+    {
+        var order = NewPendingOrder();
+        order.TransitionTo(OrderState.Confirmed);
+        order.TransitionTo(OrderState.Processing);
         var confirmedAt = order.ConfirmedOrRejectedAt;
 
         order.TransitionTo(OrderState.Completed);
@@ -68,20 +84,22 @@ public class OrderStateMachineTests
         Assert.Equal(OrderState.Completed, order.State);
         Assert.NotNull(order.CompletedAt);
         // The earlier timestamp is a record of when stock was decided and must
-        // survive the later transition unchanged -- Proposal §4d's schema is
+        // survive the later transitions unchanged -- Proposal §4d's schema is
         // only useful if each stage's time stays pinned to that stage.
         Assert.Equal(confirmedAt, order.ConfirmedOrRejectedAt);
     }
 
     [Theory]
     [InlineData(OrderState.PendingStock)]
+    [InlineData(OrderState.Processing)]
     [InlineData(OrderState.Completed)]
-    public void PendingStock_to_anything_else_throws(OrderState illegalTarget)
+    [InlineData(OrderState.ProcessingFailed)]
+    public void PendingStock_to_anything_but_Confirmed_or_Rejected_throws(OrderState illegalTarget)
     {
         var order = NewPendingOrder();
 
-        // Completed is specifically included: an order must not skip the stock
-        // decision entirely, however the completion event arrives.
+        // Processing/Completed are included: an order must not skip the stock
+        // decision, however the worker events arrive.
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(illegalTarget));
     }
 
@@ -89,7 +107,8 @@ public class OrderStateMachineTests
     [InlineData(OrderState.PendingStock)]
     [InlineData(OrderState.Rejected)]
     [InlineData(OrderState.Confirmed)]
-    public void Confirmed_to_anything_but_Completed_throws(OrderState illegalTarget)
+    [InlineData(OrderState.ProcessingFailed)]
+    public void Confirmed_to_anything_but_Processing_throws(OrderState illegalTarget)
     {
         var order = NewPendingOrder();
         order.TransitionTo(OrderState.Confirmed);
@@ -97,6 +116,24 @@ public class OrderStateMachineTests
         // Confirmed -> Confirmed is in this list deliberately: the absence of a
         // self-loop is what makes a redelivered StockReserved distinguishable
         // from a genuine conflict, which StockResultProcessor relies on (Week 9).
+        // Confirmed -> Completed is also illegal now: it must go through
+        // Processing (the implied completion applies both legs, but via
+        // TransitionTo(Processing) then TransitionTo(Completed), never directly).
+        Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(illegalTarget));
+    }
+
+    [Theory]
+    [InlineData(OrderState.PendingStock)]
+    [InlineData(OrderState.Confirmed)]
+    [InlineData(OrderState.Rejected)]
+    [InlineData(OrderState.Processing)]
+    [InlineData(OrderState.ProcessingFailed)]
+    public void Processing_to_anything_but_Completed_throws(OrderState illegalTarget)
+    {
+        var order = NewPendingOrder();
+        order.TransitionTo(OrderState.Confirmed);
+        order.TransitionTo(OrderState.Processing);
+
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(illegalTarget));
     }
 
@@ -107,6 +144,7 @@ public class OrderStateMachineTests
         order.TransitionTo(OrderState.Rejected);
 
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Confirmed));
+        Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Processing));
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Completed));
     }
 
@@ -115,10 +153,30 @@ public class OrderStateMachineTests
     {
         var order = NewPendingOrder();
         order.TransitionTo(OrderState.Confirmed);
+        order.TransitionTo(OrderState.Processing);
         order.TransitionTo(OrderState.Completed);
 
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Completed));
         Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Rejected));
+        Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.Processing));
+    }
+
+    [Fact]
+    public void ProcessingFailed_is_declared_but_unreachable()
+    {
+        // ProcessingFailed is terminal and unreachable by design (success-only
+        // Worker): no event in scope produces it, so no legal transition targets
+        // it -- every reachable state refuses TransitionTo(ProcessingFailed)
+        // (covered by the matrix test in OrderStateBehaviourTests). Its outbound
+        // terminality is structural (LegalTransitions[ProcessingFailed] = [])
+        // and is documented in docs/order-state-machine.md. This test pins that
+        // the value exists in the enum, and that nothing can reach it.
+        Assert.True(Enum.IsDefined(typeof(OrderState), OrderState.ProcessingFailed));
+
+        var order = NewPendingOrder();
+        order.TransitionTo(OrderState.Confirmed);
+        order.TransitionTo(OrderState.Processing);
+        Assert.Throws<InvalidOrderStateTransitionException>(() => order.TransitionTo(OrderState.ProcessingFailed));
     }
 
     [Fact]

@@ -45,13 +45,18 @@ sequenceDiagram
         OS->>MQ: ack StockReserved
     and queue ProcessWorker.StockReserved
         MQ->>PW: deliver StockReserved
+        PW->>MQ: check required queue OrderProcessingStarted, publish OrderProcessingStarted (derived MessageId, mandatory, confirm)
         PW->>PW: fixed processing delay (200 ms)
-        PW->>MQ: check required queue OrderProcessed, publish OrderProcessed (MessageId = OrderId, mandatory, confirm)
+        PW->>MQ: check required queue OrderProcessed, publish OrderProcessed (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
         PW->>MQ: ack StockReserved
     end
 
+    MQ->>OS: deliver OrderProcessingStarted
+    OS->>PGO: one transaction: Inbox check, Confirmed to Processing, Inbox row
+    OS->>MQ: ack OrderProcessingStarted
+
     MQ->>OS: deliver OrderProcessed
-    OS->>PGO: one transaction: Inbox check, Confirmed to Completed, Inbox row
+    OS->>PGO: one transaction: Inbox check, Processing to Completed, Inbox row
     OS->>MQ: ack OrderProcessed
 
     Client->>OS: GET /api/orders/{id}

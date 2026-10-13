@@ -49,7 +49,12 @@ function Publish-Result([string]$type, [string]$orderId, [string]$messageId) {
 }
 function State([string]$orderId) { Sql "SELECT `"State`" || '|' || coalesce(to_char(`"ConfirmedOrRejectedAt`", 'YYYY-MM-DD HH24:MI:SS.US'), '-') FROM order_service.orders WHERE `"Id`" = '$orderId';" }
 function InboxCount([string]$messageId) { [int](Sql "SELECT count(*) FROM order_service.processed_messages WHERE `"MessageId`" = '$messageId';") }
-function DlqCount([string]$q) { $r = Mq Get "/queues/%2F/$q"; if ($r) { [int]$r.messages } else { -1 } }
+function DlqCount([string]$q) {
+    # Depth from rabbitmqctl in the broker, not the management API's `messages`
+    # statistic, which lags (review R8; same as verify-failures.ps1).
+    $line = docker exec $mq rabbitmqctl -q list_queues name messages --no-table-headers 2>$null | Where-Object { ($_ -split "`t")[0] -eq $q }
+    if ($line) { return [int](($line -split "`t")[1]) } else { return -1 }
+}
 
 try {
     docker rm -f $mq *> $null
@@ -107,8 +112,8 @@ try {
 
     # A genuine duplicate is still absorbed (only unique violations are duplicates)
     Publish-Result "StockReserved" $b $mb
-    Start-Sleep 4
-    Check "a genuine redelivery after the fix is still a no-op (one Inbox row, not dead-lettered)" ((InboxCount $mb) -eq 1 -and (DlqCount "StockReserved.dlq") -eq $dlqBefore)
+    $absorbed = Wait-Until { (InboxCount $mb) -eq 1 -and (DlqCount "StockReserved.dlq") -eq $dlqBefore } 15
+    Check "a genuine redelivery after the fix is still a no-op (one Inbox row, not dead-lettered)" $absorbed "inbox=$(InboxCount $mb) dlq=$(DlqCount 'StockReserved.dlq') expected=$dlqBefore"
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
