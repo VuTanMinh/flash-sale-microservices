@@ -1,0 +1,39 @@
+# NEGATIVE CONTROL for TP-P05: one stale snake_case column and the number 412 in a Results cell
+# Clone: week1-2 at 7608703 plus the uncommitted TP-P05 script and test-plan row (DeepSeek, review round 1), run from Git Bash in a C: clone
+# Report: temp copy of report.tex with those two changes
+# Stamp: 20261014T094153Z (UTC)
+# Command: powershell -NoProfile -File scripts/verify-observability-report.ps1 -ReportPath <copy>
+
+PASS  timestamp schema table found
+INFO  timestamp table columns: request_accepted_at, PublishedAt, CreatedAt, ConfirmedOrRejectedAt, At, CompletedAt
+FAIL  timestamp table names exactly the six code columns -- missing: RequestAcceptedAt; extra: request_accepted_at
+INFO  Order.cs found: src\FlashSale.OrderService\Entities\Order.cs
+INFO  OutboxEvent.cs found: src\FlashSale.InventoryService\Entities\OutboxEvent.cs, src\FlashSale.OrderService\Entities\OutboxEvent.cs
+INFO  OrderStatusHistory.cs found: src\FlashSale.OrderService\Entities\OrderStatusHistory.cs
+PASS  RequestAcceptedAt is a property of Order.cs -- files=1
+PASS  ConfirmedOrRejectedAt is a property of Order.cs -- files=1
+PASS  CompletedAt is a property of Order.cs -- files=1
+PASS  PublishedAt is a property of both Outbox entities -- files=2
+PASS  CreatedAt is a property of both Outbox entities -- files=2
+PASS  At is a property of the status-history entity -- files=1
+FAIL  no stale column name 'request\_accepted\_at'
+PASS  no stale column name 'confirmed\_or\_rejected\_at'
+PASS  no stale column name 'completed\_at'
+PASS  no stale column name 'published\_at'
+PASS  metric definitions table found
+PASS  metric table has 17 rows (one per brief metric) -- found 17
+PASS  metric table covers all 17 brief metrics by keyword -- missing: 
+INFO  flashsale metric names cited in the metric table: orders_accepted_total, orders_outcome_total, stock_decisions_total, consumer_retries_total, consumer_duplicates_total, consumer_dead_lettered_total, reconciliation_stuck_orders
+INFO  allowed non-flashsale identifiers skipped: elapsed, CreatedAt, CompletedAt, orders.State, process_*, pg_stat_activity, LATENCY, INFO commandstats, message_stats
+PASS  every Prometheus name in the metric table exists as flashsale_<name> in src and docs/metrics.md
+PASS  no stale text 'dead-lettered it loudly'
+PASS  Replays-after-completion paragraph cites TP-P04 and TP-M02
+PASS  Results chapter found
+PASS  Results cover C0 (correctness only), C1, C2, C3 and C4 with 1/2/4 consumers -- C0-in-correctness=True C1=True C2=True C3=True C4-consumers=1,2,4
+PASS  correctness table has the six brief checks -- missing: 
+FAIL  every Results data cell is ---, n/a or --- / --- / --- -- 412
+PASS  exactly 4 figure environments, each with a \fbox placeholder -- figures=4
+PASS  every Results table caption says 'To be completed in Week~14' -- tables=8 missing=
+PASS  no leftover \unverified{TP-P03}
+3 check(s) failed.
+Exit code: 1

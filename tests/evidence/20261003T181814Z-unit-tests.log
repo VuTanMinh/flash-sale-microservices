@@ -1,0 +1,7 @@
+﻿# dotnet test tests\FlashSale.OrderService.Tests
+# fresh clone at b0b9d51; 20261003T181814Z
+
+Test run for C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta9b\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    45, Skipped:     0, Total:    45, Duration: 8 s - FlashSale.OrderService.Tests.dll (net10.0)

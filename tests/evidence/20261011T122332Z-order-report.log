@@ -1,0 +1,27 @@
+﻿PASS  Order Service section found
+PASS  TRX: 43 of 43 passed, 0 failed
+PASS  report states 43 of 43 unit tests
+PASS  report cites the TRX file
+PASS  TRX contains OrderStateBehaviourTests (TP-A06)
+PASS  API log: exit 0, 30 PASS, 0 FAIL
+PASS  report states 30 of 30 API checks
+PASS  API log shows three concurrent rounds each with one 201 and nineteen 200s
+PASS  report states the concurrency result
+PASS  API log shows the 50-key mixed-load result
+PASS  report states the 50-key result
+PASS  TP-A01 is PASS in both the test plan and the report table
+PASS  TP-A02 is PASS in both the test plan and the report table
+PASS  TP-A03 is PASS in both the test plan and the report table
+PASS  TP-A04 is PASS in both the test plan and the report table
+PASS  TP-A05 is PASS in both the test plan and the report table
+PASS  TP-A06 is PASS in both the test plan and the report table
+PASS  TP-A07 is PASS in both the test plan and the report table
+PASS  no stale claim: 'there is no event publication yet'
+PASS  no stale claim: 'currently has no legal outgoing transition'
+PASS  no stale claim: 'Verified manually against the running service'
+PASS  no stale claim: 'Passed: 17'
+PASS  early OrderProcessed: the Week 9 fix (TP-M02) is stated
+
+Order Service report section matches the Week 5 evidence.
+
+Exit code: 0

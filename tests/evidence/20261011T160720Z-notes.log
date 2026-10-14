@@ -1,0 +1,3 @@
+﻿Week 11 box 1 beta, 20261011T160720Z
+Fresh clone of D:\DACNTT at 3303954 on a fresh database (verify-environment -Mode Fresh before each verifier), run without admin rights.
+worker-negative.log: the same verifier with the shutdown fix reverted (StockReservedConsumer.cs from 8e803a4), run in a scratch copy: exit 1; the Worker logged 5 'routing to DLQ' lines and 5 errors during the graceful shutdown.

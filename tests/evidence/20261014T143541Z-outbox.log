@@ -1,0 +1,19 @@
+# scripts/verify-outbox.ps1 -- W11 milestone regression
+# Clone: fresh clone of week1-2 at 23c4feb, launched from Git Bash
+# Database: fresh (scripts/verify-environment.ps1 -Mode Fresh -Keep, container verify-env-pg:55432)
+# Stamp: 20261014T143541Z (UTC)
+
+PASS  commit: 201, exactly one order and one unpublished OrderPlaced Outbox row
+PASS  commit: Outbox payload names this order and carries a MessageId
+PASS  rollback: Outbox insert refused -> request fails (5xx) and NO order row exists
+PASS  rollback: after the fault is removed the same key creates the order normally (201)
+PASS  retries: publisher logged failed attempts while the broker was down (2)
+PASS  retries: row still unpublished and payload unchanged
+PASS  retries: once the broker is up the row is marked published
+PASS  broker: capture queue holds one message per published order (2 orders were created)
+PASS  retries: exactly one OrderPlaced for the order reached the queue
+PASS  retries: delivered MessageId equals the one stored at commit time (feae8017-8f85-413f-99a0-056d8d2ee29c)
+PASS  retries: still exactly one Outbox row for the order (no re-insert)
+
+Outbox commit/rollback and stable MessageId verified.
+Exit code: 0

@@ -1,0 +1,26 @@
+﻿Commit: 3dfd9e6
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-baseline-report.ps1 -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z
+Exit code: 0
+
+PASS  C0 evidence verdict is RACE CAPTURED
+PASS  report states C0 5 of 5 Confirmed
+PASS  report states C0 final stock -4
+PASS  report cites the C0 log file
+PASS  C1 below has 3 runs, all PASS
+PASS  C1 below runs agree with each other
+PASS  report table row for C1 below matches evidence (& 50 & 50 & 0 & 50 & 50/50 & PASS (3/3 runs))
+PASS  C1 equal has 3 runs, all PASS
+PASS  C1 equal runs agree with each other
+PASS  report table row for C1 equal matches evidence (& 100 & 100 & 0 & 0 & 100/100 & PASS (3/3 runs))
+PASS  C1 above has 3 runs, all PASS
+PASS  C1 above runs agree with each other
+PASS  report table row for C1 above matches evidence (& 150 & 100 & 50 & 0 & 150/150 & PASS (3/3 runs))
+PASS  report cites the C1 evidence files
+PASS  JTL: 10 samples, all success, all /api/c1/orders
+PASS  report states min/median/max 28/36.5/162 ms
+PASS  report cites the smoke JTL
+PASS  no stale 'exactly 1 request Confirmed, 4 Rejected' claim
+PASS  no reference to the removed smoke-test-result.jtl
+
+Report C0/C1 section matches the saved evidence.
+

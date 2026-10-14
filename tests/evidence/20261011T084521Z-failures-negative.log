@@ -1,0 +1,81 @@
+﻿== Environment
+PASS  all three services up; every queue and DLQ declared
+PASS  warm-up: fl-192741 has 20 units
+== A. Inventory OrderPlacedConsumer (OrderPlaced -> OrderPlaced.dlq)
+PASS  A.1 Inventory transient: applied once (1 Inbox row, 1 Outbox row, 1 unit taken)
+PASS  A.1 Inventory transient: nothing dead-lettered
+PASS  A.1 Inventory transient: the log shows a retry
+PASS  A.2 Inventory exhausted: retried then dead-lettered to OrderPlaced.dlq
+PASS  A.2 Inventory: exactly 4 attempts logged
+PASS  A.2 Inventory: retry gaps are ~1 s / 2 s / 4 s
+PASS  A.2 Inventory exhausted: x-death names source OrderPlaced and reason rejected
+PASS  A.2 Inventory exhausted: main queue empty (no loop)
+PASS  A.2 Inventory exhausted: no Inbox row, no Outbox row, stock reserved exactly once on attempt 1
+PASS  A.2 Inventory exhausted: every other DLQ unchanged (isolation)
+PASS  A.2 Inventory replay: applied once (1 Inbox row, 1 Outbox row, still exactly 1 unit taken)
+PASS  A.3 Inventory poison: malformed JSON dead-lettered after one attempt
+PASS  A.3 Inventory poison: malformed JSON produced no retry lines
+FAIL  A.3 Inventory poison: empty-MessageId message dead-lettered after one attempt -- dlq=1
+FAIL  A.3 Inventory poison: empty-MessageId logged the validation error 
+FAIL  A.3 Inventory poison: no Inbox row and no Redis effect -- stock=17
+FAIL  A.3 Inventory poison: a SECOND empty-MessageId message also reaches the DLQ (no duplicate-identity skip) -- dlq=1
+FAIL  A.4 Inventory quantity: Quantity=2 dead-lettered after one attempt -- dlq=2
+PASS  A.4 Inventory quantity: logged the quantity validation error
+PASS  A.4 Inventory quantity: no retry lines
+PASS  A.4 Inventory quantity: no Inbox row, no Outbox row, no Redis effect
+== B. Order StockResultConsumer (StockReserved -> StockReserved.dlq)
+PASS  B.1 StockResult transient: applied once (Confirmed, 1 Inbox row)
+PASS  B.1 StockResult transient: nothing dead-lettered
+PASS  B.1 StockResult transient: the log shows a retry
+PASS  B.2 StockResult exhausted: retried then dead-lettered to StockReserved.dlq
+PASS  B.2 StockResult: exactly 4 attempts logged
+PASS  B.2 StockResult: retry gaps are ~1 s / 2 s / 4 s
+PASS  B.2 StockResult exhausted: x-death names source StockReserved and reason rejected
+PASS  B.2 StockResult exhausted: main queue empty (no loop)
+PASS  B.2 StockResult exhausted: order still PendingStock, no Inbox row
+PASS  B.2 StockResult exhausted: every other DLQ unchanged (isolation)
+PASS  B.2 StockResult replay: applied once (Confirmed, 1 Inbox row)
+PASS  B.3 StockResult poison: malformed JSON dead-lettered after one attempt
+PASS  B.3 StockResult poison: malformed JSON produced no retry lines
+PASS  B.3 StockResult poison: empty-MessageId message dead-lettered after one attempt
+PASS  B.3 StockResult poison: empty-MessageId logged the validation error
+PASS  B.3 StockResult poison: no Inbox row and no state change
+PASS  B.3 StockResult poison: a SECOND empty-MessageId message also reaches the DLQ
+== C. Order OrderProcessedConsumer (OrderProcessed -> OrderProcessed.dlq)
+PASS  C setup: a Confirmed order is ready for the completion tests
+PASS  C.1 OrderProcessed transient: applied once (Completed, 1 Inbox row)
+PASS  C.1 OrderProcessed transient: nothing dead-lettered
+PASS  C.1 OrderProcessed transient: the log shows a retry
+PASS  C.2 OrderProcessed exhausted: retried then dead-lettered to OrderProcessed.dlq
+PASS  C.2 OrderProcessed: exactly 4 attempts logged
+PASS  C.2 OrderProcessed: retry gaps are ~1 s / 2 s / 4 s
+PASS  C.2 OrderProcessed exhausted: x-death names source OrderProcessed and reason rejected
+PASS  C.2 OrderProcessed exhausted: main queue empty (no loop)
+PASS  C.2 OrderProcessed exhausted: order still Confirmed, no Inbox row
+PASS  C.2 OrderProcessed exhausted: every other DLQ unchanged (isolation)
+PASS  C.2 OrderProcessed replay: applied once (Completed, 1 Inbox row)
+PASS  C.3 OrderProcessed poison: malformed JSON dead-lettered after one attempt
+PASS  C.3 OrderProcessed poison: malformed JSON produced no retry lines
+PASS  C.3 OrderProcessed poison: empty-MessageId message dead-lettered after one attempt
+PASS  C.3 OrderProcessed poison: empty-MessageId logged the validation error
+PASS  C.3 OrderProcessed poison: no Inbox row and no state change
+PASS  C.3 OrderProcessed poison: a SECOND empty-MessageId message also reaches the DLQ
+== D. Process Worker StockReservedConsumer (ProcessWorker.StockReserved -> ProcessWorker.StockReserved.dlq)
+PASS  D.1 Worker transient: applied once (OrderProcessed published exactly once)
+PASS  D.1 Worker transient: nothing dead-lettered
+PASS  D.1 Worker transient: the log shows a retry
+PASS  D.2 Worker exhausted: retried then dead-lettered to ProcessWorker.StockReserved.dlq
+PASS  D.2 Worker: exactly 4 attempts logged
+PASS  D.2 Worker: retry gaps are ~1 s / 2 s / 4 s
+PASS  D.2 Worker exhausted: x-death names source ProcessWorker.StockReserved and reason rejected
+PASS  D.2 Worker exhausted: main queue empty (no loop)
+PASS  D.2 Worker exhausted: every other DLQ unchanged (isolation)
+PASS  D.2 Worker replay: applied once (OrderProcessed published exactly once, DLQ drained)
+PASS  D.3 Worker poison: malformed JSON dead-lettered after one attempt
+PASS  D.3 Worker poison: malformed JSON produced no retry lines
+PASS  D.3 Worker poison: empty-MessageId message dead-lettered after one attempt
+PASS  D.3 Worker poison: empty-MessageId logged the validation error
+PASS  D.3 Worker poison: no OrderProcessed published for it
+PASS  D.3 Worker poison: a SECOND empty-MessageId message also reaches the DLQ
+
+5 check(s) failed.

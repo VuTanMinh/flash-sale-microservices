@@ -1,0 +1,57 @@
+﻿PASS  class diagram Order properties = code (9)
+PASS  class diagram OrderStatusHistory properties = code (8)
+PASS  class diagram OutboxEvent properties = code (7)
+PASS  class diagram ProcessedMessage properties = code (4)
+PASS  class diagram InventoryOutboxEvent properties = code (7)
+PASS  class diagram InventoryProcessedMessage properties = code (4)
+PASS  class diagram OrderPlacedEto properties = code (5)
+PASS  class diagram StockReservedEto properties = code (4)
+PASS  class diagram StockRejectedEto properties = code (4)
+PASS  class diagram OrderProcessingStartedEto properties = code (4)
+PASS  class diagram OrderProcessedEto properties = code (4)
+PASS  class diagram OrderState values = code enum
+PASS  class diagram draws the six-state additions as implemented (not planned)
+PASS  event contract OrderPlacedEto fields = code
+PASS  event contract StockReservedEto fields = code
+PASS  event contract StockRejectedEto fields = code
+PASS  event contract OrderProcessingStartedEto fields = code
+PASS  event contract OrderProcessedEto fields = code
+PASS  event contract documents OrderProcessingStartedEto as implemented (derivation recorded)
+PASS  routing key 'OrderPlaced' in event contract is used in code
+PASS  routing key 'StockReserved' in event contract is used in code
+PASS  routing key 'StockRejected' in event contract is used in code
+PASS  routing key 'OrderProcessingStarted' in event contract is used in code
+PASS  routing key 'OrderProcessed' in event contract is used in code
+PASS  exchange name in event contract matches configuration
+PASS  state model names teacher state PendingStock
+PASS  state model names teacher state Confirmed
+PASS  state model names teacher state Rejected
+PASS  state model names teacher state Processing
+PASS  state model names teacher state Completed
+PASS  state model names teacher state ProcessingFailed
+PASS  state doc lists current-code transition PendingStock -> Confirmed
+PASS  state doc lists current-code transition PendingStock -> Rejected
+PASS  state doc lists current-code transition Confirmed -> Processing
+PASS  state doc lists current-code transition Processing -> Completed
+PASS  state doc says the six-state model is implemented (Week 11 box 2 / TP-P02)
+PASS  sequence diagram POST returns 201 like the controller
+PASS  sequence diagram Outbox poll interval matches code (2s)
+PASS  sequence diagrams draw the Processing hop as real (no PLANNED note)
+PASS  no stale claim 'turned out not to exist' in design docs
+PASS  no stale claim 'never passes through a `Processing`' in design docs
+PASS  no stale claim 'removed from the domain' in design docs
+PASS  API contract POST /api/orders codes = controller (200,201,400,409)
+PASS  API contract GET /api/orders/{id} codes = controller (200,404)
+PASS  API contract POST /api/c1/orders codes = controller (200)
+PASS  API contract documents the Idempotency-Key header
+PASS  docs/erd.md is committed
+PASS  docs/class-diagram.md is committed
+PASS  docs/api-contract-v1.json is committed
+PASS  docs/event-contract.md is committed
+PASS  docs/order-state-machine.md is committed
+PASS  docs/sequence-diagrams.md is committed
+PASS  docs/design-alignment.md is committed
+
+All design artifacts align with the source (planned parts labelled).
+
+Exit code: 0

@@ -1,0 +1,107 @@
+﻿PASS  Week 10 chapter found
+SELFTEST  chapter copy with one number changed written to C:\Users\Lenovo\AppData\Local\Temp\W10-box3-report-selftest.tex
+PASS  subsection title present: Classify, then retry a bounded number of times
+PASS  subsection title present: A dead-letter queue per service, and replay
+PASS  subsection title present: Reconciliation: stuck orders, a bound and an alert
+PASS  subsection title present: Supported and unsupported failure modes
+PASS  evidence log exists: tests/evidence/20261011T084521Z-failures.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-failures.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-failures-negative.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-failures-negative.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-delivery.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-delivery.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-ordering.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-ordering.log
+PASS  evidence log exists: tests/evidence/20261011T102304Z-reconciliation.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T102304Z-reconciliation.log
+PASS  evidence log exists: tests/evidence/20261011T102304Z-reconciliation-negative.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T102304Z-reconciliation-negative.log
+PASS  failures log has 74 PASS and 0 FAIL
+FAIL  chapter states all 74 checks for TP-F01
+PASS  failures negative log has 5 FAIL and the chapter says 'Five checks'
+PASS  chapter states TP-M01 34/34
+PASS  chapter states TP-M02 44/44
+PASS  reconciliation log has 30 PASS and 0 FAIL
+PASS  chapter states all 30 checks for TP-F02
+PASS  reconciliation negative log has a FAIL mentioning 'A. lost result'
+PASS  chapter cites the failures log
+PASS  chapter cites the reconciliation log
+PASS  chapter \texttt{MaxAttempts} equals appsettings (3)
+PASS  consumer OrderPlacedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer StockResultConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer OrderProcessedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer StockReservedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  chapter states four attempts
+PASS  chapter states the 1\,s, 2\,s and 4\,s ladder
+PASS  doc table has 22 rows (F1..F22)
+PASS  failure-mode row F1 matches the doc
+PASS  failure-mode row F2 matches the doc
+PASS  failure-mode row F3 matches the doc
+PASS  failure-mode row F4 matches the doc
+PASS  failure-mode row F5 matches the doc
+PASS  failure-mode row F6 matches the doc
+PASS  failure-mode row F7 matches the doc
+PASS  failure-mode row F8 matches the doc
+PASS  failure-mode row F9 matches the doc
+PASS  failure-mode row F10 matches the doc
+PASS  failure-mode row F11 matches the doc
+PASS  failure-mode row F12 matches the doc
+PASS  failure-mode row F13 matches the doc
+PASS  failure-mode row F14 matches the doc
+PASS  failure-mode row F15 matches the doc
+PASS  failure-mode row F16 matches the doc
+PASS  failure-mode row F17 matches the doc
+PASS  failure-mode row F18 matches the doc
+PASS  failure-mode row F19 matches the doc
+PASS  failure-mode row F20 matches the doc
+PASS  failure-mode row F21 matches the doc
+PASS  failure-mode row F22 matches the doc
+PASS  F1 cites TP-A03, TP-A04, TP-A05, TP-A07 all PASS in the test plan
+PASS  F1 chapter cites the same test ids
+PASS  F2 cites TP-O01 all PASS in the test plan
+PASS  F2 chapter cites the same test ids
+PASS  F3 cites TP-O02 all PASS in the test plan
+PASS  F3 chapter cites the same test ids
+PASS  F4 cites TP-I03, TP-F01 all PASS in the test plan
+PASS  F4 chapter cites the same test ids
+PASS  F5 cites TP-W03, TP-F01 all PASS in the test plan
+PASS  F5 chapter cites the same test ids
+PASS  F6 cites TP-M01 all PASS in the test plan
+PASS  F6 chapter cites the same test ids
+PASS  F7 cites TP-M02 all PASS in the test plan
+PASS  F7 chapter cites the same test ids
+PASS  F8 cites TP-M02 all PASS in the test plan
+PASS  F8 chapter cites the same test ids
+PASS  F9 cites TP-F01 all PASS in the test plan
+PASS  F9 chapter cites the same test ids
+PASS  F10 cites TP-F01 all PASS in the test plan
+PASS  F10 chapter cites the same test ids
+PASS  F11 cites TP-F01 all PASS in the test plan
+PASS  F11 chapter cites the same test ids
+PASS  F12 cites TP-F02 all PASS in the test plan
+PASS  F12 chapter cites the same test ids
+PASS  F13 cites TP-F02 all PASS in the test plan
+PASS  F13 chapter cites the same test ids
+PASS  F14 cites TP-F02 all PASS in the test plan
+PASS  F14 chapter cites the same test ids
+PASS  F15 cites TP-F02 all PASS in the test plan
+PASS  F15 chapter cites the same test ids
+PASS  no Verified chapter row lacks a TP id
+PASS  chapter names out-of-scope item: Redis Cluster
+PASS  chapter names out-of-scope item: RabbitMQ Cluster
+PASS  chapter names out-of-scope item: PostgreSQL replication
+PASS  chapter names out-of-scope item: multi-region
+PASS  chapter names out-of-scope item: payment
+PASS  chapter names out-of-scope item: compensation
+PASS  chapter names out-of-scope item: Redis data loss
+PASS  chapter names out-of-scope item: ProcessingFailed
+PASS  no stale text: '\unverified'
+PASS  no stale text: 'to be re-verified'
+PASS  no stale text: 'not saved as'
+PASS  no stale text: 'Step 10.'
+PASS  no stale text: 'Proposal §5'
+SKIP  PDF build (pass -BuildPdf to enable)
+
+SELFTEST PASS  the one-number copy (C:\Users\Lenovo\AppData\Local\Temp\W10-box3-report-selftest.tex) failed 1 check(s).
+
+Exit code: 0

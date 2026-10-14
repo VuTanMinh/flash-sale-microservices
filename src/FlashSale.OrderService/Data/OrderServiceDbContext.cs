@@ -1,0 +1,124 @@
+﻿using Microsoft.EntityFrameworkCore;
+using FlashSale.OrderService.Entities;
+using Volo.Abp.AuditLogging.EntityFrameworkCore;
+using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.FeatureManagement.EntityFrameworkCore;
+using Volo.Abp.Identity.EntityFrameworkCore;
+using Volo.Abp.OpenIddict.EntityFrameworkCore;
+using Volo.Abp.PermissionManagement.EntityFrameworkCore;
+using Volo.Abp.SettingManagement.EntityFrameworkCore;
+using Volo.Abp.TenantManagement.EntityFrameworkCore;
+
+namespace FlashSale.OrderService.Data;
+
+public class OrderServiceDbContext : AbpDbContext<OrderServiceDbContext>
+{
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
+
+    public DbSet<OrderStatusHistory> OrderStatusHistory => Set<OrderStatusHistory>();
+
+    public OrderServiceDbContext(DbContextOptions<OrderServiceDbContext> options)
+        : base(options)
+    {
+    }
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        // docs/erd.md commits to schema-per-service for OUR OWN tables (orders,
+        // outbox_events, processed_messages) — not for ABP's built-in module
+        // tables (AbpUsers, AbpSettings, etc.), which stay in the EF/Npgsql
+        // default "public" schema. HasDefaultSchema("order_service") here would
+        // force every ABP module table into that schema too, and several modules
+        // (setting management's runtime queries, at least) don't resolve a
+        // non-default schema consistently outside of migration DDL generation —
+        // confirmed by hitting "relation does not exist" at runtime despite the
+        // table existing exactly where the migration put it. Simpler and just as
+        // correct: leave the default alone, and schema-qualify our own entities
+        // individually via .ToTable(name, "order_service") when they're added
+        // (Week 5+), per docs/erd.md.
+
+        /* Include modules to your migration db context */
+
+        builder.ConfigurePermissionManagement();
+        builder.ConfigureSettingManagement();
+        builder.ConfigureAuditLogging();
+        builder.ConfigureIdentity();
+        builder.ConfigureOpenIddict();
+        builder.ConfigureFeatureManagement();
+        builder.ConfigureTenantManagement();
+
+        /* Configure your own entities here */
+
+        builder.Entity<Order>(b =>
+        {
+            b.ToTable("orders", "order_service");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.IdempotencyKey).IsUnique();
+            b.Property(x => x.IdempotencyKey).IsRequired();
+            b.Property(x => x.ProductId).IsRequired();
+            b.Property(x => x.State).HasConversion<string>().IsRequired();
+            b.Property(x => x.CorrelationId).IsRequired();
+            // Week 13/14 read back by correlation id when reconciling a log
+            // trace against the row it produced; without this that is a table
+            // scan over every order in the experiment.
+            b.HasIndex(x => x.CorrelationId);
+        });
+
+        builder.Entity<OutboxEvent>(b =>
+        {
+            b.ToTable("outbox_events", "order_service");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.EventType).IsRequired();
+            b.Property(x => x.Payload).IsRequired().HasColumnType("jsonb");
+            // The publisher polls WHERE Published = false on every tick (Week 6.2) --
+            // without this index that becomes a full table scan as the table grows.
+            b.HasIndex(x => x.Published);
+        });
+
+        builder.Entity<ProcessedMessage>(b =>
+        {
+            b.ToTable("processed_messages", "order_service");
+            b.HasKey(x => x.Id);
+            // The actual Inbox-pattern guarantee (Week 9, Step 9.2): a second
+            // insert attempt for the same MessageId fails at the database
+            // level, not just at the application's own AnyAsync check above
+            // it -- that check alone would still race under concurrent
+            // redelivery.
+            b.HasIndex(x => x.MessageId).IsUnique();
+            b.Property(x => x.MessageType).IsRequired();
+        });
+
+        builder.Entity<OrderStatusHistory>(b =>
+        {
+            b.ToTable("order_status_history", "order_service");
+            b.HasKey(x => x.Id);
+            // Read back one order's whole history in the API (ordered by Seq);
+            // without this that is a table scan over every order's history.
+            b.HasIndex(x => x.OrderId);
+            b.Property(x => x.FromState).HasConversion<string>();
+            b.Property(x => x.ToState).HasConversion<string>().IsRequired();
+            b.Property(x => x.At).IsRequired();
+            b.Property(x => x.Implied).IsRequired();
+            // Seq is the insertion-order key every history read is ordered by
+            // (review R1). In PostgreSQL it is a database identity column
+            // (GENERATED BY DEFAULT AS IDENTITY). SQLite cannot generate an
+            // identity on a non-key column, so the unit tests assign it
+            // client-side instead.
+            b.Property(x => x.Seq);
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            {
+                b.Property(x => x.Seq).HasValueGenerator<OrderStatusHistorySeqGenerator>();
+            }
+            else
+            {
+                b.Property(x => x.Seq).ValueGeneratedOnAdd();
+            }
+        });
+    }
+}

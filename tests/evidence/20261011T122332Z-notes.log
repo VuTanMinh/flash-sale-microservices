@@ -1,0 +1,5 @@
+﻿Week 10 box 3 beta, 20261011T122332Z
+Fresh clone of D:\DACNTT at 8169076, run without admin rights.
+failure-report: TP-F03 on the new chapter with -BuildPdf. failure-report-negative-old-chapter: the Week 10 chapter as it was before box 3 (exit 1 expected). failure-report-negative-one-number: -SelfTest, which changes one number and expects a failure (exit 0 means the mutated copy failed).
+failures and reconciliation: TP-F01 and TP-F02 re-run on fresh databases in this clone with the exit code recorded, so verify-test-plan can confirm the PASS (the earlier 20261011T084521Z/102304Z logs have the same counts but no exit line).
+The other logs are the earlier report and design verifiers, re-run as regressions on the changed report.

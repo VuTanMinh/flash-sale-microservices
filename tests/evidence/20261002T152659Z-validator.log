@@ -1,0 +1,19 @@
+﻿# verify-validator.ps1 -Container verify-env-pg
+# fresh clone at e98e4e8; fresh database (verify-environment.ps1 -Mode Fresh); 20261002T152659Z
+
+PASS  C1 correct run (5 units, 3 sold, 4 rejected) -> passes; invariant 4 NOT APPLICABLE
+PASS  C1 oversold (stock -1, 6 sold of 5) -> fails invariants 1 and 2
+PASS  C1 deduction without a Confirmed decision (3 taken, 2 logged) -> fails invariant 3
+PASS  C1 run with no decisions -> INCONCLUSIVE, never a pass
+PASS  C1 product missing -> SETUP ERROR, never a pass
+PASS  C2 correct run (5 units, 2 reserved/successful, 1 rejected) -> passes all four
+PASS  C2 oversold (stock -1, 6 reservations of 5) -> fails invariants 1 and 2
+PASS  C2 reservation/order mismatch (a reserved order Rejected, a Confirmed order never reserved) -> fails invariant 3
+PASS  C2 double deduction (3 units taken for 2 reserved orders) -> fails invariant 4
+PASS  C2 run not settled (reserved order still PendingStock) -> INCONCLUSIVE, never a pass
+PASS  C2 inventory key missing -> SETUP ERROR, never a pass
+PASS  database unreachable -> SETUP ERROR and exit 1
+
+Validator passes correct runs and fails every broken one (no false green).
+
+exit code: 0

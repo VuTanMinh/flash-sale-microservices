@@ -1,0 +1,17 @@
+# Grafana datasource provisioning (Week 11, Step 11.3).
+#
+# Provisioned as a file rather than clicked in through the UI so that a fresh
+# `docker compose up` comes back with a working datasource -- the Week 13/14
+# experiment runs need the observability stack to be reproducible from the
+# repo, the same reason reset-and-seed.ps1 exists for the database.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # Compose service name, not host.docker.internal: Grafana and Prometheus
+    # are both containers in this file, so they talk over the Compose network.
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

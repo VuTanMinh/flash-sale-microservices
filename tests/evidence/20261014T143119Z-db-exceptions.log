@@ -1,0 +1,15 @@
+# scripts/verify-db-exceptions.ps1 -- W11 milestone regression
+# Clone: fresh clone of week1-2 at 23c4feb, launched from Git Bash
+# Database: fresh (scripts/verify-environment.ps1 -Mode Fresh -Keep, container verify-env-pg:55432)
+# Stamp: 20261014T143119Z (UTC)
+
+PASS  case 1: during the fault the order is still PendingStock with no Inbox row
+PASS  case 1: after the fault clears, the retry applies it: Confirmed with one Inbox row
+PASS  case 1: the consumer logged a retry, not an 'already processed' no-op
+PASS  case 2: retries exhausted -> dead-lettered, not acknowledged as done
+PASS  case 2: order still PendingStock, no Inbox row
+PASS  case 2: replaying the dead letter applies it: Confirmed with one Inbox row
+PASS  a genuine redelivery after the fix is still a no-op (one Inbox row, not dead-lettered)
+
+Database errors are retried and dead-lettered, never acknowledged as duplicates.
+Exit code: 0

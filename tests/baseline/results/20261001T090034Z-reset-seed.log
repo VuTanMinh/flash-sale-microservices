@@ -1,0 +1,12 @@
+﻿Commit: c0ffe96 (fresh clone); container: verify-env-pg (fresh)
+PASS  reset-and-seed run 1 exited 0
+PASS  snapshot after run 1 matches the expected starting state
+Dirtying every baseline table on purpose...
+PASS  dirty state differs from expected (the test can fail)
+PASS  reset-and-seed run 2 exited 0
+PASS  snapshot after run 2 (from dirty state) matches the expected starting state
+PASS  reset-and-seed run 3 exited 0
+PASS  snapshot after run 3 (back-to-back) matches the expected starting state
+PASS  all three snapshots identical
+
+Reset/seed is repeatable and seeds the exact expected values.

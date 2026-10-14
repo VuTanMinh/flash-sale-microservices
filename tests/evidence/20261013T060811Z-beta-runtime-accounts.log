@@ -1,0 +1,101 @@
+﻿== Preflight (see docs/infrastructure.md if any of these fail)
+PASS  Compose containers are running (infra-postgres-1, infra-redis-1, infra-rabbitmq-1) -- postgres=True redis=True rabbitmq=True (see docs/infrastructure.md)
+PASS  both service roles exist -- roles=2 (see docs/infrastructure.md)
+PASS  every order_service table is owned by order_service_user -- not-owned=0 (see docs/infrastructure.md)
+PASS  every inventory_service table is owned by inventory_service_user -- not-owned=0 (see docs/infrastructure.md)
+PASS  public tables are owned by order_service_user -- not-owned=0 (see docs/infrastructure.md)
+PASS  Inventory migration history is in inventory_service -- rows=3 (see docs/infrastructure.md)
+== Checked-in settings (no environment overrides)
+PASS  no ConnectionStrings__* environment variable is set
+PASS  no RabbitMQ__* environment variable is set
+PASS  Order Service reached readiness (Consuming)
+PASS  Inventory Service reached readiness (Consuming)
+PASS  Process Worker reached readiness (Consuming)
+PASS  warm-up: m1-rt-53e699a5 has 3 units -- stock=3
+== Place 3 orders through https://localhost:44314/api/orders
+PASS  3 orders accepted through the API -- orders=3
+PASS  each order ends Completed -- 5080b2f1-0c7e-43a8-97cf-5626755388f6=Completed,5b5b1d33-48d5-4dbf-ab7d-fef422643c41=Completed,74c04b23-811e-4259-9c10-c8afb0b92456=Completed
+== Runtime accounts (pg_stat_activity, all three services running)
+PASS  at least one session has application_name = FlashSale.OrderService -- sessions=5
+PASS  every FlashSale.OrderService session is order_service_user -- wrong=0
+PASS  at least one session has application_name = FlashSale.InventoryService -- sessions=1
+PASS  every FlashSale.InventoryService session is inventory_service_user -- wrong=0
+PASS  no session names the Process Worker -- worker-named=0
+PASS  every non-verifier session belongs to one of the two named apps -- stray=0
+PASS  Process Worker appsettings.json has no ConnectionStrings section -- worker has no database
+== Each service's writes land in its own schema
+PASS  the 3 orders are in order_service.orders -- rows=3
+PASS  their OrderPlaced Outbox rows are in order_service.outbox_events -- rows=3
+PASS  their stock results are in inventory_service.outbox_events -- rows=3
+PASS  Inventory Inbox grew by 3 (one OrderPlaced per order) -- delta=3
+PASS  Order Inbox rows landed in order_service.processed_messages -- delta=6
+== Cross-schema denial (credentials parsed from checked-in appsettings.json)
+PASS  order_service_user reading inventory_service.outbox_events is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema inventory_service
+At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1beta\scripts\v
+erify-runtime-accounts.ps1:82 char:19
++ ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (psql:<stdin>:1:...ventory_service:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+LINE 1: SELECT count(*) FROM inventory_service.outbox_events
+                             ^
+PASS  inventory_service_user reading order_service.orders is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema order_service
+At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1beta\scripts\v
+erify-runtime-accounts.ps1:82 char:19
++ ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (psql:<stdin>:1:...a order_service:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+LINE 1: SELECT count(*) FROM order_service.orders
+                             ^
+PASS  inventory_service_user reading public."AbpUsers" is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema public
+At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1beta\scripts\v
+erify-runtime-accounts.ps1:82 char:19
++ ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (psql:<stdin>:1:...r schema public:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+LINE 1: SELECT count(*) FROM public."AbpUsers"
+                             ^
+PASS  order_service_user reads its own schema (order_service.orders) -- exit=True
+PASS  inventory_service_user reads its own schema (inventory_service.outbox_events) -- exit=True
+== ERD still matches the real database
+PASS  order_service has exactly the documented tables
+PASS  inventory_service has exactly the documented tables
+PASS  order_service.orders columns
+PASS  order_service.orders unique constraints
+PASS  order_service.orders owner
+PASS  order_service.outbox_events columns
+PASS  order_service.outbox_events unique constraints
+PASS  order_service.outbox_events owner
+PASS  order_service.processed_messages columns
+PASS  order_service.processed_messages unique constraints
+PASS  order_service.processed_messages owner
+PASS  order_service.inventory columns
+PASS  order_service.inventory unique constraints
+PASS  order_service.inventory owner
+PASS  order_service.baseline_orders columns
+PASS  order_service.baseline_orders unique constraints
+PASS  order_service.baseline_orders owner
+PASS  inventory_service.outbox_events columns
+PASS  inventory_service.outbox_events unique constraints
+PASS  inventory_service.outbox_events owner
+PASS  inventory_service.processed_messages columns
+PASS  inventory_service.processed_messages unique constraints
+PASS  inventory_service.processed_messages owner
+PASS  no foreign keys in service schemas
+PASS  public holds 37 ABP/OpenIddict tables
+PASS  public holds nothing else except Order Service migration history
+PASS  public tables owned by order_service_user
+PASS  Order Service migrations all applied (public history)
+PASS  Inventory Service migrations all applied (inventory_service history)
+
+All checks passed: docs/erd.md matches the database.
+PASS  scripts/verify-erd.ps1 passes against infra-postgres-1 -- exit=0
+
+The application runs under its own accounts, names its sessions, writes only to its own schema, and cross-schema access is denied.
+
+Exit code: 0

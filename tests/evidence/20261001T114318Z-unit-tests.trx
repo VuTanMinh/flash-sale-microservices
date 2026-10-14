@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="98c02786-29b7-4078-a5ab-16bd27fe7c08" name="Lenovo@KIETVD 2026-10-01 18:43:31" runUser="KIETVD\Lenovo" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-01T18:43:31.2230870+07:00" queuing="2026-10-01T18:43:31.2230877+07:00" start="2026-10-01T18:43:29.8227831+07:00" finish="2026-10-01T18:43:33.9000778+07:00" />
+  <TestSettings name="default" id="ecf5080a-3157-4fd7-8a45-5d109aa29fad">
+    <Deployment runDeploymentRoot="Lenovo_KIETVD_2026-10-01_18_43_31" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="bfcf9c77-779b-406b-bf02-eb440766f02b" testId="d4964639-c5ed-6657-973f-4c988e578fff" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_Completed_succeeds_and_stamps_CompletedAt" computerName="KIETVD" duration="00:00:00.0091638" startTime="2026-10-01T18:43:31.1692192+07:00" endTime="2026-10-01T18:43:31.1693900+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bfcf9c77-779b-406b-bf02-eb440766f02b" />
+    <UnitTestResult executionId="3f3f193e-0ee3-46f0-adb4-d163964014da" testId="5be767c2-8fd7-43cc-9234-37ec37b62a53" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.New_order_starts_in_PendingStock" computerName="KIETVD" duration="00:00:00.0002064" startTime="2026-10-01T18:43:31.1703711+07:00" endTime="2026-10-01T18:43:31.1704177+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3f3f193e-0ee3-46f0-adb4-d163964014da" />
+    <UnitTestResult executionId="315ca609-d09a-4540-b588-17eb20bc0634" testId="f7e5e709-467f-e398-08ec-47b52cd86001" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_anything_else_throws(illegalTarget: Completed)" computerName="KIETVD" duration="00:00:00.0002168" startTime="2026-10-01T18:43:31.1186521+07:00" endTime="2026-10-01T18:43:31.1187034+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="315ca609-d09a-4540-b588-17eb20bc0634" />
+    <UnitTestResult executionId="2f7c44ec-13be-477c-ae8c-fa2351e9e3cc" testId="481c1bc7-c399-bea0-acb8-599f7ee26af2" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_anything_else_throws(illegalTarget: PendingStock)" computerName="KIETVD" duration="00:00:00.0003244" startTime="2026-10-01T18:43:31.1184592+07:00" endTime="2026-10-01T18:43:31.1185177+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2f7c44ec-13be-477c-ae8c-fa2351e9e3cc" />
+    <UnitTestResult executionId="6eaafbd3-7e88-4f5a-baa1-c56d05031d21" testId="85ff15b1-d572-9415-faec-a5f66e7c9919" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: PendingStock)" computerName="KIETVD" duration="00:00:00.0164064" startTime="2026-10-01T18:43:31.0721239+07:00" endTime="2026-10-01T18:43:31.0986818+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6eaafbd3-7e88-4f5a-baa1-c56d05031d21" />
+    <UnitTestResult executionId="50a87dd9-7862-4591-9e2e-bcbbf63c5174" testId="1901e4aa-dbc4-6ab1-b214-de9553f3bbfd" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_Rejected_succeeds_and_stamps_ConfirmedOrRejectedAt" computerName="KIETVD" duration="00:00:00.0003146" startTime="2026-10-01T18:43:31.1699593+07:00" endTime="2026-10-01T18:43:31.1700204+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="50a87dd9-7862-4591-9e2e-bcbbf63c5174" />
+    <UnitTestResult executionId="4500b909-3a62-483d-82ac-7859ee9589b0" testId="1d5499cc-4443-2123-37b9-a35117073ddb" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Exception_reports_the_attempted_from_and_to_states" computerName="KIETVD" duration="00:00:00.0006065" startTime="2026-10-01T18:43:31.1705432+07:00" endTime="2026-10-01T18:43:31.1705941+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4500b909-3a62-483d-82ac-7859ee9589b0" />
+    <UnitTestResult executionId="7030d0cc-b7d4-43cb-bbb5-cdac8dc78aa7" testId="2d0cdc14-6583-4ef3-c8b6-fdf1494aab1c" testName="FlashSale.OrderService.Tests.OutboxAtomicityTests.Order_and_outbox_row_both_commit_in_one_SaveChanges_call" computerName="KIETVD" duration="00:00:00.0994842" startTime="2026-10-01T18:43:33.5311617+07:00" endTime="2026-10-01T18:43:33.6299053+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7030d0cc-b7d4-43cb-bbb5-cdac8dc78aa7" />
+    <UnitTestResult executionId="59a0beeb-fc98-4fcd-a45e-dd8b5e64d895" testId="0c47d810-88f4-5338-b0af-a5be7a217038" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Completed_is_terminal_and_throws_on_any_transition" computerName="KIETVD" duration="00:00:00.0008682" startTime="2026-10-01T18:43:31.1190453+07:00" endTime="2026-10-01T18:43:31.1190842+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="59a0beeb-fc98-4fcd-a45e-dd8b5e64d895" />
+    <UnitTestResult executionId="21de45ba-a6f5-4b19-a8c4-85eefa977504" testId="2007032d-40b4-cd57-c737-e3835570c457" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: Rejected)" computerName="KIETVD" duration="00:00:00.0000413" startTime="2026-10-01T18:43:31.1169140+07:00" endTime="2026-10-01T18:43:31.1169924+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="21de45ba-a6f5-4b19-a8c4-85eefa977504" />
+    <UnitTestResult executionId="e1e9cc38-db2c-44c5-99ee-df1ca3a882ea" testId="3641e043-5e9c-0258-4341-3584e072dc8d" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_Confirmed_succeeds_and_stamps_ConfirmedOrRejectedAt" computerName="KIETVD" duration="00:00:00.0004941" startTime="2026-10-01T18:43:31.1701913+07:00" endTime="2026-10-01T18:43:31.1702391+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e1e9cc38-db2c-44c5-99ee-df1ca3a882ea" />
+    <UnitTestResult executionId="7b321f8b-20a4-4a64-9469-5db2640ee8a4" testId="95592a77-8f5f-c681-df53-9266bdda7948" testName="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Two_different_messages_for_the_same_order_do_not_double_process" computerName="KIETVD" duration="00:00:00.1028413" startTime="2026-10-01T18:43:33.5973105+07:00" endTime="2026-10-01T18:43:33.7000867+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7b321f8b-20a4-4a64-9469-5db2640ee8a4" />
+    <UnitTestResult executionId="0cea7013-d96f-4191-a96b-51ba6a63734e" testId="fee8100c-c07c-ecd8-ce06-5d88aac03766" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Rejected_is_terminal_and_throws_on_any_transition" computerName="KIETVD" duration="00:00:00.0004786" startTime="2026-10-01T18:43:31.1188788+07:00" endTime="2026-10-01T18:43:31.1189244+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0cea7013-d96f-4191-a96b-51ba6a63734e" />
+    <UnitTestResult executionId="e9bcdb6d-1a2d-4140-9b45-6ab49c8983fd" testId="4f82bf85-d02a-44b6-92f5-b06ea03a570e" testName="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: Confirmed)" computerName="KIETVD" duration="00:00:00.0003247" startTime="2026-10-01T18:43:31.1157990+07:00" endTime="2026-10-01T18:43:31.1159048+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e9bcdb6d-1a2d-4140-9b45-6ab49c8983fd" />
+    <UnitTestResult executionId="eee0ca6b-efcf-4450-ae9f-67a7a4a256fe" testId="8a4f1a0e-5767-aed2-2849-a3a7d69dd08d" testName="FlashSale.OrderService.Tests.OutboxAtomicityTests.Failed_outbox_insert_rolls_back_the_order_insert_too" computerName="KIETVD" duration="00:00:02.4560355" startTime="2026-10-01T18:43:31.0696674+07:00" endTime="2026-10-01T18:43:33.5307714+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="eee0ca6b-efcf-4450-ae9f-67a7a4a256fe" />
+    <UnitTestResult executionId="3732a624-1983-4a6e-b666-fd6f2ea0b392" testId="bad9326f-d062-3851-361f-a19f0112c7bb" testName="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Redelivered_StockReserved_message_transitions_order_exactly_once" computerName="KIETVD" duration="00:00:00.0743619" startTime="2026-10-01T18:43:33.7003909+07:00" endTime="2026-10-01T18:43:33.7746703+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3732a624-1983-4a6e-b666-fd6f2ea0b392" />
+    <UnitTestResult executionId="dbe8398b-941d-47b6-881f-53d1208c364a" testId="6adf2ef2-578b-a62c-ee09-09e0f99cf6d5" testName="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Conflicting_result_for_an_already_Rejected_order_throws_and_is_not_recorded" computerName="KIETVD" duration="00:00:02.5230564" startTime="2026-10-01T18:43:31.0722772+07:00" endTime="2026-10-01T18:43:33.5970670+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dbe8398b-941d-47b6-881f-53d1208c364a" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_Confirmed_succeeds_and_stamps_ConfirmedOrRejectedAt" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="3641e043-5e9c-0258-4341-3584e072dc8d">
+      <Execution id="e1e9cc38-db2c-44c5-99ee-df1ca3a882ea" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="PendingStock_to_Confirmed_succeeds_and_stamps_ConfirmedOrRejectedAt" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_anything_else_throws(illegalTarget: Completed)" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="f7e5e709-467f-e398-08ec-47b52cd86001">
+      <Execution id="315ca609-d09a-4540-b588-17eb20bc0634" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="PendingStock_to_anything_else_throws" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Redelivered_StockReserved_message_transitions_order_exactly_once" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="bad9326f-d062-3851-361f-a19f0112c7bb">
+      <Execution id="3732a624-1983-4a6e-b666-fd6f2ea0b392" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests" name="Redelivered_StockReserved_message_transitions_order_exactly_once" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Rejected_is_terminal_and_throws_on_any_transition" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="fee8100c-c07c-ecd8-ce06-5d88aac03766">
+      <Execution id="0cea7013-d96f-4191-a96b-51ba6a63734e" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Rejected_is_terminal_and_throws_on_any_transition" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Two_different_messages_for_the_same_order_do_not_double_process" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="95592a77-8f5f-c681-df53-9266bdda7948">
+      <Execution id="7b321f8b-20a4-4a64-9469-5db2640ee8a4" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests" name="Two_different_messages_for_the_same_order_do_not_double_process" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: PendingStock)" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="85ff15b1-d572-9415-faec-a5f66e7c9919">
+      <Execution id="6eaafbd3-7e88-4f5a-baa1-c56d05031d21" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Confirmed_to_anything_but_Completed_throws" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_Completed_succeeds_and_stamps_CompletedAt" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="d4964639-c5ed-6657-973f-4c988e578fff">
+      <Execution id="bfcf9c77-779b-406b-bf02-eb440766f02b" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Confirmed_to_Completed_succeeds_and_stamps_CompletedAt" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests.Conflicting_result_for_an_already_Rejected_order_throws_and_is_not_recorded" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="6adf2ef2-578b-a62c-ee09-09e0f99cf6d5">
+      <Execution id="dbe8398b-941d-47b6-881f-53d1208c364a" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.DuplicateMessageIdempotencyTests" name="Conflicting_result_for_an_already_Rejected_order_throws_and_is_not_recorded" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: Confirmed)" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="4f82bf85-d02a-44b6-92f5-b06ea03a570e">
+      <Execution id="e9bcdb6d-1a2d-4140-9b45-6ab49c8983fd" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Confirmed_to_anything_but_Completed_throws" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Exception_reports_the_attempted_from_and_to_states" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="1d5499cc-4443-2123-37b9-a35117073ddb">
+      <Execution id="4500b909-3a62-483d-82ac-7859ee9589b0" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Exception_reports_the_attempted_from_and_to_states" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_Rejected_succeeds_and_stamps_ConfirmedOrRejectedAt" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="1901e4aa-dbc4-6ab1-b214-de9553f3bbfd">
+      <Execution id="50a87dd9-7862-4591-9e2e-bcbbf63c5174" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="PendingStock_to_Rejected_succeeds_and_stamps_ConfirmedOrRejectedAt" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.New_order_starts_in_PendingStock" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="5be767c2-8fd7-43cc-9234-37ec37b62a53">
+      <Execution id="3f3f193e-0ee3-46f0-adb4-d163964014da" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="New_order_starts_in_PendingStock" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OutboxAtomicityTests.Order_and_outbox_row_both_commit_in_one_SaveChanges_call" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="2d0cdc14-6583-4ef3-c8b6-fdf1494aab1c">
+      <Execution id="7030d0cc-b7d4-43cb-bbb5-cdac8dc78aa7" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OutboxAtomicityTests" name="Order_and_outbox_row_both_commit_in_one_SaveChanges_call" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.PendingStock_to_anything_else_throws(illegalTarget: PendingStock)" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="481c1bc7-c399-bea0-acb8-599f7ee26af2">
+      <Execution id="2f7c44ec-13be-477c-ae8c-fa2351e9e3cc" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="PendingStock_to_anything_else_throws" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Completed_is_terminal_and_throws_on_any_transition" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="0c47d810-88f4-5338-b0af-a5be7a217038">
+      <Execution id="59a0beeb-fc98-4fcd-a45e-dd8b5e64d895" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Completed_is_terminal_and_throws_on_any_transition" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OrderStateMachineTests.Confirmed_to_anything_but_Completed_throws(illegalTarget: Rejected)" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="2007032d-40b4-cd57-c737-e3835570c457">
+      <Execution id="21de45ba-a6f5-4b19-a8c4-85eefa977504" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OrderStateMachineTests" name="Confirmed_to_anything_but_Completed_throws" />
+    </UnitTest>
+    <UnitTest name="FlashSale.OrderService.Tests.OutboxAtomicityTests.Failed_outbox_insert_rolls_back_the_order_insert_too" storage="d:\dacntt\tests\flashsale.orderservice.tests\bin\debug\net10.0\flashsale.orderservice.tests.dll" id="8a4f1a0e-5767-aed2-2849-a3a7d69dd08d">
+      <Execution id="eee0ca6b-efcf-4450-ae9f-67a7a4a256fe" />
+      <TestMethod codeBase="D:\DACNTT\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.OrderService.Tests.OutboxAtomicityTests" name="Failed_outbox_insert_rolls_back_the_order_insert_too" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="d4964639-c5ed-6657-973f-4c988e578fff" executionId="bfcf9c77-779b-406b-bf02-eb440766f02b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5be767c2-8fd7-43cc-9234-37ec37b62a53" executionId="3f3f193e-0ee3-46f0-adb4-d163964014da" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f7e5e709-467f-e398-08ec-47b52cd86001" executionId="315ca609-d09a-4540-b588-17eb20bc0634" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="481c1bc7-c399-bea0-acb8-599f7ee26af2" executionId="2f7c44ec-13be-477c-ae8c-fa2351e9e3cc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="85ff15b1-d572-9415-faec-a5f66e7c9919" executionId="6eaafbd3-7e88-4f5a-baa1-c56d05031d21" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1901e4aa-dbc4-6ab1-b214-de9553f3bbfd" executionId="50a87dd9-7862-4591-9e2e-bcbbf63c5174" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1d5499cc-4443-2123-37b9-a35117073ddb" executionId="4500b909-3a62-483d-82ac-7859ee9589b0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2d0cdc14-6583-4ef3-c8b6-fdf1494aab1c" executionId="7030d0cc-b7d4-43cb-bbb5-cdac8dc78aa7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0c47d810-88f4-5338-b0af-a5be7a217038" executionId="59a0beeb-fc98-4fcd-a45e-dd8b5e64d895" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2007032d-40b4-cd57-c737-e3835570c457" executionId="21de45ba-a6f5-4b19-a8c4-85eefa977504" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3641e043-5e9c-0258-4341-3584e072dc8d" executionId="e1e9cc38-db2c-44c5-99ee-df1ca3a882ea" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="95592a77-8f5f-c681-df53-9266bdda7948" executionId="7b321f8b-20a4-4a64-9469-5db2640ee8a4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fee8100c-c07c-ecd8-ce06-5d88aac03766" executionId="0cea7013-d96f-4191-a96b-51ba6a63734e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4f82bf85-d02a-44b6-92f5-b06ea03a570e" executionId="e9bcdb6d-1a2d-4140-9b45-6ab49c8983fd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a4f1a0e-5767-aed2-2849-a3a7d69dd08d" executionId="eee0ca6b-efcf-4450-ae9f-67a7a4a256fe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bad9326f-d062-3851-361f-a19f0112c7bb" executionId="3732a624-1983-4a6e-b666-fd6f2ea0b392" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6adf2ef2-578b-a62c-ee09-09e0f99cf6d5" executionId="dbe8398b-941d-47b6-881f-53d1208c364a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="17" executed="17" passed="17" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.8)&#xD;
+[xUnit.net 00:00:00.27]   Discovering: FlashSale.OrderService.Tests&#xD;
+[xUnit.net 00:00:00.37]   Discovered:  FlashSale.OrderService.Tests&#xD;
+[xUnit.net 00:00:00.42]   Starting:    FlashSale.OrderService.Tests&#xD;
+[xUnit.net 00:00:03.17]   Finished:    FlashSale.OrderService.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

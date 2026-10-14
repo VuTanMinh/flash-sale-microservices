@@ -1,0 +1,19 @@
+# scripts/verify-cross-store.ps1 -- W11 milestone regression
+# Clone: fresh clone of week1-2 at 23c4feb, launched from Git Bash
+# Database: fresh (scripts/verify-environment.ps1 -Mode Fresh -Keep, container verify-env-pg:55432)
+# Stamp: 20261014T143712Z (UTC)
+
+PASS  setup: xs-product warmed up with 5 units
+PASS  case 1: during the fault Redis already reserved (stock 4, order recorded) but no result row exists
+PASS  case 1: after the fault clears, the retry writes StockReserved
+PASS  case 1: no second deduction (stock still 4, one reservation)
+PASS  case 1: Inbox row recorded for the message
+PASS  case 1: the retry saw DUPLICATE from Redis (no re-reservation)
+PASS  case 2: after retries are exhausted the message is dead-lettered, not acked as done
+PASS  case 2: Redis deducted exactly once (stock 3) and still no result row
+PASS  case 2: no Inbox row was written for the failed message
+PASS  case 2: replaying the dead-lettered message rebuilds StockReserved
+PASS  case 2: no second deduction (stock still 3, two reservations in total)
+
+Cross-store failure verified: one deduction, result rebuilt by retry.
+Exit code: 0

@@ -1,0 +1,8 @@
+# dotnet test tests/FlashSale.OrderService.Tests (run from a copy, testhost workaround) -- W11 milestone regression
+# Clone: fresh clone of week1-2 at 23c4feb, launched from Git Bash
+# Database: fresh (scripts/verify-environment.ps1 -Mode Fresh -Keep, container verify-env-pg:55432)
+# Stamp: 20261014T135821Z (UTC)
+
+
+Passed!  - Failed:     0, Passed:    91, Skipped:     0, Total:    91, Duration: 13 s - FlashSale.OrderService.Tests.dll (net10.0)
+Exit code: 0

@@ -1,0 +1,25 @@
+﻿{
+    "commit":  "9a539dc",
+    "dirtyTree":  false,
+    "scenario":  "C1 above",
+    "run":  1,
+    "initialStock":  100,
+    "concurrentRequests":  150,
+    "httpStatus":  {
+                       "200":  150
+                   },
+    "transportErrors":  0,
+    "confirmed":  100,
+    "rejected":  50,
+    "finalStock":  0,
+    "checks":  {
+                   "allHttp200":  true,
+                   "confirmedExpected":  true,
+                   "rejectedExpected":  true,
+                   "noOversell":  true,
+                   "stockNonNegative":  true,
+                   "stockConserved":  true,
+                   "oneRowPerRequest":  true
+               },
+    "verdict":  "PASS"
+}

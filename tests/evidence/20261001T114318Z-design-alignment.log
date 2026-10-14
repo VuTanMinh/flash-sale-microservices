@@ -1,0 +1,58 @@
+﻿Commit: 3dfd9e6
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-design-alignment.ps1 
+Exit code: 0
+
+PASS  class diagram Order properties = code (9)
+PASS  class diagram OutboxEvent properties = code (7)
+PASS  class diagram ProcessedMessage properties = code (4)
+PASS  class diagram InventoryOutboxEvent properties = code (7)
+PASS  class diagram InventoryProcessedMessage properties = code (4)
+PASS  class diagram OrderPlacedEto properties = code (5)
+PASS  class diagram StockReservedEto properties = code (4)
+PASS  class diagram StockRejectedEto properties = code (4)
+PASS  class diagram OrderProcessedEto properties = code (3)
+PASS  class diagram OrderState values = code enum
+PASS  class diagram labels the six-state additions as planned Week 11
+PASS  event contract OrderPlacedEto fields = code
+PASS  event contract StockReservedEto fields = code
+PASS  event contract StockRejectedEto fields = code
+PASS  event contract OrderProcessedEto fields = code
+PASS  event contract marks OrderProcessingStartedEto as planned
+PASS  routing key 'OrderPlaced' in event contract is used in code
+PASS  routing key 'StockReserved' in event contract is used in code
+PASS  routing key 'StockRejected' in event contract is used in code
+PASS  routing key 'OrderProcessed' in event contract is used in code
+PASS  exchange name in event contract matches configuration
+PASS  state model names teacher state PendingStock
+PASS  state model names teacher state Confirmed
+PASS  state model names teacher state Rejected
+PASS  state model names teacher state Processing
+PASS  state model names teacher state Completed
+PASS  state model names teacher state ProcessingFailed
+PASS  state doc lists current-code transition PendingStock -> Confirmed
+PASS  state doc lists current-code transition PendingStock -> Rejected
+PASS  state doc lists current-code transition Confirmed -> Completed
+PASS  state doc says the code still has four states until Week 11
+PASS  sequence diagram POST returns 201 like the controller
+PASS  sequence diagram Outbox poll interval matches code (2s)
+PASS  sequence diagram routing key 'OrderPlaced' exists in code
+PASS  sequence diagram routing key 'StockReserved' exists in code
+PASS  sequence diagram routing key 'StockRejected' exists in code
+PASS  sequence diagrams draw the Processing hop only as PLANNED
+PASS  no stale claim 'turned out not to exist' in design docs
+PASS  no stale claim 'never passes through a `Processing`' in design docs
+PASS  no stale claim 'removed from the domain' in design docs
+PASS  API contract POST /api/orders codes = controller (200,201,400,409)
+PASS  API contract GET /api/orders/{id} codes = controller (200,404)
+PASS  API contract POST /api/c1/orders codes = controller (200)
+PASS  API contract documents the Idempotency-Key header
+PASS  docs/erd.md is committed
+PASS  docs/class-diagram.md is committed
+PASS  docs/api-contract-v1.json is committed
+PASS  docs/event-contract.md is committed
+PASS  docs/order-state-machine.md is committed
+PASS  docs/sequence-diagrams.md is committed
+PASS  docs/design-alignment.md is committed
+
+All design artifacts align with the source (planned parts labelled).
+

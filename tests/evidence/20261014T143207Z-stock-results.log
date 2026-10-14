@@ -1,0 +1,18 @@
+# scripts/verify-stock-results.ps1 -- W11 milestone regression
+# Clone: fresh clone of week1-2 at 23c4feb, launched from Git Bash
+# Database: fresh (scripts/verify-environment.ps1 -Mode Fresh -Keep, container verify-env-pg:55432)
+# Stamp: 20261014T143207Z (UTC)
+
+PASS  StockReserved -> order Confirmed with ConfirmedOrRejectedAt stamped
+PASS  StockReserved -> exactly one Inbox row for its MessageId
+PASS  StockRejected -> order Rejected with ConfirmedOrRejectedAt stamped
+PASS  StockRejected -> exactly one Inbox row for its MessageId
+PASS  same StockReserved redelivered: state and timestamp unchanged, still one Inbox row
+PASS  same result with a new MessageId: recorded in the Inbox, state and timestamp unchanged
+PASS  StockRejected for a Confirmed order: dead-lettered, order still Confirmed, no Inbox row
+PASS  result for an unknown order: acknowledged without action (no Inbox row, not dead-lettered)
+PASS  applied transitions (2) match their Inbox rows (2)
+PASS  Inbox insert refused: order stays PendingStock and no Inbox row (state change rolled back with it)
+
+Stock results drive the order state with Inbox and business change committed together.
+Exit code: 0

@@ -1,0 +1,32 @@
+﻿PASS  cited: OrdersController.CreateOrderAsync (src\FlashSale.OrderService\Controllers\OrdersController.cs)
+PASS  cited: 409 on reused key (src\FlashSale.OrderService\Controllers\OrdersController.cs)
+PASS  cited: unique IdempotencyKey (src\FlashSale.OrderService\Data\OrderServiceDbContext.cs)
+PASS  cited: Order Inbox unique MessageId (src\FlashSale.OrderService\Data\OrderServiceDbContext.cs)
+PASS  cited: Inventory Inbox unique MessageId (src\FlashSale.InventoryService\Data\InventoryServiceDbContext.cs)
+PASS  cited: Inventory Outbox unique OrderId (src\FlashSale.InventoryService\Data\InventoryServiceDbContext.cs)
+PASS  cited: StockResultProcessor.ProcessAsync (src\FlashSale.OrderService\Messaging\StockResultProcessor.cs)
+PASS  cited: StockResultProcessor same-or-past-state no-op (src\FlashSale.OrderService\Messaging\StockResultProcessor.cs)
+PASS  cited: AlreadyProcessed outcome (src\FlashSale.OrderService\Messaging\StockResultProcessor.cs)
+PASS  cited: OrderPlacedProcessor Inbox check first (src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs)
+PASS  cited: OrderPlacedProcessor DUPLICATE treated as StockReserved (src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs)
+PASS  cited: one SaveChangesAsync for Outbox + Inbox (src\FlashSale.InventoryService\Messaging\OrderPlacedProcessor.cs)
+PASS  cited: reserve.lua DUPLICATE via processed set (scripts\redis\reserve.lua)
+PASS  cited: reserve.lua atomic DECR + SADD (scripts\redis\reserve.lua)
+PASS  cited: Order.TransitionTo guard (src\FlashSale.OrderService\Entities\Order.cs)
+PASS  cited: Process Worker MessageId = OrderId (src\FlashSale.ProcessWorker\Messaging\StockReservedConsumer.cs)
+PASS  cited: reconciliation re-publishes OrderPlaced (new MessageId) (src\FlashSale.OrderService\Messaging\ReconciliationWorker.cs)
+PASS  cited: grants revoke cross-schema access (infra\initdb\01-create-service-roles.sql)
+PASS  cited: Redis data volume (infra\docker-compose.yml)
+PASS  topic defined: ## 1. Transport versus business idempotency
+PASS  topic defined: ## 2. Event ordering and replay
+PASS  topic defined: ## 3. Schema ownership
+PASS  topic defined: ## 4. Redis/PostgreSQL failure boundary
+PASS  business idempotency covers a new MessageId for the same OrderId
+PASS  early OrderProcessed is requeued for bounded retry, not dead-lettered (fixed Week 9)
+PASS  design doc records the out-of-order completion fix
+PASS  Order Service result processor treats only unique violations as duplicates (fixed Week 8)
+PASS  design doc records the Order Service fix
+
+Design decisions match the code (known gaps confirmed and assigned).
+
+Exit code: 0

@@ -1,0 +1,78 @@
+# .NET / Visual Studio (matches GitHub's "VisualStudio" .gitignore template,
+# picked in Step 2.1 — added here since the repo was created without one)
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# ABP CLI
+*.rej
+**/node_modules/
+**/wwwroot/libs/
+# Serilog output. Was .txt-only until Week 11 switched the file sink to
+# structured JSON (Step 11.3) -- the new extension would otherwise have
+# slipped past this rule and committed runtime logs.
+**/Logs/*.txt
+**/Logs/*.json
+**/appsettings.secrets.json
+*.pfx
+
+# Terraform (used by setup-week1.ps1 for local infra provisioning)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!environments/*.tfvars.example
+crash.log
+crash.*.log
+
+# LaTeX build artifacts (report/report.tex)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/*.pdf
+
+# JMeter run artifacts (the Step 3.5 smoke-test .jtl is intentionally
+# committed as report evidence -- this only excludes JMeter's own verbose
+# run log and future large load-test result dumps)
+tests/jmeter/results/*.log
+tests/jmeter/*-results/
+
+# AI assistant files stay local and are never committed (owner, 2026-10-14)
+/.claude/
+/CLAUDE.md
+/AGENTS.md
+# Local plugin state (groundwork bypass records; contains an email address)
+/.groundwork/
+
+# OS
+Thumbs.db
+.DS_Store
+
+#Powershell script
+setup.ps1
+setup-week1.ps1
+
+# Ignore generated/local Markdown by default; keep the project design docs
+# in version control so their requirements stay reviewable with the code.
+*.md
+!/README.md
+!/docs/*.md
+!/docs/**/*.md
+
+# Secrets: never commit environment files (API keys, passwords, tokens).
+.env
+.env.*
+*.env
+!.env.example
+
+# Local DeepSeek tooling (not part of the project)
+deepseek-mcp-server/
+
+# Task briefs and run outputs exchanged with the coding agent (local only)
+.agent-tasks/

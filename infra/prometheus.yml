@@ -1,0 +1,43 @@
+# Prometheus scrape configuration (Week 11, Step 11.3).
+#
+# All three .NET services run on the HOST (dotnet run), not inside this
+# Compose file, so every target below is host.docker.internal rather than a
+# Compose service name. That is also why scrape_interval is 5s rather than
+# Prometheus's 15s default: Week 13/14 load runs are minutes long, and a 15s
+# interval would leave a throughput curve with too few points to read a ramp
+# or a recovery from.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Order Service and Inventory Service are ABP web apps started over HTTPS
+  # with the ASP.NET Core *development* certificate, which Prometheus has no
+  # reason to trust -- hence insecure_skip_verify. Acceptable here and only
+  # here: the "connection" is localhost-to-localhost on a research machine,
+  # and the alternative (provisioning a real cert chain for a dev rig) buys
+  # no security this setup actually needs.
+  - job_name: order-service
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ["host.docker.internal:44314"]
+
+  - job_name: inventory-service
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ["host.docker.internal:44379"]
+
+  # The Process Worker serves plain HTTP: it has no API surface to protect,
+  # and /metrics is the only endpoint it exposes at all.
+  - job_name: process-worker
+    static_configs:
+      - targets: ["host.docker.internal:5100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

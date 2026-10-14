@@ -1,0 +1,4 @@
+﻿Week 10 box 1 beta, 20261011T084521Z
+Fresh clone of D:\DACNTT at 1e5fbbe on a fresh database (verify-environment -Mode Fresh before each verifier).
+Local-only change in the clone: OrderServiceModule.cs line 140 passed X509KeyStorageFlags.EphemeralKeySet (the session was not elevated; the same one-line fix is now being made in the repository).
+Negative control (failures-negative.log): the Inventory empty-MessageId check disabled in a scratch copy; exit 1, 69 PASS, 5 FAIL.

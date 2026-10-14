@@ -1,0 +1,45 @@
+﻿PASS  section: Entity-Relationship Diagram
+PASS  section: Class Diagram
+PASS  section: API Contract
+PASS  section: Event Contract
+PASS  section: Order State Machine
+PASS  section: Sequence Diagrams
+PASS  section: Idempotency, Ordering and Ownership
+PASS  section: Design Rationale
+PASS  section: Supported Failure Model
+PASS  figure exists and is committed: figures/erd-order-service.png
+PASS  figure exists and is committed: figures/erd-inventory-service.png
+PASS  figure exists and is committed: figures/erd-baseline.png
+PASS  figure exists and is committed: figures/class-order-service.png
+PASS  figure exists and is committed: figures/class-event-contracts.png
+PASS  figure exists and is committed: figures/state-machine.png
+PASS  figure exists and is committed: figures/seq-happy-path.png
+PASS  figure exists and is committed: figures/seq-rejection.png
+PASS  figure exists and is committed: figures/seq-planned-processing.png
+PASS  API table POST /api/orders codes (200,201,400,409) = contract (200,201,400,409)
+PASS  API table GET /api/orders/{id} codes (200,404) = contract (200,404)
+PASS  API table POST /api/c1/orders codes (200) = contract (200)
+PASS  failure model references test cases (11)
+PASS  failure model case TP-A03 exists in the test plan
+PASS  failure model case TP-E03 exists in the test plan
+PASS  failure model case TP-M01 exists in the test plan
+PASS  failure model case TP-M02 exists in the test plan
+PASS  failure model case TP-O01 exists in the test plan
+PASS  failure model case TP-O02 exists in the test plan
+PASS  failure model case TP-I03 exists in the test plan
+PASS  failure model case TP-F01 exists in the test plan
+PASS  failure model case TP-F02 exists in the test plan
+PASS  failure model case TP-L01 exists in the test plan
+PASS  failure model case TP-W03 exists in the test plan
+PASS  failure model lists the known gaps
+PASS  failure model lists what is not supported
+PASS  sequence section cites its alignment check (TP-W04) and draws no unexercised Nginx hop
+PASS  names all six teacher states
+PASS  ProcessingFailed success-only interpretation stated
+PASS  schema-per-service stated as not physical isolation
+PASS  replicas limited to one host (no multi-node claim)
+PASS  Process Worker uses order id as idempotency key
+
+System Analysis and Design chapter is complete and consistent.
+
+Exit code: 0

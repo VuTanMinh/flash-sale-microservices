@@ -1,0 +1,4 @@
+﻿Week 10 box 2 beta, 20261011T102304Z
+Fresh clone of D:\DACNTT at 997c60c on a fresh database (verify-environment -Mode Fresh before each verifier), run without admin rights and with no local patch (the EphemeralKeySet certificate fix is in the code, eb28f0a).
+workflow.log is the re-run after the step 14 static check and docs/workflow.md were updated for the stored-result re-send (the first run failed only that static check).
+Negative control (reconciliation-negative.log): Inventory's existingResult.MarkForRepublish() call removed in a scratch copy; exit 1, case A stays PendingStock and its result is never re-sent.

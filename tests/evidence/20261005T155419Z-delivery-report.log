@@ -1,0 +1,47 @@
+# verify-delivery-report.ps1 -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z -Compile
+# fresh clone at 83fff35; 20261005T155419Z
+
+PASS  Week 9 chapter found
+PASS  subsection title present: Message delivery semantics
+PASS  subsection title present: Idempotent consumer
+PASS  subsection title present: Acknowledgement strategy, proven with a real crash (Step 9.3)
+PASS  subsection title present: Duplicate handling
+PASS  chapter mentions: at-least-once
+PASS  chapter mentions: effectively once
+PASS  chapter mentions: unique violation
+PASS  chapter mentions: NotYetApplicable
+PASS  chapter mentions: no Inbox
+PASS  chapter names the consumer class OrderPlacedConsumer
+PASS  chapter names the consumer class StockResultConsumer
+PASS  chapter names the consumer class OrderProcessedConsumer
+PASS  chapter names the consumer class StockReservedConsumer
+PASS  delivery log is committed (tests/evidence/20261002T183238Z-delivery.log)
+PASS  ordering log is committed (tests/evidence/20261003T181814Z-delivery-ordering.log)
+PASS  ordering negative-control log is committed (tests/evidence/20261003T181814Z-delivery-ordering-negative-early-completion.log)
+PASS  exactly two delivery negative-control logs are committed
+PASS  delivery log: exit 0, 34 PASS, 0 FAIL
+PASS  report states 34 of 34 checks for TP-M01 and cites the delivery log
+PASS  ordering log: exit 0, 44 PASS, 0 FAIL
+PASS  report states 44 of 44 checks for TP-M02 and cites the ordering log
+PASS  ack negative log: 24 FAIL, exit 1
+PASS  report states the ack negative failed 24 of 34 checks
+PASS  inbox negative log: 1 FAIL, exit 1
+PASS  report states the inbox negative failed exactly one check
+PASS  ordering negative log: 16 FAIL, exit 1
+PASS  report states the ordering negative failed 16 checks
+PASS  unit-tests log: 0 failed, Total = 45
+PASS  report states the unit-test total 45
+PASS  TP-M01 is cited in the chapter
+PASS  TP-M02 is cited in the chapter
+PASS  TP-M01 is PASS in the test plan
+PASS  TP-M02 is PASS in the test plan
+PASS  no stale text: 'Both consumers' actual correctness logic'
+PASS  no stale text: 'confirmed directly:'
+PASS  no stale text: 'currently has 43 tests'
+PASS  no \unverified in the chapter
+latexmk: security risk: running with elevated privileges
+PASS  PDF builds (latexmk exit 0)
+
+Week 9 chapter matches the delivery evidence.
+
+exit code: 0

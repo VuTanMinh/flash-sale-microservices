@@ -1,0 +1,56 @@
+﻿# verify-delivery-ordering.ps1 -Container verify-env-pg -DbPort 55432
+# fresh clone at b0b9d51; fresh database (verify-environment.ps1 -Mode Fresh: All checks passed (Fresh).); 20261003T181814Z
+
+== Environment
+PASS  Order Service and Inventory Service are up; every run queue they declare exists
+PASS  ProcessWorker.StockReserved is pre-declared (no consumer) so Inventory can publish StockReserved while the Worker is absent
+PASS  the three delayed retry queues are declared alongside OrderProcessed
+PASS  retry queue OrderProcessed.retry.1 is bound to flashsale.dlx with its own name as routing key
+PASS  retry queue OrderProcessed.retry.2 is bound to flashsale.dlx with its own name as routing key
+PASS  retry queue OrderProcessed.retry.3 is bound to flashsale.dlx with its own name as routing key
+PASS  retry queues carry the 2s/4s/8s requeue ladder
+PASS  retry queues dead-letter back with routing key OrderProcessed
+PASS  warm-up: do-182023 has 30 units
+== 1. Concurrent duplicates (same message, at once)
+PASS  8 simultaneous deliveries of the same StockReserved published
+PASS  same MessageId, 8 at once: the order is Confirmed exactly once
+PASS  same MessageId, 8 at once: exactly one Inbox row for that message
+PASS  same MessageId, 8 at once: no copy is dead-lettered
+PASS  8 simultaneous deliveries with 8 different MessageIds published
+PASS  different MessageIds, same fact: the order is Confirmed exactly once
+PASS  different MessageIds, same fact: every copy is accounted for in the Inbox (8 rows)
+PASS  different MessageIds, same fact: no copy is dead-lettered
+PASS  a concurrent duplicate never re-stamps the decision time
+PASS  case 1 (both concurrent cases together) moved no stock and reserved nothing
+PASS  the two suppressed OrderPlaced messages were retried then dead-lettered, not acked unprocessed
+== 2. Duplicate business event with a new MessageId
+PASS  normal flow: the order is Confirmed through the real Inventory consumer, one unit deducted
+PASS  normal flow: the result is a StockReserved with an Inbox row at Inventory
+PASS  the re-published OrderPlaced is the committed payload with only MessageId changed
+PASS  re-published OrderPlaced: Redis answered DUPLICATE, so no second unit was deducted
+PASS  re-published OrderPlaced: no second result Outbox row
+PASS  re-published OrderPlaced: the order state and timestamps are unchanged
+PASS  duplicate StockReserved with a new MessageId: recorded as a no-op, state and timestamps unchanged
+PASS  duplicate StockReserved is not dead-lettered
+== 3. Late and out-of-order completion
+PASS  early OrderProcessed is requeued onto a delayed retry queue (the requeue is routable)
+PASS  early OrderProcessed is NOT dead-lettered
+PASS  early OrderProcessed writes no Inbox row while it is unapplied
+PASS  early OrderProcessed leaves the order alone (still PendingStock, no completion time)
+PASS  the Order Service logged the requeue, not a state conflict
+PASS  once StockReserved lands the requeued completion applies: the order reaches Completed
+PASS  the same completion is applied exactly once (one Inbox row, one completion stamp)
+PASS  the early completion was not sent to the DLQ for this order
+PASS  with no StockReserved the requeue is bounded: requeued, then dead-lettered
+PASS  the orphan's completion was requeued three times (bounded ladder, not a straight DLQ, not forever)
+PASS  the orphaned order is left PendingStock and was never marked completed
+PASS  late StockReserved after Completed: no-op, decision and completion timestamps unchanged
+PASS  late StockReserved after Completed is not dead-lettered
+PASS  every run queue, retry queue and stock-result DLQ is empty at the end
+PASS  one unit deducted per applied order and no more: 30 - 2 = 28, Redis holds exactly those two orders
+PASS  OrderPlaced.dlq holds exactly the three deliberately-dead-lettered OrderPlaced messages (o1, o2, o5)
+    (OrderProcessed.dlq at the end: 1, OrderPlaced.dlq: 3)
+
+Concurrent duplicates, duplicate business events and out-of-order completion all leave one stock deduction and one applied result.
+
+exit code: 0

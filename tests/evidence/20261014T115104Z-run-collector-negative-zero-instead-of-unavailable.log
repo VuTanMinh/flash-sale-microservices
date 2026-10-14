@@ -1,0 +1,27 @@
+# NEGATIVE CONTROL for TP-P07
+# Clone: week1-2 at 419d3db with exactly one break: a failed source is written as 0 instead of unavailable
+# Database: verify-env-pg:55432 (shared verification database)
+# Stamp: 20261014T115104Z (UTC)
+# Expected: the checks tied to the break FAIL and the script exits 1
+
+
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,OrderProcessingStarted=True,OrderProcessed=True,ProcessWorker.StockReserved=True,OrderPlaced.dlq=True,StockReserved.dlq=True,StockRejected.dlq=True,OrderProcessingStarted.dlq=True,OrderProcessed.dlq=True,ProcessWorker.StockReserved.dlq=True
+PASS  warm-up: rc-rc-114926 has 50 units
+== Start the run-time collector
+PASS  collector started and wrote collector.json -- json=C:\Users\Lenovo\AppData\Local\Temp\verify-rc-rc-114926\collector.json
+== Analyse samples.csv
+PASS  samples.csv has rows -- rows=1187
+PASS  rows from every source (rabbitmq, redis, postgres, service, host) -- present=rabbitmq,redis,postgres,service,host
+PASS  OrderPlaced queue depth peaked >= 1 while Inventory was stopped -- peak=3
+PASS  OrderPlaced oldest message age > 0 while waiting -- max_age=33
+PASS  Redis calls rose during the run -- calls min=1 max=4 samples=10
+PASS  connections >= 1 per service account (order_service_user, inventory_service_user) -- order=5 inventory=1
+PASS  host CPU and memory present -- cpu_samples=10 mem_used=12950605824 mem_total=14702026752
+PASS  accepted counter rose by the number of orders placed -- accepted_max=6 placed=6
+PASS  sampling cadence: mean gap <= interval + 1 s -- mean_gap=5.00022222222222 gaps=9 mean_sample_ms=3284.5
+PASS  every main queue has messages_ready rows -- missing=
+FAIL  Redis rows became unavailable (not 0) while Redis was stopped, and the other sources kept sampling -- unavailable_rows=0 first=
+PASS  collector.json records run id, interval and git commit -- run_id=rc-114926 interval=5 (want 5) commit=9651047aace118786b12e8f8e6fe9b0a04a21e4c (want 9651047aace118786b12e8f8e6fe9b0a04a21e4c)
+1 check(s) failed.
+Exit code: 1

@@ -1,0 +1,45 @@
+# Linux host path of scripts/collect-run-metrics.ps1 (W11 milestone task B2)
+# Commit: e4cf2e5 plus the uncommitted B2 fix (DeepSeek); image mcr.microsoft.com/powershell:7.4-ubuntu-22.04 (pwsh 7.4)
+# Stamp: 20261014T150746Z (UTC)
+# Command: docker run --rm -v D:\DACNTT\scripts:/repo/scripts:ro -v <out>:/out mcr.microsoft.com/powershell:7.4-ubuntu-22.04 pwsh -NoProfile -File /repo/scripts/collect-run-metrics.ps1 -RunId linux-check -OutDir /out -IntervalSeconds 5 -DurationSeconds 12 (broker, Redis, PostgreSQL and service URLs unreachable on purpose)
+# Expected: no IsWindows error; host rows every sample; first cpu_percent unavailable, later ones numeric; unreachable sources unavailable, never 0
+
+== collector.json
+{
+  "run_id": "linux-check",
+  "interval_seconds": 5,
+  "start_time_utc": "2026-10-14T15:07:18.9113801Z",
+  "host_os": "Linux",
+  "git_commit": "unknown",
+  "endpoints": {
+    "rabbitmq_management_url": "http://127.0.0.1:1",
+    "rabbitmq_user": "flashsale",
+    "redis_container": "infra-redis-1",
+    "postgres_container": "infra-postgres-1",
+    "order_metrics_url": "http://127.0.0.1:1/metrics",
+    "inventory_metrics_url": "http://127.0.0.1:1/metrics",
+    "worker_metrics_url": "http://127.0.0.1:1/metrics"
+  }
+}
+
+== host and collector rows
+2026-10-14T15:07:18.968Z,host,cpu_percent,"reason=first sample, no previous reading",unavailable
+2026-10-14T15:07:18.968Z,host,memory_used_bytes,,1556480000
+2026-10-14T15:07:18.968Z,host,memory_total_bytes,,7105343488
+2026-10-14T15:07:18.968Z,collector,sample_duration_ms,,205
+2026-10-14T15:07:23.969Z,host,cpu_percent,,0.3458434738055627
+2026-10-14T15:07:23.969Z,host,memory_used_bytes,,1560621056
+2026-10-14T15:07:23.969Z,host,memory_total_bytes,,7105343488
+2026-10-14T15:07:23.969Z,collector,sample_duration_ms,,80
+2026-10-14T15:07:28.968Z,host,cpu_percent,,0.96551724137931
+2026-10-14T15:07:28.968Z,host,memory_used_bytes,,1567805440
+2026-10-14T15:07:28.968Z,host,memory_total_bytes,,7105343488
+2026-10-14T15:07:28.968Z,collector,sample_duration_ms,,64
+2026-10-14T15:07:33.968Z,host,cpu_percent,,0.9550138225684845
+2026-10-14T15:07:33.968Z,host,memory_used_bytes,,1569468416
+2026-10-14T15:07:33.968Z,host,memory_total_bytes,,7105343488
+2026-10-14T15:07:33.968Z,collector,sample_duration_ms,,45
+
+== unavailable rows: 25 (24 from sources this container cannot reach, plus the first cpu_percent)
+== rows with value 0 from an unreachable source: 0
+Exit code: 0

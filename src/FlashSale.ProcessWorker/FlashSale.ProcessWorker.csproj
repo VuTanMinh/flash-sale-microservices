@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FlashSale.ProcessWorker</RootNamespace>
+  </PropertyGroup>
+
+  <!-- No ABP packages at all, and no EF Core / Npgsql either. This is a
+       deliberate contrast with both other services, not an oversight:
+
+       * No ABP: this service has no HTTP API, no entities, no application
+         services, no modules. Inventory Service (Week 7) already stripped
+         ABP down to the few modules it genuinely used; here even those have
+         nothing to do, so the whole framework would be dead weight.
+       * No database: the Process Worker holds no business state. Its only
+         durable fact ("this order finished processing") lives in the message
+         it publishes, and its idempotency key is the order id it was handed
+         (Step 11.1) rather than a row it has to store. No local write means
+         no dual-write problem, which means no Outbox is needed either; see
+         Messaging/StockReservedConsumer.cs for why that reasoning holds here
+         but did NOT hold for Inventory Service in Week 8.
+
+       It IS a Web SDK project rather than a plain Worker, for exactly one
+       reason: Step 11.3's Prometheus scraping needs an HTTP /metrics
+       endpoint to scrape. -->
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
+    <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlashSale.EventContracts\FlashSale.EventContracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Logs\**" />
+    <Content Remove="Logs\**" />
+    <None Remove="Logs\**" />
+  </ItemGroup>
+
+</Project>

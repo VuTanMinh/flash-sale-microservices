@@ -1,0 +1,132 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace FlashSale.OrderService.Entities;
+
+/// <summary>
+/// The real Order aggregate (Week 5) — distinct from the raw-SQL
+/// order_service.baseline_orders table the C0/C1 experiments use
+/// (docs/erd.md). Plain class, not an ABP AggregateRoot: AggregateRoot's
+/// audit properties (CreatorId, LastModifierId, ...) are tied to ABP's
+/// Identity/User system, and re-coupling to that would cut against the
+/// Week 4 finding that Identity isn't actually part of this project's scope.
+/// </summary>
+public class Order
+{
+    public Guid Id { get; private set; }
+
+    /// <summary>
+    /// Client-supplied idempotency key (the "Idempotency-Key" header) — dedupes
+    /// duplicate *client* submissions. NOT the same as the broker-message-level
+    /// MessageId on the ETOs in FlashSale.EventContracts (Week 9 Inbox pattern,
+    /// dedupes duplicate *delivery*) — see docs/00-scope-lock.md's boundary note.
+    /// </summary>
+    public string IdempotencyKey { get; private set; } = null!;
+
+    public string ProductId { get; private set; } = null!;
+
+    public int Quantity { get; private set; }
+
+    public OrderState State { get; private set; }
+
+    /// <summary>
+    /// Week 11 (Step 11.2). Minted at this order's entry point, or taken from
+    /// the caller's X-Correlation-ID header, then carried unchanged onto every
+    /// event this order causes. Stored on the order itself (not only in logs)
+    /// so a row in the database can still be tied back to its request trace
+    /// after the fact -- which is what Week 13/14 need when reconciling
+    /// measured latencies against what the logs say happened.
+    /// </summary>
+    public string CorrelationId { get; private set; } = null!;
+
+    /// <summary>When the order was accepted (this is also the "created" timestamp — a
+    /// separate generic CreatedAt would just duplicate it).</summary>
+    public DateTime RequestAcceptedAt { get; private set; }
+
+    public DateTime? ConfirmedOrRejectedAt { get; private set; }
+
+    public DateTime? CompletedAt { get; private set; }
+
+    private Order()
+    {
+        // EF Core materialization only.
+    }
+
+    public Order(Guid id, string idempotencyKey, string productId, int quantity, string correlationId)
+    {
+        Id = id;
+        IdempotencyKey = idempotencyKey;
+        ProductId = productId;
+        Quantity = quantity;
+        CorrelationId = correlationId;
+        State = OrderState.PendingStock;
+        RequestAcceptedAt = UtcNowMicroseconds();
+    }
+
+    /// <summary>
+    /// docs/order-state-machine.md, transcribed directly. The six states and
+    /// their transitions (Week 11 box 2, TP-P02):
+    ///
+    ///   PendingStock -> Confirmed   (StockReserved)
+    ///   PendingStock -> Rejected    (StockRejected)
+    ///   Confirmed     -> Processing (OrderProcessingStarted)
+    ///   Processing    -> Completed  (OrderProcessed)
+    ///
+    /// Rejected, Completed and ProcessingFailed are terminal. Every other pair
+    /// throws InvalidOrderStateTransitionException. There is deliberately no
+    /// self-loop on any state, which is what lets StockResultProcessor tell a
+    /// redelivered event (a no-op) apart from a genuine conflict (an exception).
+    ///
+    /// ProcessingFailed is not in the table: nothing in scope can set it
+    /// (success-only Worker), so no transition leads to it (see OrderState).
+    /// </summary>
+    private static readonly Dictionary<OrderState, OrderState[]> LegalTransitions = new()
+    {
+        [OrderState.PendingStock] = [OrderState.Confirmed, OrderState.Rejected],
+        [OrderState.Confirmed] = [OrderState.Processing],
+        [OrderState.Processing] = [OrderState.Completed],
+        [OrderState.Rejected] = [],
+        [OrderState.Completed] = [],
+        [OrderState.ProcessingFailed] = [],
+    };
+
+    public void TransitionTo(OrderState newState)
+    {
+        if (!LegalTransitions.TryGetValue(State, out var allowed) || !allowed.Contains(newState))
+        {
+            throw new InvalidOrderStateTransitionException(State, newState);
+        }
+
+        State = newState;
+
+        // The timestamp schema from Proposal §4d is recorded by these two
+        // assignments plus RequestAcceptedAt in the constructor; the fourth
+        // stage (event publication) is already timestamped on the order's own
+        // outbox row (outbox_events.published_at, joinable by order_id) and is
+        // deliberately NOT copied here -- doing so would add a second write to
+        // the publish path of a system whose throughput is the thing under
+        // measurement.
+        if (newState is OrderState.Confirmed or OrderState.Rejected)
+        {
+            ConfirmedOrRejectedAt = UtcNowMicroseconds();
+        }
+        else if (newState is OrderState.Completed)
+        {
+            CompletedAt = UtcNowMicroseconds();
+        }
+    }
+
+    /// <summary>
+    /// PostgreSQL stores timestamps at microsecond precision, while
+    /// DateTime.UtcNow has 100 ns ticks. Truncating here makes the value
+    /// returned when an order is created equal to the value read back later,
+    /// so an idempotent replay answers with the same timestamps
+    /// (docs/order-api.md, "Timestamps").
+    /// </summary>
+    private static DateTime UtcNowMicroseconds()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
+    }
+}

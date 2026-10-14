@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: flashsale
+      POSTGRES_PASSWORD: flashsale_dev
+      POSTGRES_DB: flashsale
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb/01-create-service-roles.sql:/docker-entrypoint-initdb.d/01-create-service-roles.sql:ro
+
+  redis:
+    image: redis/redis-stack:latest
+    ports: ["6379:6379", "8001:8001"]   # 8001 = RedisInsight UI
+    # Added Week 11. Without a volume, every `docker compose down` (or any
+    # container recreation) silently discarded seeded inventory, which bit
+    # this project twice during Weeks 8-9 testing -- warm-up.ps1 had to be
+    # re-run before anyone noticed stock was simply gone. Fixed here rather
+    # than later because from Week 13 on that same silence would corrupt an
+    # experiment run instead of just a manual test.
+    volumes: ["redisdata:/data"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"] # 15672 = management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: flashsale
+      RABBITMQ_DEFAULT_PASS: flashsale_dev
+
+  nginx:
+    image: nginx:latest
+    ports: ["8080:80"]
+    volumes: ["./nginx.conf:/etc/nginx/nginx.conf:ro"]
+
+  # Week 11, Step 11.3. Prometheus scrapes the three .NET services, which run
+  # on the HOST rather than in Compose -- hence host.docker.internal targets
+  # in prometheus.yml rather than service names.
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro", "promdata:/prometheus"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      # Anonymous admin access: this is a single-node local/EC2 research rig
+      # with no real data in it (docs/00-scope-lock.md excludes auth from the
+      # system under test, and the same reasoning applies to its dashboards).
+      # Leaving a login prompt in front of the charts would only slow down
+      # reading a graph during a load run.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - "./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro"
+      - "grafanadata:/var/lib/grafana"
+    depends_on: [prometheus]
+
+volumes:
+  pgdata:
+  redisdata:
+  promdata:
+  grafanadata:

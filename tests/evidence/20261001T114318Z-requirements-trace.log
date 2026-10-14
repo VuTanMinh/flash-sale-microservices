@@ -1,0 +1,47 @@
+﻿Commit: 3dfd9e6
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-requirements-trace.ps1 
+Exit code: 0
+
+PASS  Tiep nhan va luu order / tra order ID
+PASS  Tra cuu trang thai qua polling API
+PASS  Reserve inventory atomically
+PASS  Cap nhat order status theo ket qua reservation
+PASS  Mo phong downstream processing (Process Worker)
+PASS  Publish/consume event qua RabbitMQ
+PASS  Transactional Outbox tai producer
+PASS  Inbox / processed-message table tai consumer
+PASS  Retry + Dead-Letter Queue
+PASS  Reconciliation job (safety net)
+PASS  Inventory warm-up truoc khi mo ban
+PASS  Timestamp va trang thai tung stage
+PASS  Duplicate/invalid event khong lap transition
+PASS  Load shedding: reject truoc khi tao order
+PASS  Consistency: inventory khong am
+PASS  Consistency: reservation <= initial inventory
+PASS  Consistency: mot order khong reserve nhieu lan
+PASS  Consistency: duplicate message khong side effect
+PASS  Performance: cau hinh EC2 / VU / duration / ...
+PASS  Performance: payload size + PG/Redis/RabbitMQ
+PASS  Performance: ~2.000 attempts/s target
+PASS  API vs completion throughput rieng
+PASS  Resilience: reject co kiem soat
+PASS  Resilience: drain backlog, khong restart
+PASS  Observability: correlation/order/message ID
+PASS  Observability: state transition history
+PASS  Observability: 4 timestamps
+PASS  Replica tren cung host, khong multi-node
+PASS  3-5 lan, percentile/median/variation
+PASS  tech: ABP Framework, .NET/C#
+PASS  tech: RabbitMQ
+PASS  tech: Redis Stack, Lua
+PASS  tech: PostgreSQL schema-per-service
+PASS  tech: Nginx
+PASS  tech: Structured logging, metrics
+PASS  tech: Docker Compose
+PASS  tech: Terraform
+PASS  tech: AWS EC2
+PASS  tech: Apache JMeter
+PASS  tech chapter matches the RabbitMQ.Client implementation
+
+All brief requirements are traced in the report.
+

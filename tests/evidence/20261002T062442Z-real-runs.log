@@ -1,0 +1,46 @@
+﻿Commit: 40029a7 (fresh clone, fresh database)
+Command: powershell -ExecutionPolicy Bypass -File scripts\verify-real-runs.ps1 -Container verify-env-pg
+Exit code: 0
+
+PASS  all three services up; all five consumer queues declared
+PASS  C1: 30 concurrent requests all answered 200
+Validating C1 for product 'rr-c1-062508' (initial stock 20)
+
+
+Invariant                                 Status         Detail                                                      
+---------                                 ------         ------                                                      
+1. available_inventory >= 0               PASS           stock 0                                                     
+2. successful_reservations <= initial     PASS           20 <= 20                                                    
+3. one reservation per order              PASS           units taken 20 = Confirmed decisions 20                     
+4. duplicate message never double-deducts NOT APPLICABLE C1 is synchronous: no broker messages exist to be duplicated
+
+
+
+RESULT: all four invariants hold for C1.
+PASS  C1 real run: validator passes (20 units, 30 requests)
+PASS  C2: 40 concurrent requests (30 keys + 10 retries) all accepted (201/200)
+PASS  C2: every order settled (Completed or Rejected): Completed=20, Rejected=10
+PASS  C2: exactly 30 orders for 30 keys, 20 Completed and 10 Rejected
+Validating C2 for product 'rr-c2-062508' (initial stock 20)
+
+
+Invariant                                 Status Detail                                                                
+               
+---------                                 ------ ------                                                                
+               
+1. available_inventory >= 0               PASS   stock 0                                                               
+               
+2. successful_reservations <= initial     PASS   Redis reservations 20, successful orders 20, initial 20               
+               
+3. one reservation per order              PASS   Redis reservations and successful orders are the same 20 order ids    
+               
+4. duplicate message never double-deducts PASS   units taken 20 = distinct reserved orders 20; Inbox MessageId unique 
+in both services
+
+
+
+RESULT: all four invariants hold for C2.
+PASS  C2 real run: validator passes (20 units, 30 orders)
+
+Real C1 and C2 runs validate: all four invariants hold.
+
