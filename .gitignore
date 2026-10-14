@@ -43,9 +43,10 @@ report/*.pdf
 tests/jmeter/results/*.log
 tests/jmeter/*-results/
 
-# Local tool config — not project source (project skills are tracked)
-.claude/*
-!.claude/skills/
+# AI assistant files stay local and are never committed (owner, 2026-10-14)
+/.claude/
+/CLAUDE.md
+/AGENTS.md
 
 # OS
 Thumbs.db
@@ -59,9 +60,6 @@ setup-week1.ps1
 # in version control so their requirements stay reviewable with the code.
 *.md
 !/README.md
-!/CLAUDE.md
-!/AGENTS.md
-!/.claude/skills/**/*.md
 !/docs/*.md
 !/docs/**/*.md
 
