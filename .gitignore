@@ -24,6 +24,7 @@ obj/
 *.tfstate.*
 *.tfvars
 !environments/*.tfvars.example
+!infra/terraform/*.tfvars.example
 crash.log
 crash.*.log
 

@@ -1,5 +1,6 @@
 using FlashSale.OrderService.Data;
 using FlashSale.OrderService.Experiments.C0Naive;
+using FlashSale.OrderService.Messaging;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -80,6 +81,9 @@ public class Program
             }
 
             Log.Information("Starting FlashSale.OrderService.");
+            // Week 12 box 1: create the admission-rejection series at 0 so it is
+            // exported from the first /metrics scrape, before any 503 is counted.
+            OrderMetrics.Initialize();
             await app.RunAsync();
             return 0;
         }

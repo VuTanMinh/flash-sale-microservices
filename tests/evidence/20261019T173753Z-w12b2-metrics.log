@@ -1,0 +1,28 @@
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: me-173629 has 20 units
+PASS  warm-up: me-rej-173629 is open with 0 units
+== A. Three normal orders
+PASS  A: 3 orders completed -- orders=3 done=True
+PASS  A: accepted +3, outcome{Completed} +3, stock_decisions{reserved} +3, Worker attempts +3 -- accepted=+3 completed=+3 reserved=+3 worker=+3
+== B. A stock rejection
+PASS  B: outcome{Rejected} +1 and stock_decisions{rejected} +1 -- state=Rejected rejected=+1 decisions-rejected=+1
+== C. A duplicate StockReserved (same MessageId)
+PASS  C: duplicates{StockResult} +1 and the Confirmed outcome is unchanged -- duplicates=+1 confirmed=+0
+== D. A transient fault (Order Inbox INSERT revoked ~2 s)
+PASS  D: retries{StockResult} >= 1, the order completes, no new dead letter -- retries=+1 dead-lettered=+0 state=Completed
+== E. A poison StockReserved (empty MessageId)
+PASS  E: dead_lettered{StockResult,invalid} +1 -- invalid=+1
+== F. An early completion (order still PendingStock)
+PASS  F: requeued_early{OrderProcessed} >= 1 while the order is PendingStock -- requeued-early=+1 state=PendingStock
+== G. Broker paused while an order is placed (Outbox backlog gauges)
+PASS  G: while the broker is paused, outbox_unpublished >= 1 and the oldest age > 0 -- unpublished=1 oldest-age=1.4546084
+PASS  G: after the broker is back, both gauges return to 0 and the order completes -- unpublished=0 oldest-age=0 state=Completed
+== H. Worker replay of a completed order's StockReserved
+PASS  H: Worker attempts +1, but Order's completion Inbox rows stay at 1 (the copy is a duplicate) -- worker=+1 completion-inbox=1->1
+== I. Exports
+PASS  I: FlashSale.OrderService exports every metric docs/metrics.md lists for it (13) -- missing: 
+PASS  I: FlashSale.InventoryService exports every metric docs/metrics.md lists for it (8) -- missing: 
+PASS  I: FlashSale.ProcessWorker exports every metric docs/metrics.md lists for it (7) -- missing: 
+PASS  I: no metric uses an order id or message id as a label value
+All checks passed: every exported metric is present and each injected case moved it by the expected amount.

@@ -70,8 +70,8 @@ try {
         if ($q) { Sql $q }
     }
     $g = @(1..3 | ForEach-Object { [guid]::NewGuid().ToString() })
-    C2 "val-c2-good" 3 @($g[0], $g[1]) @{ $g[0] = "Confirmed"; $g[1] = "Completed"; $g[2] = "Rejected" }
-    Expect "C2 correct run (5 units, 2 reserved/successful, 1 rejected) -> passes all four" (Run C2 "val-c2-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS" }
+    C2 "val-c2-good" 3 @($g[0], $g[1]) @{ $g[0] = "Completed"; $g[1] = "Completed"; $g[2] = "Rejected" }
+    Expect "C2 correct run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 PASS" (Run C2 "val-c2-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS" }
 
     $o = @(1..6 | ForEach-Object { [guid]::NewGuid().ToString() }); $h = @{}; foreach ($x in $o) { $h[$x] = "Confirmed" }
     C2 "val-c2-oversold" -1 $o $h
@@ -90,6 +90,23 @@ try {
     Expect "C2 run not settled (reserved order still PendingStock) -> INCONCLUSIVE, never a pass" (Run C2 "val-c2-unsettled" 5) 1 @{ "3." = "INCONCLUSIVE" }
 
     Expect "C2 inventory key missing -> SETUP ERROR, never a pass" (Run C2 "val-c2-nokey" 5) 1 @{ "setup" = "SETUP ERROR" }
+
+    # ---------------- C3 (Week 12 box 2, check 5: accepted-order accounting) ----------------
+    # The State column is `text` with no CHECK constraint (migration
+    # 20260824031742_AddOrdersTable), so a state outside the six-state list can
+    # be inserted directly and is tested below rather than skipped.
+    $c3g = @(1..3 | ForEach-Object { [guid]::NewGuid().ToString() })
+    C2 "val-c3-good" 3 @($c3g[0], $c3g[1]) @{ $c3g[0] = "Completed"; $c3g[1] = "Completed"; $c3g[2] = "Rejected" }
+    Expect "C3 settled run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 PASS" (Run C3 "val-c3-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS" }
+    $c3p = [guid]::NewGuid().ToString()
+    C2 "val-c3-outstanding" 4 @($c3p) @{ $c3p = "Processing" }
+    $runC3out = Run C3 "val-c3-outstanding" 5
+    Expect "C3 outstanding order (Processing) -> checks 1-4 PASS, check 5 INCONCLUSIVE, exit 1" $runC3out 1 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "INCONCLUSIVE" }
+    Check "C3 outstanding order: the order id is listed in check 5's detail" ($runC3out.Text -match [regex]::Escape($c3p))
+    $c3x = [guid]::NewGuid().ToString()
+    C2 "val-c3-invalid" 5 @() @{ $c3x = "Bogus" }
+    Expect "C3 order in an unexpected state -> check 5 FAIL and exit 1" (Run C3 "val-c3-invalid" 5) 1 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "FAIL" }
+
     $saved = $Container; $Container = "no-such-container"
     $r = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C1 -ProductId val-c1-good -InitialStock 5 -PgContainer "no-such-container" -RedisContainer $redis *>&1 | Out-String
     $Container = $saved

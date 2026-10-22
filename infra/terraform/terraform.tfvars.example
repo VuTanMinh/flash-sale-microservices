@@ -1,0 +1,9 @@
+# Example for terraform.tfvars (git-ignored: *.tfvars). Copy to terraform.tfvars
+# in this directory and adjust before `terraform apply`. No secrets live here.
+
+aws_region            = "ap-southeast-2"
+name_prefix           = "flashsale"
+availability_zone     = "ap-southeast-2a"
+backend_instance_type = "m7i-flex.large"
+jmeter_instance_type  = "c7i-flex.large"
+root_volume_size_gb   = 30

@@ -1,0 +1,212 @@
+# EC2 deployment (Week 12 box 3). One backend host runs PostgreSQL, Redis,
+# RabbitMQ, Nginx, the three services and the observability stack behind a
+# single Docker network. ONLY Nginx publishes a host port (80): PostgreSQL,
+# Redis, RabbitMQ (including its management UI), Prometheus and Grafana publish
+# nothing, so the JMeter host can reach the API only through Nginx.
+#
+# Credentials and the C3 switches come from infra/ec2.env (git-ignored; see
+# infra/ec2.env.example) via `docker compose --env-file`. The ${...} values
+# below are interpolated from that file, so no secret is committed here.
+#
+# Migrations run once, as one-shot services, each under its own database
+# account (the service's `--migrate-database` mode), before the long-running
+# service starts. The C3 RabbitMQ queue policy is applied out-of-band by
+# scripts/set-queue-bounds.ps1 (see docs/deployment.md), not by this file.
+
+services:
+  postgres:
+    image: postgres:16.14
+    environment:
+      POSTGRES_USER: flashsale   # fixed: initdb/01-create-service-roles.sql references 'flashsale'
+      POSTGRES_DB: flashsale
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Used by initdb-ec2/02-service-roles-passwords.sh so the service-account
+      # passwords come from the env file, not the hardcoded dev values.
+      ORDER_SERVICE_PASSWORD: ${ORDER_SERVICE_PASSWORD}
+      INVENTORY_SERVICE_PASSWORD: ${INVENTORY_SERVICE_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb/01-create-service-roles.sql:/docker-entrypoint-initdb.d/01-create-service-roles.sql:ro
+      - ./initdb-ec2/02-service-roles-passwords.sh:/docker-entrypoint-initdb.d/02-service-roles-passwords.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashsale -d flashsale"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.7
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13.7-management
+    environment:
+      RABBITMQ_DEFAULT_USER: flashsale
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+    restart: unless-stopped
+
+  # --- One-shot migrations (run once, exit 0, then the service starts) ---
+
+  order-service-migrate:
+    image: flashsale-order-service:10.0
+    build:
+      context: ..
+      dockerfile: src/FlashSale.OrderService/Dockerfile
+    command: ["--migrate-database"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=flashsale;Username=order_service_user;Password=${ORDER_SERVICE_PASSWORD};Maximum Pool Size=60;Application Name=FlashSale.OrderService"
+    volumes:
+      - ./openiddict.pfx:/app/openiddict.pfx:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  inventory-service-migrate:
+    image: flashsale-inventory-service:10.0
+    build:
+      context: ..
+      dockerfile: src/FlashSale.InventoryService/Dockerfile
+    command: ["--migrate-database"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=flashsale;Username=inventory_service_user;Password=${INVENTORY_SERVICE_PASSWORD};Search Path=inventory_service;Maximum Pool Size=30;Application Name=FlashSale.InventoryService"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # --- Long-running services ---
+
+  order-service:
+    image: flashsale-order-service:10.0
+    build:
+      context: ..
+      dockerfile: src/FlashSale.OrderService/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=flashsale;Username=order_service_user;Password=${ORDER_SERVICE_PASSWORD};Maximum Pool Size=60;Application Name=FlashSale.OrderService"
+      RabbitMQ__Connections__Default__HostName: rabbitmq
+      RabbitMQ__Connections__Default__Port: 5672
+      RabbitMQ__Connections__Default__UserName: flashsale
+      RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      # C3 admission (off by default == C2 behaviour; see docs/load-shedding.md)
+      Admission__Enabled: ${ADMISSION_ENABLED}
+      Admission__MaxConcurrentNewOrders: ${ADMISSION_MAX_CONCURRENT_NEW_ORDERS}
+      Admission__MaxOutboxBacklog: ${ADMISSION_MAX_OUTBOX_BACKLOG}
+    volumes:
+      - ./openiddict.pfx:/app/openiddict.pfx:ro
+    depends_on:
+      order-service-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  inventory-service:
+    image: flashsale-inventory-service:10.0
+    build:
+      context: ..
+      dockerfile: src/FlashSale.InventoryService/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=flashsale;Username=inventory_service_user;Password=${INVENTORY_SERVICE_PASSWORD};Search Path=inventory_service;Maximum Pool Size=30;Application Name=FlashSale.InventoryService"
+      RabbitMQ__Connections__Default__HostName: rabbitmq
+      RabbitMQ__Connections__Default__Port: 5672
+      RabbitMQ__Connections__Default__UserName: flashsale
+      RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      Redis__Configuration: redis:6379
+    depends_on:
+      inventory-service-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  process-worker:
+    image: flashsale-process-worker:10.0
+    build:
+      context: ..
+      dockerfile: src/FlashSale.ProcessWorker/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMQ__Connections__Default__HostName: rabbitmq
+      RabbitMQ__Connections__Default__Port: 5672
+      RabbitMQ__Connections__Default__UserName: flashsale
+      RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.31.3
+    ports: ["80:80"]
+    # Same template as the local stack; the image entrypoint expands the
+    # ${ORDER_*} placeholders. ORDER_UPSTREAM points at the Order Service
+    # container over plain HTTP.
+    environment:
+      ORDER_UPSTREAM: order-service:8080
+      ORDER_SCHEME: http
+      ORDER_RATE: "${ORDER_RATE}"
+      ORDER_BURST: "${ORDER_BURST}"
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      - order-service
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    volumes:
+      - ./prometheus.ec2.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    depends_on:
+      - order-service
+      - inventory-service
+      - process-worker
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  promdata:
+  grafanadata:

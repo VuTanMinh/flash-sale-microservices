@@ -1,0 +1,25 @@
+Negative controls for TP-L01: a scratch copy of scripts/verify-load-shedding.ps1 with three changes (shown on the next three lines): Admission:Enabled=false (B must fail), ORDER_RATE=10000r/s (A must fail), and the set-queue-bounds call commented out (C must fail). Exit 1 is the expected result; D must still pass.
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: pA=100, pB=50, pC=20, pD=20
+== A. Gateway rate limit (Nginx ORDER_RATE=5r/s, burst 1)
+FAIL  A: some POSTs through Nginx get 429 and some get 201 -- 201=40 429=0
+FAIL  A: every 201 has an order row and no 429 key has an order row -- 201-keys=40 429-keys=0
+PASS  A: GET polling through Nginx is never 429 -- polled b536909b-6aa5-4ef9-b902-e4654165d6d4 15 times
+== B. Application admission (MaxConcurrentNewOrders=2, hold 1500 ms)
+PASS  B: pre-seeded order accepted (201) -- status=201
+FAIL  B: at least one 503 with Retry-After and at most 2 (Max) 201s -- 503=0 201=10
+FAIL  B: no order row exists for any 503 key -- 503-keys=0
+FAIL  B: flashsale_admission_rejected_total{reason=concurrency} rose by exactly the 503 count -- before=0 after=0 503=0
+PASS  B: replay of an accepted key returns 200 with the original order while the gate is full -- replay=200 id-match=True
+== C. Bounded queue + publisher at capacity (max-length 3)
+PASS  C: all 8 orders get 201 with the queue bounded and Inventory stopped -- orders=8
+FAIL  C: OrderPlaced depth is bounded at 3 by the max-length policy -- depth=8
+FAIL  C: the Order Outbox holds the other 5 unpublished (gauge >= 5, rows in the table) -- unpublished-rows=0 gauge=0
+PASS  C: after Inventory starts, the Outbox drains to 0 and every order completes -- completed=True drained=True unpublished=0
+PASS  C: one reservation per order (SCARD processed=8, stock=initial-8) -- scard=8 stock=12
+== D. C2 unchanged (policy removed, admission off)
+PASS  D: with the policy removed and admission off, 8 orders are all accepted (201) -- orders=8
+PASS  D: all 8 complete and the Outbox drains with no nack -- completed=True drained=True unpublished=0
+7 check(s) failed.
+Exit code: 1

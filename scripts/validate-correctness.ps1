@@ -1,18 +1,22 @@
 # ============================================================
-# Correctness validator: the four inventory invariants, per configuration.
+# Correctness validator: the four inventory invariants plus accepted-order
+# accounting (check 5), per configuration.
 # Rules: docs/inventory-invariants.md, docs/validation.md.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\validate-correctness.ps1 -Config C2 -ProductId flash-product-1 -InitialStock 1000
 #   powershell -ExecutionPolicy Bypass -File .\scripts\validate-correctness.ps1 -Config C1 -ProductId c1-demo-product -InitialStock 100
+#   C3 (Week 12 box 2) runs the same command with -Config C3 and the same C2
+#   evidence (service state + Redis) -- checks 0-5, no extra configuration.
+#   C4 stays for Week 13 (do not add it here).
 #
 # Statuses: PASS, FAIL, INCONCLUSIVE (run not settled / data missing),
 # NOT APPLICABLE (with the reason; only C1 invariant 4, which has no
 # messaging), SETUP ERROR (database/Redis unreachable or a query failed).
-# Exit 0 only if every invariant is PASS or NOT APPLICABLE. An empty result,
+# Exit 0 only if every check is PASS or NOT APPLICABLE. An empty result,
 # a missing key or a failed query is never reported as PASS.
 # ============================================================
 param(
-    [Parameter(Mandatory = $true)][ValidateSet("C1", "C2")][string]$Config,
+    [Parameter(Mandatory = $true)][ValidateSet("C1", "C2", "C3")][string]$Config,
     [Parameter(Mandatory = $true)][string]$ProductId,
     [Parameter(Mandatory = $true)][int]$InitialStock,
     [string]$PgContainer = "infra-postgres-1",
@@ -62,8 +66,9 @@ try {
         Add-Result "4. duplicate message never double-deducts" "NOT APPLICABLE" "C1 is synchronous: no broker messages exist to be duplicated"
     }
     else {
-        # C2: Redis is the stock decision (inventory + processed set);
-        # order_service.orders is the order outcome.
+        # C2 and C3 (Week 12 box 2): Redis is the stock decision (inventory +
+        # processed set); order_service.orders is the order outcome. C3 uses
+        # exactly this C2 evidence -- no extra queries, no extra configuration.
         $inv = Redis @("GET", "inventory:$ProductId")
         $inv = @($inv)
         if ($inv.Count -eq 0 -or "$($inv[0])" -notmatch '^-?\d+$') { throw "inventory:$ProductId is not set in Redis (was warm-up run?)" }
@@ -100,6 +105,27 @@ try {
         if ($taken -eq $reservedCount -and $inboxUnique -eq 2) { Add-Result "4. duplicate message never double-deducts" "PASS" "units taken $taken = distinct reserved orders $reservedCount; Inbox MessageId unique in both services" }
         elseif ($taken -ne $reservedCount) { Add-Result "4. duplicate message never double-deducts" "FAIL" "units taken $taken <> distinct reserved orders $reservedCount (double or unrecorded deduction)" }
         else { Add-Result "4. duplicate message never double-deducts" "FAIL" "Inbox MessageId uniqueness missing ($inboxUnique of 2 services)" }
+
+        # 5: accepted-order accounting (Week 12 box 2). Every order row for the
+        # product is in exactly one of the terminal states (Completed, Rejected)
+        # or the outstanding ones (PendingStock, Confirmed, Processing); their
+        # counts must add up to the total, which equals "accepted" (a row only
+        # exists for an accepted order). An outstanding order makes the check
+        # INCONCLUSIVE (listed, not hidden); an order in an unexpected state is
+        # a FAIL. A Rejected order that is also reserved, or a successful order
+        # that is not reserved, is already check 3 -- not repeated here.
+        $terminal = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"State`" IN ('Completed','Rejected');")
+        $outstanding = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"State`" IN ('PendingStock','Confirmed','Processing');")
+        $unexpected = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"State`" NOT IN ('Completed','Rejected','PendingStock','Confirmed','Processing');")
+        if ($unexpected -gt 0) {
+            $badStates = @(Sql "SELECT `"Id`" || ':' || `"State`" FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"State`" NOT IN ('Completed','Rejected','PendingStock','Confirmed','Processing') ORDER BY `"RequestAcceptedAt`";") -join ", "
+            Add-Result "5. accepted-order accounting" "FAIL" "$unexpected order(s) in an unexpected state: $badStates"
+        } elseif ($outstanding -gt 0) {
+            $outRows = @(Sql "SELECT o.`"Id`" || ' ' || o.`"State`" || ' age=' || round(extract(epoch from (now() - (o.`"RequestAcceptedAt`" at time zone 'UTC'))))::int || 's retries=' || GREATEST(0, count(oe.`"Id`") - 1) FROM order_service.orders o LEFT JOIN order_service.outbox_events oe ON oe.`"OrderId`" = o.`"Id`" AND oe.`"EventType`" = 'OrderPlaced' WHERE o.`"ProductId`" = '$ProductId' AND o.`"State`" IN ('PendingStock','Confirmed','Processing') GROUP BY o.`"Id`", o.`"State`", o.`"RequestAcceptedAt`" ORDER BY o.`"RequestAcceptedAt`";") -join "; "
+            Add-Result "5. accepted-order accounting" "INCONCLUSIVE" "$outstanding outstanding order(s): $outRows"
+        } else {
+            Add-Result "5. accepted-order accounting" "PASS" "terminal $terminal + outstanding $outstanding = accepted $($terminal + $outstanding)"
+        }
     }
 }
 catch {
@@ -109,5 +135,5 @@ catch {
 $results | Format-Table -AutoSize -Wrap | Out-String -Width 200 | Write-Host
 $bad = @($results | Where-Object { $_.Status -notin "PASS", "NOT APPLICABLE" })
 if ($bad.Count -gt 0) { Write-Host "RESULT: FAILED ($($bad.Count) not passing)" -ForegroundColor Red; exit 1 }
-Write-Host "RESULT: all four invariants hold for $Config." -ForegroundColor Green
+Write-Host "RESULT: all checks hold for $Config." -ForegroundColor Green
 exit 0

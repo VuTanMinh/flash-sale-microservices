@@ -1,0 +1,38 @@
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: pA=100, pB=50, pC=20, pD=20, pE=30
+== A. Gateway rate limit (Nginx ORDER_RATE=5r/s, burst 1)
+PASS  A: some POSTs through Nginx get 429 and some get 201 -- 201=4 429=36
+PASS  A: POST /api/orders/ and /API/orders are also rate-limited (429) -- trailing-429=10 case-429=10
+PASS  A: every 201 has an order row and no 429 key (any path) has an order row -- 201-keys=4 429-keys=56
+PASS  A: GET polling through Nginx is never 429 -- polled c1147b31-c928-413f-8d79-34e8fb1083b1 15 times
+== B. Application admission (MaxConcurrentNewOrders=2, hold 1500 ms)
+PASS  B: pre-seeded order accepted (201) -- status=201
+PASS  B: at least one 503 with Retry-After and at most 2 (Max) 201s -- 503=8 201=2
+PASS  B: no order row exists for any 503 key -- 503-keys=8
+PASS  B: flashsale_admission_rejected_total{reason=concurrency} rose by exactly the 503 count -- before=0 after=8 503=8
+PASS  B: replay of an accepted key returns 200 with the original order while the gate is full -- replay=200 id-match=True
+== C. Bounded queue + publisher at capacity (max-length 3)
+PASS  C: all 8 orders get 201 with the queue bounded and Inventory stopped -- orders=8
+PASS  C: OrderPlaced depth is bounded at 3 by the max-length policy -- depth=3
+PASS  C: the Order Outbox holds the other 5 unpublished (gauge >= 5, rows in the table) -- unpublished-rows=5 gauge=8
+PASS  C: after Inventory starts, the Outbox drains to 0 and every order completes -- completed=True drained=True unpublished=0
+PASS  C: one reservation per order (SCARD processed=8, stock=initial-8) -- scard=8 stock=12
+== D. C2 unchanged (policy removed, admission off)
+PASS  D: with the policy removed and admission off, 8 orders are all accepted (201) -- orders=8
+PASS  D: all 8 complete and the Outbox drains with no nack -- completed=True drained=True unpublished=0
+== E. Backlog admission with the broker unavailable (MaxOutboxBacklog=5)
+PASS  E: some 201s then 503s with Retry-After, accepted at most MaxOutboxBacklog -- accepted=5 rejected=5
+PASS  E: flashsale_admission_rejected_total{reason=backlog} rose by exactly the 503 count -- before=0 after=5 503=5
+PASS  E: no order/Outbox row for any 503 key; Redis stock and SCARD unchanged -- 503-keys=5 unpublished=5 accepted=5
+PASS  E: replay of an accepted key returns 200 with the original order while the backlog is full -- accepted=5
+PASS  E: after the broker returns, the Outbox drains to 0 and every accepted order completes -- completed=True drained=True unpublished=0
+PASS  E: SCARD processed:<pE> = accepted and stock = initial - accepted -- scard=5 stock=25 accepted=5
+PASS  E: a new order is admitted again (201) once the backlog drained -- status=201
+PASS  G: collector CSV has outbox_unpublished > 0, reason=backlog > 0 and a RabbitMQ queue depth -- rows=907 outboxRise=True reasonBacklog=True queueDepth=True
+== F. Validator -Config C3 (check 5) on E's product
+PASS  F: validator -Config C3 passes after the drain (check 5 PASS) -- exit=0
+PASS  F: negative-fixture order accepted (201) and left PendingStock (Inventory down) -- status=201
+PASS  F: validator C3 with an outstanding order is INCONCLUSIVE (check 5 lists it) and exits 1 -- exit=1 listed=True
+All checks passed: the three C3 layers shed load early, the Outbox backlog is bounded, and C2 is unchanged.
+Exit code: 0

@@ -177,6 +177,7 @@ public class OrderServiceModule : AbpModule
         ConfigureDataProtection(context);
         ConfigureEfCore(context);
         ConfigureOutbox(context, configuration);
+        ConfigureAdmission(context, configuration);
     }
 
     private void ConfigureAuthentication(ServiceConfigurationContext context)
@@ -377,6 +378,19 @@ public class OrderServiceModule : AbpModule
         // configurable timeout; see ReconciliationWorker's own doc comment.
         context.Services.Configure<ReconciliationOptions>(configuration.GetSection("Reconciliation"));
         context.Services.AddHostedService<ReconciliationWorker>();
+    }
+
+    // Week 12 boxes 1 and 2 (C3 admission): a singleton gate sized from
+    // Admission:MaxConcurrentNewOrders, a singleton Outbox-backlog monitor, and
+    // the options they are bound from. Registered explicitly (like the Outbox
+    // publisher above) rather than via a marker-interface convention, for the
+    // same reason: an explicit registration is one line, guaranteed to work, and
+    // visible here. Off by default.
+    private void ConfigureAdmission(ServiceConfigurationContext context, IConfiguration configuration)
+    {
+        context.Services.Configure<AdmissionOptions>(configuration.GetSection("Admission"));
+        context.Services.AddSingleton<OrderAdmissionGate>();
+        context.Services.AddSingleton<OutboxBacklogMonitor>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

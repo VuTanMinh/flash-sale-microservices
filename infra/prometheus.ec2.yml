@@ -1,0 +1,28 @@
+# Prometheus scrape configuration for the EC2 Compose stack (Week 12 box 3).
+#
+# Unlike infra/prometheus.yml -- which targets the services running on the HOST
+# via host.docker.internal over https -- on EC2 the three .NET services run as
+# containers on the same Compose network, so each target is the Compose service
+# name over plain HTTP inside the container (ASPNETCORE_URLS=http://+:8080).
+# scrape_interval stays 5s for the same reason as the local file: Week 13/14
+# load runs are minutes long and need enough points to read a ramp or recovery.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: order-service
+    static_configs:
+      - targets: ["order-service:8080"]
+
+  - job_name: inventory-service
+    static_configs:
+      - targets: ["inventory-service:8080"]
+
+  - job_name: process-worker
+    static_configs:
+      - targets: ["process-worker:8080"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

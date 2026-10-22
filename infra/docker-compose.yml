@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.14
     environment:
       POSTGRES_USER: flashsale
       POSTGRES_PASSWORD: flashsale_dev
@@ -11,7 +11,7 @@ services:
       - ./initdb/01-create-service-roles.sql:/docker-entrypoint-initdb.d/01-create-service-roles.sql:ro
 
   redis:
-    image: redis/redis-stack:latest
+    image: redis/redis-stack:7.4.0-v8
     ports: ["6379:6379", "8001:8001"]   # 8001 = RedisInsight UI
     # Added Week 11. Without a volume, every `docker compose down` (or any
     # container recreation) silently discarded seeded inventory, which bit
@@ -22,28 +22,38 @@ services:
     volumes: ["redisdata:/data"]
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13.7-management
     ports: ["5672:5672", "15672:15672"] # 15672 = management UI
     environment:
       RABBITMQ_DEFAULT_USER: flashsale
       RABBITMQ_DEFAULT_PASS: flashsale_dev
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.31.3
     ports: ["8080:80"]
-    volumes: ["./nginx.conf:/etc/nginx/nginx.conf:ro"]
+    # Week 12 box 1 (C3 gateway). nginx.conf is mounted as a template so the
+    # image's entrypoint envsubst-expands the ${ORDER_*} placeholders below.
+    # The upstream and limits are set from the environment; the C3 verifier
+    # overrides ORDER_UPSTREAM with its own throwaway Order Service HTTP port.
+    environment:
+      ORDER_UPSTREAM: "host.docker.internal:44314"
+      ORDER_SCHEME: "https"
+      ORDER_RATE: "200r/s"
+      ORDER_BURST: "100"
+    volumes: ["./nginx.conf:/etc/nginx/templates/default.conf.template:ro"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
 
   # Week 11, Step 11.3. Prometheus scrapes the three .NET services, which run
   # on the HOST rather than in Compose -- hence host.docker.internal targets
   # in prometheus.yml rather than service names.
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     ports: ["9090:9090"]
     volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro", "promdata:/prometheus"]
     extra_hosts: ["host.docker.internal:host-gateway"]
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.2
     ports: ["3000:3000"]
     environment:
       # Anonymous admin access: this is a single-node local/EC2 research rig

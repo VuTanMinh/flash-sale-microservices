@@ -24,6 +24,18 @@ public static class OrderMetrics
         "Orders accepted by POST /api/orders (state PendingStock), before any stock decision.");
 
     /// <summary>
+    /// Admission rejections (Week 12 box 1, C3). Incremented only on the 503 a
+    /// brand-new order gets when the admission gate is full -- never on an
+    /// idempotent replay (those are answered before the gate). Counted apart
+    /// from OrdersAccepted so Week 13/14 can read "admitted vs. refused at the
+    /// gate" as a single ratio.
+    /// </summary>
+    public static readonly Counter AdmissionRejected = Metrics.CreateCounter(
+        "flashsale_admission_rejected_total",
+        "POST /api/orders requests refused at the admission gate (503), before any order is written.",
+        new CounterConfiguration { LabelNames = ["reason"] });
+
+    /// <summary>
     /// One counter with a label rather than three counters: Week 13/14 read
     /// these as a ratio (how much of the offered load each configuration
     /// confirms vs. rejects vs. completes), and a label makes that a single
@@ -52,4 +64,18 @@ public static class OrderMetrics
     public static readonly Gauge ReconciliationStuckOrders = Metrics.CreateGauge(
         "flashsale_reconciliation_stuck_orders",
         "Orders currently PendingStock past the reconciliation timeout.");
+
+    /// <summary>
+    /// Creates the labelled series at 0 so they are exported from the first
+    /// /metrics scrape (prometheus-net exports a labelled child only after it
+    /// is first created). Called once at startup, before any 503 is counted.
+    /// </summary>
+    public static void Initialize()
+    {
+        AdmissionRejected.WithLabels("concurrency");
+        // Week 12 box 2: the Outbox-backlog refusal series, pre-created at 0 so
+        // it is exported from the first /metrics scrape (same reason as the
+        // "concurrency" series above).
+        AdmissionRejected.WithLabels("backlog");
+    }
 }

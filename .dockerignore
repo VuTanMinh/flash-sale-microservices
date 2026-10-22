@@ -1,0 +1,36 @@
+# Root build context for the three service Dockerfiles. Every Dockerfile is
+# built with the repository root as its context, so this single file keeps
+# bin/, obj/, secrets, evidence and reports out of every image.
+
+# Build output and caches (never in an image)
+**/bin/
+**/obj/
+**/.vs/
+*.user
+*.suo
+
+# Node tooling for the ABP LeptonX theme (Order Service). The flash-sale APIs
+# need none of it, and wwwroot/libs is git-ignored (populated by
+# `abp install-libs`). Excluded so the build context stays small.
+**/node_modules/
+**/wwwroot/libs/
+
+# Version control and agent-local files
+.git/
+.agent-tasks/
+.claude/
+.groundwork/
+
+# Secrets and local configuration -- never baked into an image
+**/appsettings.secrets.json
+*.pfx
+.env
+.env.*
+*.env
+
+# Evidence, reports and logs
+tests/evidence/
+tests/**/results/
+report/
+**/Logs/
+**/*.log

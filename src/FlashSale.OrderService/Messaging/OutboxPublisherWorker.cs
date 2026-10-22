@@ -32,11 +32,14 @@ public class OutboxPublisherWorker : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OutboxPublisherWorker> _logger;
+    private readonly OutboxBacklogMonitor _backlogMonitor;
 
-    public OutboxPublisherWorker(IServiceScopeFactory scopeFactory, ILogger<OutboxPublisherWorker> logger)
+    public OutboxPublisherWorker(
+        IServiceScopeFactory scopeFactory, ILogger<OutboxPublisherWorker> logger, OutboxBacklogMonitor backlogMonitor)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _backlogMonitor = backlogMonitor;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -99,14 +102,24 @@ public class OutboxPublisherWorker : BackgroundService
     /// unpublished row (not just this poll's batch of 50) and the age of the
     /// oldest one in seconds (0 when the Outbox is empty). Refreshed at the
     /// start and end of every poll.
+    ///
+    /// Week 12 box 2: the same count is also published to
+    /// <see cref="OutboxBacklogMonitor"/> so the admission gate can read it
+    /// without a per-request count(*) -- one computation feeds both the gauge
+    /// and the admission bound.
     /// </summary>
-    private static async Task UpdateBacklogGaugesAsync(OrderServiceDbContext dbContext, CancellationToken stoppingToken)
+    private async Task UpdateBacklogGaugesAsync(OrderServiceDbContext dbContext, CancellationToken stoppingToken)
     {
+        // Snapshot the accepted counter before the count query, so Publish clears
+        // only the accepts this query is about to see and does not lose an order
+        // accepted while the query ran (Week 12 box 2, review R1).
+        var acceptedSnapshot = _backlogMonitor.SnapshotAccepted();
         var unpublished = dbContext.OutboxEvents.Where(e => !e.Published);
         var count = await unpublished.CountAsync(stoppingToken);
         var oldest = count == 0 ? (DateTime?)null : await unpublished.MinAsync(e => (DateTime?)e.CreatedAt, stoppingToken);
         OutboxMetrics.Unpublished.Set(count);
         OutboxMetrics.OldestUnpublishedAgeSeconds.Set(oldest is null ? 0 : Math.Max(0, (DateTime.UtcNow - oldest.Value).TotalSeconds));
+        _backlogMonitor.Publish(count, acceptedSnapshot);
     }
 
     private async Task<bool> TryPublishWithRetryAsync(

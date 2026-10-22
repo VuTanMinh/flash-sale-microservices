@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\scratch\w12b1\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\scratch\w12b1\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\scratch\w12b1\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+Test run for E:\Agent_Memory\DACNTT\scratch\w12b1\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    91, Skipped:     0, Total:    91, Duration: 13 s - FlashSale.OrderService.Tests.dll (net10.0)

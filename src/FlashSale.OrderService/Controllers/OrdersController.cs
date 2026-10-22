@@ -6,6 +6,8 @@ using FlashSale.OrderService.Messaging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Tracing;
@@ -30,11 +32,25 @@ public class OrdersController : AbpController
 {
     private readonly OrderServiceDbContext _dbContext;
     private readonly ICorrelationIdProvider _correlationIdProvider;
+    private readonly IOptions<AdmissionOptions> _admissionOptions;
+    private readonly OrderAdmissionGate _admissionGate;
+    private readonly OutboxBacklogMonitor _backlogMonitor;
+    private readonly IConfiguration _configuration;
 
-    public OrdersController(OrderServiceDbContext dbContext, ICorrelationIdProvider correlationIdProvider)
+    public OrdersController(
+        OrderServiceDbContext dbContext,
+        ICorrelationIdProvider correlationIdProvider,
+        IOptions<AdmissionOptions> admissionOptions,
+        OrderAdmissionGate admissionGate,
+        OutboxBacklogMonitor backlogMonitor,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _correlationIdProvider = correlationIdProvider;
+        _admissionOptions = admissionOptions;
+        _admissionGate = admissionGate;
+        _backlogMonitor = backlogMonitor;
+        _configuration = configuration;
     }
 
     public record CreateOrderRequest(string ProductId, int Quantity);
@@ -122,50 +138,123 @@ public class OrdersController : AbpController
             return Ok(await ToResponseAsync(existing));
         }
 
-        var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity, correlationId);
-        _dbContext.Orders.Add(order);
-        // Same SaveChangesAsync call as the order insert above -- this single
-        // fact is the entire point of the Outbox pattern (checklist Step 6.1).
-        // Two separate SaveChanges calls here would reintroduce the exact
-        // dual-write problem Outbox exists to eliminate: either the order or
-        // the "an event needs publishing" fact could commit without the other.
-        _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
-        // Week 11 box 2: the creation history row (FromState = null) is written
-        // in this same transaction, so the history can never lag the order.
-        _dbContext.OrderStatusHistory.Add(new OrderStatusHistory(
-            Guid.NewGuid(), order.Id, null, OrderState.PendingStock, null, order.RequestAcceptedAt, false));
-        try
+        // Week 12 box 1 (C3 admission): the idempotency lookup above runs
+        // first, so a retry of an already-accepted order is answered from the
+        // existing row (200 or 409) without ever touching the gate. Only a
+        // brand-new order is admitted through the gate -- after the lookup and
+        // before any database write -- so a refused request (503) leaves no
+        // order and no Outbox row behind.
+        //
+        // Week 12 box 2 adds the backlog bound before the concurrency gate:
+        // when the Outbox already holds MaxOutboxBacklog unpublished rows, a
+        // new order is refused (503, reason="backlog") instead of growing the
+        // backlog without limit. The count is read from OutboxBacklogMonitor,
+        // not a per-request count(*): it is the worker's last measured count
+        // plus the orders this process has accepted since (see
+        // docs/load-shedding.md for the order of checks and the soft-bound
+        // caveat). Before the first poll the monitor reads 0, so an unknown
+        // backlog is admitted (the concurrency gate still applies).
+        var gateHeld = false;
+        if (_admissionOptions.Value.Enabled)
         {
-            await _dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
-        {
-            SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_orders_IdempotencyKey"
-        })
-        {
-            // Lost a race: a concurrent request with the same key committed
-            // between our lookup and our insert. Its order is the one the key
-            // belongs to, so answer exactly as a replay (or a conflict) would,
-            // instead of a 500. Only this specific unique violation is treated
-            // this way; any other database error still propagates.
-            _dbContext.ChangeTracker.Clear();
-            var winner = await _dbContext.Orders.AsNoTracking()
-                .FirstAsync(o => o.IdempotencyKey == idempotencyKey);
-            if (winner.ProductId != request.ProductId || winner.Quantity != request.Quantity)
+            var maxBacklog = _admissionOptions.Value.MaxOutboxBacklog;
+            if (maxBacklog > 0 && _backlogMonitor.Unpublished >= maxBacklog)
             {
-                return Conflict("This Idempotency-Key was already used with a different request.");
+                OrderMetrics.AdmissionRejected.WithLabels("backlog").Inc();
+                Response.Headers["Retry-After"] = "1";
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    "The order backlog is at its limit; retry shortly.");
             }
 
-            return Ok(await ToResponseAsync(winner));
+            if (!_admissionGate.TryEnter())
+            {
+                OrderMetrics.AdmissionRejected.WithLabels("concurrency").Inc();
+                Response.Headers["Retry-After"] = "1";
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    "The service is at its admission limit for new orders; retry shortly.");
+            }
+
+            gateHeld = true;
         }
 
-        // Counted only after the commit, not before: an order that failed to
-        // persist was never accepted, and Week 13/14 compare this counter
-        // against JMeter's own request count to detect exactly that kind of
-        // divergence.
-        OrderMetrics.OrdersAccepted.Inc();
+        try
+        {
+            // Test-only fault injection (same pattern as CrashBeforeAck*): when
+            // set, holds the slot for that long so a test can saturate the gate
+            // deterministically. Off by default and never in any appsettings file.
+            // Inside the try so a cancellation during the delay still releases
+            // the slot in the finally below.
+            if (gateHeld)
+            {
+                var holdMs = _configuration["FaultInjection:AdmissionHoldMilliseconds"];
+                if (int.TryParse(holdMs, out var hold) && hold > 0)
+                {
+                    await Task.Delay(hold);
+                }
+            }
 
-        return StatusCode(201, await ToResponseAsync(order));
+            var order = new Order(Guid.NewGuid(), idempotencyKey, request.ProductId, request.Quantity, correlationId);
+            _dbContext.Orders.Add(order);
+            // Same SaveChangesAsync call as the order insert above -- this single
+            // fact is the entire point of the Outbox pattern (checklist Step 6.1).
+            // Two separate SaveChanges calls here would reintroduce the exact
+            // dual-write problem Outbox exists to eliminate: either the order or
+            // the "an event needs publishing" fact could commit without the other.
+            _dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
+            // Week 11 box 2: the creation history row (FromState = null) is written
+            // in this same transaction, so the history can never lag the order.
+            _dbContext.OrderStatusHistory.Add(new OrderStatusHistory(
+                Guid.NewGuid(), order.Id, null, OrderState.PendingStock, null, order.RequestAcceptedAt, false));
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_orders_IdempotencyKey"
+            })
+            {
+                // Lost a race: a concurrent request with the same key committed
+                // between our lookup and our insert. Its order is the one the key
+                // belongs to, so answer exactly as a replay (or a conflict) would,
+                // instead of a 500. Only this specific unique violation is treated
+                // this way; any other database error still propagates.
+                _dbContext.ChangeTracker.Clear();
+                var winner = await _dbContext.Orders.AsNoTracking()
+                    .FirstAsync(o => o.IdempotencyKey == idempotencyKey);
+                if (winner.ProductId != request.ProductId || winner.Quantity != request.Quantity)
+                {
+                    return Conflict("This Idempotency-Key was already used with a different request.");
+                }
+
+                return Ok(await ToResponseAsync(winner));
+            }
+
+            // Counted only after the commit, not before: an order that failed to
+            // persist was never accepted, and Week 13/14 compare this counter
+            // against JMeter's own request count to detect exactly that kind of
+            // divergence.
+            OrderMetrics.OrdersAccepted.Inc();
+
+            // Week 12 box 2: tell the backlog monitor that a NEW order (and its
+            // Outbox row) is now durable, so the admission gate reflects it
+            // immediately instead of waiting for the next Outbox poll. Deliberately
+            // not called on the idempotent replay or the unique-violation race
+            // paths above (those return an existing order and write nothing).
+            _backlogMonitor.RecordAccepted();
+
+            return StatusCode(201, await ToResponseAsync(order));
+        }
+        finally
+        {
+            // Release the slot on every exit path -- 201, the unique-violation
+            // race (200/409), or an exception -- so a refused or failed request
+            // can never leak a slot.
+            if (gateHeld)
+            {
+                _admissionGate.Release();
+            }
+        }
     }
 
     // No ownership check: any caller with the id can read it. Deliberate, not

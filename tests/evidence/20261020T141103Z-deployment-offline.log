@@ -1,0 +1,23 @@
+PASS  region is us-east-1
+PASS  no 0.0.0.0/0 ingress
+PASS  no SSH (port 22) ingress
+PASS  no forbidden AWS resources (eip/nat/lb/db/iam)
+PASS  instance_type defaults are in the allowed list
+PASS  instance_type validation lists only the allowed types
+PASS  cpu_credits = "standard" present
+PASS  every Compose image pinned (no latest, full version)
+PASS  only Nginx publishes a host port (80) in the EC2 Compose
+PASS  terraform fmt -check
+Success! The configuration is valid.
+
+PASS  terraform validate
+PASS  docker build FlashSale.OrderService
+PASS  docker build FlashSale.InventoryService
+PASS  docker build FlashSale.ProcessWorker
+PASS  docker compose config (EC2)
+
+=== LIVE checks (NOT RUN until the first 'terraform apply') ===
+SKIP  smoke from the JMeter host (tests/jmeter/deploy-smoke-test.jmx: POST /api/orders = 201, final state Completed|Rejected)
+SKIP  backend internal ports closed from the JMeter host (5432, 5672, 15672, 6379, 9090, 3000 must not answer; only 80)
+
+All offline deployment checks passed.

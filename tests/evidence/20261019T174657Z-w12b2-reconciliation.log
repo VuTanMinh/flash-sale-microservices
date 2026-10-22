@@ -1,0 +1,39 @@
+== Environment
+PASS  all three services up; every queue and DLQ declared
+PASS  warm-up: rc-174400 has 20 units
+== A. Lost result recovered (StockReserved dead-lettered, DLQ purged)
+PASS  A. lost result: Inventory reserved once and published a result before the purge
+PASS  A. lost result: the StockReserved was dead-lettered (then purged)
+PASS  A. lost result: the order ends Completed (reconciled then closed out)
+PASS  A. lost result: exactly one deduction, original result MessageId, one result row
+PASS  A. lost result: Order Service applied the ORIGINAL result MessageId (not a new one)
+PASS  A. lost result: the stored result was actually re-sent (PublishedAt re-stamped after the purge)
+PASS  A. lost result: Order Service logged the re-trigger for the order
+PASS  A. lost result: Inventory logged the stored-result re-publication for the order
+== B. Transient interruption (Inventory stopped, then restarted only)
+PASS  B. transient: all three orders drain to Completed after Inventory restarts
+PASS  B. transient: one deduction per order (3 units) and none Rejected
+== C. Permanent fault (Inventory stays down): bounded re-trigger and alert
+PASS  C. permanent: after MaxAttempts the order stops being re-triggered (1 original + 3 re-triggers)
+PASS  C. permanent: the give-up Error is logged exactly once for the order
+PASS  C. permanent: the order is still PendingStock, never invented as Rejected
+PASS  C. permanent: metrics count exactly 3 re-triggers, 1 given up, 1 currently stuck
+PASS  C. permanent: no further re-trigger after the give-up
+PASS  C. permanent: the give-up Error is still exactly once after the wait
+== D. Order Service restart: count is not reset, outcome preserved
+PASS  D. restart: reconciliation resumes from the database and reaches the bound, not reset (1 original + 3 re-triggers)
+PASS  D. restart: the order is still PendingStock, not Rejected
+PASS  D. restart: the resumed log shows the re-trigger for the order
+PASS  D. restart: the count is still 4 after another timeout window (no 5th re-trigger, not reset)
+PASS  D. restart: the give-up Error is logged for the order in the new process
+PASS  D. restart: the given-up and stuck metrics are visible
+== E. No false positives
+PASS  E. no false positive: a normally completed order is never re-triggered
+== F. C and D recover once Inventory is back (final outcome preserved)
+PASS  F. preserved: C and D both reach Completed once Inventory is back
+PASS  F. preserved: C and D each have exactly one result row
+PASS  F. preserved: neither C nor D is Rejected
+PASS  F. preserved: the stuck gauge returns to 0
+PASS  F. conservation: 20 - 7 = 13, Redis holds exactly the seven completed orders
+
+Stuck PendingStock is detected, a known outcome is recovered, reconciliation is bounded with an alert, and outcomes survive restart.
