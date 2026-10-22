@@ -1,0 +1,217 @@
+TP-L03 live: first EC2 session, 2026-10-22, account project region ap-southeast-2, main-test-bug-fix 8ef3033 (= week1-2 2707c00 + d9936da minus docs/ and report/).
+terraform plan (read-only profile): 4 to add, 0 to change, 0 to destroy. Owner applied with the deploy profile.
+backend i-004cca57f4f118bf0 m7i-flex.large 172.31.13.233; jmeter i-022c1574c950fd206 c7i-flex.large 172.31.5.88; both SSM online; self-terminate scheduled 13:08:45 UTC.
+Commands ran through SSM Run Command with the read-only user plus the FlashSaleRunCommands inline policy (instances tagged Project=flash-sale only).
+
+=== 1. backend readiness ===
+status Success exit 0
+--- stdout (last 24000 chars) ---
+commit: 8ef3033
+placeholders left in ec2.env (expect 0 outside comments): 0
+Unable to find image 'mcr.microsoft.com/dotnet/sdk:10.0.300' locally
+10.0.300: Pulling from dotnet/sdk
+cb259a83ac3d: Pulling fs layer
+58abd912a5fb: Pulling fs layer
+b6cff015c25a: Pulling fs layer
+ffe6f39219bf: Pulling fs layer
+a31473e9874a: Pulling fs layer
+2d0efc714cbd: Pulling fs layer
+ee9163fb697b: Pulling fs layer
+5cb60dc27d81: Pulling fs layer
+3f4fdeb9039b: Pulling fs layer
+0ab943b3c9a1: Pulling fs layer
+2d0efc714cbd: Waiting
+ee9163fb697b: Waiting
+5cb60dc27d81: Waiting
+3f4fdeb9039b: Waiting
+0ab943b3c9a1: Waiting
+ffe6f39219bf: Waiting
+a31473e9874a: Waiting
+b6cff015c25a: Verifying Checksum
+b6cff015c25a: Download complete
+cb259a83ac3d: Verifying Checksum
+cb259a83ac3d: Download complete
+58abd912a5fb: Verifying Checksum
+58abd912a5fb: Download complete
+a31473e9874a: Verifying Checksum
+a31473e9874a: Download complete
+2d0efc714cbd: Verifying Checksum
+2d0efc714cbd: Download complete
+ffe6f39219bf: Verifying Checksum
+ffe6f39219bf: Download complete
+ee9163fb697b: Verifying Checksum
+ee9163fb697b: Download complete
+3f4fdeb9039b: Verifying Checksum
+3f4fdeb9039b: Download complete
+cb259a83ac3d: Pull complete
+0ab943b3c9a1: Verifying Checksum
+0ab943b3c9a1: Download complete
+5cb60dc27d81: Verifying Checksum
+5cb60dc27d81: Download complete
+58abd912a5fb: Pull complete
+b6cff015c25a: Pull complete
+ffe6f39219bf: Pull complete
+a31473e9874a: Pull complete
+2d0efc714cbd: Pull complete
+ee9163fb697b: Pull complete
+5cb60dc27d81: Pull complete
+3f4fdeb9039b: Pull complete
+0ab943b3c9a1: Pull complete
+Digest: sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6
+Status: Downloaded newer image for mcr.microsoft.com/dotnet/sdk:10.0.300
+== build 09:10:29
+== up 09:11:47
+ grafana Pulling 
+ nginx Pulling 
+ prometheus Pulling 
+ redis Pulling 
+ postgres Pulling 
+ rabbitmq Pulling 
+ redis Pulled 
+ nginx Pulled 
+ rabbitmq Pulled 
+ prometheus Pulled 
+ grafana Pulled 
+ postgres Pulled 
+ Network infra_default  Creating
+ Network infra_default  Created
+ Volume "infra_redisdata"  Creating
+ Volume "infra_redisdata"  Created
+ Volume "infra_grafanadata"  Creating
+ Volume "infra_grafanadata"  Created
+ Volume "infra_promdata"  Creating
+ Volume "infra_promdata"  Created
+ Volume "infra_pgdata"  Creating
+ Volume "infra_pgdata"  Created
+ Container infra-redis-1  Creating
+ Container infra-postgres-1  Creating
+ Container infra-rabbitmq-1  Creating
+ Container infra-order-service-migrate-1  Creating
+ Container infra-inventory-service-migrate-1  Creating
+ Container infra-process-worker-1  Creating
+ Container infra-order-service-1  Creating
+ Container infra-inventory-service-1  Creating
+ Container infra-prometheus-1  Creating
+ Container infra-nginx-1  Creating
+ Container infra-grafana-1  Creating
+grafana running Up 48 seconds
+inventory-service running Up 54 seconds
+inventory-service-migrate exited Exited (0) 24 seconds ago
+nginx running Up 49 seconds
+order-service running Up 49 seconds
+order-service-migrate exited Exited (0) 20 seconds ago
+postgres running Up About a minute (healthy)
+process-worker running Up 53 seconds
+prometheus running Up 49 seconds
+rabbitmq running Up About a minute (healthy)
+redis running Up About a minute (healthy)
+== published ports
+infra-nginx-1 0.0.0.0:80->80/tcp, :::80->80/tcp
+== warm-up
+OK
+1000
+== local health 200
+done 09:13:27
+[exited with code 0]
+
+=== 2. from the JMeter host: ports, gateway, smoke ===
+﻿command 1e85a6ef-34d9-49c3-98b5-40aff8e32213
+status Success exit 0
+cloud-init: status: done
+commit: 8ef3033
+== ports on the backend from the JMeter host (1 = open)
+port 80 OPEN
+port 22 closed
+port 3000 closed
+port 5432 closed
+port 5672 closed
+port 6379 closed
+port 8080 closed
+port 9090 closed
+port 15672 closed
+== health 200
+== admin through gateway: swagger 404 login 404
+== JMeter smoke 09:34:41
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+Creating summariser <summary>
+Created the tree successfully using tests/jmeter/deploy-smoke-test.jmx
+Starting standalone test @ 2026 Oct 22 09:34:43 UTC (1792661683194)
+Waiting for possible Shutdown/StopTestNow/HeapDump/ThreadDump message on port 4445
+summary =     44 in 00:00:05 =    8.9/s Avg:    48 Min:     5 Max:   473 Err:     0 (0.00%)
+Tidying up ...    @ 2026 Oct 22 09:34:48 UTC (1792661688273)
+... end of run
+== JTL
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1792661683447,473,Create order,201,Created,Deployment smoke 1-1,text,true,,550,283,3,3,http://172.31.13.233/api/orders,331,0,29
+1792661683550,368,Create order,201,Created,Deployment smoke 1-2,text,true,,552,283,3,3,http://172.31.13.233/api/orders,223,0,1
+1792661683752,170,Create order,201,Created,Deployment smoke 1-3,text,true,,550,283,3,3,http://172.31.13.233/api/orders,26,0,1
+1792661683947,22,Create order,201,Created,Deployment smoke 1-4,text,true,,552,283,4,4,http://172.31.13.233/api/orders,17,0,7
+1792661684146,19,Create order,201,Created,Deployment smoke 1-5,text,true,,550,283,5,5,http://172.31.13.233/api/orders,15,0,1
+1792661684468,94,Poll order status,200,OK,Deployment smoke 1-3,text,true,,545,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,94,0,0
+1792661684468,95,Poll order status,200,OK,Deployment smoke 1-2,text,true,,547,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,95,0,0
+1792661684468,95,Poll order status,200,OK,Deployment smoke 1-1,text,true,,545,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,95,0,0
+1792661684473,92,Poll order status,200,OK,Deployment smoke 1-4,text,true,,547,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,92,0,0
+1792661684667,16,Poll order status,200,OK,Deployment smoke 1-5,text,true,,545,165,5,5,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,16,0,0
+1792661685065,11,Poll order status,200,OK,Deployment smoke 1-1,text,true,,545,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,11,0,0
+1792661685068,10,Poll order status,200,OK,Deployment smoke 1-3,text,true,,545,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,10,0,0
+1792661685065,13,Poll order status,200,OK,Deployment smoke 1-2,text,true,,547,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,13,0,0
+1792661685069,10,Poll order status,200,OK,Deployment smoke 1-4,text,true,,547,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,10,0,0
+1792661685185,7,Poll order status,200,OK,Deployment smoke 1-5,text,true,,545,165,5,5,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,7,0,0
+1792661685578,14,Poll order status,200,OK,Deployment smoke 1-1,text,true,,545,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,14,0,0
+1792661685582,11,Poll order status,200,OK,Deployment smoke 1-4,text,true,,547,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,11,0,0
+1792661685580,15,Poll order status,200,OK,Deployment smoke 1-2,text,true,,547,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,15,0,0
+1792661685582,16,Poll order status,200,OK,Deployment smoke 1-3,text,true,,545,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,16,0,0
+1792661685694,8,Poll order status,200,OK,Deployment smoke 1-5,text,true,,545,165,5,5,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,8,0,0
+1792661686095,7,Poll order status,200,OK,Deployment smoke 1-4,text,true,,547,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,7,0,0
+1792661686096,9,Poll order status,200,OK,Deployment smoke 1-2,text,true,,547,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,8,0,0
+1792661686094,11,Poll order status,200,OK,Deployment smoke 1-1,text,true,,545,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,11,0,0
+1792661686100,7,Poll order status,200,OK,Deployment smoke 1-3,text,true,,545,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,7,0,0
+1792661686204,8,Poll order status,200,OK,Deployment smoke 1-5,text,true,,545,165,5,5,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,8,0,0
+1792661686606,76,Poll order status,200,OK,Deployment smoke 1-1,text,true,,545,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,76,0,0
+1792661686608,77,Poll order status,200,OK,Deployment smoke 1-3,text,true,,545,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,77,0,0
+1792661686606,102,Poll order status,200,OK,Deployment smoke 1-2,text,true,,547,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,102,0,0
+1792661686605,104,Poll order status,200,OK,Deployment smoke 1-4,text,true,,547,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,104,0,0
+1792661686714,22,Poll order status,200,OK,Deployment smoke 1-5,text,true,,545,165,5,5,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,22,0,0
+1792661687184,20,Poll order status,200,OK,Deployment smoke 1-1,text,true,,863,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,20,0,0
+1792661687186,22,Poll order status,200,OK,Deployment smoke 1-3,text,true,,659,165,5,5,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,18,0,0
+1792661687210,10,Poll order status,200,OK,Deployment smoke 1-4,text,true,,661,165,5,5,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,10,0,0
+1792661687210,11,Poll order status,200,OK,Deployment smoke 1-2,text,true,,866,165,5,5,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,11,0,0
+1792661687205,16,Verify final state,200,OK,Deployment smoke 1-1,text,true,,863,165,5,5,http://172.31.13.233/api/orders/23d7be8d-8fbb-421c-b746-5eb96d31c1da,15,0,0
+1792661687222,5,Verify final state,200,OK,Deployment smoke 1-2,text,true,,866,165,4,4,http://172.31.13.233/api/orders/aadc8781-ac51-40a5-9346-8622e21bb6fe,5,0,0
+1792661687238,10,Poll order status,200,OK,Deployment smoke 1-5,text,true,,659,165,3,3,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,10,0,0
+1792661687709,10,Poll order status,200,OK,Deployment smoke 1-3,text,true,,864,165,3,3,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,10,0,0
+1792661687722,7,Poll order status,200,OK,Deployment smoke 1-4,text,true,,866,165,3,3,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,7,0,0
+1792661687720,11,Verify final state,200,OK,Deployment smoke 1-3,text,true,,864,165,3,3,http://172.31.13.233/api/orders/0a86b130-3620-4c51-b6f3-dbd1a7b9c00b,11,0,0
+1792661687730,5,Verify final state,200,OK,Deployment smoke 1-4,text,true,,866,165,2,2,http://172.31.13.233/api/orders/0a08bf51-1c10-4c6b-a042-d26597091166,5,0,0
+1792661687749,7,Poll order status,200,OK,Deployment smoke 1-5,text,true,,750,165,1,1,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,7,0,0
+1792661688257,8,Poll order status,200,OK,Deployment smoke 1-5,text,true,,864,165,1,1,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,8,0,0
+1792661688266,6,Verify final state,200,OK,Deployment smoke 1-5,text,true,,864,165,1,1,http://172.31.13.233/api/orders/d5c9949d-18da-4450-a1f5-029c84de94b0,6,0,0
+done 09:34:49
+
+--- stderr ---
+
+
+=== 3. backend state after the smoke ===
+﻿command 820e3bc8-e800-4432-8d85-57dfe24056a9
+status Success exit 0
+stock: 995
+reserved (SCARD): 5
+Completed|5
+unpublished outbox: 0
+grafana grafana/grafana:13.2.2 Up 22 minutes
+inventory-service flashsale-inventory-service:10.0 Up 22 minutes
+nginx nginx:1.31.3 Up 22 minutes
+order-service flashsale-order-service:10.0 Up 22 minutes
+postgres postgres:16.14 Up 23 minutes (healthy)
+process-worker flashsale-process-worker:10.0 Up 22 minutes
+prometheus prom/prometheus:v3.14.0 Up 22 minutes
+rabbitmq rabbitmq:3.13.7-management Up 23 minutes (healthy)
+redis redis:7.4.7 Up 23 minutes (healthy)
+instance: m7i-flex.large
+
+--- stderr ---
+
+
+=== 4. after the owner ran terraform destroy (2026-10-22, read-only profile) ===
+instances: i-004cca57f4f118bf0 terminated, i-022c1574c950fd206 terminated
+volumes: none; elastic IPs: none; network interfaces: none; flashsale-* security groups: none; snapshots: none

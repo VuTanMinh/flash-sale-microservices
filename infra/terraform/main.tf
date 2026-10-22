@@ -130,7 +130,9 @@ resource "aws_instance" "backend" {
     http_tokens = "required"
   }
 
-  # Install Docker + the Compose plugin (pinned). No secrets here.
+  # Install Docker, git and the Compose plugin (pinned), then PowerShell 7
+  # (pinned) so the run-time collector and extractor can run on this host. No
+  # secrets here.
   user_data = <<-EOT
     #!/bin/bash
     set -euxo pipefail
@@ -138,7 +140,7 @@ resource "aws_instance" "backend" {
     # returns at once and AWS terminates the instance when it powers off.
     shutdown -h +${var.auto_terminate_minutes}
     dnf update -y
-    dnf install -y docker
+    dnf install -y docker git
     systemctl enable --now docker
     usermod -aG docker ec2-user
     DOCKER_COMPOSE_VERSION=v2.29.7
@@ -148,6 +150,11 @@ resource "aws_instance" "backend" {
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
     docker --version
     docker compose version
+    # PowerShell 7 (LTS, pinned): Microsoft's universal RHEL rpm (the package for
+    # Amazon Linux 2023); dnf pulls its libicu dependency from the base repo.
+    PWSH_VERSION=7.4.20
+    dnf install -y "https://github.com/PowerShell/PowerShell/releases/download/v$${PWSH_VERSION}/powershell-$${PWSH_VERSION}-1.rh.x86_64.rpm"
+    pwsh --version
   EOT
 
   tags = {
@@ -192,8 +199,9 @@ resource "aws_instance" "jmeter" {
     http_tokens = "required"
   }
 
-  # Install Java + Apache JMeter at the same pinned version the repo uses
-  # (D:\tools\apache-jmeter-5.6.3). No secrets here.
+  # Install git, Java and Apache JMeter at the same pinned version the repo uses
+  # (D:\tools\apache-jmeter-5.6.3), from the current-release CDN with a fallback
+  # to the archive, and verify Apache's SHA-512 before extracting. No secrets here.
   user_data = <<-EOT
     #!/bin/bash
     set -euxo pipefail
@@ -201,12 +209,19 @@ resource "aws_instance" "jmeter" {
     # returns at once and AWS terminates the instance when it powers off.
     shutdown -h +${var.auto_terminate_minutes}
     dnf update -y
-    dnf install -y java-17-amazon-corretto-headless tar gzip
+    dnf install -y git java-17-amazon-corretto-headless tar gzip
     JMETER_VERSION=5.6.3
-    curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$${JMETER_VERSION}.tgz" -o /opt/apache-jmeter.tgz
-    tar -xzf /opt/apache-jmeter.tgz -C /opt
+    JMETER_TGZ="apache-jmeter-$${JMETER_VERSION}.tgz"
+    # 1) the current-release CDN, 2) fall back to the archive (slow, ~25 min).
+    curl -fsSL "https://dlcdn.apache.org//jmeter/binaries/$${JMETER_TGZ}" -o "/opt/$${JMETER_TGZ}" \
+      || curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/$${JMETER_TGZ}" -o "/opt/$${JMETER_TGZ}"
+    # Verify the SHA-512 Apache publishes before extracting (the archive download
+    # has been observed truncated); sha512sum -c reads the "hash *file" line.
+    curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/$${JMETER_TGZ}.sha512" -o "/opt/$${JMETER_TGZ}.sha512"
+    cd /opt && sha512sum -c "$${JMETER_TGZ}.sha512"
+    tar -xzf "/opt/$${JMETER_TGZ}" -C /opt
     ln -s "/opt/apache-jmeter-$${JMETER_VERSION}" /opt/jmeter
-    rm -f /opt/apache-jmeter.tgz
+    rm -f "/opt/$${JMETER_TGZ}" "/opt/$${JMETER_TGZ}.sha512"
     /opt/jmeter/bin/jmeter --version
   EOT
 

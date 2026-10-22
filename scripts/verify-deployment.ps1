@@ -1,5 +1,5 @@
 # ============================================================
-# TP-L03: offline deployment checks (Week 12 box 3).
+# TP-L03 + TP-L04 (EC2 half): offline deployment checks (Week 12 boxes 3 and 4).
 #
 #   powershell -File .\scripts\verify-deployment.ps1 `
 #       -TerraformExe E:\terraform_1.16.6_windows_amd64\terraform.exe
@@ -8,8 +8,9 @@
 # touches AWS. It checks the Terraform (fmt/validate, region, security-group
 # rules, forbidden resources, instance types, cpu_credits), that every image in
 # both Compose files is pinned, that only Nginx publishes a port in the EC2
-# Compose file, and that the three Dockerfiles build and the EC2 Compose file
-# passes `docker compose config`.
+# Compose file, that the three Dockerfiles build and the EC2 Compose file passes
+# `docker compose config`, and (box 4) that user_data installs git on both hosts,
+# PowerShell 7 on the backend and verifies the JMeter SHA-512 before extracting.
 #
 #   - terraform validate requires `terraform init` to have been run first
 #     (Claude runs it); if the provider is missing, that one check fails.
@@ -76,6 +77,14 @@ Check 'cpu_credits = "standard" present' ($mainTf -match 'cpu_credits\s*=\s*"sta
 $terminateBehavior = @([regex]::Matches($mainTf, 'instance_initiated_shutdown_behavior\s*=\s*"terminate"') | ForEach-Object { $_.Value })
 $shutdownTimer = @([regex]::Matches($mainTf, 'shutdown\s+-h\s+\+') | ForEach-Object { $_.Value })
 Check "both instances self-terminate (terminate behavior + shutdown -h + timer)" ($terminateBehavior.Count -eq 2 -and $shutdownTimer.Count -eq 2) "terminate behavior: $($terminateBehavior.Count), shutdown -h + lines: $($shutdownTimer.Count)"
+
+# Week 12 box 4 (EC2 half): the overload run needs git on both hosts (each
+# clones the repo), PowerShell 7 on the backend (the collector/extractor run
+# there), and a checksum check on the JMeter download.
+$gitInstallLines = @([regex]::Matches($mainTf, 'dnf install -y[^\r\n]*\bgit\b') | ForEach-Object { $_.Value })
+Check "user_data installs git on both hosts" ($gitInstallLines.Count -ge 2) "git install lines: $($gitInstallLines.Count)"
+Check "backend user_data installs PowerShell 7 (pinned)" ($mainTf -match 'powershell-\$\$\{PWSH_VERSION\}-1\.rh\.x86_64\.rpm' -and $mainTf -match 'pwsh --version') "pwsh must be installed on the backend"
+Check "JMeter download verifies the SHA-512 from Apache before extracting" ($mainTf -match 'sha512sum -c' -and $mainTf -match '\.sha512') "a truncated archive download must be caught"
 
 # ---------------------------------------------------------------------------
 # Image pinning in both Compose files
