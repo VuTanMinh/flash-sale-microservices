@@ -391,6 +391,10 @@ public class OrderServiceModule : AbpModule
         context.Services.Configure<AdmissionOptions>(configuration.GetSection("Admission"));
         context.Services.AddSingleton<OrderAdmissionGate>();
         context.Services.AddSingleton<OutboxBacklogMonitor>();
+        // End-to-end in-flight bound (after the review of Week 12); the
+        // refresher returns at once unless the bound is configured.
+        context.Services.AddSingleton<InFlightOrdersMonitor>();
+        context.Services.AddHostedService<InFlightOrdersRefresher>();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

@@ -111,6 +111,7 @@ services:
       Admission__Enabled: ${ADMISSION_ENABLED}
       Admission__MaxConcurrentNewOrders: ${ADMISSION_MAX_CONCURRENT_NEW_ORDERS}
       Admission__MaxOutboxBacklog: ${ADMISSION_MAX_OUTBOX_BACKLOG}
+      Admission__MaxInFlightOrders: ${ADMISSION_MAX_IN_FLIGHT_ORDERS:-0}
     volumes:
       - ./openiddict.pfx:/app/openiddict.pfx:ro
     depends_on:

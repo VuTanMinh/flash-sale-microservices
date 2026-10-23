@@ -1,0 +1,20 @@
+﻿== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,OrderProcessingStarted=True,OrderProcessed=True,ProcessWorker.StockReserved=True,OrderPlaced.dlq=True,StockReserved.dlq=True,StockRejected.dlq=True,OrderProcessingStarted.dlq=True,OrderProcessed.dlq=True,ProcessWorker.StockReserved.dlq=True
+PASS  warm-up: rc-rc-141818 has 50 units
+== Start the run-time collector
+PASS  collector started and wrote collector.json -- json=C:\Users\Lenovo\AppData\Local\Temp\verify-rc-rc-141818\collector.json
+== Analyse samples.csv
+PASS  samples.csv has rows -- rows=1203
+PASS  rows from every source (rabbitmq, redis, postgres, service, host) -- present=rabbitmq,redis,postgres,service,host
+PASS  OrderPlaced queue depth peaked >= 1 while Inventory was stopped -- peak=3
+PASS  OrderPlaced oldest message age > 0 while waiting -- max_age=33
+PASS  Redis calls rose during the run -- calls min=1 max=2 samples=8
+PASS  connections >= 1 per service account (order_service_user, inventory_service_user) -- order=5 inventory=1
+PASS  host CPU and memory present -- cpu_samples=10 mem_used=13923725312 mem_total=14702026752
+PASS  accepted counter rose by the number of orders placed -- accepted_max=6 placed=6
+PASS  sampling cadence: mean gap <= interval + 1 s -- mean_gap=5.12811111111111 gaps=9 mean_sample_ms=3451.3
+PASS  every main queue has messages_ready rows -- missing=
+PASS  Redis rows became unavailable (not 0) while Redis was stopped, and the other sources kept sampling -- unavailable_rows=5 first=2026-10-23T14:19:20.880Z
+PASS  collector.json records run id, interval and git commit -- run_id=rc-141818 interval=5 (want 5) commit=4cb59476f8e03d3ba1da59a8e2d32fe0b4847b06 (want 4cb59476f8e03d3ba1da59a8e2d32fe0b4847b06)
+All checks passed: the run-time collector sampled every source and recorded a failing source as unavailable, never 0.
+Exit code: 0

@@ -56,10 +56,17 @@ public class OutboxEvent
         CreatedAt = DateTime.UtcNow;
     }
 
-    public void MarkPublished()
+    /// <summary>
+    /// <paramref name="sentAt"/> is when the confirmed publish was SENT, not
+    /// when its confirm came back -- the same meaning as Order Service's
+    /// PublishedAt (external review after Week 12: the broker delivers to the
+    /// consumer before it confirms to the publisher, so a confirm-time stamp
+    /// can fall after the consumer already acted on the message).
+    /// </summary>
+    public void MarkPublished(DateTime sentAt)
     {
         Published = true;
-        PublishedAt = DateTime.UtcNow;
+        PublishedAt = sentAt;
     }
 
     /// <summary>

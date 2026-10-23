@@ -55,15 +55,24 @@ public static class OrderMetrics
     /// </summary>
     public static readonly Counter ReconciliationRetriggers = Metrics.CreateCounter(
         "flashsale_reconciliation_retriggers_total",
-        "OrderPlaced re-publishes issued by ReconciliationWorker for stuck PendingStock orders.");
+        "OrderPlaced re-publishes issued by ReconciliationWorker for stuck orders (PendingStock, Confirmed or Processing).");
 
     public static readonly Counter ReconciliationGivenUp = Metrics.CreateCounter(
         "flashsale_reconciliation_given_up_total",
-        "Stuck PendingStock orders ReconciliationWorker stopped re-triggering after MaxAttempts.");
+        "Stuck orders ReconciliationWorker stopped re-triggering after MaxAttempts.");
 
     public static readonly Gauge ReconciliationStuckOrders = Metrics.CreateGauge(
         "flashsale_reconciliation_stuck_orders",
-        "Orders currently PendingStock past the reconciliation timeout.");
+        "Orders currently stuck past their state's reconciliation timeout.");
+
+    /// <summary>
+    /// The last measured count of orders not yet Completed or Rejected
+    /// (<see cref="InFlightOrdersRefresher"/>; only measured while the
+    /// in-flight admission bound is on).
+    /// </summary>
+    public static readonly Gauge InFlightOrders = Metrics.CreateGauge(
+        "flashsale_orders_in_flight",
+        "Orders accepted but not yet Completed or Rejected, as last measured for the admission bound.");
 
     /// <summary>
     /// Creates the labelled series at 0 so they are exported from the first
@@ -77,5 +86,6 @@ public static class OrderMetrics
         // it is exported from the first /metrics scrape (same reason as the
         // "concurrency" series above).
         AdmissionRejected.WithLabels("backlog");
+        AdmissionRejected.WithLabels("inflight");
     }
 }

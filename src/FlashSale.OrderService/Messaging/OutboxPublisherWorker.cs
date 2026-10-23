@@ -86,10 +86,10 @@ public class OutboxPublisherWorker : BackgroundService
 
         foreach (var outboxEvent in pending)
         {
-            var published = await TryPublishWithRetryAsync(publisher, outboxEvent.EventType, outboxEvent.Payload, outboxEvent.Id, stoppingToken);
-            if (published)
+            var sentAt = await TryPublishWithRetryAsync(publisher, outboxEvent.EventType, outboxEvent.Payload, outboxEvent.Id, stoppingToken);
+            if (sentAt is not null)
             {
-                outboxEvent.MarkPublished();
+                outboxEvent.MarkPublished(sentAt.Value);
                 await dbContext.SaveChangesAsync(stoppingToken);
             }
         }
@@ -122,15 +122,21 @@ public class OutboxPublisherWorker : BackgroundService
         _backlogMonitor.Publish(count, acceptedSnapshot);
     }
 
-    private async Task<bool> TryPublishWithRetryAsync(
+    /// <summary>
+    /// Returns when the attempt that the broker confirmed was sent, or null
+    /// when every attempt failed (see OutboxEvent.MarkPublished for why the
+    /// send time, not the confirm time, is what gets recorded).
+    /// </summary>
+    private async Task<DateTime?> TryPublishWithRetryAsync(
         IOutboxMessagePublisher publisher, string eventType, string payload, Guid outboxEventId, CancellationToken stoppingToken)
     {
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             try
             {
+                var sentAt = DateTime.UtcNow;
                 await publisher.PublishAsync(eventType, payload, stoppingToken);
-                return true;
+                return sentAt;
             }
             catch (Exception ex)
             {
@@ -140,7 +146,7 @@ public class OutboxPublisherWorker : BackgroundService
                         ex,
                         "Failed to publish outbox event {OutboxEventId} after {Attempts} attempts; leaving unpublished, will retry on the next poll",
                         outboxEventId, attempt);
-                    return false;
+                    return null;
                 }
 
                 var delay = RetryDelays[attempt - 1];
@@ -152,6 +158,6 @@ public class OutboxPublisherWorker : BackgroundService
             }
         }
 
-        return false;
+        return null;
     }
 }

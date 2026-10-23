@@ -49,9 +49,15 @@
 #      flashsale_outbox_unpublished, flashsale_admission_rejected_total with
 #      reason=backlog, and a RabbitMQ queue depth, with the backlog rising above
 #      0 while the broker is down.
+#   I. In-flight admission (after the review of Week 12): MaxInFlightOrders =
+#      the database's non-terminal baseline + 5, Process Worker stopped. Exactly
+#      5 new orders are admitted, the rest get 503 + Retry-After counted as
+#      reason=inflight with no order row; a replay still gets 200; once the
+#      Worker returns and the orders finish, a new order is admitted again.
 #   H. Overload, drain and recovery (box 4): all three C3 layers on at once --
 #      Nginx ORDER_RATE=20r/s/burst 1, admission on (MaxConcurrentNewOrders=8,
-#      MaxOutboxBacklog=20) and the flashsale-c3-bounds policy (max-length=5) --
+#      MaxOutboxBacklog=20, MaxInFlightOrders = baseline + 30) and the
+#      flashsale-c3-bounds policy (max-length=5) --
 #      then the three-phase tests/jmeter/overload-recovery.jmx run through Nginx
 #      (baseline 3r/s 30s, overload 60r/s 60s, recovery 3r/s 60s; 3r/s is below
 #      the ~3.7 msg/s Process Worker capacity) while
@@ -69,7 +75,9 @@
 #
 # Negative controls (Claude runs them): admission disabled -> B fails; policy
 # not set -> C fails; Nginx rate set very high -> A fails; MaxOutboxBacklog=0
-# -> E fails; check 5 removed -> F's negative fixture passes wrongly (F fails).
+# -> E fails; check 5 removed -> F's negative fixture passes wrongly (F fails);
+# MaxInFlightOrders=0 -> I fails (and H's backlog drain fails, as before the
+# bound existed).
 # Case H: limits off (Admission off, no queue policy, ORDER_RATE very high) must
 # fail the "overload produced rejections" check, and a restart of one service
 # must fail the "PIDs unchanged" check.
@@ -82,7 +90,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 41     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 45     # number of Check calls in the try block (a truncated run must fail)
 $mq = "verify-ls-mq"; $amqp = 5701; $mgmt = 15701; $redis = "verify-ls-redis"; $redisPort = 6411
 $nginx = "verify-ls-nginx"; $nginxPort = 8090
 $orderPort = 5163; $invPort = 5164; $workerPort = 5165
@@ -90,7 +98,7 @@ $ex = "flashsale.order.exchange"; $dlx = "flashsale.dlx"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600"; Reconciliation__ProcessingStuckTimeoutSeconds = "3600" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -237,6 +245,18 @@ function AdmissionRejectedBacklogTotal() {
     }
     return $sum
 }
+function AdmissionRejectedInFlightTotal() {
+    $sum = 0.0
+    foreach ($line in ((Scrape-Order) -split "`n")) {
+        if ($line -match '^flashsale_admission_rejected_total\{reason="inflight"\}\s+(\S+)') { $sum += [double]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture) }
+    }
+    return $sum
+}
+# Orders not yet Completed or Rejected anywhere in the shared database. The
+# in-flight bound counts the whole database (as it must in production), so
+# cases I and H set it relative to this baseline: other verifiers' fixtures
+# leave non-terminal orders behind in verify-env-pg.
+function InFlightNow() { return (Int1 "SELECT count(*) FROM order_service.orders WHERE `"State`" IN ('PendingStock','Confirmed','Processing');") }
 function OutboxUnpublished() {
     foreach ($line in ((Scrape-Order) -split "`n")) {
         if ($line -match '^flashsale_outbox_unpublished\s+(\S+)') { return [double]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture) }
@@ -244,10 +264,10 @@ function OutboxUnpublished() {
     return 0.0
 }
 # True when none of the six main input queues holds a message (one rabbitmqctl
-# call). "messages" is ready only; the Worker prefetches its whole backlog, so
-# ProcessWorker.StockReserved shows ready=0 while holding messages unacknowledged.
-# Both must be 0 for the queue to be truly empty (the extractor's drain also
-# requires ready + unacknowledged == 0).
+# call). "messages" is ready only; a consumer holds up to its prefetch
+# (RabbitMQ:EventBus:PrefetchCount) as unacknowledged messages, so both must
+# be 0 for the queue to be truly empty (the extractor's drain also requires
+# ready + unacknowledged == 0).
 function MainQueuesEmpty() {
     $lines = @(docker exec $mq rabbitmqctl -q list_queues name messages messages_unacknowledged --no-table-headers 2>$null)
     foreach ($line in $lines) {
@@ -605,6 +625,50 @@ try {
     $fListed = ($null -ne $fResp.Id -and $v2 -match [regex]::Escape($fResp.Id))
     Check "F: validator C3 with an outstanding order is INCONCLUSIVE (check 5 lists it) and exits 1" ($v2Exit -eq 1 -and $v2 -match '5\. accepted-order accounting\s+INCONCLUSIVE' -and $fListed) "exit=$v2Exit listed=$fListed"
     Start-Svc "FlashSale.InventoryService" "f"
+    if ($null -ne $fResp.Id) { Wait-Until { (State $fResp.Id) -eq "Completed" } 120 | Out-Null }
+
+    # ---------------------------------------------------------- I. in-flight admission
+    # End-to-end bound added after the external review of Week 12: with the
+    # Process Worker stopped, accepted orders stay unfinished (Confirmed), so
+    # after MaxInFlightOrders of them a new order is refused (503,
+    # reason=inflight) although the Outbox is empty and the concurrency gate is
+    # wide open. When the Worker returns and the orders finish, a new order is
+    # admitted again.
+    Write-Output "== I. In-flight admission (MaxInFlightOrders = baseline + 5, Worker stopped)"
+    $pI = "ls-i-$runId"; $pIStock = 30
+    & (Join-Path $repoRoot "scripts\warm-up.ps1") -Container $redis -Products @{ $pI = $pIStock } -Force *> $null
+    Stop-Svc "FlashSale.OrderService"
+    Stop-Svc "FlashSale.ProcessWorker"
+    $iBaseline = InFlightNow
+    $iMax = $iBaseline + 5
+    Start-Svc "FlashSale.OrderService" "inflight" @{ Admission__Enabled = "true"; Admission__MaxConcurrentNewOrders = "1000"; Admission__MaxInFlightOrders = "$iMax"; Admission__InFlightRefreshMilliseconds = "500" }
+    Start-Sleep 2   # at least one measurement, so the estimate starts from the real baseline
+    $iRejBefore = AdmissionRejectedInFlightTotal
+    $iAccepted = @(); $iRejected = @()
+    for ($i = 0; $i -lt 10; $i++) {
+        $key = "ls-i$i-" + [guid]::NewGuid()
+        $rr = Post-Http $key $pI
+        if ($rr.Status -eq 201 -and $null -ne $rr.Id) { $iAccepted += @{ Key = $key; Id = $rr.Id } }
+        elseif ($rr.Status -eq 503) { $iRejected += @{ Key = $key; RetryAfter = $rr.RetryAfter } }
+    }
+    $iRejAfter = AdmissionRejectedInFlightTotal
+    $iAllRetry = $true
+    foreach ($r in $iRejected) { if (-not $r.RetryAfter) { $iAllRetry = $false } }
+    Check "I: exactly 5 orders admitted above the baseline, then 503 with Retry-After counted as reason=inflight" (
+        $iAccepted.Count -eq 5 -and $iRejected.Count -eq 5 -and $iAllRetry -and ($iRejAfter - $iRejBefore) -eq $iRejected.Count) "baseline=$iBaseline max=$iMax accepted=$($iAccepted.Count) rejected=$($iRejected.Count) metricDelta=$($iRejAfter - $iRejBefore)"
+    $iNoRow = $true
+    foreach ($r in $iRejected) { if ((OrderRowCount $r.Key) -ne 0) { $iNoRow = $false } }
+    $iReplay = $null
+    if ($iAccepted.Count -gt 0) { $iReplay = Post-Http $iAccepted[0].Key $pI }
+    Check "I: no order row for a refused key; a replay of an accepted key still returns 200 while the bound is full" (
+        $iNoRow -and $null -ne $iReplay -and $iReplay.Status -eq 200 -and $iReplay.Id -eq $iAccepted[0].Id) "replay=$(if ($iReplay) { $iReplay.Status })"
+    Start-Svc "FlashSale.ProcessWorker" "i"
+    $iIds = @($iAccepted | ForEach-Object { $_.Id })
+    $iDone = Wait-Until { AllCompleted $iIds } 120
+    Start-Sleep 2   # one more measurement after the orders finished
+    $iNew = Post-Http ("ls-inew-" + [guid]::NewGuid()) $pI
+    Check "I: once the accepted orders finish, a new order is admitted again (201)" ($iDone -and $iNew.Status -eq 201) "completed=$iDone status=$($iNew.Status)"
+    if ($null -ne $iNew.Id) { Wait-Until { (State $iNew.Id) -eq "Completed" } 120 | Out-Null }
 
     # ---------------------------------------------------------- H. overload, drain, recovery
     Write-Output "== H. Overload, drain and recovery (TP-L04, JMeter overload-recovery.jmx)"
@@ -619,7 +683,14 @@ try {
     Stop-Svc "FlashSale.InventoryService"
     Stop-Svc "FlashSale.ProcessWorker"
     & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq -MaxLength 5 *> $null
-    Start-Svc "FlashSale.OrderService" "h" @{ Admission__Enabled = "true"; Admission__MaxConcurrentNewOrders = "8"; Admission__MaxOutboxBacklog = "20" }
+    # In-flight bound (after the review of Week 12): at most 30 unfinished
+    # orders of this run beyond the database's baseline. Why 30: the Worker
+    # finishes ~3.7 orders/s and the recovery phase still offers 3/s, so a
+    # backlog clears at ~0.7/s while recovery load continues; 30 orders above
+    # the steady level is what can clear within the 60 s backlog-drain target.
+    $hInFlightBaseline = InFlightNow
+    $hMaxInFlight = $hInFlightBaseline + 30
+    Start-Svc "FlashSale.OrderService" "h" @{ Admission__Enabled = "true"; Admission__MaxConcurrentNewOrders = "8"; Admission__MaxOutboxBacklog = "20"; Admission__MaxInFlightOrders = "$hMaxInFlight"; Admission__InFlightRefreshMilliseconds = "1000" }
     Start-Svc "FlashSale.InventoryService" "h"
     Start-Svc "FlashSale.ProcessWorker" "h"
     $pF = "ls-h-$runId"; $pFStock = 10000
@@ -636,6 +707,7 @@ try {
     foreach ($project in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { $hPidsBefore[$project] = ServicePid $project }
     $hRejConcurrencyBefore = AdmissionRejectedTotal
     $hRejBacklogBefore = AdmissionRejectedBacklogTotal
+    $hRejInFlightBefore = AdmissionRejectedInFlightTotal
 
     $jmeterBat = "D:\tools\apache-jmeter-5.6.3\bin\jmeter.bat"
     if (-not (Test-Path -LiteralPath $jmeterBat)) { throw "SETUP ERROR: JMeter not found at $jmeterBat" }
@@ -693,6 +765,7 @@ try {
     foreach ($project in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { $hPidsAfter[$project] = ServicePid $project }
     $hRejConcurrencyAfter = AdmissionRejectedTotal
     $hRejBacklogAfter = AdmissionRejectedBacklogTotal
+    $hRejInFlightAfter = AdmissionRejectedInFlightTotal
     $hNginx429 = 0
     try { $hNginx429 = @(@(docker logs $nginx 2>&1) | Where-Object { $_ -match '" 429 ' }).Count } catch { }
 
@@ -729,15 +802,16 @@ try {
         if ($code -notmatch '^2\d\d$' -and $code -ne "429" -and $code -ne "503") { $hRecovErrors++ }
     }
 
-    # Extract drain/recovery from the run. The whole-run -StableRange is stated
-    # below (local/pre-pilot); the recovery-phase p95 ceiling is checked in its
-    # own check below.
+    # Extract drain/recovery from the run. Recovery is judged per 10 s window
+    # after the recovery phase starts (local/pre-pilot range): p95 <= 1000 ms,
+    # no internal errors, NO refusals (429/503) and at least 1 accepted order/s,
+    # so a phase that is still shedding load does not count as recovered.
     $hRanExtract = $false
     $hSummaryPath = Join-Path $hCollectorOutDir "summary.json"
     $hSummary = $null
     if ($hJtl.Count -gt 0 -and $hFrom -ne "" -and $hTo -ne "") {
         $hExtractOut = & (Join-Path $repoRoot "scripts\extract-run-metrics.ps1") -RunId "ls-h" -RunDir $hCollectorOutDir -JtlPath $jtl -From $hFrom -To $hTo -Container $Container `
-            -StableRange @{ max_p95_ms = 5000; max_error_pct = 0.0; min_throughput_per_s = 1.0 } *>&1 | Out-String
+            -StableRange @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 } *>&1 | Out-String
         $hExtractExit = $LASTEXITCODE
         $hRanExtract = $true
         if (Test-Path -LiteralPath $hSummaryPath) { try { $hSummary = Get-Content -Raw -LiteralPath $hSummaryPath | ConvertFrom-Json } catch { $hSummary = $null } }
@@ -755,6 +829,7 @@ try {
     # drain_time_s below uses -To = the last submission of the whole run, i.e.
     # the final drain after load stops).
     $hBacklogDrain = $null
+    $hMaxUnacked = 0.0
     $hBaselineMaxOutbox = 0.0; $hBaselineMaxDepth = 0.0
     $hSamplesCsv = Join-Path $hCollectorOutDir "samples.csv"
     if (Test-Path -LiteralPath $hSamplesCsv) {
@@ -766,16 +841,23 @@ try {
             $t = [string]$r.utc_time
             if (-not $hSeen.Contains($t)) { $hSeen.Add($t) | Out-Null; $hTimes.Add($t) }
             $name = [string]$r.name; $labels = [string]$r.labels
-            if ($r.source -eq "service" -and $name -eq "flashsale_outbox_unpublished" -and $labels -like "*service=order-service*") {
+            # All queued work counts as backlog (external review after Week 12):
+            # both services' unpublished Outbox rows, and ready AND
+            # unacknowledged messages. Before consumers set a prefetch, the
+            # Worker took its whole backlog as unacknowledged and this measure
+            # (Order Outbox + ready only) missed it; with prefetch the excess
+            # waits in Inventory's Outbox instead, which is counted here too.
+            if ($r.source -eq "service" -and $name -eq "flashsale_outbox_unpublished" -and ($labels -like "*service=order-service*" -or $labels -like "*service=inventory-service*")) {
                 $v = H-Num $r.value
-                if ($null -ne $v) { $hOutboxAt[$t] = $v }
-            } elseif ($r.source -eq "rabbitmq" -and $name -eq "messages_ready") {
-                # READY only: the C3 "bounded queue" backlog is ready messages
-                # (max-length=5). The Worker prefetches its backlog, so its
-                # messages sit in messages_unacknowledged (ready stays 0) -- that
-                # in-flight buffer is the Worker's throughput limitation and is
-                # measured by the final drain (drain_time_s), not this
-                # post-overload backlog metric.
+                if ($null -ne $v) {
+                    if (-not $hOutboxAt.ContainsKey($t)) { $hOutboxAt[$t] = 0.0 }
+                    $hOutboxAt[$t] = $hOutboxAt[$t] + $v
+                }
+            } elseif ($r.source -eq "rabbitmq" -and ($name -eq "messages_ready" -or $name -eq "messages_unacknowledged")) {
+                if ($name -eq "messages_unacknowledged") {
+                    $u = H-Num $r.value
+                    if ($null -ne $u -and $u -gt $hMaxUnacked) { $hMaxUnacked = $u }
+                }
                 $q = ""
                 foreach ($part in ($labels -split ';')) { if ($part -like "queue=*") { $q = $part.Substring(6) } }
                 if ($allQueues -contains $q) {
@@ -812,8 +894,8 @@ try {
 
     Check "H: overload phase produced 429s (gateway) and/or 503s (admission)" (($h429 -gt 0) -or ($h503 -gt 0)) "429=$h429 503=$h503"
     Check "H: gateway 429s are counted in the Nginx access log and admission 503s in the admission metric" `
-        ($hNginx429 -eq $h429Total -and (($hRejConcurrencyAfter - $hRejConcurrencyBefore) + ($hRejBacklogAfter - $hRejBacklogBefore)) -eq $h503Total) `
-        "nginx429=$hNginx429 jtl429=$h429Total admissionDelta=$((($hRejConcurrencyAfter - $hRejConcurrencyBefore) + ($hRejBacklogAfter - $hRejBacklogBefore))) jtl503=$h503Total"
+        ($hNginx429 -eq $h429Total -and (($hRejConcurrencyAfter - $hRejConcurrencyBefore) + ($hRejBacklogAfter - $hRejBacklogBefore) + ($hRejInFlightAfter - $hRejInFlightBefore)) -eq $h503Total) `
+        "nginx429=$hNginx429 jtl429=$h429Total admissionDelta=$((($hRejConcurrencyAfter - $hRejConcurrencyBefore) + ($hRejBacklogAfter - $hRejBacklogBefore) + ($hRejInFlightAfter - $hRejInFlightBefore))) (concurrency=$($hRejConcurrencyAfter - $hRejConcurrencyBefore) backlog=$($hRejBacklogAfter - $hRejBacklogBefore) inflight=$($hRejInFlightAfter - $hRejInFlightBefore)) jtl503=$h503Total"
 
     $hAccepted = Int1 "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$pF';"
     $hScard = Scard $pF
@@ -832,7 +914,8 @@ try {
     # ProcessWorker.StockReserved messages in run 3) drains at ~3.7 msg/s and
     # takes ~76 s to clear; 120 s leaves headroom.
     Check "H: final drain (drain_time_s) is a number below the stated ceiling (120 s)" ($hRanExtract -and $null -ne $hDrainNum -and $hDrainNum -le 120) "drain=$hDrainNum extract=$hRanExtract"
-    Check "H: recovery_time_s is a number (equals the final drain here; see docs/load-shedding.md)" ($hRanExtract -and $null -ne $hRecoveryNum) "recovery=$hRecoveryNum"
+    Check "H: recovery_time_s is a number (first in-range 10 s window after the recovery phase starts; see docs/metrics.md)" ($hRanExtract -and $null -ne $hRecoveryNum) "recovery=$hRecoveryNum"
+    Check "H: no consumer held more than its prefetch (20) unacknowledged during the run" ($hMaxUnacked -gt 0 -and $hMaxUnacked -le 20) "peakUnacked=$hMaxUnacked"
     Check "H: recovery phase has 0 non-429/503 errors and p95 <= 1000 ms" ($hRecovErrors -eq 0 -and $null -ne $hRecovP95 -and $hRecovP95 -le 1000) "errors=$hRecovErrors p95=$hRecovP95"
 
     $hSamePids = $true

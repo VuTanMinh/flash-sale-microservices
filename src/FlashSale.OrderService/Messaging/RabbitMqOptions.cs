@@ -41,6 +41,15 @@ public class RabbitMqOptions
         /// </summary>
         public Dictionary<string, string[]> RequiredSubscriberQueues { get; set; } = new();
 
+        /// <summary>
+        /// Most unacknowledged messages RabbitMQ hands one consumer at a time
+        /// (basic.qos prefetch). Without it the broker pushes the whole queue
+        /// to the consumer, so a queue's max-length bound (C3) only covers the
+        /// messages still waiting, not the ones already delivered. Consumers
+        /// handle one message at a time, so a small value costs no throughput.
+        /// </summary>
+        public ushort PrefetchCount { get; set; } = 20;
+
         public string ExchangeName { get; set; } = "flashsale.order.exchange";
 
         /// <summary>Queues this service consumes results from (Week 8) --

@@ -74,10 +74,16 @@ public class OutboxEvent
     /// before calling this) -- marking a row published on anything weaker
     /// (e.g. "the publish call didn't throw" without confirms) can silently
     /// drop messages if the broker rejects asynchronously.
+    ///
+    /// <paramref name="sentAt"/> is when the confirmed publish was SENT, not
+    /// when its confirm came back (external review after Week 12). The broker
+    /// routes a message to Inventory before it confirms it to us, so stamping
+    /// the confirm time put "published" after Inventory's decision for most
+    /// orders (714 of 773 negative publish-to-decision intervals in TP-L04).
     /// </summary>
-    public void MarkPublished()
+    public void MarkPublished(DateTime sentAt)
     {
         Published = true;
-        PublishedAt = DateTime.UtcNow;
+        PublishedAt = sentAt;
     }
 }

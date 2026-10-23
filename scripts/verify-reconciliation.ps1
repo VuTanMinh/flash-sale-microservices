@@ -29,6 +29,11 @@
 #   F. Outcome preserved: once Inventory returns, C and D drain to Completed
 #      with one deduction and one result row each; the stuck gauge returns to 0
 #      and stock conservation holds (20 - 7 = 13).
+#   G. Lost Worker work: with the Worker stopped an order is Confirmed, its
+#      Worker copy is purged and the Worker restarted; reconciliation (now also
+#      watching Confirmed/Processing, ProcessingStuckTimeoutSeconds=25 here,
+#      long enough for the setup to finish before it can fire)
+#      re-triggers it and it ends Completed with one deduction (20 - 8 = 12).
 # ============================================================
 param(
     [Parameter(Mandatory = $true)][string]$Container,
@@ -44,7 +49,7 @@ $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $poll = 2; $maxAttempts = 3
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__PollIntervalSeconds = "$poll"; Reconciliation__MaxAttempts = "$maxAttempts"; Reconciliation__StuckTimeoutSeconds = "5" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__PollIntervalSeconds = "$poll"; Reconciliation__MaxAttempts = "$maxAttempts"; Reconciliation__StuckTimeoutSeconds = "5"; Reconciliation__ProcessingStuckTimeoutSeconds = "25" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -150,6 +155,20 @@ try {
         if (@(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).Count -gt 0) { throw "port $port is already in use; this script needs 5135-5137" }
     }
     foreach ($c in $mq, $redis) { docker rm -f $c *> $null }
+
+    # ---------------------------------------------------------- hermetic start
+    # Reconciliation scans EVERY order, and the checks below assert its global
+    # metrics (stuck gauge, given-up count). Non-terminal orders left in this
+    # shared verification database by other verifiers' fault fixtures would be
+    # swept too (since the review after Week 12 that includes Confirmed and
+    # Processing orders, some with deliberately conflicting stored results).
+    # So they are removed first -- only ever in a throwaway verify-* container.
+    if ($Container -notlike "verify-*") { throw "SETUP ERROR: refusing to clear leftover orders in '$Container'; this verifier only runs against a throwaway verify-* database" }
+    $leftoverSel = "SELECT `"Id`" FROM order_service.orders WHERE `"State`" IN ('PendingStock','Confirmed','Processing')"
+    $leftover = Int1 "SELECT count(*) FROM ($leftoverSel) x;"
+    Sql "DELETE FROM order_service.order_status_history WHERE `"OrderId`" IN ($leftoverSel); DELETE FROM order_service.outbox_events WHERE `"OrderId`" IN ($leftoverSel); DELETE FROM inventory_service.outbox_events WHERE `"OrderId`" IN ($leftoverSel); DELETE FROM order_service.orders WHERE `"Id`" IN ($leftoverSel);" | Out-Null
+    $remaining = Int1 "SELECT count(*) FROM ($leftoverSel) x;"
+    Check "hermetic start: no non-terminal order from another run is left ($leftover removed)" ($remaining -eq 0) "remaining=$remaining"
 
     # ---------------------------------------------------------- throwaway stack
     docker run -d --name $redis -p "${redisPort}:6379" redis:7 | Out-Null
@@ -289,6 +308,31 @@ try {
     Check "F. preserved: the stuck gauge returns to 0" $stuckZero "stuck=$(MetricNum 'flashsale_reconciliation_stuck_orders')"
     Check "F. conservation: 20 - 7 = 13, Redis holds exactly the seven completed orders" (
         [int](Stock $p) -eq "13" -and (Reserved $p) -eq "7") "stock=$(Stock $p) reserved=$(Reserved $p)"
+
+    # ======================================================== G. lost Worker work: stuck Confirmed, recovered
+    # External review after Week 12: reconciliation watched PendingStock only,
+    # so an order whose Process Worker copy of StockReserved was lost stayed
+    # Confirmed for ever. Stop the Worker, place an order (Order Service
+    # confirms it), purge the Worker's queue, restart the Worker: nothing will
+    # ever finish the order unless reconciliation re-triggers it.
+    Write-Host "== G. Lost Worker work (order stuck Confirmed) is recovered"
+    Stop-Svc "FlashSale.ProcessWorker"
+    $stockBeforeG = [int](Stock $p)
+    $g = Post-Order $p ("rc-g-" + [guid]::NewGuid())
+    if (-not $g) { throw "SETUP ERROR: could not place order G" }
+    $gConfirmed = Wait-Until { (State $g) -eq "Confirmed" -and (QueueCount "ProcessWorker.StockReserved") -ge 1 } 40
+    Purge "ProcessWorker.StockReserved"
+    # rabbitmqctl, not the management API: its counts lag by the stats interval (~5 s).
+    $gPurged = Wait-Until { (@(docker exec $mq rabbitmqctl -q list_queues name messages --no-table-headers 2>$null | Where-Object { $_ -match "^ProcessWorker\.StockReserved\s+0$" })).Count -eq 1 } 10
+    Start-Svc "FlashSale.ProcessWorker" "g"
+    Start-Sleep 2
+    Check "G. setup: the order is Confirmed, its Worker copy was purged, and the restarted Worker alone does not finish it" ($gConfirmed -and $gPurged -and (State $g) -eq "Confirmed") "state=$(State $g) confirmed=$gConfirmed purged=$gPurged"
+    $gDone = Wait-Until { (State $g) -eq "Completed" } 60
+    Check "G. recovered: reconciliation re-triggers the Confirmed order and it ends Completed" ($gDone -and (LogLinesWith "FlashSale.OrderService" $g "stuck in Confirmed") -ge 1) "state=$(State $g) log=$(LogLinesWith 'FlashSale.OrderService' $g 'stuck in Confirmed')"
+    Check "G. recovered: one deduction, one result row, the original result re-sent (one re-trigger)" (
+        [int](Stock $p) -eq ($stockBeforeG - 1) -and (InvOutbox $g) -eq 1 -and (OrderPlacedCount $g) -eq 2) "stock=$(Stock $p) rows=$(InvOutbox $g) orderPlaced=$(OrderPlacedCount $g)"
+    Check "G. conservation: 20 - 8 = 12, Redis holds exactly the eight completed orders" (
+        [int](Stock $p) -eq 12 -and (Reserved $p) -eq "8") "stock=$(Stock $p) reserved=$(Reserved $p)"
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {

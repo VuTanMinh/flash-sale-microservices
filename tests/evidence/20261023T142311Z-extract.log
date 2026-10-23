@@ -1,0 +1,44 @@
+﻿== Environment
+== Part 1: known answers (no services)
+PASS  extract ran (exit 0) and wrote summary.json + stage-intervals.csv -- exit=0
+PASS  summary.json parses
+PASS  window_from_utc equals the first JTL sample (no local-zone shift) -- got=2026-01-01T00:00:00.0000000Z
+PASS  JTL: submission_count = 20 -- got=20
+PASS  JTL: submission p50/p95/p99/max = 100/190/200/200 -- p50=100 p95=190 p99=200 max=200
+PASS  JTL: polling_count = 2, polling p50/p95/p99/max = 50/70/70/70 -- poll_count=2
+PASS  JTL: offered throughput = 2.0/s -- got=2
+PASS  JTL: overload rejection (429) = 5.0%, internal error (500) = 5.0%, other non-2xx = 0.0% -- overload=5 err=5 other=0
+PASS  DB: accepted_count = 5 -- got=5
+PASS  DB: completed_count = 4, pending_count = 0 -- completed=4 pending=0
+PASS  DB: final states Completed=4 Rejected=1 -- Completed=4 Rejected=1
+PASS  DB: accepted_to_published p50/p95/p99=100/500/500 neg=0 missing=0 -- p50=100 p95=500
+PASS  DB: published_to_decided p50/p95/p99=100/100/100 neg=1 missing=0 -- neg=1 p50=100
+PASS  DB: decided_to_applied p50/p95/p99=100/200/200 neg=0 missing=0 -- p50=100 p95=200
+PASS  DB: applied_to_completed p50/p95/p99=800/18100/18100 neg=0 missing=1 -- missing=1
+PASS  DB: accepted_to_completed p50/p95/p99=1000/18500/18500 neg=0 missing=1 -- missing=1
+PASS  DB: stock rates reserved=80.0% rejected=20.0% (4 reserved, 1 rejected) -- reserved=80 rejected=20
+PASS  stage-intervals.csv has 5 rows, one negative publish_to_decided, one missing completion -- rows=5 negative=1 missing-completion=1
+PASS  collector: peak queue depth OrderPlaced = 5 -- got=5
+PASS  collector: peak oldest age OrderPlaced = 4 -- got=4
+PASS  collector: drain time = 21.1s (late-completing order delays it past the empty queues) -- got=21.099999999999998
+PASS  collector: recovery time is unavailable without -StableRange -- got=unavailable
+PASS  collector: counters retries=9 duplicates=2 dead_lettered=0 reconciliation=1 (per-series reset) -- retries=9 dups=2 dlq=0 recon=1
+PASS  collector: host cpu mean/peak=30/50, memory mean/peak=1200/1400 -- cpu=30/50 mem=1200/1400
+PASS  collector: process cpu rate order-service mean/peak=1.0/1.0 -- got=1/1
+PASS  collector: process memory order-service mean/peak=5200000/5400000 -- got=5200000/5400000
+PASS  collector: db connections mean/peak=1.8/3.0 -- got=1.8/3
+PASS  collector: redis latency stays unavailable -- got=unavailable
+PASS  collector: broker rates publish=100/120 deliver=50/60 ack=50/60 -- pub=100/120
+PASS  membership: accepted_count = 3 by Idempotency-Key (refused key and out-of-window timing ignored) -- exit=0 accepted=3 membership=jtl idempotencyKey (4 submitted keys)
+PASS  membership: one interval row per order; a re-published order keeps its original publish time (100 ms) -- rows=3 seed0-rows=1 a2p=100
+PASS  recovery: first in-range 2-s window starts 3 s after overload removal -- got=3
+PASS  recovery: a recovery phase that refuses everything is not_recovered (never a number) -- got=not_recovered
+== Part 2: real run (services + collector)
+PASS  real run: three services up; every queue and DLQ declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,OrderProcessingStarted=True,OrderProcessed=True,ProcessWorker.StockReserved=True,OrderPlaced.dlq=True,StockReserved.dlq=True,StockRejected.dlq=True,OrderProcessingStarted.dlq=True,OrderProcessed.dlq=True,ProcessWorker.StockReserved.dlq=True
+PASS  real run: warm-up ex-ex-142403 has 20 units
+PASS  real run: collector started
+PASS  real run: 10 orders placed and all reached Completed -- placed=10 allDone=True
+PASS  real run: extract ran and accepted_count = 10 -- exit=0 accepted=10
+PASS  real run: each order's stage intervals match a direct SQL query
+All checks passed: the extraction reproduces the known answers and a real run's orders.
+Exit code: 0

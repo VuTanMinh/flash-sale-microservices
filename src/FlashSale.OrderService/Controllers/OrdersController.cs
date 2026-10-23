@@ -35,6 +35,7 @@ public class OrdersController : AbpController
     private readonly IOptions<AdmissionOptions> _admissionOptions;
     private readonly OrderAdmissionGate _admissionGate;
     private readonly OutboxBacklogMonitor _backlogMonitor;
+    private readonly InFlightOrdersMonitor _inFlightMonitor;
     private readonly IConfiguration _configuration;
 
     public OrdersController(
@@ -43,6 +44,7 @@ public class OrdersController : AbpController
         IOptions<AdmissionOptions> admissionOptions,
         OrderAdmissionGate admissionGate,
         OutboxBacklogMonitor backlogMonitor,
+        InFlightOrdersMonitor inFlightMonitor,
         IConfiguration configuration)
     {
         _dbContext = dbContext;
@@ -50,6 +52,7 @@ public class OrdersController : AbpController
         _admissionOptions = admissionOptions;
         _admissionGate = admissionGate;
         _backlogMonitor = backlogMonitor;
+        _inFlightMonitor = inFlightMonitor;
         _configuration = configuration;
     }
 
@@ -166,6 +169,20 @@ public class OrdersController : AbpController
                     "The order backlog is at its limit; retry shortly.");
             }
 
+            // End-to-end bound (after the external review of Week 12): refuse a
+            // new order while MaxInFlightOrders orders are still unfinished
+            // anywhere in the pipeline, so work cannot pile up behind the
+            // slowest stage (the Process Worker). Same estimate pattern as the
+            // backlog bound (InFlightOrdersMonitor).
+            var maxInFlight = _admissionOptions.Value.MaxInFlightOrders;
+            if (maxInFlight > 0 && _inFlightMonitor.InFlight >= maxInFlight)
+            {
+                OrderMetrics.AdmissionRejected.WithLabels("inflight").Inc();
+                Response.Headers["Retry-After"] = "1";
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    "Too many orders are still being processed; retry shortly.");
+            }
+
             if (!_admissionGate.TryEnter())
             {
                 OrderMetrics.AdmissionRejected.WithLabels("concurrency").Inc();
@@ -242,6 +259,7 @@ public class OrdersController : AbpController
             // not called on the idempotent replay or the unique-violation race
             // paths above (those return an existing order and write nothing).
             _backlogMonitor.RecordAccepted();
+            _inFlightMonitor.RecordAccepted();
 
             return StatusCode(201, await ToResponseAsync(order));
         }

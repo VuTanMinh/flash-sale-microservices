@@ -21,4 +21,16 @@ public class ReconciliationOptions
     public int StuckTimeoutSeconds { get; set; } = 30;
 
     public int MaxAttempts { get; set; } = 3;
+
+    /// <summary>
+    /// How long an order may sit in Confirmed or Processing after its stock
+    /// was confirmed before it counts as stuck (external review after Week 12:
+    /// reconciliation used to watch PendingStock only, so an order whose
+    /// Worker events were lost stayed Confirmed for ever). Longer than
+    /// StuckTimeoutSeconds on purpose: the Process Worker's queue legitimately
+    /// holds confirmed orders for about a minute after an overload (TP-L04),
+    /// and re-triggering those would only make the Worker repeat its work.
+    /// The effective value is never below StuckTimeoutSeconds.
+    /// </summary>
+    public int ProcessingStuckTimeoutSeconds { get; set; } = 300;
 }

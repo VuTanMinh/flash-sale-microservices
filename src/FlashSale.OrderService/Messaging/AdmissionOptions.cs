@@ -20,4 +20,17 @@ public class AdmissionOptions
     /// docs/load-shedding.md.
     /// </summary>
     public int MaxOutboxBacklog { get; set; } = 0;
+
+    /// <summary>
+    /// The maximum number of orders accepted but not yet Completed or Rejected
+    /// before a new order is refused with 503 (reason="inflight"). Default 0 =
+    /// off. Only consulted when Enabled is true; read from
+    /// <see cref="InFlightOrdersMonitor"/> (measured every
+    /// <see cref="InFlightRefreshMilliseconds"/> plus the orders accepted
+    /// since). Added after the external review of Week 12: the Outbox bound
+    /// alone let work pile up behind the slow Process Worker.
+    /// </summary>
+    public int MaxInFlightOrders { get; set; } = 0;
+
+    public int InFlightRefreshMilliseconds { get; set; } = 1000;
 }

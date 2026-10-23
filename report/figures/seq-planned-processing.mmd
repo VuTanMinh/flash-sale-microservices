@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant MQ as RabbitMQ
+    participant OrderSvc as Order Service
+    participant PGOrd as Postgres (order_service)
+    participant ProcSvc as Process Worker
+    MQ->>ProcSvc: deliver StockReservedEto
+    ProcSvc->>MQ: publish OrderProcessingStartedEto (derived MessageId, StartedAt, mandatory, confirm)
+    MQ->>OrderSvc: deliver OrderProcessingStartedEto
+    OrderSvc->>PGOrd: one transaction: Inbox check, Confirmed to Processing, Inbox row (+ history)
+    ProcSvc->>ProcSvc: deterministic processing delay
+    ProcSvc->>MQ: publish OrderProcessedEto (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
+    MQ->>OrderSvc: deliver OrderProcessedEto
+    OrderSvc->>PGOrd: one transaction: Inbox check, Processing to Completed, Inbox row (+ history)

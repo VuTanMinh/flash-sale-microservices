@@ -1,0 +1,12 @@
+erDiagram
+    inventory {
+        text product_id PK
+        integer stock "no CHECK >= 0 on purpose: C0 must be able to oversell"
+    }
+    baseline_orders {
+        uuid id PK "default gen_random_uuid()"
+        text config "CHECK in ('C0','C1')"
+        text product_id
+        text result "CHECK in ('Confirmed','Rejected')"
+        timestamptz created_at "default now()"
+    }

@@ -37,6 +37,13 @@ report/*.fls
 report/*.fdb_latexmk
 report/*.synctex.gz
 report/*.pdf
+# same for report/progress/progress-report.tex
+report/progress/*.aux
+report/progress/*.log
+report/progress/*.out
+report/progress/*.fls
+report/progress/*.fdb_latexmk
+report/progress/*.pdf
 
 # JMeter run artifacts (the Step 3.5 smoke-test .jtl is intentionally
 # committed as report evidence -- this only excludes JMeter's own verbose

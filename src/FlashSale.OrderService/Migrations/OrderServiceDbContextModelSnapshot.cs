@@ -55,6 +55,7 @@ namespace FlashSale.OrderService.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("State")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -64,6 +65,8 @@ namespace FlashSale.OrderService.Migrations
 
                     b.HasIndex("IdempotencyKey")
                         .IsUnique();
+
+                    b.HasIndex("State");
 
                     b.ToTable("orders", "order_service");
                 });

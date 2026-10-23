@@ -1,0 +1,81 @@
+﻿AS EXPECTED  old extractor reports a recovery time for a phase that refused every request; fixed one says not_recovered -- old=5.5 new=not_recovered
+AS EXPECTED  old extractor's time window misses accepted orders of the run; key membership finds all 773 -- old=771 new=773 (jtl idempotencyKey (3995 submitted keys))
+AS EXPECTED  old extractor exits 0 and writes a summary without accepted_count after a failed query; fixed one exits non-zero and writes no summary -- old: exit=0 accepted=; new: exit=1 accepted=
+All negative controls behaved as expected.
+exit=0
+
+----- script used (one-off, not kept in scripts/) -----
+# Negative controls for the extractor fixes after the external review
+# (scratch script; the log goes to tests/evidence). Each control runs the
+# PREVIOUS extractor (git HEAD) and, where useful, the fixed one on the same
+# input, and states what the old code got wrong.
+param([string]$Container = "verify-env-pg")
+$ErrorActionPreference = "Continue"
+$repo = "D:\DACNTT"
+$work = "E:\Agent_Memory\DACNTT\tmp\extract-negctl"
+Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $work | Out-Null
+$old = Join-Path $work "extract-old.ps1"
+git -C $repo show HEAD:scripts/extract-run-metrics.ps1 | Set-Content -Encoding utf8 $old
+$new = Join-Path $repo "scripts\extract-run-metrics.ps1"
+$fails = 0
+function Report([string]$name, [bool]$expectedOutcome, [string]$detail) {
+    if (-not $expectedOutcome) { $script:fails++ }
+    Write-Output "$(if ($expectedOutcome) { 'AS EXPECTED' } else { 'UNEXPECTED' })  $name -- $detail"
+}
+
+# 1. Recovery on a recovery phase that refuses everything (the review's synthetic case).
+$base = [DateTimeOffset]::Parse("2026-01-01T00:00:00Z").ToUnixTimeMilliseconds()
+$hdr = "timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect"
+$dir = Join-Path $work "allrefused"; New-Item -ItemType Directory $dir | Out-Null
+$l = New-Object System.Collections.Generic.List[string]; $l.Add($hdr)
+for ($k = 0; $k -lt 10; $k++) { $l.Add("$($base + $k * 500),5,submit-overload,503,x,T,text,false,,0,0,1,1,http://localhost/api/orders,0,0,0") }
+for ($k = 0; $k -lt 20; $k++) { $l.Add("$($base + 5000 + $k * 500),50,submit-recovery,503,x,T,text,false,,0,0,1,1,http://localhost/api/orders,0,0,0") }
+[IO.File]::WriteAllLines("$dir\raw.jtl", $l.ToArray())
+# queues and outbox empty from 20 s on, so the old "drained" condition holds
+$s = New-Object System.Collections.Generic.List[string]; $s.Add("utc_time,source,name,labels,value")
+foreach ($t in "2026-01-01T00:00:20.000Z", "2026-01-01T00:00:21.000Z") {
+    $s.Add("$t,rabbitmq,messages_ready,queue=OrderPlaced,0"); $s.Add("$t,rabbitmq,messages_unacknowledged,queue=OrderPlaced,0")
+    $s.Add("$t,service,flashsale_outbox_unpublished,service=order-service,0"); $s.Add("$t,service,flashsale_outbox_unpublished,service=inventory-service,0")
+}
+[IO.File]::WriteAllLines("$dir\samples.csv", $s.ToArray())
+$range = @{ max_p95_ms = 5000; max_error_pct = 0.0; min_throughput_per_s = 1.0 }
+& $old -RunId neg-old -RunDir $dir -Container $Container -StableRange $range *> $null
+$oldRec = (Get-Content "$dir\summary.json" -Raw | ConvertFrom-Json).collector.recovery_time_s.value
+& $new -RunId neg-new -RunDir $dir -Container $Container -StableRange $range *> $null
+$newRec = (Get-Content "$dir\summary.json" -Raw | ConvertFrom-Json).collector.recovery_time_s.value
+Report "old extractor reports a recovery time for a phase that refused every request; fixed one says not_recovered" (($oldRec -isnot [string]) -and $newRec -eq "not_recovered") "old=$oldRec new=$newRec"
+
+# 2. Run membership on the saved local TP-L04 run (verifier counted 773 accepted orders).
+$dir = Join-Path $work "l04"; New-Item -ItemType Directory $dir | Out-Null
+Copy-Item "$repo\tests\evidence\20261022T152931Z-overload-raw.jtl" "$dir\raw.jtl"
+Copy-Item "$repo\tests\evidence\20261022T152931Z-overload-samples.csv" "$dir\samples.csv"
+& $old -RunId l04-old -RunDir $dir -Container $Container *> $null
+$oldAcc = (Get-Content "$dir\summary.json" -Raw | ConvertFrom-Json).database.accepted_count
+& $new -RunId l04-new -RunDir $dir -Container $Container *> $null
+$newSum = Get-Content "$dir\summary.json" -Raw | ConvertFrom-Json
+Report "old extractor's time window misses accepted orders of the run; key membership finds all 773" ($oldAcc -ne 773 -and $newSum.database.accepted_count -eq 773) "old=$oldAcc new=$($newSum.database.accepted_count) ($($newSum.database.run_membership))"
+
+# 3. A failing SQL query: the old helper ignores psql's exit code, so the
+#    script carries on, exits 0 and writes a summary whose accepted_count is
+#    missing (the error text fails the [int] cast; an empty result would be 0).
+foreach ($pair in @(@("old", $old), @("new", $new))) {
+    $broken = Join-Path $work "extract-broken-$($pair[0]).ps1"
+    $src = Get-Content -Raw $pair[1]
+    $needle = 'SELECT count(*) FROM order_service.orders WHERE'
+    $idx = $src.IndexOf($needle)
+    $src = $src.Substring(0, $idx) + 'SELECT count(*) FROM order_service.no_such_table WHERE' + $src.Substring($idx + $needle.Length)
+    Set-Content -Encoding utf8 $broken $src
+    $d = Join-Path $work "broken-$($pair[0])"; New-Item -ItemType Directory $d | Out-Null
+    Copy-Item "$work\l04\raw.jtl" "$d\raw.jtl"
+    powershell -NoProfile -File $broken -RunId "broken-$($pair[0])" -RunDir $d -Container $Container *> "$d\out.txt"
+    $exit = $LASTEXITCODE
+    $acc = $null; if (Test-Path "$d\summary.json") { $acc = (Get-Content "$d\summary.json" -Raw | ConvertFrom-Json).database.accepted_count }
+    Set-Variable -Name "broken_$($pair[0])" -Value @{ exit = $exit; acc = $acc }
+}
+Report "old extractor exits 0 and writes a summary without accepted_count after a failed query; fixed one exits non-zero and writes no summary" `
+    ($broken_old.exit -eq 0 -and $null -eq $broken_old.acc -and (Test-Path (Join-Path $work "broken-old\summary.json")) -and $broken_new.exit -ne 0 -and -not (Test-Path (Join-Path $work "broken-new\summary.json"))) `
+    "old: exit=$($broken_old.exit) accepted=$($broken_old.acc); new: exit=$($broken_new.exit) accepted=$($broken_new.acc)"
+
+Write-Output "$(if ($fails -eq 0) { 'All negative controls behaved as expected.' } else { "$fails control(s) did not behave as expected." })"
+exit $fails

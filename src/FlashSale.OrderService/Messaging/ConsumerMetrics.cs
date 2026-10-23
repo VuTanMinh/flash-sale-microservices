@@ -42,6 +42,16 @@ public static class ConsumerMetrics
         new CounterConfiguration { LabelNames = ["consumer"] });
 
     /// <summary>
+    /// One increment each time a state write lost to a concurrent transition
+    /// and was decided again from a fresh read (StockResultProcessor). Not
+    /// labelled: the processor does not know which consumer called it, and a
+    /// non-zero count is the signal Week 13/14 need.
+    /// </summary>
+    public static readonly Counter StateConflicts = Metrics.CreateCounter(
+        "flashsale_order_state_conflicts_total",
+        "Order state writes that lost to a concurrent transition and were re-decided.");
+
+    /// <summary>
     /// Creates this consumer's labelled series at 0 when it starts, so every
     /// series is exported from the first scrape (prometheus-net only exports a
     /// labelled child after it is created) and rate() works without gaps.

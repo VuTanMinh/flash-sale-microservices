@@ -1,0 +1,59 @@
+﻿== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: pA=100, pB=50, pC=20, pD=20, pE=30
+== A. Gateway rate limit (Nginx ORDER_RATE=5r/s, burst 1)
+PASS  A: some POSTs through Nginx get 429 and some get 201 -- 201=4 429=36
+PASS  A: /api/orders/ gets >=1 429 (201s one row, 429s none) and /API/orders is never 201 with no row -- trailing-429=9 trailing-201=1 case-statuses=404,404,404,404,404,404,404,404,404,404
+PASS  A: every 201 has an order row and no 429 key (any path) has an order row -- 201-keys=4 429-keys=45
+PASS  A: GET polling through Nginx is never 429 -- polled 4b961362-6adc-42e4-8809-cc1ab750195f 15 times
+PASS  A: gateway returns 404 for /swagger/index.html and /Account/Login (only the API is exposed) -- swagger=404 login=404
+== B. Application admission (MaxConcurrentNewOrders=2, hold 1500 ms)
+PASS  B: pre-seeded order accepted (201) -- status=201
+PASS  B: at least one 503 with Retry-After and at most 2 (Max) 201s -- 503=8 201=2
+PASS  B: no order row exists for any 503 key -- 503-keys=8
+PASS  B: flashsale_admission_rejected_total{reason=concurrency} rose by exactly the 503 count -- before=0 after=8 503=8
+PASS  B: replay of an accepted key returns 200 with the original order while the gate is full -- replay=200 id-match=True
+== C. Bounded queue + publisher at capacity (max-length 3)
+PASS  C: all 8 orders get 201 with the queue bounded and Inventory stopped -- orders=8
+PASS  C: OrderPlaced depth is bounded at 3 by the max-length policy -- depth=3
+PASS  C: the Order Outbox holds the other 5 unpublished (gauge >= 5, rows in the table) -- unpublished-rows=5 gauge=8
+PASS  C: after Inventory starts, the Outbox drains to 0 and every order completes -- completed=True drained=True unpublished=0
+PASS  C: one reservation per order (SCARD processed=8, stock=initial-8) -- scard=8 stock=12
+== D. C2 unchanged (policy removed, admission off)
+PASS  D: with the policy removed and admission off, 8 orders are all accepted (201) -- orders=8
+PASS  D: all 8 complete and the Outbox drains with no nack -- completed=True drained=True unpublished=0
+== E. Backlog admission with the broker unavailable (MaxOutboxBacklog=5)
+PASS  E: some 201s then 503s with Retry-After, accepted at most MaxOutboxBacklog -- accepted=5 rejected=5
+PASS  E: flashsale_admission_rejected_total{reason=backlog} rose by exactly the 503 count -- before=0 after=5 503=5
+PASS  E: no order/Outbox row for any 503 key; Redis stock and SCARD unchanged -- 503-keys=5 unpublished=5 accepted=5
+PASS  E: replay of an accepted key returns 200 with the original order while the backlog is full -- accepted=5
+PASS  E: after the broker returns, the Outbox drains to 0 and every accepted order completes -- completed=True drained=True unpublished=0
+PASS  E: SCARD processed:<pE> = accepted and stock = initial - accepted -- scard=5 stock=25 accepted=5
+PASS  E: a new order is admitted again (201) once the backlog drained -- status=201
+PASS  G: collector CSV has outbox_unpublished > 0, reason=backlog > 0 and a RabbitMQ queue depth -- rows=1131 outboxRise=True reasonBacklog=True queueDepth=True
+== F. Validator -Config C3 (check 5) on E's product
+PASS  F: validator -Config C3 passes after the drain (check 5 PASS) -- exit=0
+PASS  F: negative-fixture order accepted (201) and left PendingStock (Inventory down) -- status=201
+PASS  F: validator C3 with an outstanding order is INCONCLUSIVE (check 5 lists it) and exits 1 -- exit=1 listed=True
+== I. In-flight admission (MaxInFlightOrders = baseline + 5, Worker stopped)
+PASS  I: exactly 5 orders admitted above the baseline, then 503 with Retry-After counted as reason=inflight -- baseline=0 max=5 accepted=5 rejected=5 metricDelta=5
+PASS  I: no order row for a refused key; a replay of an accepted key still returns 200 while the bound is full -- replay=200
+PASS  I: once the accepted orders finish, a new order is admitted again (201) -- completed=True status=201
+== H. Overload, drain and recovery (TP-L04, JMeter overload-recovery.jmx)
+PASS  H: product pF warmed with 10000 units
+H: jmeter exit=0 drain=True jtlRows=4164 429=2425 503=934 recovery-errors=0 backlogDrain=4.538 finalDrain=9.757 recovery=6
+H: summary.json = C:\Users\Lenovo\AppData\Local\Temp\verify-ls-collector-h-5cabc6f0a23b422e894960a88030fd1b\summary.json
+H: collector out dir = C:\Users\Lenovo\AppData\Local\Temp\verify-ls-collector-h-5cabc6f0a23b422e894960a88030fd1b
+PASS  H: overload phase produced 429s (gateway) and/or 503s (admission) -- 429=2425 503=934
+PASS  H: gateway 429s are counted in the Nginx access log and admission 503s in the admission metric -- nginx429=2455 jtl429=2455 admissionDelta=1081 (concurrency=2 backlog=76 inflight=1003) jtl503=1081
+PASS  H: validator -Config C3 passes after the drain (check 5 PASS) -- exit=0
+PASS  H: no accepted work is lost (Outbox 0, main queues empty, SCARD=accepted, stock=initial-accepted) -- accepted=537 scard=537 stock=9463 unpublished=0
+PASS  H: backlog drain after overload is a number below the stated ceiling (60 s) -- backlogDrain=4.538 baselineMaxOutbox=20 baselineMaxDepth=18
+PASS  H: final drain (drain_time_s) is a number below the stated ceiling (120 s) -- drain=9.757 extract=True
+PASS  H: recovery_time_s is a number (first in-range 10 s window after the recovery phase starts; see docs/metrics.md) -- recovery=6
+PASS  H: no consumer held more than its prefetch (20) unacknowledged during the run -- peakUnacked=19
+PASS  H: recovery phase has 0 non-429/503 errors and p95 <= 1000 ms -- errors=0 p95=54
+PASS  H: the three service PIDs are unchanged across the run (no restart) -- order=32512->32512 inv=3268->3268 worker=24752->24752
+PASS  H: every refused key has no order row (bounded sample: up to 10 gateway 429s and 10 admission 503s from the JTL) -- 429-sampled=10 503-sampled=10 total429=2455 total503=1081
+All checks passed: the three C3 layers shed load early, the Outbox backlog is bounded, C2 is unchanged, and the backlog drains with recovery back to the stable range without a restart.
+Exit code: 0

@@ -187,6 +187,85 @@ public class OrderStateBehaviourTests : IDisposable
         Assert.False(await fresh.ProcessedMessages.AnyAsync(m => m.MessageId == messageId));
     }
 
+    /// <summary>
+    /// External review after Week 12: the start and completion consumers use
+    /// separate DbContexts, so a start event that read Confirmed could save
+    /// Processing over a Completed written in between. The save hook below
+    /// runs the completion on a second context at exactly that moment. The
+    /// start event must then lose (State is a concurrency token), re-read, and
+    /// acknowledge itself as stale instead of moving the order backwards.
+    /// </summary>
+    [Fact]
+    public async Task Late_start_event_never_moves_a_Completed_order_back_to_Processing()
+    {
+        var order = await SavedOrderInAsync(OrderState.Confirmed);
+        var startMessageId = Guid.NewGuid();
+        var completedInBetween = false;
+
+        var outcome = await StockResultProcessor.ProcessAsync(
+            _dbContext, order.Id, startMessageId, "OrderProcessingStarted", OrderState.Processing,
+            async () =>
+            {
+                if (!completedInBetween)
+                {
+                    completedInBetween = true;
+                    await using var other = Fresh();
+                    Assert.Equal(ResultProcessingOutcome.Applied, await StockResultProcessor.ProcessCompletionAsync(
+                        other, order.Id, order.Id, "OrderProcessed", DateTime.UtcNow,
+                        () => other.SaveChangesOnDbContextAsync(true)));
+                }
+                return await _dbContext.SaveChangesOnDbContextAsync(true);
+            });
+
+        Assert.Equal(ResultProcessingOutcome.AlreadyProcessed, outcome);
+        await using var fresh = Fresh();
+        Assert.Equal(OrderState.Completed, (await fresh.Orders.SingleAsync()).State);
+        Assert.False(await fresh.OrderStatusHistory.AnyAsync(h => h.FromState == OrderState.Completed));
+        // Recorded as handled, so a redelivery of the start event short-circuits.
+        Assert.True(await fresh.ProcessedMessages.AnyAsync(m => m.MessageId == startMessageId));
+    }
+
+    /// <summary>
+    /// The test above saves through SaveChangesOnDbContextAsync, which raises
+    /// EF's DbUpdateConcurrencyException. Production saves through
+    /// AbpDbContext.SaveChangesAsync, which rethrows it as
+    /// AbpDbConcurrencyException. The save hook here does the same rewrap, so
+    /// the production exception type is proven to trigger the re-decision too.
+    /// </summary>
+    [Fact]
+    public async Task Late_start_event_is_re_decided_when_the_conflict_arrives_as_AbpDbConcurrencyException()
+    {
+        var order = await SavedOrderInAsync(OrderState.Confirmed);
+        var startMessageId = Guid.NewGuid();
+        var completedInBetween = false;
+
+        var outcome = await StockResultProcessor.ProcessAsync(
+            _dbContext, order.Id, startMessageId, "OrderProcessingStarted", OrderState.Processing,
+            async () =>
+            {
+                if (!completedInBetween)
+                {
+                    completedInBetween = true;
+                    await using var other = Fresh();
+                    await StockResultProcessor.ProcessCompletionAsync(
+                        other, order.Id, order.Id, "OrderProcessed", DateTime.UtcNow,
+                        () => other.SaveChangesOnDbContextAsync(true));
+                }
+                try
+                {
+                    return await _dbContext.SaveChangesOnDbContextAsync(true);
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    throw new Volo.Abp.Data.AbpDbConcurrencyException(ex.Message, ex); // what AbpDbContext does
+                }
+            });
+
+        Assert.Equal(ResultProcessingOutcome.AlreadyProcessed, outcome);
+        await using var fresh = Fresh();
+        Assert.Equal(OrderState.Completed, (await fresh.Orders.SingleAsync()).State);
+    }
+
     [Fact]
     public async Task Result_for_an_unknown_order_is_reported_and_not_recorded()
     {

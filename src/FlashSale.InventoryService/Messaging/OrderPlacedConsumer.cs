@@ -99,6 +99,9 @@ public class OrderPlacedConsumer : BackgroundService
             {
                 _connection = await factory.CreateConnectionAsync(stoppingToken);
                 _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
+                // Bound how much of the queue sits unacknowledged in this consumer
+                // (RabbitMqOptions.EventBus.PrefetchCount).
+                await _channel.BasicQosAsync(0, _options.EventBus.PrefetchCount, global: false, stoppingToken);
 
                 await _channel.ExchangeDeclareAsync(
                     _options.EventBus.ExchangeName, ExchangeType.Direct, durable: true, autoDelete: false,

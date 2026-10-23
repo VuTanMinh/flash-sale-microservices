@@ -89,9 +89,12 @@ foreach ($w in @(@("Order", $opw), @("Inventory", $ipw))) {
     Check "$($w[0]) Outbox publisher: polls every ${poll}s, up to 50 rows, oldest first (as drawn)" (
         $poll -eq "2" -and $w[1].Contains(".OrderBy(e => e.CreatedAt)") -and $w[1].Contains(".Take(50)") -and
         ([regex]::Matches($hp, 'loop every 2s').Count -eq 2) -and $hp.Contains("SELECT up to 50 unpublished rows, oldest first"))
-    Check "$($w[0]) Outbox publisher marks a row published only after a confirmed publish" (
-        $w[1] -match '(?s)var published = await TryPublishWithRetryAsync\(.*?if \(published\)\s*\{\s*outboxEvent\.MarkPublished\(\)' -and
-        $w[1] -match 'await publisher\.PublishAsync\([^;]*\);\s*return true;')
+    # Since the review after Week 12 the row records when the confirmed publish
+    # was SENT (captured just before PublishAsync), still marked only after the
+    # awaited, confirmed publish returns.
+    Check "$($w[0]) Outbox publisher marks a row published only after a confirmed publish, stamped with its send time" (
+        $w[1] -match '(?s)var sentAt = await TryPublishWithRetryAsync\(.*?if \(sentAt is not null\)\s*\{\s*outboxEvent\.MarkPublished\(sentAt\.Value\)' -and
+        $w[1] -match 'var sentAt = DateTime\.UtcNow;\s*await publisher\.PublishAsync\([^;]*\);\s*return sentAt;')
 }
 foreach ($name in $publishers.Keys) {
     $p = $publishers[$name]
@@ -289,7 +292,24 @@ SELECT concat_ws('|',
         Check "A steps 10-13: Inventory logged the reservation as Reserved" ($invLog.Contains("OrderPlaced $idA for product $p -> Reserved"))
         Check "A steps 24-26: Process Worker received StockReserved and published OrderProcessed" (Before $wrkLog " for order $idA; starting downstream processing" "Order $idA processed in")
         Check "A: Order Service logged Confirmed before Completed" (Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Completed")
-        Check "A: Order Service logged the Processing step (start event) between Confirmed and Completed" ((Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Processing") -and (Before $ordLog "Order $idA -> Processing" "Order $idA -> Completed"))
+        # The Processing step has two legal paths (docs/order-state-machine.md):
+        # the start event applies it between Confirmed and Completed, or, when
+        # the start event lost the race (it arrived before StockReserved and was
+        # requeued), the completion applies Confirmed -> Processing (implied)
+        # -> Completed and the late start event is acked as a no-op. Either way
+        # the history is Confirmed, Processing, Completed in Seq order, and the
+        # log must match the path the history says was taken.
+        $histA = @((Sql "SELECT `"ToState`" || ':' || `"Implied`" FROM order_service.order_status_history WHERE `"OrderId`" = '$idA' ORDER BY `"Seq`";") -split "`n" | Where-Object { $_ -ne "" })
+        $histStates = @($histA | ForEach-Object { ($_ -split ':')[0] }) | Where-Object { $_ -ne "PendingStock" }
+        $procRow = @($histA | Where-Object { $_ -like "Processing:*" })
+        $pathOk = $false
+        if ($procRow.Count -eq 1 -and $procRow[0] -eq "Processing:false") {
+            $pathOk = (Before $ordLog "Order $idA -> Confirmed" "Order $idA -> Processing") -and (Before $ordLog "Order $idA -> Processing" "Order $idA -> Completed")
+        } elseif ($procRow.Count -eq 1 -and $procRow[0] -eq "Processing:true") {
+            $pathOk = (-not $ordLog.Contains("Order $idA -> Processing")) -and $ordLog.Contains("for order $idA already processed; acking as no-op")
+        }
+        Check "A: the Processing step is in the history between Confirmed and Completed, by the start event or implied by the completion, and the log matches the path" (
+            ($histStates -join ",") -eq "Confirmed,Processing,Completed" -and $pathOk) "history=$($histA -join ',')"
         Check "A: still exactly one order for the replayed key" ((Sql "SELECT count(*) FROM order_service.orders WHERE `"IdempotencyKey`" = '$keyA';") -eq "1")
 
         # ---------- B: sold out ----------

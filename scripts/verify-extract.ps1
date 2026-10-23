@@ -13,7 +13,9 @@
 #    extracted; every computed value must equal the hand-computed answer, the
 #    per-series reset counter, the delayed drain and the negative count included,
 #    "unavailable" stays "unavailable", and recovery is "unavailable" without
-#    -StableRange.
+#    -StableRange. Part 1b: with an idempotencyKey column the run's orders are
+#    exactly its submitted keys, a reconciliation re-publish adds no second
+#    interval row, and a recovery phase of refusals is "not_recovered".
 # 2. A real run. Order/Inventory/Worker run on a throwaway RabbitMQ (5700/15700)
 #    and Redis (6410) with the collector running; about 10 orders are placed and
 #    extracted; the accepted count equals the orders placed and each order's
@@ -30,7 +32,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 35     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 39     # number of Check calls in the try block (a truncated run must fail)
 
 # real-run stack (Part 2)
 $mq = "verify-ex-mq"; $amqp = 5700; $mgmt = 15700; $redis = "verify-ex-redis"; $redisPort = 6410
@@ -283,6 +285,58 @@ try {
     Check "collector: db connections mean/peak=1.8/3.0" (Near $sum.collector.db_connections.mean 1.8 0.0001 -and Near $sum.collector.db_connections.peak 3.0) "got=$($sum.collector.db_connections.mean)/$($sum.collector.db_connections.peak)"
     Check "collector: redis latency stays unavailable" (IsUnavailable $sum.collector.redis_mean_latency_us.value) "got=$($sum.collector.redis_mean_latency_us.value)"
     Check "collector: broker rates publish=100/120 deliver=50/60 ack=50/60" (Near $sum.collector.broker_rates.publish.mean 100.0 -and Near $sum.collector.broker_rates.publish.peak 120.0 -and Near $sum.collector.broker_rates.deliver_get.mean 50.0 -and Near $sum.collector.broker_rates.deliver_get.peak 60.0 -and Near $sum.collector.broker_rates.ack.mean 50.0 -and Near $sum.collector.broker_rates.ack.peak 60.0) "pub=$($sum.collector.broker_rates.publish.mean)/$($sum.collector.broker_rates.publish.peak)"
+
+    # ---- Part 1b (external review after Week 12). Run membership comes from
+    #      the run's own Idempotency-Keys, a reconciliation re-publish does not
+    #      add a second interval row, and refusals cannot satisfy recovery.
+    $keyDir = Join-Path $runDir "keys"
+    New-Item -ItemType Directory -Force -Path $keyDir | Out-Null
+    $keyed = @($seed[0].id, $seed[1].id, $seed[4].id)   # seed[4] is accepted at 00:00:06, outside the JTL's own window
+    $keyJtl = New-Object System.Collections.Generic.List[string]
+    $keyJtl.Add("$jtlHeader,idempotencyKey")
+    for ($i = 0; $i -lt 3; $i++) { $keyJtl.Add("$($base + $i * 100),10,submit-order,201,Created,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0,ek-$($keyed[$i])") }
+    $keyJtl.Add("$($base + 400),10,submit-order,429,Too Many Requests,T,text,false,,0,0,1,1,http://localhost/api/orders,0,0,0,ek-refused-$([guid]::NewGuid().ToString('N'))")
+    [IO.File]::WriteAllLines((Join-Path $keyDir "raw.jtl"), $keyJtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    # a reconciliation re-publish of seed[0]: a second, later OrderPlaced row
+    Sql "INSERT INTO order_service.outbox_events (`"Id`", `"OrderId`", `"EventType`", `"Payload`", `"Published`", `"CreatedAt`", `"PublishedAt`") VALUES ('$([guid]::NewGuid())', '$($seed[0].id)', 'OrderPlaced', '{}'::jsonb, true, '2026-01-01 00:00:09.000000', '2026-01-01 00:00:09.100000');" | Out-Null
+    & powershell -NoProfile -File $extract -RunId "keys" -RunDir $keyDir -Container $Container *> $null
+    $keyExit = $LASTEXITCODE
+    $keySum = $null
+    try { $keySum = Get-Content -LiteralPath (Join-Path $keyDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    $keyRows = @(); try { $keyRows = @(Import-Csv -LiteralPath (Join-Path $keyDir "stage-intervals.csv")) } catch { }
+    $seed0Row = @($keyRows | Where-Object { $_.order_id -eq $seed[0].id })
+    Check "membership: accepted_count = 3 by Idempotency-Key (refused key and out-of-window timing ignored)" ($keyExit -eq 0 -and (Eq $keySum.database.accepted_count 3) -and "$($keySum.database.run_membership)" -like "jtl idempotencyKey*") "exit=$keyExit accepted=$($keySum.database.accepted_count) membership=$($keySum.database.run_membership)"
+    Check "membership: one interval row per order; a re-published order keeps its original publish time (100 ms)" ($keyRows.Count -eq 3 -and $seed0Row.Count -eq 1 -and (Near $seed0Row[0].accepted_to_published_ms 100)) "rows=$($keyRows.Count) seed0-rows=$($seed0Row.Count) a2p=$(if ($seed0Row.Count -gt 0) { $seed0Row[0].accepted_to_published_ms })"
+
+    # Recovery: overload 0-5 s (all 503), recovery from 5 s at 2 req/s. Mixed:
+    # 503 for 5-8 s, then 201s, so with no refusals allowed and 2-s windows the
+    # first window in range starts at 8 s -> recovery = 3 s. All refused: the
+    # recovery phase never recovers.
+    foreach ($case in @("mixed", "allrefused")) {
+        $recDir = Join-Path $runDir "recovery-$case"
+        New-Item -ItemType Directory -Force -Path $recDir | Out-Null
+        Copy-Item -LiteralPath $samplesPath -Destination (Join-Path $recDir "samples.csv")
+        $recJtl = New-Object System.Collections.Generic.List[string]
+        $recJtl.Add($jtlHeader)
+        for ($k = 0; $k -lt 10; $k++) { $recJtl.Add("$($base + $k * 500),5,submit-overload,503,Service Unavailable,T,text,false,,0,0,1,1,http://localhost/api/orders,0,0,0") }
+        for ($k = 0; $k -lt 20; $k++) {
+            $code = "201"; if ($case -eq "allrefused" -or $k -lt 6) { $code = "503" }
+            $recJtl.Add("$($base + 5000 + $k * 500),50,submit-recovery,$code,x,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0")
+        }
+        [IO.File]::WriteAllLines((Join-Path $recDir "raw.jtl"), $recJtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
+        # In-process (&), not a child powershell -File: a hashtable argument
+        # does not survive the command line (verify-load-shedding.ps1 does the same).
+        & $extract -RunId "rec-$case" -RunDir $recDir -StableWindowSeconds 2 `
+            -StableRange @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 } *> $null
+        $recSum = $null
+        try { $recSum = Get-Content -LiteralPath (Join-Path $recDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+        $recValue = $recSum.collector.recovery_time_s.value
+        if ($case -eq "mixed") {
+            Check "recovery: first in-range 2-s window starts 3 s after overload removal" (Near $recValue 3) "got=$recValue"
+        } else {
+            Check "recovery: a recovery phase that refuses everything is not_recovered (never a number)" ($recValue -is [string] -and $recValue -eq "not_recovered") "got=$recValue"
+        }
+    }
 
     Cleanup-Seeded $cleanupIds
 

@@ -1,0 +1,147 @@
+TP-L04 on EC2 (second EC2 session, 2026-10-22, ap-southeast-2): main-test-bug-fix cf9c65d. terraform plan (read-only) 4 to add; owner applied.
+backend i-08732a429d04471f1 m7i-flex.large 172.31.4.247; jmeter i-04a7db80cbebc97d7 c7i-flex.large 172.31.14.29. C3 on: Nginx ORDER_RATE 20r/s burst 1, admission 8 concurrent / Outbox backlog 20, queue policy max-length 5. Phases 3/60/3 req/s for 30/60/60 s, product flash-product-1 stock 10000.
+Commands via SSM Run Command (read-only user + FlashSaleRunCommands). The JTL stays on the JMeter host; its summary is printed below. The backend extraction uses a 2-row JTL holding the first and last submission times (only for drain/recovery).
+
+=== 1. backend deploy ===
+status Success exit 0
+cloud-init: status: done
+git version 2.50.1
+PowerShell 7.4.20
+commit: cf9c65d
+ADMISSION_ENABLED=true
+ADMISSION_MAX_CONCURRENT_NEW_ORDERS=8
+ADMISSION_MAX_OUTBOX_BACKLOG=20
+ORDER_RATE=20r/s
+ORDER_BURST=1
+Unable to find image 'mcr.microsoft.com/dotnet/sdk:10.0.300' locally
+== build 16:28:50
+== up 16:30:08
+grafana running Up 48 seconds
+inventory-service running Up 53 seconds
+inventory-service-migrate exited Exited (0) 24 seconds ago
+nginx running Up 49 seconds
+order-service running Up 49 seconds
+order-service-migrate exited Exited (0) 20 seconds ago
+postgres running Up About a minute (healthy)
+process-worker running Up 53 seconds
+prometheus running Up 49 seconds
+rabbitmq running Up About a minute (healthy)
+redis running Up About a minute (healthy)
+infra-nginx-1 0.0.0.0:80->80/tcp, :::80->80/tcp
+== queue bound (flashsale-c3-bounds, max-length 5, reject-publish)
+name	policy
+StockRejected	flashsale-c3-bounds
+OrderProcessingStarted.retry.3	
+ProcessWorker.StockReserved	flashsale-c3-bounds
+StockReserved	flashsale-c3-bounds
+ProcessWorker.StockReserved.dlq	
+StockReserved.dlq	
+OrderPlaced.dlq	
+OrderProcessed.retry.1	
+OrderProcessingStarted.retry.2	
+OrderProcessingStarted.dlq	
+StockRejected.dlq	
+OrderProcessed.dlq	
+OrderProcessed.retry.3	
+OrderProcessingStarted.retry.1	
+OrderProcessingStarted	flashsale-c3-bounds
+OrderProcessed	flashsale-c3-bounds
+OrderProcessed.retry.2	
+OrderPlaced	flashsale-c3-bounds
+== warm-up flash-product-1 = 10000
+OK
+health 200
+done 16:31:47
+--- stderr ---
+
+=== 2. collector start ===
+﻿command 047858c6-66f6-4844-bab2-294369a16c3f
+status Success exit 0
+collector pid: 34540
+rows so far: 322
+4
+host,cpu_percent,"reason=first sample
+service,unavailable,error=process-worker : Connection refused (172.18.0.7:8080)
+infra-order-service-1 started 2026-10-22T16:30:57.159224743Z restarts 0
+infra-inventory-service-1 started 2026-10-22T16:30:53.096444999Z restarts 0
+infra-process-worker-1 started 2026-10-22T16:30:53.289420334Z restarts 0
+10000
+
+--- stderr ---
+
+
+=== 3. JMeter host: run and JTL summary ===
+﻿command e26eeea6-fd4e-414f-8d75-8edc703bc031
+status Success exit 0
+cloud-init: status: done
+5.6.3
+openjdk version "17.0.20.1" 2026-08-18 LTS
+commit: cf9c65d
+== run start 16:32:32
+summary =    174 in 00:00:27 =    6.5/s Avg:    52 Min:     1 Max:   564 Err:    57 (32.76%)
+summary =   1846 in 00:00:56 =   32.8/s Avg:     8 Min:     0 Max:   564 Err:  1408 (76.27%)
+summary =   3646 in 00:01:26 =   42.3/s Avg:     6 Min:     0 Max:   564 Err:  2878 (78.94%)
+summary =   4057 in 00:01:56 =   34.8/s Avg:     6 Min:     0 Max:   564 Err:  3131 (77.18%)
+summary =   4147 in 00:02:27 =   28.3/s Avg:     6 Min:     0 Max:   564 Err:  3131 (75.50%)
+summary =   4159 in 00:02:30 =   27.7/s Avg:     6 Min:     0 Max:   564 Err:  3131 (75.28%)
+... end of run
+== run end 16:35:05
+dashboard ok
+rows 4159 columns ['timeStamp', 'elapsed', 'label', 'responseCode', 'responseMessage', 'threadName', 'dataType', 'success', 'failureMessage', 'bytes', 'sentBytes', 'grpThreads', 'allThreads', 'URL', 'Latency', 'IdleTime', 'Connect', 'idempotencyKey']
+submit by label+code [(('submit-baseline', '201'), 126), (('submit-baseline', '429'), 12), (('submit-baseline', '503'), 46), (('submit-overload', '201'), 568), (('submit-overload', '429'), 2387), (('submit-overload', '503'), 629), (('submit-recovery', '201'), 204), (('submit-recovery', '429'), 12), (('submit-recovery', '503'), 45)]
+all by code [('200', 130), ('201', 898), ('429', 2411), ('503', 720)]
+first_submission_ms 1792686754051 last_submission_ms 1792686903741 overload_first_ms 1792686783830 overload_last_ms 1792686843872
+recovery_submissions 261 recovery_p95_ms 19 recovery_non_429_503_errors 0
+run_non_429_503_errors 0 []
+KEYS429 3c2ba398-ae0f-41fe-a8f7-beda93f3db53 0bc19c49-0c0d-4626-80ef-bdeed0f44216 aca843f2-8e7e-4d24-a9fb-e9ad6a57282b a08244e9-c68e-42be-8288-6a3510968242 4dea3438-cfcd-4548-8a38-9bb091891bea 5032e16c-a3b0-4fce-ab18-a827411b66d2 1bd82074-d1b7-492b-a65a-7e0014d14387 fd277aeb-d6b4-4627-91fa-c16b5ab4a75b 2f815116-7a4e-4296-83d9-2ac0adaa1e7f 3151de6d-eb44-4054-a8da-eef5f4357cf2
+KEYS503 13b24b9f-de05-473f-b4de-a21597c45940 7c7efedd-b4b9-4abe-b268-a1444c9446d1 e9d22aa2-70cb-4af0-956f-c46718978eac f0bb61ec-69bf-422b-8667-c0c2d00ccbb4 fc317fb1-0d17-4316-878f-8adbd6e26e92 ed3b1c4f-bf69-4afa-ab8d-e1d421f0953a f6af2759-9126-46bd-94be-84ff9a260137 daead307-ea69-4e22-94df-1b563f2fe9bb 9e9732cd-8f15-44dc-a8dc-e5e8df9cb70c 4648da0d-4fa2-4e9a-a66e-53eae4ac26bc
+accepted_201 898
+
+--- stderr ---
+
+
+=== 4. backend: drain, accounting, refused keys, counters, validator, extraction, backlog drain ===
+﻿command 7a04ebfc-65b7-47fb-9b5c-65e18ffe5578
+status Success exit 0
+== wait for the drain 16:35:26
+drained at 16:35:54
+outbox=0 pending=0 queues=0
+collector rows: 5562
+infra-order-service-1 started 2026-10-22T16:30:57.159224743Z restarts 0
+infra-inventory-service-1 started 2026-10-22T16:30:53.096444999Z restarts 0
+infra-process-worker-1 started 2026-10-22T16:30:53.289420334Z restarts 0
+== accounting
+accepted=898 scard=898 stock=9102
+Completed|898
+== refused keys with an order row (expect 0 / 0)
+429 sample 10 keys -> rows 0; 503 sample 10 keys -> rows 0
+== gateway and admission counters
+nginx 429 lines: 2411
+sh: 1: curl: not found
+flashsale_admission_rejected_total{reason="concurrency"} 0
+flashsale_admission_rejected_total{reason="backlog"} 720
+== validator C3
+
+
+Invariant                                 Status Detail
+---------                                 ------ ------
+1. available_inventory >= 0               PASS   stock 9102
+2. successful_reservations <= initial     PASS   Redis reservations 898, successful orders 898, initial 10000
+3. one reservation per order              PASS   Redis reservations and successful orders are the same 898 order ids
+4. duplicate message never double-deducts PASS   units taken 898 = distinct reserved orders 898; Inbox MessageId unique in both services
+5. accepted-order accounting              PASS   terminal 898 + outstanding 0 = accepted 898
+
+
+RESULT: all checks hold for C3.
+== extraction (final drain / recovery); 2-row JTL with the first and last submission times from the JMeter host
+collector drain_time_s=47.526 recovery_time_s=47.267 redis_latency_us=40.4966292134831
+final drain_time_s 47.526 | recovery_time_s 47.267
+peak depth {'OrderProcessed': 1.0, 'OrderProcessingStarted.retry.1': 1.0, 'ProcessWorker.StockReserved': 308.0}
+== backlog drain after overload (Outbox + ready messages back to the baseline max)
+baseline max outbox 5.0 ready 0.0 | peak outbox 5.0 | backlog drain after overload s 2.4
+
+--- stderr ---
+
+
+=== 5. after the owner ran terraform destroy (read-only profile) ===
+no instances (pending/running/stopping/stopped), no volumes, no elastic IPs, no network interfaces, no flashsale-* security groups

@@ -71,7 +71,13 @@ public static class StockResultProcessor
     /// SaveChangesAsync -- see OutboxAtomicityTests for the same documented
     /// limitation. Production code (the overload above) always uses the real one.
     /// </summary>
-    public static async Task<ResultProcessingOutcome> ProcessAsync(
+    public static Task<ResultProcessingOutcome> ProcessAsync(
+        OrderServiceDbContext dbContext, Guid orderId, Guid messageId, string eventType, OrderState targetState,
+        Func<Task<int>> saveChangesAsync) =>
+        RetryOnStateConflictAsync(dbContext,
+            () => ProcessOnceAsync(dbContext, orderId, messageId, eventType, targetState, saveChangesAsync));
+
+    private static async Task<ResultProcessingOutcome> ProcessOnceAsync(
         OrderServiceDbContext dbContext, Guid orderId, Guid messageId, string eventType, OrderState targetState,
         Func<Task<int>> saveChangesAsync)
     {
@@ -163,7 +169,13 @@ public static class StockResultProcessor
     /// (<paramref name="processingStartedAt"/>) and the confirmation time, per
     /// docs/order-state-machine.md (review R1).
     /// </summary>
-    public static async Task<ResultProcessingOutcome> ProcessCompletionAsync(
+    public static Task<ResultProcessingOutcome> ProcessCompletionAsync(
+        OrderServiceDbContext dbContext, Guid orderId, Guid messageId, string eventType,
+        DateTime? processingStartedAt, Func<Task<int>> saveChangesAsync) =>
+        RetryOnStateConflictAsync(dbContext,
+            () => ProcessCompletionOnceAsync(dbContext, orderId, messageId, eventType, processingStartedAt, saveChangesAsync));
+
+    private static async Task<ResultProcessingOutcome> ProcessCompletionOnceAsync(
         OrderServiceDbContext dbContext, Guid orderId, Guid messageId, string eventType,
         DateTime? processingStartedAt, Func<Task<int>> saveChangesAsync)
     {
@@ -261,6 +273,39 @@ public static class StockResultProcessor
 
         return ResultProcessingOutcome.Applied;
     }
+
+    // Order.State is a concurrency token (OrderServiceDbContext), so an UPDATE
+    // whose order changed state after this call read it matches no row. That
+    // is not an error: another consumer moved the order on (for example the
+    // completion landed while a start event was deciding). Discard this
+    // attempt's tracked changes and decide again from a fresh read, which then
+    // sees the newer state and usually answers AlreadyProcessed. The state only
+    // moves forward along a short path, so a few attempts are enough; a
+    // conflict that keeps repeating is thrown to the consumer's retry ladder.
+    private const int MaxStateConflictAttempts = 4;
+
+    private static async Task<ResultProcessingOutcome> RetryOnStateConflictAsync(
+        OrderServiceDbContext dbContext, Func<Task<ResultProcessingOutcome>> attempt)
+    {
+        for (var i = 1; ; i++)
+        {
+            try
+            {
+                return await attempt();
+            }
+            catch (Exception ex) when (IsStateConflict(ex) && i < MaxStateConflictAttempts)
+            {
+                ConsumerMetrics.StateConflicts.Inc();
+                dbContext.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    // AbpDbContext rethrows EF's DbUpdateConcurrencyException as
+    // AbpDbConcurrencyException; the test path (SaveChangesOnDbContextAsync)
+    // does not, so both are recognised.
+    private static bool IsStateConflict(Exception ex) =>
+        ex is DbUpdateConcurrencyException || ex is Volo.Abp.Data.AbpDbConcurrencyException;
 
     // Only a unique-key violation means "a concurrent delivery already recorded
     // this". Any other database error (connection lost, permission, ...) must

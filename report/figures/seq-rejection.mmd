@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    actor Client
+    participant NX as Nginx
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    participant R as Redis
+    participant PGI as PostgreSQL (inventory_service)
+    participant IP as Inventory Outbox publisher
+
+    Client->>NX: POST /api/orders (Idempotency-Key, quantity 1)
+    Note over NX: C3 gateway rate limit (429 when over ORDER_RATE)
+    autonumber off
+    NX->>OS: POST /api/orders (Idempotency-Key, quantity 1)
+    autonumber 2
+    OS->>PGO: one transaction: INSERT order (PendingStock) + Outbox row OrderPlaced
+    OS-->>NX: 201 Created (state PendingStock)
+    autonumber off
+    NX-->>Client: 201 Created (state PendingStock)
+    autonumber 4
+    Note over OS,MQ: Order Outbox publisher sends OrderPlaced exactly as in the happy path
+
+    MQ->>IS: deliver OrderPlaced
+    IS->>PGI: Inbox: MessageId already processed? (no)
+    IS->>R: EVAL reserve.lua (inventory, processed and sale:open keys)
+    alt sale open, stock is 0
+        R-->>IS: REJECTED (nothing deducted)
+    else no confirmed warm-up (sale:open missing)
+        R-->>IS: NOT_OPEN (nothing deducted)
+    end
+    IS->>PGI: one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row
+    IS->>MQ: ack OrderPlaced
+
+    loop every 2s
+        IP->>PGI: SELECT up to 50 unpublished rows, oldest first
+    end
+    IP->>MQ: check required queue StockRejected, publish StockRejected (mandatory, confirm)
+    IP->>PGI: mark the row published
+
+    MQ->>OS: deliver StockRejected
+    OS->>PGO: one transaction: Inbox check, PendingStock to Rejected, Inbox row
+    OS->>MQ: ack StockRejected
+
+    Client->>NX: GET /api/orders/{id}
+    autonumber off
+    NX->>OS: GET /api/orders/{id}
+    autonumber 18
+    OS-->>NX: 200 OK (state Rejected)
+    autonumber off
+    NX-->>Client: 200 OK (state Rejected)

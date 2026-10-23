@@ -1,0 +1,17 @@
+classDiagram
+    class InventoryOutboxEvent["OutboxEvent (Inventory)"] {
+        +Guid Id
+        +Guid OrderId
+        +string EventType
+        +string Payload
+        +bool Published
+        +DateTime CreatedAt
+        +DateTime? PublishedAt
+        +MarkPublished()
+    }
+    class InventoryProcessedMessage["ProcessedMessage (Inventory)"] {
+        +Guid Id
+        +Guid MessageId
+        +string MessageType
+        +DateTime ProcessedAt
+    }

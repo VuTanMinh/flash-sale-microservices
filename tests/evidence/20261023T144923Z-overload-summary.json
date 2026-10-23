@@ -1,0 +1,220 @@
+﻿{
+    "run_id":  "ls-h",
+    "window_from_utc":  "2026-10-23T14:53:54.6650000Z",
+    "window_to_utc":  "2026-10-23T14:56:24.0920000Z",
+    "percentile_method":  "nearest-rank",
+    "jtl":  {
+                "source":  "raw.jtl (C:\\Users\\Lenovo\\AppData\\Local\\Temp\\verify-ls-collector-h-8c3a6466262a4fd7b3ba8d1696864e23\\raw.jtl)",
+                "submission_count":  4084,
+                "submission_elapsed_ms":  {
+                                              "source":  "raw.jtl elapsed (nearest-rank)",
+                                              "p50":  2,
+                                              "p95":  29,
+                                              "p99":  40,
+                                              "max":  865
+                                          },
+                "offered_throughput_per_s":  27.331071359259038,
+                "overload_rejection_pct":  86.581782566111656,
+                "internal_error_pct":  0,
+                "other_non_2xx_pct":  0,
+                "polling_count":  73,
+                "polling_elapsed_ms":  {
+                                           "source":  "raw.jtl elapsed (nearest-rank)",
+                                           "p50":  12,
+                                           "p95":  16,
+                                           "p99":  98,
+                                           "max":  98
+                                       }
+            },
+    "database":  {
+                     "source":  "PostgreSQL (order_service.orders, order_service.outbox_events, inventory_service.outbox_events)",
+                     "run_membership":  "jtl idempotencyKey (4084 submitted keys)",
+                     "accepted_count":  548,
+                     "final_state_counts":  {
+                                                "Completed":  548
+                                            },
+                     "completed_count":  548,
+                     "pending_count":  0,
+                     "stages_ms":  {
+                                       "accepted_to_published":  {
+                                                                     "source":  "orders + outbox joins",
+                                                                     "p50":  1237.821,
+                                                                     "p95":  2115.081,
+                                                                     "p99":  2287.846,
+                                                                     "negative_count":  0,
+                                                                     "missing_count":  0
+                                                                 },
+                                       "published_to_decided":  {
+                                                                    "source":  "orders + outbox joins",
+                                                                    "p50":  10.96,
+                                                                    "p95":  18.217,
+                                                                    "p99":  510.116,
+                                                                    "negative_count":  0,
+                                                                    "missing_count":  0
+                                                                },
+                                       "decided_to_applied":  {
+                                                                  "source":  "orders + outbox joins",
+                                                                  "p50":  1559.497,
+                                                                  "p95":  2146.712,
+                                                                  "p99":  2180.895,
+                                                                  "negative_count":  0,
+                                                                  "missing_count":  0
+                                                              },
+                                       "applied_to_completed":  {
+                                                                    "source":  "orders + outbox joins",
+                                                                    "p50":  2690.963,
+                                                                    "p95":  4408.174,
+                                                                    "p99":  4781.048,
+                                                                    "negative_count":  0,
+                                                                    "missing_count":  0
+                                                                },
+                                       "accepted_to_completed":  {
+                                                                     "source":  "orders + outbox joins",
+                                                                     "p50":  6058.071,
+                                                                     "p95":  6788.33,
+                                                                     "p99":  7352.439,
+                                                                     "negative_count":  0,
+                                                                     "missing_count":  0
+                                                                 }
+                                   },
+                     "stock_rates_pct":  {
+                                             "source":  "inventory_service.outbox_events",
+                                             "reserved":  100,
+                                             "rejected":  0,
+                                             "reserved_count":  548,
+                                             "rejected_count":  0
+                                         }
+                 },
+    "collector":  {
+                      "peak_queue_depth":  {
+                                               "source":  "samples.csv (rabbitmq messages_ready + messages_unacknowledged)",
+                                               "per_queue":  {
+                                                                 "OrderPlaced":  0,
+                                                                 "OrderPlaced.dlq":  0,
+                                                                 "OrderProcessed":  1,
+                                                                 "OrderProcessed.dlq":  0,
+                                                                 "OrderProcessed.retry.1":  0,
+                                                                 "OrderProcessed.retry.2":  0,
+                                                                 "OrderProcessed.retry.3":  0,
+                                                                 "OrderProcessingStarted":  1,
+                                                                 "OrderProcessingStarted.dlq":  0,
+                                                                 "OrderProcessingStarted.retry.1":  1,
+                                                                 "OrderProcessingStarted.retry.2":  0,
+                                                                 "OrderProcessingStarted.retry.3":  0,
+                                                                 "ProcessWorker.StockReserved":  20,
+                                                                 "ProcessWorker.StockReserved.dlq":  0,
+                                                                 "StockRejected":  0,
+                                                                 "StockRejected.dlq":  0,
+                                                                 "StockReserved":  0,
+                                                                 "StockReserved.dlq":  0
+                                                             }
+                                           },
+                      "peak_oldest_age_seconds":  {
+                                                      "source":  "samples.csv (rabbitmq oldest_age_seconds)",
+                                                      "per_queue":  {
+                                                                        "OrderPlaced":  0,
+                                                                        "OrderPlaced.dlq":  0,
+                                                                        "OrderProcessed":  6,
+                                                                        "OrderProcessed.dlq":  0,
+                                                                        "OrderProcessed.retry.1":  0,
+                                                                        "OrderProcessed.retry.2":  0,
+                                                                        "OrderProcessed.retry.3":  0,
+                                                                        "OrderProcessingStarted":  6,
+                                                                        "OrderProcessingStarted.dlq":  0,
+                                                                        "OrderProcessingStarted.retry.1":  9,
+                                                                        "OrderProcessingStarted.retry.2":  0,
+                                                                        "OrderProcessingStarted.retry.3":  0,
+                                                                        "ProcessWorker.StockReserved":  11,
+                                                                        "ProcessWorker.StockReserved.dlq":  0,
+                                                                        "StockRejected":  0,
+                                                                        "StockRejected.dlq":  0,
+                                                                        "StockReserved":  0,
+                                                                        "StockReserved.dlq":  0
+                                                                    }
+                                                  },
+                      "drain_time_s":  {
+                                           "source":  "samples.csv (queues + outbox gauges) + DB pending-order count",
+                                           "value":  7.148
+                                       },
+                      "recovery_time_s":  {
+                                              "source":  "raw.jtl 10-s windows after overload removal + -StableRange",
+                                              "overload_removed_utc":  "2026-10-23T14:55:24.3590000Z",
+                                              "value":  7
+                                          },
+                      "counters":  {
+                                       "source":  "samples.csv (service flashsale_*_total, reset-aware increase)",
+                                       "retries":  0,
+                                       "duplicates":  14,
+                                       "dead_lettered":  0,
+                                       "reconciliation":  0
+                                   },
+                      "host_cpu_percent":  {
+                                               "source":  "samples.csv (host)",
+                                               "mean":  29.805555555555557,
+                                               "peak":  50
+                                           },
+                      "host_memory_used_bytes":  {
+                                                     "source":  "samples.csv (host)",
+                                                     "mean":  14268934599.111111,
+                                                     "peak":  14370934784
+                                                 },
+                      "process_cpu_rate_cores":  {
+                                                     "source":  "samples.csv (service process_cpu_seconds_total rate)",
+                                                     "per_service":  {
+                                                                         "order-service":  {
+                                                                                               "peak":  1.0212622426544073,
+                                                                                               "mean":  0.30927804679733689
+                                                                                           },
+                                                                         "inventory-service":  {
+                                                                                                   "peak":  0.77106318956870623,
+                                                                                                   "mean":  0.093333625233209566
+                                                                                               },
+                                                                         "process-worker":  {
+                                                                                                "peak":  0.23508024072216652,
+                                                                                                "mean":  0.041529465317255383
+                                                                                            }
+                                                                     }
+                                                 },
+                      "process_memory_bytes":  {
+                                                   "source":  "samples.csv (service process_working_set_bytes)",
+                                                   "per_service":  {
+                                                                       "order-service":  {
+                                                                                             "peak":  359964672,
+                                                                                             "mean":  309726435.55555558
+                                                                                         },
+                                                                       "inventory-service":  {
+                                                                                                 "peak":  227942400,
+                                                                                                 "mean":  207211064.8888889
+                                                                                             },
+                                                                       "process-worker":  {
+                                                                                              "peak":  82563072,
+                                                                                              "mean":  77818766.222222224
+                                                                                          }
+                                                                   }
+                                               },
+                      "db_connections":  {
+                                             "source":  "samples.csv (postgres)",
+                                             "mean":  17.638888888888889,
+                                             "peak":  19
+                                         },
+                      "redis_mean_latency_us":  {
+                                                    "source":  "samples.csv (redis delta(usec)/delta(calls))",
+                                                    "value":  59.213503649635037
+                                                },
+                      "broker_rates":  {
+                                           "source":  "samples.csv (rabbitmq)",
+                                           "publish":  {
+                                                           "peak":  34.4,
+                                                           "mean":  11.58888888888889
+                                                       },
+                                           "deliver_get":  {
+                                                               "peak":  43.4,
+                                                               "mean":  15.300000000000004
+                                                           },
+                                           "ack":  {
+                                                       "peak":  42.8,
+                                                       "mean":  15.299999999999995
+                                                   }
+                                       }
+                  }
+}

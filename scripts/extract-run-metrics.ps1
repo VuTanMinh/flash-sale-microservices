@@ -20,8 +20,18 @@
 #                 JMeter plan must label samplers so these match; defaults are
 #                 "submit" and "poll".
 #   -StableRange  optional hashtable of pilot-defined thresholds for recovery
-#                 time (keys max_p95_ms, max_error_pct, min_throughput_per_s).
-#                 Without it recovery time is "unavailable", never 0.
+#                 time (keys max_p95_ms, max_error_pct, min_throughput_per_s =
+#                 accepted 2xx per second, and optionally max_refused_pct and
+#                 max_outbox_backlog). Without it recovery time is
+#                 "unavailable", never 0.
+#   -OverloadEnd / -RecoveryLabelPattern / -StableWindowSeconds
+#                 when the overload was removed (default: the first submission
+#                 labelled "recovery") and how long a window must stay in the
+#                 stable range (default 10 s) for recovery to count.
+#
+# Run membership: with an idempotencyKey column in the JTL, the database block
+# counts exactly the orders whose key the run submitted; otherwise it falls
+# back to the acceptance time window. summary.json says which was used.
 #
 # Outputs (both written to <RunDir>/):
 #   summary.json         every metric with its value; each group carries a
@@ -43,7 +53,10 @@ param(
     [string]$Container = "",
     [string]$SubmissionLabelPattern = "submit",
     [string]$PollingLabelPattern = "poll",
-    [hashtable]$StableRange = $null
+    [hashtable]$StableRange = $null,
+    [string]$OverloadEnd = "",
+    [string]$RecoveryLabelPattern = "recovery",
+    [int]$StableWindowSeconds = 10
 )
 
 # Continue, not Stop: under Windows PowerShell 5.1, redirected stderr from a
@@ -127,9 +140,14 @@ function MeanPeak([double[]]$values) {
     foreach ($v in $values) { $sum += $v; if ($v -gt $peak) { $peak = $v } }
     return @{ mean = ($sum / $values.Count); peak = $peak }
 }
+# Throws when psql (or docker exec) fails, so a failed query can never be read
+# as an empty result and cast to 0. Only the reachability probe below catches it.
 function Sql([string]$sql) {
     $out = $sql | docker exec -i $Container psql -U flashsale -d flashsale -At -v ON_ERROR_STOP=1 -f - 2>&1
-    return (@($out | ForEach-Object { "$_" } | Where-Object { $_ -ne "" }) -join "`n")
+    $code = $LASTEXITCODE
+    $text = (@($out | ForEach-Object { "$_" } | Where-Object { $_ -ne "" }) -join "`n")
+    if ($code -ne 0) { throw "SQL failed (exit $code): $text" }
+    return $text
 }
 function SqlTs([DateTime]$d) { return $d.ToString('yyyy-MM-dd HH:mm:ss.ffffff', $inv) }
 
@@ -163,6 +181,8 @@ function JtlTime([object]$r) {
 }
 $subElapsed = @(); $pollElapsed = @()
 $subCount = 0; $pollCount = 0
+$runKeys = New-Object System.Collections.Generic.HashSet[string]
+$subSamples = New-Object System.Collections.Generic.List[object]   # t, code, elapsed, label (for recovery)
 $overloadCount = 0; $internalErrorCount = 0; $otherNon2xxCount = 0
 $subTimes = @()
 foreach ($r in $jtlRows) {
@@ -177,6 +197,9 @@ foreach ($r in $jtlRows) {
         $subTimes += $t
         $el = Num ([string]$r.elapsed)
         if ($null -ne $el) { $subElapsed += $el }
+        $key = [string]$r.idempotencyKey
+        if ($key -ne "") { [void]$runKeys.Add($key) }
+        $subSamples.Add([pscustomobject]@{ t = $t; code = $code; elapsed = $el; label = $label })
         if ($code -eq "429" -or $code -eq "503") { $overloadCount++ }
         elseif ($code -match '^5\d\d$' -and $code -ne "503") { $internalErrorCount++ }
         elseif ($code -notmatch '^2\d\d$') { $otherNon2xxCount++ }
@@ -230,17 +253,39 @@ if ($Container -ne "") {
         $fromSql = SqlTs $windowFrom
         $toSql = SqlTs $windowTo
 
-        $accepted = [int](Sql "SELECT count(*) FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql';")
-        $completed = [int](Sql "SELECT count(*) FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql' AND `"State`" = 'Completed';")
-        $pending = [int](Sql "SELECT count(*) FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql' AND `"State`" IN ('PendingStock','Confirmed','Processing');")
-        $stateLines = @((Sql "SELECT `"State`" || '|' || count(*) FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql' GROUP BY `"State`" ORDER BY `"State`";") -split "`n" | Where-Object { $_ -ne "" })
+        # Which orders belong to this run. When the JTL carries the
+        # Idempotency-Key of each submission (JMeter -Jsample_variables=
+        # idempotencyKey), an order is in the run exactly when its key was
+        # submitted by it: no timing edge at either end, and no stray order
+        # from another client. Without keys, fall back to the acceptance time
+        # window (older plans), and say so in summary.json.
+        $safeKeys = @($runKeys | Where-Object { $_ -match '^[A-Za-z0-9-]{1,100}$' })
+        if ($safeKeys.Count -gt 0) {
+            $keyArray = "ARRAY['" + ($safeKeys -join "','") + "']::text[]"
+            $member = "`"IdempotencyKey`" = ANY($keyArray)"
+            $memberO = "o.`"IdempotencyKey`" = ANY($keyArray)"
+            $membership = "jtl idempotencyKey ($($safeKeys.Count) submitted keys)"
+        } else {
+            $member = "`"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql'"
+            $memberO = "o.`"RequestAcceptedAt`" >= '$fromSql' AND o.`"RequestAcceptedAt`" <= '$toSql'"
+            $membership = "acceptance time window (no idempotencyKey column in the JTL)"
+        }
+
+        $accepted = [int](Sql "SELECT count(*) FROM order_service.orders WHERE $member;")
+        $completed = [int](Sql "SELECT count(*) FROM order_service.orders WHERE $member AND `"State`" = 'Completed';")
+        $pending = [int](Sql "SELECT count(*) FROM order_service.orders WHERE $member AND `"State`" IN ('PendingStock','Confirmed','Processing');")
+        $stateLines = @((Sql "SELECT `"State`" || '|' || count(*) FROM order_service.orders WHERE $member GROUP BY `"State`" ORDER BY `"State`";") -split "`n" | Where-Object { $_ -ne "" })
         $stateCounts = [ordered]@{}
         foreach ($line in $stateLines) {
             $parts = @($line -split '\|')
             if ($parts.Count -ge 2) { $stateCounts[[string]$parts[0]] = [int]$parts[1] }
         }
 
-        # One row per accepted order: id|state|accepted|orderPublished|invCreated|applied|completed
+        # One row per accepted order: id|state|accepted|orderPublished|invCreated|applied|completed.
+        # Exactly one row per order: reconciliation re-publishes a stuck order
+        # by adding another OrderPlaced Outbox row, so a plain join would repeat
+        # the order once per re-trigger. The stage times come from the ORIGINAL
+        # OrderPlaced row and the first Inventory result row (earliest CreatedAt).
         $stageSql = @"
 SELECT o."Id"::text || '|' || o."State" || '|' ||
        to_char(o."RequestAcceptedAt", 'YYYY-MM-DD HH24:MI:SS.US') || '|' ||
@@ -249,9 +294,13 @@ SELECT o."Id"::text || '|' || o."State" || '|' ||
        coalesce(to_char(o."ConfirmedOrRejectedAt", 'YYYY-MM-DD HH24:MI:SS.US'), '') || '|' ||
        coalesce(to_char(o."CompletedAt", 'YYYY-MM-DD HH24:MI:SS.US'), '')
 FROM order_service.orders o
-LEFT JOIN order_service.outbox_events op ON op."OrderId" = o."Id" AND op."EventType" = 'OrderPlaced'
-LEFT JOIN inventory_service.outbox_events io ON io."OrderId" = o."Id"
-WHERE o."RequestAcceptedAt" >= '$fromSql' AND o."RequestAcceptedAt" <= '$toSql'
+LEFT JOIN LATERAL (SELECT x."PublishedAt" FROM order_service.outbox_events x
+                   WHERE x."OrderId" = o."Id" AND x."EventType" = 'OrderPlaced'
+                   ORDER BY x."CreatedAt", x."Id" LIMIT 1) op ON true
+LEFT JOIN LATERAL (SELECT y."CreatedAt" FROM inventory_service.outbox_events y
+                   WHERE y."OrderId" = o."Id"
+                   ORDER BY y."CreatedAt", y."Id" LIMIT 1) io ON true
+WHERE $memberO
 ORDER BY o."RequestAcceptedAt";
 "@
         $stageLines = @((Sql $stageSql) -split "`n" | Where-Object { $_ -ne "" })
@@ -297,14 +346,15 @@ ORDER BY o."RequestAcceptedAt";
         }
 
         # stock success/rejection rates over unique decisions (Inventory results by type)
-        $reserved = [int](Sql "SELECT count(*) FROM inventory_service.outbox_events io WHERE io.`"EventType`" = 'StockReserved' AND io.`"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql');")
-        $rejected = [int](Sql "SELECT count(*) FROM inventory_service.outbox_events io WHERE io.`"EventType`" = 'StockRejected' AND io.`"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSql' AND `"RequestAcceptedAt`" <= '$toSql');")
+        $reserved = [int](Sql "SELECT count(DISTINCT io.`"OrderId`") FROM inventory_service.outbox_events io WHERE io.`"EventType`" = 'StockReserved' AND io.`"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE $member);")
+        $rejected = [int](Sql "SELECT count(DISTINCT io.`"OrderId`") FROM inventory_service.outbox_events io WHERE io.`"EventType`" = 'StockRejected' AND io.`"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE $member);")
         $denom = $reserved + $rejected
         $reservedPct = $null; $rejectedPct = $null
         if ($denom -gt 0) { $reservedPct = $reserved * 100.0 / $denom; $rejectedPct = $rejected * 100.0 / $denom }
 
         $dbBlock = [ordered]@{
             source = "PostgreSQL (order_service.orders, order_service.outbox_events, inventory_service.outbox_events)"
+            run_membership = $membership
             accepted_count = $accepted
             final_state_counts = $stateCounts
             completed_count = $completed
@@ -496,7 +546,10 @@ if (Test-Path -LiteralPath $samplesPath) {
             if ($null -ne $lastSampleTime -and $Container -ne "") {
                 $maxSampleSql = SqlTs $lastSampleTime
                 $fromSqlDrain = SqlTs $windowFrom
-                $pendingSql = "SELECT to_char(`"RequestAcceptedAt`", 'YYYY-MM-DD HH24:MI:SS.US') || '|' || coalesce(to_char(`"CompletedAt`", 'YYYY-MM-DD HH24:MI:SS.US'), '') || '|' || coalesce(to_char(`"ConfirmedOrRejectedAt`", 'YYYY-MM-DD HH24:MI:SS.US'), '') || '|' || `"State`" FROM order_service.orders WHERE `"RequestAcceptedAt`" >= '$fromSqlDrain' AND `"RequestAcceptedAt`" <= '$maxSampleSql';"
+                # Same run membership as the database block when the JTL has keys.
+                $drainMember = "`"RequestAcceptedAt`" >= '$fromSqlDrain' AND `"RequestAcceptedAt`" <= '$maxSampleSql'"
+                if ($safeKeys.Count -gt 0) { $drainMember = $member }
+                $pendingSql = "SELECT to_char(`"RequestAcceptedAt`", 'YYYY-MM-DD HH24:MI:SS.US') || '|' || coalesce(to_char(`"CompletedAt`", 'YYYY-MM-DD HH24:MI:SS.US'), '') || '|' || coalesce(to_char(`"ConfirmedOrRejectedAt`", 'YYYY-MM-DD HH24:MI:SS.US'), '') || '|' || `"State`" FROM order_service.orders WHERE $drainMember;"
                 $pendingLines = @((Sql $pendingSql) -split "`n" | Where-Object { $_ -ne "" })
             }
             $sortedTimes = @($times | Sort-Object)
@@ -540,17 +593,62 @@ if (Test-Path -LiteralPath $samplesPath) {
         }
 
         # ---- recovery time (only with -StableRange)
+        # From overload removal until the start of the first -StableWindowSeconds
+        # window of submissions that is back in the stable range, judged on the
+        # requests in that window only:
+        #   p95 elapsed <= max_p95_ms; internal errors (5xx except 503) <=
+        #   max_error_pct; refusals (429 + 503) <= max_refused_pct (when given);
+        #   ACCEPTED (2xx) throughput >= min_throughput_per_s; and, when
+        #   max_outbox_backlog is given, the Order Outbox gauge at the window
+        #   start is at or below it (the backlog has drained).
+        # A phase that refuses everything therefore never counts as recovered.
+        # Overload removal is -OverloadEnd, else the first submission whose
+        # label matches -RecoveryLabelPattern. No window in range gives
+        # "not_recovered"; no recovery phase at all gives "unavailable".
         $recovery = "unavailable"
+        $recoveryFrom = $null
         if ($null -ne $StableRange -and $StableRange.Count -gt 0) {
-            $maxP95 = $StableRange["max_p95_ms"]; $maxErr = $StableRange["max_error_pct"]; $minTp = $StableRange["min_throughput_per_s"]
-            $thresholdsOk = $true
-            if ($null -ne $maxP95 -and $null -ne $subPct.p95 -and $subPct.p95 -gt [double]$maxP95) { $thresholdsOk = $false }
-            if ($null -ne $maxErr -and $null -ne $internalErrorPct -and $internalErrorPct -gt [double]$maxErr) { $thresholdsOk = $false }
-            if ($null -ne $minTp -and $null -ne $offeredThroughput -and $offeredThroughput -lt [double]$minTp) { $thresholdsOk = $false }
-            if ($thresholdsOk -and $null -ne $drainedTime -and $drainedTime -ge $windowTo) {
-                # overload removal is the end of the submission window (To);
-                # recovery is the time from To until the backlog drained again.
-                $recovery = ($drainedTime - $windowTo).TotalSeconds
+            $maxP95 = $StableRange["max_p95_ms"]; $maxErr = $StableRange["max_error_pct"]
+            $minTp = $StableRange["min_throughput_per_s"]; $maxRefused = $StableRange["max_refused_pct"]
+            $maxBacklog = $StableRange["max_outbox_backlog"]
+            if ($OverloadEnd -ne "") {
+                $recoveryFrom = [DateTime]::Parse($OverloadEnd, $inv, [Globalization.DateTimeStyles]'AssumeUniversal, AdjustToUniversal')
+            } else {
+                $firstRecovery = @($subSamples | Where-Object { $_.label -match $RecoveryLabelPattern } | Sort-Object t | Select-Object -First 1)
+                if ($firstRecovery.Count -gt 0) { $recoveryFrom = $firstRecovery[0].t }
+            }
+            $outboxSeries = @(foreach ($r in $rows) {
+                if ($r.name -eq "flashsale_outbox_unpublished" -and (HasLabel ([string]$r.labels) "service=order-service")) {
+                    $ot = Time ([string]$r.utc_time); $ov = Num ([string]$r.value)
+                    if ($null -ne $ot -and $null -ne $ov) { [pscustomobject]@{ t = $ot; v = $ov } }
+                }
+            }) | Sort-Object t
+            if ($null -ne $recoveryFrom) {
+                $after = @($subSamples | Where-Object { $_.t -ge $recoveryFrom })
+                $recovery = "not_recovered"
+                if ($after.Count -gt 0) {
+                    $lastAfter = ($after | Sort-Object t)[-1].t
+                    $w = [double]$StableWindowSeconds
+                    for ($s = 0; $recoveryFrom.AddSeconds($s + $w) -le $lastAfter.AddSeconds(1); $s++) {
+                        $ws = $recoveryFrom.AddSeconds($s); $we = $ws.AddSeconds($w)
+                        $win = @($after | Where-Object { $_.t -ge $ws -and $_.t -lt $we })
+                        if ($win.Count -eq 0) { continue }
+                        $ok2xx = @($win | Where-Object { $_.code -match '^2\d\d$' }).Count
+                        $refused = @($win | Where-Object { $_.code -eq "429" -or $_.code -eq "503" }).Count
+                        $internal = @($win | Where-Object { $_.code -match '^5\d\d$' -and $_.code -ne "503" }).Count
+                        $p95w = (Summarize @($win | Where-Object { $null -ne $_.elapsed } | ForEach-Object { [double]$_.elapsed })).p95
+                        $inRange = $true
+                        if ($null -ne $maxP95 -and ($null -eq $p95w -or $p95w -gt [double]$maxP95)) { $inRange = $false }
+                        if ($null -ne $maxErr -and ($internal * 100.0 / $win.Count) -gt [double]$maxErr) { $inRange = $false }
+                        if ($null -ne $maxRefused -and ($refused * 100.0 / $win.Count) -gt [double]$maxRefused) { $inRange = $false }
+                        if ($null -ne $minTp -and ($ok2xx / $w) -lt [double]$minTp) { $inRange = $false }
+                        if ($null -ne $maxBacklog) {
+                            $atStart = @($outboxSeries | Where-Object { $_.t -le $ws }) | Select-Object -Last 1
+                            if ($null -eq $atStart -or $atStart.v -gt [double]$maxBacklog) { $inRange = $false }
+                        }
+                        if ($inRange) { $recovery = [double]$s; break }
+                    }
+                }
             }
         }
 
@@ -558,7 +656,7 @@ if (Test-Path -LiteralPath $samplesPath) {
             peak_queue_depth = [ordered]@{ source = "samples.csv (rabbitmq messages_ready + messages_unacknowledged)"; per_queue = $peakDepth }
             peak_oldest_age_seconds = [ordered]@{ source = "samples.csv (rabbitmq oldest_age_seconds)"; per_queue = $peakAge }
             drain_time_s = [ordered]@{ source = "samples.csv (queues + outbox gauges) + DB pending-order count"; value = $(if ($null -eq $drainSeconds) { "unavailable" } else { $drainSeconds }) }
-            recovery_time_s = [ordered]@{ source = "samples.csv + -StableRange"; value = $recovery }
+            recovery_time_s = [ordered]@{ source = "raw.jtl $StableWindowSeconds-s windows after overload removal + -StableRange"; overload_removed_utc = $(if ($null -eq $recoveryFrom) { $null } else { $recoveryFrom.ToString("o", $inv) }); value = $recovery }
             counters = [ordered]@{ source = "samples.csv (service flashsale_*_total, reset-aware increase)"; retries = $(if ($null -eq $cRetries) { "unavailable" } else { $cRetries }); duplicates = $(if ($null -eq $cDups) { "unavailable" } else { $cDups }); dead_lettered = $(if ($null -eq $cDlq) { "unavailable" } else { $cDlq }); reconciliation = $(if ($null -eq $cRecon) { "unavailable" } else { $cRecon }) }
             host_cpu_percent = [ordered]@{ source = "samples.csv (host)"; mean = $hostCpu.mean; peak = $hostCpu.peak }
             host_memory_used_bytes = [ordered]@{ source = "samples.csv (host)"; mean = $hostMem.mean; peak = $hostMem.peak }

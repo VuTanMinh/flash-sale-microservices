@@ -15,7 +15,8 @@ namespace FlashSale.OrderService.Messaging;
 
 /// <summary>
 /// Step 10.3's safety net: periodically scans for orders stuck in
-/// PendingStock past a configurable timeout and re-triggers processing --
+/// PendingStock past a configurable timeout (and, since the review after
+/// Week 12, in Confirmed or Processing; see WhereStuck) and re-triggers processing --
 /// nothing more. Proposal §5 is explicit that this is a safety net, not a
 /// replacement for Outbox (Week 6), retry (Step 10.1), or DLQ (Step 10.2):
 /// under normal operation this should almost never find anything, since
@@ -111,12 +112,8 @@ public class ReconciliationWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
 
-        var stuckTimeout = TimeSpan.FromSeconds(_options.StuckTimeoutSeconds);
-        var cutoff = DateTime.UtcNow - stuckTimeout;
-
-        var stuckOrders = await dbContext.Orders
-            .Where(o => o.State == OrderState.PendingStock && o.RequestAcceptedAt < cutoff)
-            .ToListAsync(stoppingToken);
+        var now = DateTime.UtcNow;
+        var stuckOrders = await WhereStuck(dbContext.Orders, now, _options).ToListAsync(stoppingToken);
 
         OrderMetrics.ReconciliationStuckOrders.Set(stuckOrders.Count);
 
@@ -146,7 +143,8 @@ public class ReconciliationWorker : BackgroundService
                 .ToListAsync(stoppingToken);
 
             var pastRetriggers = ReconciliationPolicy.PastRetriggers(orderPlacedRows.Count);
-            var recentlyRetriggered = orderPlacedRows.Any(e => e.CreatedAt >= cutoff);
+            var stuckTimeout = StuckTimeout(order.State, _options);
+            var recentlyRetriggered = orderPlacedRows.Any(e => e.CreatedAt >= now - stuckTimeout);
 
             switch (ReconciliationPolicy.Decide(pastRetriggers, recentlyRetriggered, _options.MaxAttempts))
             {
@@ -161,26 +159,54 @@ public class ReconciliationWorker : BackgroundService
                     {
                         OrderMetrics.ReconciliationGivenUp.Inc();
                         _logger.LogError(
-                            "Reconciliation: order {OrderId} still PendingStock after {Attempts} re-triggers (age {Age}); giving up and surfacing as unresolved",
-                            order.Id, pastRetriggers, DateTime.UtcNow - order.RequestAcceptedAt);
+                            "Reconciliation: order {OrderId} still {State} after {Attempts} re-triggers (age {Age}); giving up and surfacing as unresolved",
+                            order.Id, order.State, pastRetriggers, DateTime.UtcNow - order.RequestAcceptedAt);
                     }
                     break;
 
                 case ReconciliationPolicy.Decision.ReTrigger:
                     OrderMetrics.ReconciliationRetriggers.Inc();
                     _logger.LogWarning(
-                        "Reconciliation: order {OrderId} stuck in PendingStock for over {Timeout} (accepted {RequestAcceptedAt}); re-publishing OrderPlaced (re-trigger {Attempt}/{MaxAttempts})",
-                        order.Id, stuckTimeout, order.RequestAcceptedAt, pastRetriggers + 1, _options.MaxAttempts);
+                        "Reconciliation: order {OrderId} stuck in {State} for over {Timeout} (accepted {RequestAcceptedAt}); re-publishing OrderPlaced (re-trigger {Attempt}/{MaxAttempts})",
+                        order.Id, order.State, stuckTimeout, order.RequestAcceptedAt, pastRetriggers + 1, _options.MaxAttempts);
 
                     dbContext.OutboxEvents.Add(OutboxEvent.ForOrderPlaced(order));
                     await dbContext.SaveChangesAsync(stoppingToken);
                     break;
 
                 case ReconciliationPolicy.Decision.RecentlyReTriggered:
-                    // Within StuckTimeoutSeconds of the last re-trigger -- wait
+                    // Within this state's timeout of the last re-trigger -- wait
                     // for the next full timeout window before acting again.
                     break;
             }
         }
     }
+
+    /// <summary>
+    /// Which orders count as stuck at <paramref name="now"/>. PendingStock is
+    /// timed from acceptance (no stock decision yet). Confirmed and Processing
+    /// are timed from the stock confirmation, against the longer
+    /// ProcessingStuckTimeoutSeconds: the Worker's StockReserved, start event
+    /// or completion was lost. The same re-trigger recovers both cases,
+    /// because Inventory answers a repeated OrderPlaced by re-sending its
+    /// stored StockReserved, which reaches the Process Worker again (see
+    /// OrderPlacedProcessor). Terminal states are never stuck.
+    /// </summary>
+    public static IQueryable<Order> WhereStuck(IQueryable<Order> orders, DateTime now, ReconciliationOptions options)
+    {
+        var pendingCutoff = now - StuckTimeout(OrderState.PendingStock, options);
+        var processingCutoff = now - StuckTimeout(OrderState.Processing, options);
+        return orders.Where(o =>
+            (o.State == OrderState.PendingStock && o.RequestAcceptedAt < pendingCutoff) ||
+            ((o.State == OrderState.Confirmed || o.State == OrderState.Processing) && o.ConfirmedOrRejectedAt < processingCutoff));
+    }
+
+    // A Confirmed/Processing order is never treated as stuck sooner than a
+    // PendingStock one: it has already passed the PendingStock stage. This also
+    // keeps StuckTimeoutSeconds as the one switch that turns reconciliation off
+    // (every verifier that does not test it sets 3600).
+    private static TimeSpan StuckTimeout(OrderState state, ReconciliationOptions options) =>
+        TimeSpan.FromSeconds(state == OrderState.PendingStock
+            ? options.StuckTimeoutSeconds
+            : Math.Max(options.ProcessingStuckTimeoutSeconds, options.StuckTimeoutSeconds));
 }

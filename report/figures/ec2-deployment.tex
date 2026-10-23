@@ -1,0 +1,61 @@
+% Week 12 EC2 deployment (build: pdflatex ec2-deployment.tex -> ec2-deployment.pdf)
+\documentclass[tikz,border=4pt]{standalone}
+\usepackage{lmodern}
+\usetikzlibrary{shapes.geometric,positioning,fit,arrows.meta,backgrounds}
+\pgfdeclarelayer{back}\pgfdeclarelayer{mid}\pgfsetlayers{back,mid,main}
+\begin{document}
+\sffamily
+\begin{tikzpicture}[
+  font=\small,
+  >={Stealth[length=2.2mm]},
+  box/.style={draw=violet!70, fill=violet!8, rounded corners=2pt, align=center,
+              minimum height=10mm, minimum width=26mm, inner sep=3pt},
+  db/.style={cylinder, shape border rotate=90, aspect=0.22, draw=violet!70,
+             fill=violet!8, align=center, minimum width=24mm, minimum height=13mm},
+  ext/.style={box, rounded corners=8pt, draw=gray!70, fill=gray!10},
+  group/.style={draw=olive!70, fill=yellow!8, rounded corners=3pt, inner sep=5mm},
+  grouplabel/.style={font=\small\bfseries, anchor=north west, align=left},
+  flow/.style={->, thick},
+  ctl/.style={->, dashed, gray!70!black},
+  lbl/.style={font=\footnotesize, fill=white, inner sep=1.5pt}
+]
+% backend services
+\node[box] (nx) at (5.6,1.2) {Nginx :80\\only published port};
+\node[box] (os) at (9.0,1.2) {Order Service};
+\node[db]  (pg) at (12.6,1.2) {PostgreSQL\\16.14};
+\node[db]  (mq) at (9.0,-1.0) {RabbitMQ\\3.13.7};
+\node[box] (is) at (12.6,-1.0) {Inventory Service};
+\node[db]  (rd) at (15.6,-1.0) {Redis\\7.4.7};
+\node[box] (pw) at (9.0,-3.1) {Process Worker};
+\node[box, draw=gray!70, fill=gray!10] (mon) at (14.0,-3.1) {Prometheus + Grafana\\internal only};
+\draw[flow] (nx) -- (os);
+\draw[flow] (os) -- (pg);
+\draw[flow] (os) -- (mq);
+\draw[flow] (mq) -- (is);
+\draw[flow] (is) -- (rd);
+\draw[flow] (is) -- (pg);
+\draw[flow] (mq) -- (pw);
+% backend host group (label row reserved above the nodes)
+\node[grouplabel] (belbl) at (4.0,3.0)
+  {Backend host: m7i-flex.large, Docker Compose\\
+   \mdseries\footnotesize Security group: TCP 80 from the JMeter security group only};
+\begin{pgfonlayer}{mid}
+  \node[group, fill=violet!3, draw=violet!50, fit=(belbl)(nx)(pg)(rd)(pw)(mon), inner sep=3mm] (be) {};
+\end{pgfonlayer}
+% JMeter host
+\node[box, minimum width=30mm] (jm) at (1.0,1.2)
+  {\textbf{JMeter host}\\c7i-flex.large\\JMeter 5.6.3, Java 17\\no inbound ports};
+\draw[flow] (jm) -- node[lbl, above=1pt] {HTTP :80} node[lbl, below=1pt] {private IP} (nx);
+% AWS region group
+\node[grouplabel] (awslbl) at (2.4,4.3) {AWS ap-southeast-2: default VPC, one subnet};
+\begin{pgfonlayer}{back}
+  \node[group, fit=(awslbl)(jm)(be), inner sep=3mm] (aws) {};
+\end{pgfonlayer}
+% outside AWS
+\node[ext] (ssm) at (1.0,6.4) {AWS Systems Manager\\Run Command, no SSH};
+\node[ext] (own) at (13.6,6.4) {Owner PC: Terraform 1.16.6\\plan read-only, apply / destroy};
+\draw[ctl] (ssm) -- node[lbl, right=2pt, pos=0.35] {commands} (jm);
+\draw[ctl] (ssm.east) -| node[lbl, pos=0.25, above=1pt] {commands} (mq |- be.north);
+\draw[ctl] (own) -- node[lbl, right=2pt] {provisions} (own |- aws.north);
+\end{tikzpicture}
+\end{document}
