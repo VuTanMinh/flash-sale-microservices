@@ -101,15 +101,16 @@ the gateway, the application and the broker, and the required Terraform
 deployment on AWS EC2 with JMeter on a separate machine. The automated
 verifiers and the unit tests pass on the assessed code
 (Section~\ref{sec:verification}); passing tests show the cases they cover,
-not universal correctness. In one local overload run and one EC2 run on the
-assessed code, the system refused excess load early, lost no accepted order,
-and cleared its backlog in under 7 seconds. Open limitations are listed in Section~\ref{sec:limits}.
+not universal correctness. In a local overload run (23 October) and an EC2
+run on the assessed code (24 October), the system refused excess load early,
+lost no accepted order, and cleared its backlog in under 7 seconds. Open limitations are listed in Section~\ref{sec:limits}.
 
-The comparison between the asynchronous design and the synchronous PostgreSQL
-baseline, the experiments with extra Inventory consumers, and the official
-repeated runs remain for Weeks 13--14. Of two throughput limits found during
-the midterm review, the Outbox limit is removed and the Worker's is now a
-declared experiment parameter.
+A first local pilot offered C1 and C2 the same load. At 50 requests/s both
+kept up. At 200 requests/s, C2 still accepted every request in under 61\,ms
+(p95), but its single Inventory consumer decided only about 70 orders/s, so
+stock decisions fell a minute behind; C1 decided about 160/s with response
+times near 1.1\,s. The official comparison, the experiments with extra
+Inventory consumers and the repeated runs remain for Weeks 13--14.
 
 \clearpage
 \begin{singlespace}
@@ -246,6 +247,9 @@ producer, because the Worker is success-only in scope.}
 % ================================================================== 4
 \section{Work completed in Weeks 1--11}
 
+Table~\ref{tab:weeks} lists what each block of weeks delivered and the test
+cases that prove it; the full list is in \texttt{docs/test-plan.md}.
+
 \begin{table}[htbp]
 \centering\small
 \caption{Work completed before Week 12.}
@@ -354,8 +358,8 @@ review and its raw data was not archived; it is superseded by this one.\par}
 \end{table}
 
 In every run, the refusals matched JMeter, the Nginx log and the admission
-metric exactly; none of the sampled refused requests (10 of each kind) left an
-order; every accepted order completed with exactly one unit of stock; and no
+metric exactly; no refused request left an order (the local runs checked 10
+of each kind, the 24 October EC2 run all 3,487); every accepted order completed with exactly one unit of stock; and no
 service restarted. With every limit switched off, 3,747 orders got in and the
 backlog did not drain in time, so the test detects missing limits.
 
@@ -448,11 +452,13 @@ Every claim links to a saved log in \texttt{tests/evidence/};
 cases and logs. Three kinds of evidence are kept apart: offline checks that
 read code, documents and configuration (design alignment, requirement trace,
 deployment files); application tests that run the services on throwaway
-containers on the development PC; and live deployment evidence from the two
+containers on the development PC; and live deployment evidence from the three
 EC2 sessions (port isolation, smoke test, two overload runs). All 22 verifiers
-pass in their latest runs on the final code (Figure~\ref{fig:verif}); the
-counts are read from the logs by the chart script, not typed in. The 98 unit
-tests also pass. Most verifiers were also run with a negative control that
+pass in their latest runs (Figure~\ref{fig:verif}): 21 were re-run on the
+assessed code on 24 October, and the runtime-accounts check (TP-E04) last ran
+on 23 October, before the second-pass changes, none of which touches database
+accounts. The counts are read from the logs by the chart script, not typed in.
+The 104 unit tests also pass. Most verifiers were also run with a negative control that
 must make them fail. The chart counts checks; it does not rank how strong each
 verifier is.
 
@@ -479,7 +485,7 @@ the code from before the review, and a third on 24 October on the assessed
 code (Table~\ref{tab:overload}); its raw JTL, collector samples and stage
 intervals are archived in \texttt{tests/evidence/}.
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \caption{Requirements of the brief and the test cases that cover them (full
 map with log paths in \texttt{docs/evidence-index.md}).}
@@ -515,30 +521,85 @@ Repeated experiments C0--C4 & TP-X01, TP-X02 (not run; Weeks 13--14) \\
 Config. & Purpose & Status & Evidence so far \\
 \midrule
 C0 & Naive read-then-write; shows the race only & Done & Over-selling reproduced (TP-B01) \\
-C1 & PostgreSQL atomic update; main baseline & Built, correct & Never oversold (TP-B02); no performance runs yet \\
-C2 & Redis Lua, RabbitMQ, Outbox and Inbox & Built, verified & Correct under failures and duplicates; not yet compared with C1 \\
-C3 & C2 plus load shedding & Tested locally & Overload, drain and recovery (Table~\ref{tab:overload}) \\
+C1 & PostgreSQL atomic update; main baseline & Built, correct; local pilot & Never oversold (TP-B02); pilot at 50 and 200 r/s (Table~\ref{tab:pilot}) \\
+C2 & Redis Lua, RabbitMQ, Outbox and Inbox & Built, verified; local pilot & Correct under failures and duplicates; pilot against C1 (Table~\ref{tab:pilot}) \\
+C3 & C2 plus load shedding & Tested locally and on EC2 & Overload, drain and recovery (Table~\ref{tab:overload}) \\
 C4 & C3 with 1, 2 and 4 Inventory consumers & Not started & Week 13 pilot \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-No performance comparison exists yet, so the research question has no data at
-midterm. The review found two design limits that would decide that
+\subsection{First local pilot: C1 against C2}
+\label{sec:pilot}
+To give the research question a first data point, C1 and C2 were offered the
+same steady load on the development PC, one after the other, on the same
+processes and database (\texttt{scripts/run-pilot-c1-c2.ps1},
+\texttt{tests/jmeter/pilot-steady.jmx}). Each had its own product with
+100,000 units, so every request could succeed; no load-shedding limit was on;
+the Worker ran 32 orders at a time (Table~\ref{tab:pilot}). The validator
+passed all four runs.
+
+\begin{table}[H]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\caption{Local pilot, one run per cell, 60\,s each. Response times count POST
+submissions only. C1 answers with the stock decision; C2 answers with the
+acceptance and decides later.}
+\label{tab:pilot}
+\begin{tabularx}{\textwidth}{Yrrrr}
+\toprule
+Offered load & \multicolumn{2}{c}{50 requests/s} & \multicolumn{2}{c}{200 requests/s} \\
+ & C1 & C2 & C1 & C2 \\
+\midrule
+Achieved submissions/s & 51.7 & 53.0 & 159.5\textsuperscript{a} & 202.0 \\
+Response p50 / p95 / p99 (ms) & 17 / 84 / 1,723 & 25 / 43 / 84 & 1,129 / 1,778 / 2,149 & 31 / 61 / 121 \\
+Stock decisions/s & 52.7 & 50.4 & 161.2 & 69.9 \\
+Accepted to stock decision, p50 / p95 & = response & 1.8 / 2.8\,s & = response & 61.7 / 105.6\,s \\
+Accepted to Completed, p50 / p95 & -- & 3.5 / 5.2\,s & -- & 69.4 / 122.4\,s \\
+Errors / validator & 0 / PASS & 0 / PASS & 0 / PASS & 0 / PASS \\
+\bottomrule
+\end{tabularx}
+\par\smallskip
+{\footnotesize\raggedright \textsuperscript{a}JMeter's 200 threads, each
+waiting about 1.1\,s per C1 response, could not offer more; the offered rate
+for C1 was therefore below 200/s. Raw data:
+\nolinkurl{tests/evidence/20261024T112852Z-pilot-c1-c2-50rps-*} and
+\nolinkurl{tests/evidence/20261024T113202Z-pilot-c1-c2-200rps-*}.\par}
+\end{table}
+
+At 50 requests/s both configurations keep up; C2 answers with lower tail
+latency, and its stock decision follows about 1.8\,s later. At 200
+requests/s they behave differently. C1's single conditional UPDATE on one row
+serialises the requests: it still decides about 160 orders/s, but each
+response waits about 1.1\,s. C2 keeps answering in under 61\,ms (p95), but its
+one Inventory consumer handles messages one at a time and decides only about
+70 orders/s, so the decisions fall behind (published to decided: 60\,s at the
+median). The bottleneck of C2 on this PC is therefore the Inventory consumer,
+which is exactly what C4's extra consumers address. This is one run per cell
+on one machine shared with the load generator, so it shows the shape of the
+comparison, not official numbers.
+
+\subsection{Design limits that affect the comparison}
+The review found two design limits that would decide that
 comparison. Each Outbox publisher sent at most 50 events and then waited 2\,s,
 so it stayed below 25 events/s, and the Process Worker finished about 3.7
 orders/s. The Outbox limit is removed: a full batch is followed at once by the
 next and is sent on one channel with its confirms awaited together, and 300
 queued events now drain in 1.3\,s instead of at least 10\,s. The Worker's
 limit is now a declared experiment parameter (\texttt{Processing:MaxConcurrency},
-default 1). Both were far below the brief's target of about 2,000 reservation
-attempts per second, and C4 adds Inventory consumers although neither limit is
-in Inventory, so the pilot reports stock-decision latency apart from
-completion latency as the brief requires. Adding Inventory replicas (C4) also
-adds Inventory Outbox publishers, which poll the same table, and the single
-Order Outbox publisher and the Worker stay as they are, so consumer scaling
-alone cannot remove an upstream or downstream ceiling; C4 is read against
-the stock-decision latency, not completion.
+default 1; the pilot above used 32). As configured for the overload runs
+(Table~\ref{tab:settings}), the Worker finishes about 4 orders/s and the
+in-flight bound admits only what it finishes, which is why those runs accepted
+about 4 orders/s. The pilot shows the next limit is the single Inventory
+consumer (about 70 decisions/s on this PC), far below the brief's target of
+about 2,000 reservation attempts per second, so the Week~13 pilot measures the
+stock path's capacity on EC2 and reports stock-decision latency apart from
+completion latency, as the brief requires. Adding Inventory replicas (C4)
+also adds Inventory Outbox publishers. As built, they read unpublished rows
+without a row lock, so each replica would publish the same rows; consumers
+drop the repeats, but the Worker would repeat its work and C4 would measure
+the duplication. The rows must be claimed with a lock
+(\texttt{FOR UPDATE SKIP LOCKED}) before any C4 run.
 
 \subsection{Pre-pilot settings}
 Every limit below is a pre-pilot value, chosen on the development PC; the
@@ -623,7 +684,7 @@ own statement, not derived from the repository history.
 % ================================================================== 10
 \section{Risks and mitigation}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \caption{Main risks for Weeks 13--15.}
 \label{tab:risks}
@@ -631,9 +692,11 @@ own statement, not derived from the repository history.
 \toprule
 Risk & Effect & Mitigation \\
 \midrule
-Throughput limits in the Outbox publisher and the Worker & C1 versus C2
-decided by these limits, not by the architecture & Outbox drains
-continuously (done); Worker concurrency is a parameter set in the pilot;
+Throughput limits in the Worker and the single Inventory consumer (about
+70 decisions/s in the local pilot) & C1 versus C2 decided by these limits,
+not by the architecture & Outbox drains continuously (done); Worker
+concurrency and the number of Inventory consumers set in the pilot; Outbox
+rows claimed with a lock before C4;
 measure each stage's capacity first \\
 Redis losing its record of reserved orders (no persistence guarantee is
 configured) & A re-sent order could take a second unit: stock lost, never
@@ -655,8 +718,9 @@ the official runs \\
 % ================================================================== 11
 \section{Next steps}
 \begin{itemize}
-  \item \textbf{Week 13 (31/10--06/11):} set the Worker's concurrency from the
-    pilot; build the remaining workloads (ramp-up, steady, spike, hot product,
+  \item \textbf{Week 13 (31/10--06/11):} claim Inventory Outbox rows with a
+    lock so that C4 replicas do not publish the same rows; measure the stock
+    path's capacity on EC2; set the Worker's concurrency from the pilot; build the remaining workloads (ramp-up, steady, spike, hot product,
     skewed products, demand below, at and above stock); pilot C1--C4 with 1, 2
     and 4 Inventory consumers on EC2; set every limit from the pilot; freeze
     source, configuration and the run matrix; write the Experimental Design

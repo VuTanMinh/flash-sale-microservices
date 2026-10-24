@@ -1,0 +1,89 @@
+﻿{
+    "run_id":  "pilot-c2-20261024T112852Z",
+    "window_from_utc":  "2026-10-24T11:30:32.0310000Z",
+    "window_to_utc":  "2026-10-24T11:31:31.9220000Z",
+    "percentile_method":  "nearest-rank",
+    "jtl":  {
+                "source":  "raw.jtl (E:\\Agent_Memory\\DACNTT\\tmp\\pilot1\\c2.jtl)",
+                "submission_count":  3177,
+                "submission_elapsed_ms":  {
+                                              "source":  "raw.jtl elapsed (nearest-rank)",
+                                              "p50":  25,
+                                              "p95":  43,
+                                              "p99":  84,
+                                              "max":  367
+                                          },
+                "offered_throughput_per_s":  53.046367567748078,
+                "overload_rejection_pct":  0,
+                "internal_error_pct":  0,
+                "other_non_2xx_pct":  0,
+                "polling_count":  0,
+                "polling_elapsed_ms":  {
+                                           "source":  "raw.jtl elapsed (nearest-rank)",
+                                           "p50":  null,
+                                           "p95":  null,
+                                           "p99":  null,
+                                           "max":  null
+                                       }
+            },
+    "database":  {
+                     "source":  "PostgreSQL (order_service.orders, order_service.outbox_events, inventory_service.outbox_events)",
+                     "run_membership":  "jtl idempotencyKey (3177 submitted keys)",
+                     "accepted_count":  3177,
+                     "final_state_counts":  {
+                                                "Completed":  3177
+                                            },
+                     "completed_count":  3177,
+                     "pending_count":  0,
+                     "stages_ms":  {
+                                       "accepted_to_published":  {
+                                                                     "source":  "orders + outbox joins",
+                                                                     "p50":  1044.987,
+                                                                     "p95":  1967.732,
+                                                                     "p99":  2058.252,
+                                                                     "negative_count":  0,
+                                                                     "missing_count":  0
+                                                                 },
+                                       "published_to_decided":  {
+                                                                    "source":  "orders + outbox joins",
+                                                                    "p50":  738.88,
+                                                                    "p95":  1965.547,
+                                                                    "p99":  2682.452,
+                                                                    "negative_count":  0,
+                                                                    "missing_count":  0
+                                                                },
+                                       "decided_to_applied":  {
+                                                                  "source":  "orders + outbox joins",
+                                                                  "p50":  1336.587,
+                                                                  "p95":  2067.188,
+                                                                  "p99":  2088.203,
+                                                                  "negative_count":  0,
+                                                                  "missing_count":  0
+                                                              },
+                                       "applied_to_completed":  {
+                                                                    "source":  "orders + outbox joins",
+                                                                    "p50":  396.786,
+                                                                    "p95":  814.3,
+                                                                    "p99":  952.673,
+                                                                    "negative_count":  0,
+                                                                    "missing_count":  0
+                                                                },
+                                       "accepted_to_completed":  {
+                                                                     "source":  "orders + outbox joins",
+                                                                     "p50":  3457.29,
+                                                                     "p95":  5240.788,
+                                                                     "p99":  5515.88,
+                                                                     "negative_count":  0,
+                                                                     "missing_count":  0
+                                                                 }
+                                   },
+                     "stock_rates_pct":  {
+                                             "source":  "inventory_service.outbox_events",
+                                             "reserved":  100,
+                                             "rejected":  0,
+                                             "reserved_count":  3177,
+                                             "rejected_count":  0
+                                         }
+                 },
+    "collector":  "unavailable (no samples.csv)"
+}

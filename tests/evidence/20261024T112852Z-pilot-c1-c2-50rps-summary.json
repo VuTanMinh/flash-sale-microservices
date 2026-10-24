@@ -1,0 +1,70 @@
+﻿{
+    "stamp":  "20261024T112852Z",
+    "offered_rate_per_s":  50,
+    "duration_s":  60,
+    "worker_concurrency":  32,
+    "stock":  100000,
+    "git_commit":  "77de09c35b4957c4c4393d84584cc39f9b5c7988",
+    "C1":  {
+               "submissions":  3095,
+               "span_s":  59.9,
+               "achieved_rate_per_s":  51.7,
+               "codes":  {
+                             "200":  3095
+                         },
+               "response_ms_2xx":  {
+                                       "n":  3095,
+                                       "p50":  17,
+                                       "p95":  84,
+                                       "p99":  1723,
+                                       "max":  2668
+                                   },
+               "decisions":  3095,
+               "confirmed":  3095,
+               "decisions_per_s":  52.7,
+               "decision_ms":  "= response time (synchronous)",
+               "validator":  "Validating C1 for product \u0027pilot-c1-20261024T112852Z\u0027 (initial stock 100000)\r\n\r\n\r\nInvariant                                 Status         Detail                                                      \r\n---------                                 ------         ------                                                      \r\n1. available_inventory \u003e= 0               PASS           stock 96905                                                 \r\n2. successful_reservations \u003c= initial     PASS           3095 \u003c= 100000                                              \r\n3. one reservation per order              PASS           units taken 3095 = Confirmed decisions 3095                 \r\n4. duplicate message never double-deducts NOT APPLICABLE C1 is synchronous: no broker messages exist to be duplicated\r\n\r\n\r\n\r\nRESULT: all checks hold for C1.\r\n",
+               "validator_exit":  0
+           },
+    "C2":  {
+               "submissions":  3177,
+               "span_s":  59.9,
+               "achieved_rate_per_s":  53,
+               "codes":  {
+                             "201":  3177
+                         },
+               "response_ms_2xx":  {
+                                       "n":  3177,
+                                       "p50":  25,
+                                       "p95":  43,
+                                       "p99":  84,
+                                       "max":  367
+                                   },
+               "all_finished":  true,
+               "extract_exit":  0,
+               "accepted":  3177,
+               "completed":  3177,
+               "membership":  "jtl idempotencyKey (3177 submitted keys)",
+               "accepted_to_decided_ms":  {
+                                              "n":  3177,
+                                              "p50":  1790.005,
+                                              "p95":  2820.674,
+                                              "p99":  3006.015,
+                                              "max":  3109.271
+                                          },
+               "accepted_to_completed_ms":  {
+                                                "n":  3177,
+                                                "p50":  3457.29,
+                                                "p95":  5240.788,
+                                                "p99":  5515.88,
+                                                "max":  5625.893
+                                            },
+               "decisions":  3177,
+               "decisions_per_s":  50.4,
+               "validator":  "Validating C2 for product \u0027pilot-c2-20261024T112852Z\u0027 (initial stock 100000)\r\n\r\n\r\nInvariant                                 Status Detail                                                                                   \r\n---------                                 ------ ------                                                                                   \r\n1. available_inventory \u003e= 0               PASS   stock 96823                                                                              \r\n2. successful_reservations \u003c= initial     PASS   Redis reservations 3177, successful orders 3177, initial 100000                          \r\n3. one reservation per order              PASS   Redis reservations and successful orders are the same 3177 order ids                     \r\n4. duplicate message never double-deducts PASS   units taken 3177 = distinct reserved orders 3177; Inbox MessageId unique in both services\r\n5. accepted-order accounting              PASS   terminal 3177 + outstanding 0 = accepted 3177                                            \r\n\r\n\r\n\r\nRESULT: all checks hold for C2.\r\n",
+               "validator_exit":  0
+           },
+    "problems":  [
+
+                 ]
+}
