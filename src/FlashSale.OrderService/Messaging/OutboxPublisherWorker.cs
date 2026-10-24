@@ -93,10 +93,15 @@ public class OutboxPublisherWorker : BackgroundService
 
         await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
 
+        // The batch is claimed with FOR UPDATE SKIP LOCKED inside a transaction
+        // that lasts until its rows are saved as published, so a second Order
+        // Service instance would take other rows instead of publishing the same
+        // ones (see Inventory Service's publisher, where C4 runs replicas).
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(stoppingToken);
         var pending = await dbContext.OutboxEvents
-            .Where(e => !e.Published)
-            .OrderBy(e => e.CreatedAt)
-            .Take(BatchSize)
+            .FromSqlRaw(
+                "SELECT * FROM order_service.outbox_events WHERE \"Published\" = false " +
+                "ORDER BY \"CreatedAt\" LIMIT {0} FOR UPDATE SKIP LOCKED", BatchSize)
             .ToListAsync(stoppingToken);
 
         var published = 0;
@@ -149,6 +154,7 @@ public class OutboxPublisherWorker : BackgroundService
             }
         }
 
+        await transaction.CommitAsync(stoppingToken);
         await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
         return pending.Count == BatchSize && published == pending.Count;
     }

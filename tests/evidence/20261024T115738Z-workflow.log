@@ -1,0 +1,75 @@
+﻿== Static: diagrams against code and configuration (D:\DACNTT\docs\sequence-diagrams.md)
+PASS  doc has a happy-path, a rejection and a processing-hop diagram
+PASS  report/figures/seq-happy-path.mmd is identical to the diagram in the doc
+PASS  report/figures/seq-rejection.mmd is identical to the diagram in the doc
+PASS  report/figures/seq-planned-processing.mmd is identical to the diagram in the doc
+PASS  steps 1-4: POST answers 201 Created (diagram and controller)
+PASS  steps 2-3: key lookup, then order + OrderPlaced Outbox row in one SaveChangesAsync
+PASS  Order Outbox publisher: polls every 2s, up to 50 rows, oldest first, claimed with a row lock, next batch at once when full (as drawn)
+PASS  Order Outbox publisher marks a row published only after a confirmed publish, stamped with its send time
+PASS  Inventory Outbox publisher: polls every 2s, up to 50 rows, oldest first, claimed with a row lock, next batch at once when full (as drawn)
+PASS  Inventory Outbox publisher marks a row published only after a confirmed publish, stamped with its send time
+PASS  Inventory publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Process Worker (started) publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Process Worker (completed) publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Order publisher: required-queue check, mandatory publish, tracked confirms
+PASS  every publish arrow is drawn as mandatory with a confirm
+PASS  OrderPlaced is drawn with exactly its configured required queues (OrderPlaced)
+PASS  StockReserved is drawn with exactly its configured required queues (StockReserved, ProcessWorker.StockReserved)
+PASS  StockRejected is drawn with exactly its configured required queues (StockRejected)
+PASS  OrderProcessingStarted is drawn with exactly its configured required queues (OrderProcessingStarted)
+PASS  OrderProcessed is drawn with exactly its configured required queues (OrderProcessed)
+PASS  steps 11-12: Inventory checks its Inbox before running reserve.lua (code and diagram)
+PASS  step 12: reserve.lua gets the inventory, processed and sale:open keys
+PASS  outcome mapping: RESERVED/DUPLICATE -> StockReserved, REJECTED/NOT_OPEN -> StockRejected
+PASS  step 14: Outbox row (only if none for the OrderId; an already-published one is re-sent) and Inbox row in one SaveChangesAsync
+PASS  Inventory OrderPlaced consumer acks only after processing (autoAck off)
+PASS  Order StockResult consumer acks only after processing (autoAck off)
+PASS  Order OrderProcessed consumer acks only after processing (autoAck off)
+PASS  Process Worker StockReserved consumer acks only after processing (autoAck off)
+PASS  steps 22/29/30: Inbox check, transition, history and Inbox row in one save (StockResultProcessor)
+PASS  OrderProcessed uses StockResultProcessor.ProcessCompletionAsync with ProcessingStartedAt
+PASS  the fork is drawn as par over the two configured queues (StockReserved, ProcessWorker.StockReserved)
+PASS  step 25: Process Worker delay is the configured 200 ms
+PASS  step 26: OrderProcessed MessageId = OrderId (code and diagram)
+PASS  step 25b: OrderProcessingStarted MessageId is derived from OrderId (code and diagram)
+PASS  Process Worker binds only StockReserved, and the rejection path does not draw it
+PASS  steps 31-32: polling returns the final state
+PASS  Nginx is drawn only if infra/nginx.conf forwards requests (forwards: True)
+PASS  Processing is drawn as a real hop, matching OrderState (no PLANNED note)
+
+== Live: real orders traced through all three services
+PASS  all three services up; all six consumer queues declared
+PASS  warm-up: wf-115739 has 1 unit and is open; wf-closed-115739 was never warmed up
+PASS  A steps 1-4: 201 with state PendingStock
+PASS  A: client replay with the same key answers 200 with the same order
+PASS  A: reached Completed
+      trace A: accepted=1792843083862480 completed=1792843087154791 decided=1792843086763680 invInboxAt=1792843086297850 invInboxRows=1 iOutbox=StockReserved:true iOutboxCreated=1792843086242016 iOutboxRows=1 oOutbox=OrderPlaced:true oOutboxCreated=1792843083933184 oOutboxRows=1 oProcessedInboxAt=1792843087155048 oProcessedInboxRows=1 orderPlacedMsg=d2edc622-39bb-4e75-9da7-75fd2c7ee8ec oResultInboxAt=1792843086767257 oResultInboxRows=1 resultMsg=eeb6528a-9919-4099-8871-0e67271bb17b
+PASS  A step 3: one OrderPlaced Outbox row, written with the order (CreatedAt >= RequestAcceptedAt)
+PASS  A step 9: the OrderPlaced row is marked published
+PASS  A step 14: Inventory Inbox row for that MessageId, after the Outbox row was committed
+PASS  A step 14: one StockReserved Outbox row, in the same step as the Inbox row
+PASS  A step 20: the StockReserved row is marked published
+PASS  A step 22: Confirmed after the result existed, with one Inbox row for the result's MessageId
+PASS  A step 29: Completed after Confirmed, with one Inbox row whose MessageId is the OrderId
+PASS  A step 13: Redis deducted one unit and recorded the order
+PASS  A steps 10-13: Inventory logged the reservation as Reserved
+PASS  A steps 24-26: Process Worker received StockReserved and published OrderProcessed
+PASS  A: Order Service logged Confirmed before Completed
+PASS  A: the Processing step is in the history between Confirmed and Completed, by the start event or implied by the completion, and the log matches the path
+PASS  A: still exactly one order for the replayed key
+PASS  B: 201 with state PendingStock
+PASS  B: sold out -> Rejected
+      trace B: accepted=1792843090459393 completed=-1 decided=1792843092809318 invInboxAt=1792843092079583 invInboxRows=1 iOutbox=StockRejected:true iOutboxCreated=1792843092079006 iOutboxRows=1 oOutbox=OrderPlaced:true oOutboxCreated=1792843090459643 oOutboxRows=1 oProcessedInboxAt=-1 oProcessedInboxRows=0 orderPlacedMsg=86f8f956-aeb3-4c77-a8ca-a8e0f62b6739 oResultInboxAt=1792843092809474 oResultInboxRows=1 resultMsg=f82f8179-fa4c-44fc-955b-e0b6468cb41b
+PASS  B: OrderPlaced published, one StockRejected Outbox row published, after the Inbox check
+PASS  B: Rejected after the result existed, one result Inbox row, never completed
+PASS  B: Lua answered Rejected and deducted nothing
+PASS  B: the Process Worker never saw it
+PASS  C: product never warmed up -> Rejected
+      trace C: accepted=1792843094383078 completed=-1 decided=1792843096838057 invInboxAt=1792843096116556 invInboxRows=1 iOutbox=StockRejected:true iOutboxCreated=1792843096116433 iOutboxRows=1 oOutbox=OrderPlaced:true oOutboxCreated=1792843094383255 oOutboxRows=1 oProcessedInboxAt=-1 oProcessedInboxRows=0 orderPlacedMsg=4b436243-a84d-4f5e-a4d2-e829e7298b5d oResultInboxAt=1792843096838145 oResultInboxRows=1 resultMsg=5601cd18-fb49-4bcc-bfd1-e74a3999b547
+PASS  C: Lua answered NotOpen; one StockRejected row; nothing created in Redis
+PASS  C: never completed and never reached the Process Worker
+PASS  every queue and every DLQ is empty at the end
+
+The workflow description and sequence diagrams match the implementation.
+Exit code: 0

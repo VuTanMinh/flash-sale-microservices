@@ -1,0 +1,12 @@
+﻿NEGATIVE CONTROL: src/FlashSale.InventoryService/Messaging/OutboxPublisherWorker.cs replaced by its committed version without FOR UPDATE SKIP LOCKED; verify-replicas.ps1 unchanged
+== Stack: throwaway RabbitMQ and Redis, 2 Inventory replicas
+== A. 400 unpublished StockRejected rows inserted at once
+PASS  A: all 400 rows end Published -- left=0
+FAIL  A: the broker received exactly 400 StockRejected messages (no row published twice) -- capture queue=800
+FAIL  A: exactly 400 distinct MessageIds in the capture queue -- messages=800 distinct=400
+== B. The run is meaningful
+PASS  B: all 2 replicas started their consumer and publisher -- logs=C:\Users\Lenovo\AppData\Local\Temp\verify-rp-inventory-0.log,C:\Users\Lenovo\AppData\Local\Temp\verify-rp-inventory-1.log
+PASS  B: the rows were published within 30 s (measured 2.9 s)
+
+2 check(s) failed.
+Exit code: 1

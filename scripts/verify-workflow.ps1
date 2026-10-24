@@ -88,8 +88,11 @@ foreach ($w in @(@("Order", $opw), @("Inventory", $ipw))) {
     $poll = [regex]::Match($w[1], 'PollInterval = TimeSpan\.FromSeconds\((\d+)\)').Groups[1].Value
     # Midterm review: a full batch that all published is followed at once by
     # the next; the 2-s poll applies only otherwise.
-    Check "$($w[0]) Outbox publisher: polls every ${poll}s, up to 50 rows, oldest first, next batch at once when full (as drawn)" (
-        $poll -eq "2" -and $w[1].Contains(".OrderBy(e => e.CreatedAt)") -and $w[1].Contains(".Take(BatchSize)") -and
+    Check "$($w[0]) Outbox publisher: polls every ${poll}s, up to 50 rows, oldest first, claimed with a row lock, next batch at once when full (as drawn)" (
+        # Before C4 (midterm review): the batch is claimed with FOR UPDATE SKIP
+        # LOCKED in a transaction, oldest first, so replicas never share rows.
+        $poll -eq "2" -and $w[1].Contains('ORDER BY \"CreatedAt\" LIMIT {0} FOR UPDATE SKIP LOCKED", BatchSize') -and
+        $w[1].Contains("BeginTransactionAsync") -and $w[1].Contains("await transaction.CommitAsync(stoppingToken);") -and
         $w[1] -match 'private const int BatchSize = 50;' -and
         $w[1] -match '(?s)if \(await PublishPendingEventsAsync\(stoppingToken\)\)\s*\{\s*continue;' -and
         $w[1].Contains("return pending.Count == BatchSize && published == pending.Count;") -and

@@ -79,10 +79,17 @@ public class OutboxPublisherWorker : BackgroundService
 
         await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
 
+        // C4 runs several Inventory replicas, each with this publisher. The
+        // batch is claimed with FOR UPDATE SKIP LOCKED inside a transaction that
+        // lasts until its rows are saved as published, so two replicas never
+        // pick the same rows: the other replica skips them and takes the next
+        // ones. Without the lock every replica published every row (midterm
+        // review), which multiplied the broker traffic and the Worker's work.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(stoppingToken);
         var pending = await dbContext.OutboxEvents
-            .Where(e => !e.Published)
-            .OrderBy(e => e.CreatedAt)
-            .Take(BatchSize)
+            .FromSqlRaw(
+                "SELECT * FROM inventory_service.outbox_events WHERE \"Published\" = false " +
+                "ORDER BY \"CreatedAt\" LIMIT {0} FOR UPDATE SKIP LOCKED", BatchSize)
             .ToListAsync(stoppingToken);
 
         // Same batching as Order Service's publisher (midterm review): one
@@ -130,6 +137,7 @@ public class OutboxPublisherWorker : BackgroundService
             }
         }
 
+        await transaction.CommitAsync(stoppingToken);
         await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
         return pending.Count == BatchSize && published == pending.Count;
     }

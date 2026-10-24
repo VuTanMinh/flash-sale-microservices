@@ -64,3 +64,25 @@ Both publishers (`OutboxPublisherWorker` in Order Service and in Inventory Servi
 - close a channel that saw any failure; the next call opens a fresh one.
 
 `scripts/verify-outbox.ps1` (TP-O01) now also inserts 300 unpublished rows at once and requires them to drain in under 4 s, including up to one 2-second poll wait. It measured 1.3 s (at least ~230 events/s). The earlier designs fail it: the sleep after each batch needs at least 10 s, and the per-row channel needed 8.1 s.
+
+## Several publishers on one Outbox table (before C4)
+
+C4 runs several Inventory Service replicas, and each one starts its own
+`OutboxPublisherWorker` on the same `inventory_service.outbox_events` table.
+The publishers used to read the oldest unpublished rows without a lock, so two
+replicas picked the same rows and both published them: with 2 replicas the
+broker received 800 messages for 400 rows. Consumers dropped the repeats by
+`MessageId`, but the broker carried every event twice and the Process Worker
+repeated its work for each copy, so C4 would have measured the duplication.
+
+Both publishers (Order and Inventory) now claim their batch with
+`SELECT … ORDER BY "CreatedAt" LIMIT 50 FOR UPDATE SKIP LOCKED` inside a
+transaction that ends after the batch's rows are saved as published. Another
+replica skips the locked rows and takes the next ones. A crash before the
+commit releases the lock, and the rows are published again later: still
+at-least-once, with the repeats dropped by the consumers' Inbox.
+
+`scripts/verify-replicas.ps1` (TP-L05) inserts 400 unpublished rows while 2 or
+4 Inventory replicas run and counts every message the broker receives through
+a capture queue: exactly 400, with 400 distinct `MessageId`s. With the previous
+query it receives 800 (negative control).
