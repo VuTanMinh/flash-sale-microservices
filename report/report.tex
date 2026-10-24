@@ -3292,6 +3292,13 @@ a test that fails when the fix is removed.
 \paragraph{Second pass.} The same review was then checked again finding by
 finding (\texttt{docs/midterm-review-disposition.md}):
 \begin{itemize}
+  \item Both Outbox publishers claim their batch with
+    \texttt{FOR UPDATE SKIP LOCKED} inside a transaction. Before, every
+    Inventory replica read the same oldest rows and published them: with two
+    replicas the broker received 800 messages for 400 rows. Now 2 or 4
+    replicas publish each row exactly once (TP-L05,
+    \texttt{scripts/verify-replicas.ps1}), so C4 measures scaling rather than
+    duplication.
   \item The state race is also tested on PostgreSQL, with two connections
     held at a barrier: both save orders, duplicate starts and conflicting
     stock results. Four of the six cases fail when the concurrency token is
@@ -3314,6 +3321,22 @@ finding (\texttt{docs/midterm-review-disposition.md}):
     \texttt{Reconciliation:Enabled}; the earlier one-hour timeout still
     re-sent orders left over from earlier runs in the shared test database.
 \end{itemize}
+
+\sloppy\paragraph{First local pilot.} C1 and C2 were offered the same steady load
+on the development PC, one after the other on the same processes, with no
+load-shedding limit and the Worker running 32 orders at a time
+(\texttt{scripts/run-pilot-c1-c2.ps1}; raw data
+\nolinkurl{tests/evidence/20261024T112852Z-pilot-c1-c2-50rps-*} and
+\nolinkurl{tests/evidence/20261024T113202Z-pilot-c1-c2-200rps-*}). The
+validator passed all four runs. At 50 requests/s both kept up: C1 answered in
+17/84\,ms (p50/p95) with the decision, C2 accepted in 25/43\,ms and Inventory
+decided about 1.8\,s later. At 200 requests/s C1 still decided about 161
+orders/s but answered in about 1.1\,s (JMeter's threads then offered it only
+160/s), while C2 accepted all 202/s in under 61\,ms (p95) but its one
+Inventory consumer, which handles one message at a time, decided only about
+71/s, so decisions fell a minute behind. This single-machine, one-run result
+is preliminary; it names the bottleneck that C4 and the Week~13 EC2 pilot
+must measure.\par\fussy
 
 Still open: every limit is a pre-pilot value that the Week~13 pilot fixes,
 and each overload number is a single run. The 22 October EC2 run's raw data

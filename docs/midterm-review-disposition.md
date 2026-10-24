@@ -40,3 +40,10 @@ each check.
 - The verifiers ran on Windows PowerShell 5.1 only; PowerShell 7 on Linux was not run.
 - The repeated experiments (TP-X01, TP-X02) and the README reproduction on a
   fresh machine (TP-X03) belong to Weeks 13–14.
+
+## Added after the second pass (2026-10-24 afternoon)
+
+| # | Finding | Status | What the code does now | Evidence |
+|---|---|---|---|---|
+| M | (found in review) Inventory replicas publish every Outbox row once per replica, so C4 would measure duplication | confirmed → fixed | both publishers claim their batch with `FOR UPDATE SKIP LOCKED` inside a transaction | `verify-replicas.ps1` (TP-L05): 400 rows → 400 messages with 2 and 4 replicas `20261024T115610Z-replicas-2.log`, `20261024T115644Z-replicas-4.log`; without the lock 800 `20261024T115428Z-replicas-negative-no-row-lock.log` |
+| N | No research-question data at midterm | partly addressed | first local C1-vs-C2 pilot at 50 and 200 requests/s, validator PASS in all four runs; C2's stock path is limited by one sequential Inventory consumer (~71 decisions/s on the PC) | `20261024T112852Z-pilot-c1-c2-50rps-*`, `20261024T113202Z-pilot-c1-c2-200rps-*`. **Open:** EC2 capacity matrix (C1, C2, C4, Inventory in-process concurrency) at equal offered loads |

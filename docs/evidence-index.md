@@ -28,12 +28,12 @@ half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
 |  | TP-I02 | PASS | `tests/evidence/20261002T051418Z-inventory.log` | `tests/evidence/20261024T082310Z-inventory.log` |
 |  | TP-I03 | PASS | `tests/evidence/20261002T052244Z-cross-store.log` | `tests/evidence/20261024T082358Z-cross-store.log` |
 |  | TP-W02 | PASS | `tests/evidence/20261002T062442Z-validator.log` | `tests/evidence/20261024T082949Z-validator.log`, `tests/evidence/20261024T082913Z-real-runs.log` |
-| Update order status from the stock result | TP-W01 | PASS | `tests/evidence/20261002T061249Z-stock-results.log` | `tests/evidence/20261024T082221Z-stock-results.log` |
+| Update order status from the stock result | TP-W01 | PASS | `tests/evidence/20261002T061249Z-stock-results.log` | `tests/evidence/20261024T120357Z-stock-results.log` |
 |  | TP-W03 | PASS | `tests/evidence/20261002T063611Z-db-exceptions.log` | `tests/evidence/20261024T082450Z-db-exceptions.log` |
-|  | TP-W04 | PASS | `tests/evidence/20261002T152659Z-workflow.log` | `tests/evidence/20261024T083306Z-workflow.log` |
-| Transactional Outbox at the producer; publisher confirms and routing | TP-O01 | PASS | `tests/evidence/20261024T083744Z-outbox.log` | `tests/evidence/20261024T083744Z-outbox.log` |
-|  | TP-O02 | PASS | `tests/evidence/20261001T163055Z-publication.log` | `tests/evidence/20261024T081509Z-publication.log` |
-| Inbox at the consumer; duplicates and crashes have no second effect | TP-M01 | PASS | `tests/evidence/20261024T083445Z-delivery.log` | `tests/evidence/20261024T083445Z-delivery.log` |
+|  | TP-W04 | PASS | `tests/evidence/20261002T152659Z-workflow.log` | `tests/evidence/20261024T115738Z-workflow.log` |
+| Transactional Outbox at the producer; publisher confirms and routing | TP-O01 | PASS | `tests/evidence/20261024T083744Z-outbox.log` | `tests/evidence/20261024T115820Z-outbox.log` |
+|  | TP-O02 | PASS | `tests/evidence/20261001T163055Z-publication.log` | `tests/evidence/20261024T115902Z-publication.log` |
+| Inbox at the consumer; duplicates and crashes have no second effect | TP-M01 | PASS | `tests/evidence/20261024T083445Z-delivery.log` | `tests/evidence/20261024T120102Z-delivery.log` |
 |  | TP-M02 | PASS | `tests/evidence/20261003T181814Z-delivery-ordering.log` | `tests/evidence/20261024T080738Z-delivery-ordering.log` |
 | Retry transient failures; poison messages to a DLQ | TP-F01 | PASS | `tests/evidence/20261011T122332Z-failures.log` | `tests/evidence/20261024T080947Z-failures.log` |
 | Reconciliation job for stuck orders | TP-F02 | PASS | `tests/evidence/20261023T160450Z-reconciliation.log` | `tests/evidence/20261024T075611Z-reconciliation.log` |
@@ -43,9 +43,10 @@ half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
 | Metrics, run-time collection and extraction | TP-P04 | PASS | `tests/evidence/20261013T163454Z-metrics.log` | `tests/evidence/20261024T082532Z-metrics.log` |
 |  | TP-P07 | PASS | `tests/evidence/20261024T074956Z-run-collector.log` | `tests/evidence/20261024T074956Z-run-collector.log` |
 |  | TP-P08 | PASS | `tests/evidence/20261024T073819Z-extract.log` | `tests/evidence/20261024T073819Z-extract.log` |
-| Controlled rejection under overload; backlog drains without a restart | TP-L01 | PASS | `tests/evidence/20261019T161529Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log` |
-|  | TP-L02 | PASS | `tests/evidence/20261020T030050Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log` |
-|  | TP-L04 | PASS | `tests/evidence/20261024T080008Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log`, `tests/evidence/20261022T093449Z-ec2-deployment.log` |
+| Controlled rejection under overload; backlog drains without a restart | TP-L01 | PASS | `tests/evidence/20261019T161529Z-load-shedding.log` | `tests/evidence/20261024T120442Z-load-shedding.log` |
+|  | TP-L02 | PASS | `tests/evidence/20261020T030050Z-load-shedding.log` | `tests/evidence/20261024T120442Z-load-shedding.log` |
+|  | TP-L04 | PASS | `tests/evidence/20261024T080008Z-load-shedding.log` | `tests/evidence/20261024T120442Z-load-shedding.log`, `tests/evidence/20261022T093449Z-ec2-deployment.log` |
+| Several Inventory replicas publish each Outbox row once (before C4) | TP-L05 | PASS | `tests/evidence/20261024T115610Z-replicas-2.log` | — |
 | Schema per service, own database accounts | TP-E01 | PASS | `tests/evidence/20261001T114318Z-environment-fresh.log` | `tests/evidence/20261013T145229Z-environment.log` |
 |  | TP-E02 | PASS | `tests/evidence/20261001T114318Z-environment-existing.log` | `tests/evidence/20261013T145229Z-environment.log` |
 |  | TP-E04 | PASS | `tests/evidence/20261023T173539Z-runtime-accounts.log` | `tests/evidence/20261023T173539Z-runtime-accounts.log` |

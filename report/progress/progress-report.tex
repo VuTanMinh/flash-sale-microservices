@@ -441,7 +441,9 @@ in the code or the saved data before it was fixed, and each fix was re-tested:
     24 October. The extractor judges recovery
     latency on accepted responses only and has fixtures for all-429, all-503,
     too little throughput, a gap in the window, missing samples and a failed
-    database query.
+    database query. Outbox rows are claimed with a
+    row lock, so Inventory replicas never publish the same row (400 rows give
+    400 messages with 2 or 4 replicas, 800 without the lock; TP-L05).
 \end{itemize}
 
 % ================================================================== 7
@@ -503,6 +505,7 @@ Bounded retry, dead-letter queues, reconciliation & TP-F01, TP-F02 \\
 Process Worker; state history and four timestamps & TP-P01--P03 \\
 Metrics, collection and extraction & TP-P04, TP-P06--P08 \\
 Overload refused with control; backlog drains; no restart & TP-L01, TP-L02, TP-L04 \\
+Several Inventory replicas publish each event once (C4) & TP-L05 \\
 Terraform, EC2, separate JMeter host & TP-L03 \\
 Repeated experiments C0--C4 & TP-X01, TP-X02 (not run; Weeks 13--14) \\
 \bottomrule
@@ -548,12 +551,12 @@ acceptance and decides later.}
 \label{tab:pilot}
 \begin{tabularx}{\textwidth}{Yrrrr}
 \toprule
-Offered load & \multicolumn{2}{c}{50 requests/s} & \multicolumn{2}{c}{200 requests/s} \\
+Offered load (target) & \multicolumn{2}{c}{50 requests/s} & \multicolumn{2}{c}{200 requests/s} \\
  & C1 & C2 & C1 & C2 \\
 \midrule
 Achieved submissions/s & 51.7 & 53.0 & 159.5\textsuperscript{a} & 202.0 \\
 Response p50 / p95 / p99 (ms) & 17 / 84 / 1,723 & 25 / 43 / 84 & 1,129 / 1,778 / 2,149 & 31 / 61 / 121 \\
-Stock decisions/s & 52.7 & 50.4 & 161.2 & 69.9 \\
+Stock decisions/s\textsuperscript{b} & 52.7 & 52.1 & 161.2 & 70.8 \\
 Accepted to stock decision, p50 / p95 & = response & 1.8 / 2.8\,s & = response & 61.7 / 105.6\,s \\
 Accepted to Completed, p50 / p95 & -- & 3.5 / 5.2\,s & -- & 69.4 / 122.4\,s \\
 Errors / validator & 0 / PASS & 0 / PASS & 0 / PASS & 0 / PASS \\
@@ -562,7 +565,10 @@ Errors / validator & 0 / PASS & 0 / PASS & 0 / PASS & 0 / PASS \\
 \par\smallskip
 {\footnotesize\raggedright \textsuperscript{a}JMeter's 200 threads, each
 waiting about 1.1\,s per C1 response, could not offer more; the offered rate
-for C1 was therefore below 200/s. Raw data:
+for C1 was therefore below 200/s, so that pair is not an equal-load
+comparison. \textsuperscript{b}C1: decision rows per second; C2: Inventory's
+decisions (its result rows) per second, the same event as ``accepted to stock
+decision''. Raw data:
 \nolinkurl{tests/evidence/20261024T112852Z-pilot-c1-c2-50rps-*} and
 \nolinkurl{tests/evidence/20261024T113202Z-pilot-c1-c2-200rps-*}.\par}
 \end{table}
@@ -595,11 +601,13 @@ consumer (about 70 decisions/s on this PC), far below the brief's target of
 about 2,000 reservation attempts per second, so the Week~13 pilot measures the
 stock path's capacity on EC2 and reports stock-decision latency apart from
 completion latency, as the brief requires. Adding Inventory replicas (C4)
-also adds Inventory Outbox publishers. As built, they read unpublished rows
-without a row lock, so each replica would publish the same rows; consumers
-drop the repeats, but the Worker would repeat its work and C4 would measure
-the duplication. The rows must be claimed with a lock
-(\texttt{FOR UPDATE SKIP LOCKED}) before any C4 run.
+also adds Inventory Outbox publishers. They used to read unpublished rows
+without a row lock, so every replica published the same rows (800 messages for
+400 rows with two replicas); C4 would have measured the duplication. Each
+publisher now claims its batch with \texttt{FOR UPDATE SKIP LOCKED}, and with 2
+or 4 replicas each row is published exactly once (TP-L05). Each Inventory
+instance still handles one message at a time; letting one instance process
+several at once is a second lever, measured next to C4 in the pilot.
 
 \subsection{Pre-pilot settings}
 Every limit below is a pre-pilot value, chosen on the development PC; the
@@ -696,7 +704,7 @@ Throughput limits in the Worker and the single Inventory consumer (about
 70 decisions/s in the local pilot) & C1 versus C2 decided by these limits,
 not by the architecture & Outbox drains continuously (done); Worker
 concurrency and the number of Inventory consumers set in the pilot; Outbox
-rows claimed with a lock before C4;
+rows claimed with a lock (done, TP-L05);
 measure each stage's capacity first \\
 Redis losing its record of reserved orders (no persistence guarantee is
 configured) & A re-sent order could take a second unit: stock lost, never
@@ -718,9 +726,9 @@ the official runs \\
 % ================================================================== 11
 \section{Next steps}
 \begin{itemize}
-  \item \textbf{Week 13 (31/10--06/11):} claim Inventory Outbox rows with a
-    lock so that C4 replicas do not publish the same rows; measure the stock
-    path's capacity on EC2; set the Worker's concurrency from the pilot; build the remaining workloads (ramp-up, steady, spike, hot product,
+  \item \textbf{Week 13 (31/10--06/11):} measure the stock path's capacity
+    on EC2, with C4 replicas and with one Inventory instance processing
+    several messages at once, at equal offered loads; set the Worker's concurrency from the pilot; build the remaining workloads (ramp-up, steady, spike, hot product,
     skewed products, demand below, at and above stock); pilot C1--C4 with 1, 2
     and 4 Inventory consumers on EC2; set every limit from the pilot; freeze
     source, configuration and the run matrix; write the Experimental Design
