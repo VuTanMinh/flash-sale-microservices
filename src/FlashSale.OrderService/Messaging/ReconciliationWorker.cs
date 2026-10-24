@@ -81,6 +81,12 @@ public class ReconciliationWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_options.Enabled)
+        {
+            _logger.LogInformation("Reconciliation is disabled (Reconciliation:Enabled = false)");
+            return;
+        }
+
         var pollInterval = TimeSpan.FromSeconds(_options.PollIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)

@@ -13,9 +13,22 @@
 #    extracted; every computed value must equal the hand-computed answer, the
 #    per-series reset counter, the delayed drain and the negative count included,
 #    "unavailable" stays "unavailable", and recovery is "unavailable" without
-#    -StableRange. Part 1b: with an idempotencyKey column the run's orders are
-#    exactly its submitted keys, a reconciliation re-publish adds no second
-#    interval row, and a recovery phase of refusals is "not_recovered".
+#    -StableRange.
+#
+#    Part 1b (membership + recovery + failure fixtures, the Week 12 review):
+#    - run membership by JTL idempotencyKey; a reconciliation re-publish adds no
+#      second interval row (original publish time kept); a key submitted as the
+#      LAST sample whose DB commit is later is still counted (membership is by
+#      key, not timing);
+#    - cohort count: accepted_count == stage-intervals rows == distinct OrderIds;
+#    - recovery: p95 latency is judged on 2xx only (fast refusals cannot mask a
+#      slow 2xx, and a window with no 2xx is never in range), the window must be
+#      sustained (no 1-s gap), and an optional max_total_backlog (Order + Inventory
+#      Outbox + main queues, a missing series is never 0). A phase of only 503,
+#      only 429, 2xx below min_throughput_per_s, fast refusals with a slow 2xx, or
+#      a missing Inventory Outbox series is "not_recovered"; a 1-s gap skips that
+#      window; and a DB query failure after the probe exits 2, still writes
+#      summary.json, and leaves the database block and drain/recovery "unavailable".
 # 2. A real run. Order/Inventory/Worker run on a throwaway RabbitMQ (5700/15700)
 #    and Redis (6410) with the collector running; about 10 orders are placed and
 #    extracted; the accepted count equals the orders placed and each order's
@@ -32,7 +45,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 39     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 52     # number of Check calls in the try block (a truncated run must fail)
 
 # real-run stack (Part 2)
 $mq = "verify-ex-mq"; $amqp = 5700; $mgmt = 15700; $redis = "verify-ex-redis"; $redisPort = 6410
@@ -41,7 +54,7 @@ $ex = "flashsale.order.exchange"; $dlx = "flashsale.dlx"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -272,6 +285,8 @@ try {
     $negRow = @($csvRows | Where-Object { (AsNum $_.published_to_decided_ms) -lt 0 })
     $missingRow = @($csvRows | Where-Object { $_.applied_to_completed_ms -eq "" })
     Check "stage-intervals.csv has 5 rows, one negative publish_to_decided, one missing completion" ($csvRows.Count -eq 5 -and $negRow.Count -eq 1 -and $missingRow.Count -eq 1) "rows=$($csvRows.Count) negative=$($negRow.Count) missing-completion=$($missingRow.Count)"
+    $distinctIds = @($csvRows | ForEach-Object { $_.order_id } | Sort-Object -Unique)
+    Check "cohort: accepted_count = stage-intervals rows = distinct order ids (5)" ((Eq $sum.database.accepted_count 5) -and ($csvRows.Count -eq 5) -and ($distinctIds.Count -eq 5)) "accepted=$($sum.database.accepted_count) rows=$($csvRows.Count) distinct=$($distinctIds.Count)"
 
     # ---- collector checks
     Check "collector: peak queue depth OrderPlaced = 5" (Near $sum.collector.peak_queue_depth.per_queue.OrderPlaced 5.0) "got=$($sum.collector.peak_queue_depth.per_queue.OrderPlaced)"
@@ -308,35 +323,154 @@ try {
     Check "membership: accepted_count = 3 by Idempotency-Key (refused key and out-of-window timing ignored)" ($keyExit -eq 0 -and (Eq $keySum.database.accepted_count 3) -and "$($keySum.database.run_membership)" -like "jtl idempotencyKey*") "exit=$keyExit accepted=$($keySum.database.accepted_count) membership=$($keySum.database.run_membership)"
     Check "membership: one interval row per order; a re-published order keeps its original publish time (100 ms)" ($keyRows.Count -eq 3 -and $seed0Row.Count -eq 1 -and (Near $seed0Row[0].accepted_to_published_ms 100)) "rows=$($keyRows.Count) seed0-rows=$($seed0Row.Count) a2p=$(if ($seed0Row.Count -gt 0) { $seed0Row[0].accepted_to_published_ms })"
 
-    # Recovery: overload 0-5 s (all 503), recovery from 5 s at 2 req/s. Mixed:
-    # 503 for 5-8 s, then 201s, so with no refusals allowed and 2-s windows the
-    # first window in range starts at 8 s -> recovery = 3 s. All refused: the
-    # recovery phase never recovers.
-    foreach ($case in @("mixed", "allrefused")) {
-        $recDir = Join-Path $runDir "recovery-$case"
-        New-Item -ItemType Directory -Force -Path $recDir | Out-Null
-        Copy-Item -LiteralPath $samplesPath -Destination (Join-Path $recDir "samples.csv")
-        $recJtl = New-Object System.Collections.Generic.List[string]
-        $recJtl.Add($jtlHeader)
-        for ($k = 0; $k -lt 10; $k++) { $recJtl.Add("$($base + $k * 500),5,submit-overload,503,Service Unavailable,T,text,false,,0,0,1,1,http://localhost/api/orders,0,0,0") }
-        for ($k = 0; $k -lt 20; $k++) {
-            $code = "201"; if ($case -eq "allrefused" -or $k -lt 6) { $code = "503" }
-            $recJtl.Add("$($base + 5000 + $k * 500),50,submit-recovery,$code,x,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0")
-        }
-        [IO.File]::WriteAllLines((Join-Path $recDir "raw.jtl"), $recJtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
-        # In-process (&), not a child powershell -File: a hashtable argument
-        # does not survive the command line (verify-load-shedding.ps1 does the same).
-        & $extract -RunId "rec-$case" -RunDir $recDir -StableWindowSeconds 2 `
-            -StableRange @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 } *> $null
-        $recSum = $null
-        try { $recSum = Get-Content -LiteralPath (Join-Path $recDir "summary.json") -Raw | ConvertFrom-Json } catch { }
-        $recValue = $recSum.collector.recovery_time_s.value
-        if ($case -eq "mixed") {
-            Check "recovery: first in-range 2-s window starts 3 s after overload removal" (Near $recValue 3) "got=$recValue"
-        } else {
-            Check "recovery: a recovery phase that refuses everything is not_recovered (never a number)" ($recValue -is [string] -and $recValue -eq "not_recovered") "got=$recValue"
-        }
+    # fixture (g): the order's key is submitted at the LAST JTL sample and its DB
+    # commit is after that sample's start time. Membership is by key, so it is
+    # still counted (an acceptance-time window would exclude it).
+    $boundaryId = [guid]::NewGuid().ToString()
+    Seed $boundaryId "Completed" "2026-01-01 00:00:01.500000" "2026-01-01 00:00:01.600000" "2026-01-01 00:00:01.700000" "2026-01-01 00:00:01.800000" "2026-01-01 00:00:02.000000" "StockReserved"
+    $cleanupIds += $boundaryId
+    $boundaryDir = Join-Path $runDir "boundary"
+    New-Item -ItemType Directory -Force -Path $boundaryDir | Out-Null
+    $boundaryJtl = New-Object System.Collections.Generic.List[string]
+    $boundaryJtl.Add("$jtlHeader,idempotencyKey")
+    $boundaryJtl.Add("$($base + 1000),50,submit-order,201,Created,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0,ek-$boundaryId")
+    [IO.File]::WriteAllLines((Join-Path $boundaryDir "raw.jtl"), $boundaryJtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    & powershell -NoProfile -File $extract -RunId "boundary" -RunDir $boundaryDir -Container $Container *> $null
+    $boundaryExit = $LASTEXITCODE
+    $boundarySum = $null
+    try { $boundarySum = Get-Content -LiteralPath (Join-Path $boundaryDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "membership boundary: a key submitted as the LAST sample with a later DB commit is counted" ($boundaryExit -eq 0 -and (Eq $boundarySum.database.accepted_count 1) -and "$($boundarySum.database.run_membership)" -like "jtl idempotencyKey*") "exit=$boundaryExit accepted=$($boundarySum.database.accepted_count) membership=$($boundarySum.database.run_membership)"
+
+    # ---- recovery fixtures (Part 1b). Each case is a JTL of "submit-recovery"
+    #      submissions; recoveryFrom is the first one. Run in-process (&) so a
+    #      hashtable -StableRange survives (a child command line would stringify
+    #      it). Window length is 2 s throughout. No -Container is passed, so the
+    #      database block is skipped and only JTL + samples drive recovery.
+    function Sub([int]$offsetMs, [int]$elapsed, [string]$code) {
+        return "$($base + $offsetMs),$elapsed,submit-recovery,$code,x,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0"
     }
+    function Write-RecoveryJtl([string]$path, [object[]]$rows) {
+        $jtl = New-Object System.Collections.Generic.List[string]
+        $jtl.Add($jtlHeader)
+        foreach ($r in $rows) { $jtl.Add($r) }
+        [IO.File]::WriteAllLines($path, $jtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    }
+    function Run-Recovery([string]$name, [string]$jtlPath, [hashtable]$range, [string]$samplesCsvPath = "") {
+        $dir = Join-Path $runDir "recovery-$name"
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        Copy-Item -LiteralPath $jtlPath -Destination (Join-Path $dir "raw.jtl")
+        if ($samplesCsvPath -eq "") { Copy-Item -LiteralPath $samplesPath -Destination (Join-Path $dir "samples.csv") }
+        else { Copy-Item -LiteralPath $samplesCsvPath -Destination (Join-Path $dir "samples.csv") }
+        & $extract -RunId "rec-$name" -RunDir $dir -StableWindowSeconds 2 -StableRange $range *> $null
+        $s = $null
+        try { $s = Get-Content -LiteralPath (Join-Path $dir "summary.json") -Raw | ConvertFrom-Json } catch { }
+        if ($null -eq $s) { return $null }
+        return $s.collector.recovery_time_s.value
+    }
+
+    # mixed: first 6 recovery submissions refuse, then 201s at 2 req/s. The
+    # s=2 window still holds 2 refusals (rejected); the s=3 window is clean.
+    $mixedRows = New-Object System.Collections.Generic.List[string]
+    for ($k = 0; $k -lt 20; $k++) { $code = "201"; if ($k -lt 6) { $code = "503" }; $mixedRows.Add((Sub ($k * 500) 50 $code)) }
+    $mixedJtl = Join-Path $runDir "recovery-mixed.jtl"
+    Write-RecoveryJtl $mixedJtl $mixedRows.ToArray()
+    $mixedVal = Run-Recovery "mixed" $mixedJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 }
+    Check "recovery: first in-range 2-s window starts 3 s after overload removal" (Near $mixedVal 3) "got=$mixedVal"
+
+    # (a) all 503 and (b) all 429: a recovery phase that refuses everything is
+    # not_recovered, never a number.
+    foreach ($case in @(@{ name = "all503"; code = "503" }, @{ name = "all429"; code = "429" })) {
+        $rows = New-Object System.Collections.Generic.List[string]
+        for ($k = 0; $k -lt 20; $k++) { $rows.Add((Sub ($k * 500) 50 $case.code)) }
+        $jtl = Join-Path $runDir "recovery-$($case.name).jtl"
+        Write-RecoveryJtl $jtl $rows.ToArray()
+        $val = Run-Recovery $case.name $jtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 }
+        Check "recovery ($($case.name)): a phase that refuses everything is not_recovered" ($val -is [string] -and $val -eq "not_recovered") "got=$val"
+    }
+
+    # (c) 2xx present but below min_throughput_per_s (2 req/s vs 3 req/s).
+    $lowRows = New-Object System.Collections.Generic.List[string]
+    for ($k = 0; $k -lt 20; $k++) { $lowRows.Add((Sub ($k * 500) 50 "201")) }
+    $lowJtl = Join-Path $runDir "recovery-low.jtl"
+    Write-RecoveryJtl $lowJtl $lowRows.ToArray()
+    $lowVal = Run-Recovery "low" $lowJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 3.0 }
+    Check "recovery (c): 2xx below min_throughput_per_s is not_recovered" ($lowVal -is [string] -and $lowVal -eq "not_recovered") "got=$lowVal"
+
+    # (d) refusals are fast and the single 2xx is slow: p95(all)=10 <= 1000 but
+    # p95(2xx)=5000 > 1000. The old all-submissions p95 would have recovered;
+    # this must be not_recovered (negative control for gap 1).
+    $slowRows = New-Object System.Collections.Generic.List[string]
+    for ($k = 0; $k -lt 21; $k++) { if ($k -eq 10) { $slowRows.Add((Sub ($k * 90) 5000 "201")) } else { $slowRows.Add((Sub ($k * 90) 10 "503")) } }
+    $slowJtl = Join-Path $runDir "recovery-slow.jtl"
+    Write-RecoveryJtl $slowJtl $slowRows.ToArray()
+    $slowVal = Run-Recovery "slow" $slowJtl @{ max_p95_ms = 1000 }
+    Check "recovery (d): fast refusals with a slow 2xx is not_recovered (p95 judged on 2xx only)" ($slowVal -is [string] -and $slowVal -eq "not_recovered") "got=$slowVal"
+
+    # (f) a 1-s gap inside an otherwise good phase: the gapped window is not
+    # used, so recovery starts at s=2 instead of s=0.
+    $gapRows = New-Object System.Collections.Generic.List[string]
+    foreach ($o in @(0, 500, 2000, 2500, 3000, 3500, 4000, 4500)) { $gapRows.Add((Sub $o 50 "201")) }
+    $gapJtl = Join-Path $runDir "recovery-gap.jtl"
+    Write-RecoveryJtl $gapJtl $gapRows.ToArray()
+    $gapVal = Run-Recovery "gap" $gapJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 }
+    Check "recovery (f): a 1-s gap skips that window (recovery = 2, not 0)" (Near $gapVal 2) "got=$gapVal"
+
+    # (e) max_total_backlog given but samples.csv lacks the Inventory Outbox
+    # series -> the total backlog can never be judged (missing data is never 0)
+    # -> not_recovered, never a number.
+    $noInvCsv = Join-Path $runDir "recovery-noinv-samples.csv"
+    $noInvCsvRows = New-Object System.Collections.Generic.List[string]
+    $noInvCsvRows.Add("utc_time,source,name,labels,value")
+    $noInvCsvRows.Add("2025-12-31T23:59:59.000Z,service,flashsale_outbox_unpublished,service=order-service,0")
+    $noInvCsvRows.Add("2025-12-31T23:59:59.000Z,rabbitmq,messages_ready,queue=OrderPlaced,0")
+    $noInvCsvRows.Add("2025-12-31T23:59:59.000Z,rabbitmq,messages_unacknowledged,queue=OrderPlaced,0")
+    [IO.File]::WriteAllLines($noInvCsv, $noInvCsvRows.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    $goodRows = New-Object System.Collections.Generic.List[string]
+    for ($k = 0; $k -lt 20; $k++) { $goodRows.Add((Sub ($k * 500) 50 "201")) }
+    $goodJtl = Join-Path $runDir "recovery-noinv.jtl"
+    Write-RecoveryJtl $goodJtl $goodRows.ToArray()
+    $noInvVal = Run-Recovery "noinv" $goodJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0; max_total_backlog = 100 } $noInvCsv
+    Check "recovery (e): missing Inventory Outbox series with max_total_backlog is not_recovered" ($noInvVal -is [string] -and $noInvVal -eq "not_recovered") "got=$noInvVal"
+
+    # ---- fixture (i): a DB query failure AFTER a successful SELECT 1. A
+    #      throwaway PostgreSQL container with no order_service schema is
+    #      started and removed here. The probe (SELECT 1) succeeds, then the
+    #      first count query fails: the extractor must exit 2, still write
+    #      summary.json, report the database block as "unavailable (query
+    #      failed...)" with no numeric counts, and leave drain/recovery
+    #      "unavailable" (a drain time is never inferred from a failed query).
+    $emptyPg = "verify-extract-empty-pg"
+    docker rm -f $emptyPg *> $null
+    docker run -d --name $emptyPg -e POSTGRES_USER=flashsale -e POSTGRES_PASSWORD=flashsale_dev -e POSTGRES_DB=flashsale postgres:16 | Out-Null
+    $pgReady = $false
+    for ($i = 0; $i -lt 60; $i++) { if ((docker exec $emptyPg pg_isready -U flashsale -d flashsale 2>&1 | Out-String) -match "accepting") { $pgReady = $true; break }; Start-Sleep 1 }
+    Check "fixture i: throwaway PostgreSQL with no order_service schema started" $pgReady
+    $failDir = Join-Path $runDir "dbfail"
+    New-Item -ItemType Directory -Force -Path $failDir | Out-Null
+    Copy-Item -LiteralPath $samplesPath -Destination (Join-Path $failDir "samples.csv")
+    $failJtl = New-Object System.Collections.Generic.List[string]
+    $failJtl.Add($jtlHeader)
+    for ($k = 0; $k -lt 10; $k++) { $failJtl.Add("$($base + $k * 500),50,submit-order,201,Created,T,text,true,,0,0,1,1,http://localhost/api/orders,0,0,0") }
+    [IO.File]::WriteAllLines((Join-Path $failDir "raw.jtl"), $failJtl.ToArray(), (New-Object Text.UTF8Encoding($false)))
+
+    # child process: capture the documented exit code 2
+    & powershell -NoProfile -File $extract -RunId "dbfail" -RunDir $failDir -Container $emptyPg *> $null
+    $failExit = $LASTEXITCODE
+    $failSum = $null
+    try { $failSum = Get-Content -LiteralPath (Join-Path $failDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "fixture i: extractor exits 2 on a DB query failure after the probe" ($failExit -eq 2) "exit=$failExit"
+    Check "fixture i: summary.json still written" ($null -ne $failSum)
+    Check "fixture i: database block is 'unavailable (query failed...)' with no numeric counts" ($null -ne $failSum -and $failSum.database -is [string] -and "$($failSum.database)" -like "unavailable (query failed*") "database=$($failSum.database)"
+    Check "fixture i: drain_time_s is 'unavailable' (never inferred from a failed query)" ($null -ne $failSum -and (IsUnavailable $failSum.collector.drain_time_s.value)) "got=$($failSum.collector.drain_time_s.value)"
+
+    # in-process run with -StableRange: recovery would be a number here without
+    # the DB failure, so "unavailable" proves recovery cannot be certified while
+    # the database is down (gap 5).
+    & $extract -RunId "dbfail-recovery" -RunDir $failDir -Container $emptyPg -StableRange @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0 } *> $null
+    $failRecSum = $null
+    try { $failRecSum = Get-Content -LiteralPath (Join-Path $failDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "fixture i: with -StableRange, recovery_time_s is still 'unavailable' (DB down)" ($null -ne $failRecSum -and (IsUnavailable $failRecSum.collector.recovery_time_s.value)) "got=$($failRecSum.collector.recovery_time_s.value)"
+    docker rm -f $emptyPg *> $null
 
     Cleanup-Seeded $cleanupIds
 
@@ -446,6 +580,7 @@ finally {
     if ($cproc -and -not $cproc.HasExited) { Stop-Process -Id $cproc.Id -Force -ErrorAction SilentlyContinue }
     foreach ($project in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { Stop-Svc $project }
     foreach ($c in $mq, $redis) { docker rm -f $c *> $null }
+    docker rm -f "verify-extract-empty-pg" *> $null
     Cleanup-Seeded $cleanupIds
 }
 

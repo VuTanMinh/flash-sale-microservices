@@ -51,7 +51,8 @@ foreach ($m in [regex]::Matches($ch, '(?i)verified live|all passing|proven direc
     Check "unbacked claim '$($m.Value)' in chapter" $false
 }
 $seqSec = $ch.Substring($ch.IndexOf("\section{Sequence Diagrams}"), 1200)
-Check "sequence section cites its alignment check (TP-W04) and draws no unexercised Nginx hop" ($seqSec.Contains("TP-W04") -and $seqSec.Contains("Nginx is not drawn"))
+# Since Week 12 Nginx is drawn; it may be drawn only with the test that exercises it.
+Check "sequence section cites its alignment check (TP-W04) and draws no unexercised Nginx hop" ($seqSec.Contains("TP-W04") -and ($seqSec.Contains("Nginx is not drawn") -or $seqSec -match '(?s)through Nginx.{0,200}exercised by TP-L01'))
 
 # Teacher-brief points (docs/teacher-brief.md section 3 and 5)
 Check "names all six teacher states" (@("PendingStock", "Confirmed", "Rejected", "Processing", "Completed", "ProcessingFailed" | Where-Object { $ch.Contains("\texttt{$_}") }).Count -eq 6)

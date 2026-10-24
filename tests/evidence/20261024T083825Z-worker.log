@@ -1,0 +1,70 @@
+﻿== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: wk-083825 has 40 units
+== A. Deterministic success (delay 500ms, 5 real orders)
+PASS  A: 5 orders accepted through the API -- orders=5
+PASS  A: every order ends Completed -- 0af86509-dda1-4b7e-829d-faac83ac5b4f=Completed,adf37706-608c-4118-9419-f9e662a66c86=Completed,c6749d26-10a1-4f6e-9dab-dafaad57708e=Completed,cb32a3e8-d0f5-4cde-8491-1114f6876969=Completed,5ebd94e6-a1f2-459d-b64f-3b4af29c3f33=Completed
+PASS  A: each Worker processed-in time is >= 500ms and < 2000ms -- 684,541,534,538,532
+PASS  A: each applied OrderProcessed has MessageId = OrderId (one Order Inbox row per order) -- 0af86509-dda1-4b7e-829d-faac83ac5b4f=1,adf37706-608c-4118-9419-f9e662a66c86=1,c6749d26-10a1-4f6e-9dab-dafaad57708e=1,cb32a3e8-d0f5-4cde-8491-1114f6876969=1,5ebd94e6-a1f2-459d-b64f-3b4af29c3f33=1
+PASS  A: no Worker warning, error or fatal line -- warn/err=0
+PASS  A: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== B. Replay, same identity
+PASS  B: the Worker processed the replayed message again (attempts counter +1) -- counter=5->6
+PASS  B: Order Service applied nothing new (still one Inbox row for MessageId = OrderId) -- rows=1
+PASS  B: state stays Completed and CompletedAt unchanged -- state=Completed completed=2026-10-24 08:39:07.346613
+PASS  B: no DLQ -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== C. Duplicate business event, new MessageId
+PASS  C: the Worker processed the new-identity copy again (attempts counter +1) -- counter=6->7
+PASS  C: Order Service applied nothing new (still one Inbox row for MessageId = OrderId) -- rows=1
+PASS  C: state stays Completed and CompletedAt unchanged -- state=Completed completed=2026-10-24 08:39:07.889373
+PASS  C: no DLQ -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== D. Concurrent copies (5 at once)
+PASS  D: 5 concurrent copies published -- published=5
+PASS  D: all 5 copies were attempted by the Worker (attempts counter +5) -- counter=7->12
+PASS  D: still one applied completion (one Inbox row, CompletedAt unchanged, Completed) -- rows=1 state=Completed
+PASS  D: no DLQ -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== E1. Graceful restart (delay 3000ms, real Ctrl+C)
+PASS  E1: 5 orders accepted -- orders=5
+PASS  E1: the Worker received at least one StockReserved before shutdown -- received=1
+PASS  E1: a real Ctrl+C reached the Worker (helper exit 0 and the Worker logged 'Application is shutting down') -- helper-exit=0 shuttingDownLines=1
+PASS  E1: the Worker exited by itself after Ctrl+C (no force) -- exited=True
+PASS  E1: ProcessWorker.StockReserved.dlq is unchanged -- dlq=0
+PASS  E1: the Worker logged 'Shutdown during processing' after the Ctrl+C -- lines=5
+PASS  E1: no 'routing to DLQ' and no Error/Fatal level line between the Ctrl+C and exit -- routingToDlq=0 errFatal=0
+PASS  E1: not every order was already Completed at shutdown (the case is meaningful) -- completed=0/5
+PASS  E1: after restart the orders pending at shutdown were redelivered and end Completed -- c4570528-c017-46ad-8e06-58af984e5479=Completed,cc8696d3-d2cb-42fb-8da0-333752cfb729=Completed,2c9b6452-b8ce-40be-a32d-9b071062c78b=Completed,1816a40a-db0b-4df3-8bb2-9e2058f8f33e=Completed,9e9e3e82-bee6-48fb-bc0d-e258d8b88e0a=Completed
+PASS  E1: after restart each order has exactly one applied completion -- c4570528-c017-46ad-8e06-58af984e5479=1,cc8696d3-d2cb-42fb-8da0-333752cfb729=1,2c9b6452-b8ce-40be-a32d-9b071062c78b=1,1816a40a-db0b-4df3-8bb2-9e2058f8f33e=1,9e9e3e82-bee6-48fb-bc0d-e258d8b88e0a=1
+PASS  E1: DLQ still unchanged -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== E2. Hard crash (delay 3000ms, Stop-Process -Force)
+PASS  E2: 5 orders accepted -- orders=5
+PASS  E2: the Worker received at least one StockReserved before the crash -- received=1
+PASS  E2: the Worker was force-killed (crash) -- exited=True
+PASS  E2: ProcessWorker.StockReserved.dlq is unchanged -- dlq=0
+PASS  E2: not every order was already Completed at crash (the case is meaningful) -- completed=0/5
+PASS  E2: after restart all 5 orders end Completed -- 742ece0b-da68-49de-a626-739b5d915456=Completed,6214d642-a2f4-43af-a8a8-e36952ed00eb=Completed,f0b8be89-fbd0-476d-abe7-780572ad70cb=Completed,e284ebb8-7b16-4a5b-a29c-7e068070d954=Completed,f5d7f4d0-8480-4256-8a27-5e1ae468a8c8=Completed
+PASS  E2: after restart each order has exactly one applied completion -- 742ece0b-da68-49de-a626-739b5d915456=1,6214d642-a2f4-43af-a8a8-e36952ed00eb=1,f0b8be89-fbd0-476d-abe7-780572ad70cb=1,e284ebb8-7b16-4a5b-a29c-7e068070d954=1,f5d7f4d0-8480-4256-8a27-5e1ae468a8c8=1
+PASS  E2: DLQ still unchanged -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== F. Event reordering: completion before the stock result
+PASS  F: an order was accepted -- order=0d443d07-c25d-47f7-a454-2379374023cd
+PASS  F: the early completion was requeued, not dead-lettered (log line present) -- requeued=True
+PASS  F: OrderProcessed.dlq is still empty at the requeue -- dlq=0
+PASS  F: the order is still PendingStock and has no completion Inbox row while unapplied -- state=PendingStock rows=0
+PASS  F: after the grant is restored the order ends Completed exactly once -- state=Completed rows=1
+PASS  F: ConfirmedOrRejectedAt <= CompletedAt -- confirmed=2026-10-24 08:41:40.633981 completed=2026-10-24 08:41:44.319330
+PASS  F: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== G. Late stock result after completion
+PASS  G: the late StockReserved is a no-op (state stays Completed, timestamps unchanged) -- state=Completed decided=2026-10-24 08:39:06.722783 completed=2026-10-24 08:39:08.963927
+PASS  G: no DLQ grew -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+== H. Concurrency (8 copies, delay 1000ms, MaxConcurrency 1 then 4)
+PASS  H: MaxConcurrency 1 processed all 8 copies and logged '1 at a time' -- processed=8 seconds=8.6
+PASS  H: MaxConcurrency 4 processed all 8 copies and logged '4 at a time' -- processed=8 seconds=2.5
+PASS  H: control, MaxConcurrency 1 is serial (8 x 1000ms took >= 8 s; measured 8.6 s)
+PASS  H: MaxConcurrency 4 overlaps the work (< 4.5 s; measured 2.5 s)
+PASS  H: still one applied completion (one Inbox row, CompletedAt unchanged) and no DLQ -- rows=1 completed=2026-10-24 08:39:09.495102
+== End state
+PASS  every main and retry queue is empty -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderProcessingStarted.retry.1=0,OrderProcessingStarted.retry.2=0,OrderProcessingStarted.retry.3=0,OrderProcessed.retry.1=0,OrderProcessed.retry.2=0,OrderProcessed.retry.3=0
+PASS  every DLQ is still empty -- OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  every order Completed with exactly one Redis deduction (SCARD = orders, stock = initial - orders) -- scard=16 stock=24
+
+The Worker's downstream work is deterministic and exactly one completion is applied per order under replay, restart and reordering.
+Exit code: 0

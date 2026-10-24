@@ -98,6 +98,8 @@ verifiers = [
     ("Publication (TP-O02)", "publication"), ("Metrics (TP-P04)", "metrics"), ("Validator (TP-W02)", "validator"),
     ("Cross-store (TP-I03)", "cross-store"), ("Outbox (TP-O01)", "outbox"), ("Stock results (TP-W01)", "stock-results"),
     ("DB exceptions (TP-W03)", "db-exceptions"), ("Extraction (TP-P08)", "extract"),
+    ("Run collector (TP-P07)", "run-collector"), ("Message timestamps (TP-P06)", "message-timestamps"),
+    ("Real runs C1/C2 (TP-W02)", "real-runs"), ("Runtime accounts (TP-E04)", "runtime-accounts"),
 ]
 checks = []
 for label, suffix in verifiers:
@@ -111,7 +113,7 @@ for label, suffix in verifiers:
     failed = sum(1 for l in lines if l.startswith("FAIL"))
     checks.append((label, passed, failed, os.path.basename(logs[-1])))
 checks.sort(key=lambda c: c[1])
-fig, ax = plt.subplots(figsize=(9, 7.4))
+fig, ax = plt.subplots(figsize=(9, 8.6))
 ax.barh([c[0] for c in checks], [c[1] for c in checks], color="#2e7d32", label="PASS")
 ax.barh([c[0] for c in checks], [c[2] for c in checks], left=[c[1] for c in checks], color="#c62828", label="FAIL")
 for i, c in enumerate(checks):

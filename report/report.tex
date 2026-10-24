@@ -164,46 +164,44 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 
 \begin{document}
 
-% Custom title page (Week 10 visual redesign) rather than the bare
-% \maketitle this file used before -- \supervisor and \faculty below are
-% real unknowns, not guesses: TDTU capstone reports name a specific
-% supervisor and home faculty, neither of which appears anywhere in this
-% repo's checklist, proposal excerpts, or prior report content. Left as
-% clearly marked placeholders (matching this file's own DRAFT NOTICE
-% convention above) rather than silently invented -- fill in before final
-% submission.
+% Cover and inner cover laid out after TDTU's English thesis template
+% (Template_English.doc: Mau 1 and Mau 2).
+\newcommand{\projecttitleen}{DESIGN AND PERFORMANCE EVALUATION OF A
+MICROSERVICES SYSTEM FOR LARGE-SCALE CONCURRENT TRANSACTION PROCESSING IN A
+FLASH-SALE SCENARIO}
 \begin{titlepage}
   \centering
-  \vspace*{1cm}
-  {\scshape\Large Ton Duc Thang University\par}
-  \vspace{0.2cm}
-  {\large [Faculty name -- fill in]\par}
-  \vspace{1.5cm}
-  \rule{\linewidth}{0.5mm}\\[0.4cm]
-  {\huge\bfseries Thiết kế và Đánh giá hiệu năng hệ thống Microservices\\[0.2cm]
-    xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale\par}
-  \vspace{0.4cm}
-  \rule{\linewidth}{0.5mm}\\[1.2cm]
-  {\large Capstone Project Report\par}
+  {\fontsize{14}{17}\selectfont VIETNAM GENERAL CONFEDERATION OF LABOUR\\
+  \textbf{TON DUC THANG UNIVERSITY}\\
+  \textbf{FACULTY OF INFORMATION TECHNOLOGY}\par}
+  \vspace{1.2cm}
+  \includegraphics[width=4.2cm]{figures/tdtu-logo.png}\par
   \vspace{2cm}
-
-  \begin{minipage}{0.45\textwidth}
-    \begin{flushleft} \large
-      \textit{Students}\\
-      Vũ Đình Kiệt (523V0011)\\
-      Vũ Tấn Minh (523V0012)\\
-      Class 23K50201
-    \end{flushleft}
-  \end{minipage}
-  \begin{minipage}{0.45\textwidth}
-    \begin{flushright} \large
-      \textit{Supervisor}\\
-      Mai Văn Mạnh
-    \end{flushright}
-  \end{minipage}
-
+  {\fontsize{14}{17}\selectfont\bfseries VŨ TẤN MINH\\ VŨ ĐÌNH KIỆT\par}
+  \vspace{2cm}
+  {\fontsize{24}{30}\selectfont\bfseries \projecttitleen\par}
+  \vspace{1.6cm}
+  {\fontsize{22}{27}\selectfont\bfseries CAPSTONE PROJECT REPORT\\[2pt] SOFTWARE ENGINEERING\par}
   \vfill
-  {\large \today\par}
+  {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
+\end{titlepage}
+\begin{titlepage}
+  \centering
+  {\fontsize{14}{17}\selectfont VIETNAM GENERAL CONFEDERATION OF LABOUR\\
+  \textbf{TON DUC THANG UNIVERSITY}\\
+  \textbf{FACULTY OF INFORMATION TECHNOLOGY}\par}
+  \vspace{1.2cm}
+  \includegraphics[width=4.2cm]{figures/tdtu-logo.png}\par
+  \vspace{1.0cm}
+  {\fontsize{14}{17}\selectfont\bfseries VŨ TẤN MINH -- 523V0012\\ VŨ ĐÌNH KIỆT -- 523V0011\par}
+  \vspace{1.0cm}
+  {\fontsize{20}{26}\selectfont\bfseries \projecttitleen\par}
+  \vspace{0.9cm}
+  {\fontsize{18}{23}\selectfont\bfseries CAPSTONE PROJECT REPORT\\[2pt] SOFTWARE ENGINEERING\par}
+  \vspace{0.9cm}
+  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{Dr. MAI VĂN MẠNH}\par}
+  \vfill
+  {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
 
 \tableofcontents
@@ -729,10 +727,13 @@ described in Section~\ref{sec:week11}.
 The full diagrams are in \texttt{docs/sequence-diagrams.md}, and the numbered
 steps are described in \texttt{docs/workflow.md}
 (Section~\ref{sec:workflow}). The diagrams show the code as built in Week 8,
-and every arrow corresponds to a call in the source:
+and every arrow corresponds to a call in the source; test case TP-W04
+(\texttt{scripts/verify-workflow.ps1}) checks each drawn claim against the
+code and configuration:
 
 \begin{itemize}
-  \item both Outboxes, with their 2-second publishers;
+  \item both Outboxes, with their publishers (a 2-second poll, and the next
+    batch at once after a full one);
   \item the routed-confirmation check of each event's required queues;
   \item the Inbox check before each consumer's business step;
   \item the Lua reservation, including the \texttt{NOT\_OPEN} warm-up gate;
@@ -742,7 +743,8 @@ and every arrow corresponds to a call in the source:
 \end{itemize}
 
 Since Week 12, clients post and poll through Nginx, which applies the C3
-rate limit (Section~\ref{sec:load-shedding}). The \texttt{Processing} hop of
+rate limit (Section~\ref{sec:load-shedding}); that hop is exercised by TP-L01
+and TP-L04. The \texttt{Processing} hop of
 the six-state model is drawn in a separate diagram. Retry and DLQ branches are listed per step in
 Section~\ref{sec:workflow} rather than drawn.
 
@@ -1267,8 +1269,9 @@ restored, the same key created the order normally.
 
 \paragraph{Outbox workflow.} Writing the Outbox row only records that an
 event must be published. A background worker (\texttt{OutboxPublisherWorker})
-polls every 2 seconds for unpublished rows, oldest first, 50 at a time, and
-publishes each stored payload. The event's \texttt{MessageId} is generated
+reads unpublished rows, oldest first, 50 at a time, and publishes each stored
+payload. After a full batch that all published it reads the next batch at
+once; otherwise it waits 2 seconds (Section~\ref{sec:review-fixes}). The event's \texttt{MessageId} is generated
 once, when the Outbox row is written, and stored in the payload, so every
 publish attempt for that row sends the same value. A failed attempt is retried
 after 1\,s, 2\,s and 4\,s. After that the row stays unpublished and is tried
@@ -2036,8 +2039,9 @@ Every order took one unit at most, and every run queue, retry queue and
 result DLQ ended empty.
 
 In the same fresh clone, the earlier checks still pass: TP-M01 (34/34),
-TP-W04 (62/62), TP-W01 (10/10) and the unit tests (45/45, including two new
-tests for the early case).
+TP-W04 (62/62), TP-W01 (10/10) and the unit tests (45/45 at the time,
+including two new tests for the early case; 98 on the final code,
+Section~\ref{sec:review-fixes}).
 
 \paragraph{Negative control.} The fix was reverted in a scratch copy and the
 run repeated on a fresh database. 16 checks failed: the retry queues did not
@@ -2441,7 +2445,7 @@ The fix has three parts:
 A completion without a start time, such as one published by an older Worker,
 uses the time it is applied, instead of the year 0001.
 
-\paragraph{Verification (TP-P02).} The unit tests (90) cover:
+\paragraph{Verification (TP-P02).} The unit tests (90 at Week~11) cover:
 \begin{itemize}
   \item the transition table;
   \item every 5-event sequence over the three Worker-facing events, 150 in
@@ -3012,8 +3016,8 @@ Each limit was then removed in turn (rate 10\,000 per second, admission off, no
 queue policy), and each removal made its case fail, so the checks detect a
 missing limit. Run against the earlier Nginx configuration, which limited only
 the exact path, the trailing-slash and upper-case check fails, as it should.
-The unit tests (91) and the earlier runtime test cases still
-pass.
+The unit tests (91 at that point in Week~12) and the earlier runtime test
+cases still pass.
 
 Test case TP-L02 (the same script, 29 of 29 checks in total) covers the
 backlog bound and the accounting. With the broker stopped and a bound of 5,
@@ -3244,6 +3248,18 @@ a test that fails when the fix is removed.
     when a message is sent, which removed the negative publish-to-decision
     intervals. Negative controls ran the previous extractor on the same
     inputs (\texttt{tests/evidence/20261023T123738Z-extract-negative-controls.log}).
+  \item \textbf{Throughput limits.} Each Outbox publisher slept 2\,s after
+    every batch of 50, capping it below 25 events/s, and opened a channel,
+    checked the routing and saved the row once per message. It now starts
+    the next full batch at once and sends a batch on one channel, checking
+    the routing once per event type and awaiting the confirms together; each
+    message still needs its own confirm. 300 queued rows drained in 1.3\,s
+    (at least 230 events/s); the old loop needed at least 10\,s, and the
+    per-message channel alone 8.1\,s. The Process Worker handled one order at
+    a time (about 3.7 orders/s); \texttt{Processing:MaxConcurrency} now lets
+    several orders wait out the delay together. Its default stays 1, so
+    earlier results keep their meaning, and a higher value is an experiment
+    parameter.
   \item \textbf{Reconciliation} also recovers orders stuck in
     \texttt{Confirmed} or \texttt{Processing}
     (Section~\ref{sec:reconciliation}; the failure model is in
@@ -3255,8 +3271,35 @@ a test that fails when the fix is removed.
     false pass.
 \end{itemize}
 
+\paragraph{Second pass.} The same review was then checked again finding by
+finding (\texttt{docs/midterm-review-disposition.md}):
+\begin{itemize}
+  \item The state race is also tested on PostgreSQL, with two connections
+    held at a barrier: both save orders, duplicate starts and conflicting
+    stock results. Four of the six cases fail when the concurrency token is
+    removed.
+  \item A crash between the Redis reservation and the PostgreSQL save is now
+    injected (TP-M01 case 1b). The restarted consumer gets \texttt{DUPLICATE}
+    and writes the missing result with no second deduction; a control that
+    erases Redis's record of the order deducts twice and fails.
+  \item On EC2 the Worker listened only on its own loopback (its
+    \texttt{Urls} setting overrode the container's), so its metrics were never
+    scraped there; the Compose file now overrides it. The queue policy and the
+    collector work through \texttt{docker exec} with no published management
+    port and no password on the command line. Neither has been run on EC2
+    since the change.
+  \item The extractor judges recovery latency on accepted responses only,
+    needs submissions in every second of the window, never reads a missing
+    backlog series as 0, and exits 2 with every database-derived value
+    \texttt{unavailable} when a query fails after the first probe.
+  \item Verifiers that switch reconciliation off now use
+    \texttt{Reconciliation:Enabled}; the earlier one-hour timeout still
+    re-sent orders left over from earlier runs in the shared test database.
+\end{itemize}
+
 Still open: the EC2 overload run describes the code from before the review,
-and every limit is a pre-pilot value that the Week~13 pilot fixes.
+its raw data was not archived, and every limit is a pre-pilot value that the
+Week~13 pilot fixes.
 
 % ============================================================
 \chapter{Experimental Design}

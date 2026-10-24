@@ -94,6 +94,8 @@ public class StockReservedConsumer : BackgroundService
             Port = _options.Connections.Default.Port,
             UserName = _options.Connections.Default.UserName,
             Password = _options.Connections.Default.Password,
+            // Processing:MaxConcurrency handlers run at once (see ProcessingOptions).
+            ConsumerDispatchConcurrency = Math.Max((ushort)1, _processingOptions.MaxConcurrency),
         };
 
         while (!stoppingToken.IsCancellationRequested)
@@ -147,8 +149,9 @@ public class StockReservedConsumer : BackgroundService
                     noLocal: false, exclusive: false, arguments: null, consumer, stoppingToken);
 
                 _logger.LogInformation(
-                    "Consuming StockReserved from queue '{Queue}' with a {Delay}ms deterministic processing delay",
-                    _options.EventBus.StockReservedQueueName, _processingOptions.DelayMilliseconds);
+                    "Consuming StockReserved from queue '{Queue}' with a {Delay}ms deterministic processing delay, {Concurrency} at a time",
+                    _options.EventBus.StockReservedQueueName, _processingOptions.DelayMilliseconds,
+                    Math.Max((ushort)1, _processingOptions.MaxConcurrency));
 
                 await Task.Delay(Timeout.Infinite, stoppingToken);
             }

@@ -86,21 +86,32 @@ Check "steps 2-3: key lookup, then order + OrderPlaced Outbox row in one SaveCha
 # Steps 5-9 and 16-20: both Outbox publishers
 foreach ($w in @(@("Order", $opw), @("Inventory", $ipw))) {
     $poll = [regex]::Match($w[1], 'PollInterval = TimeSpan\.FromSeconds\((\d+)\)').Groups[1].Value
-    Check "$($w[0]) Outbox publisher: polls every ${poll}s, up to 50 rows, oldest first (as drawn)" (
-        $poll -eq "2" -and $w[1].Contains(".OrderBy(e => e.CreatedAt)") -and $w[1].Contains(".Take(50)") -and
-        ([regex]::Matches($hp, 'loop every 2s').Count -eq 2) -and $hp.Contains("SELECT up to 50 unpublished rows, oldest first"))
+    # Midterm review: a full batch that all published is followed at once by
+    # the next; the 2-s poll applies only otherwise.
+    Check "$($w[0]) Outbox publisher: polls every ${poll}s, up to 50 rows, oldest first, next batch at once when full (as drawn)" (
+        $poll -eq "2" -and $w[1].Contains(".OrderBy(e => e.CreatedAt)") -and $w[1].Contains(".Take(BatchSize)") -and
+        $w[1] -match 'private const int BatchSize = 50;' -and
+        $w[1] -match '(?s)if \(await PublishPendingEventsAsync\(stoppingToken\)\)\s*\{\s*continue;' -and
+        $w[1].Contains("return pending.Count == BatchSize && published == pending.Count;") -and
+        ([regex]::Matches($hp, 'loop every 2s, or at once after a full batch').Count -eq 2) -and $hp.Contains("SELECT up to 50 unpublished rows, oldest first"))
     # Since the review after Week 12 the row records when the confirmed publish
-    # was SENT (captured just before PublishAsync), still marked only after the
-    # awaited, confirmed publish returns.
+    # was SENT, not when its confirm arrived. Midterm review: a batch is sent together; each row is marked only when
+    # its own confirm succeeded (failures[i] is null), with the batch send time;
+    # a failed row gets the per-row retry, marked with that attempt's send time.
     Check "$($w[0]) Outbox publisher marks a row published only after a confirmed publish, stamped with its send time" (
-        $w[1] -match '(?s)var sentAt = await TryPublishWithRetryAsync\(.*?if \(sentAt is not null\)\s*\{\s*outboxEvent\.MarkPublished\(sentAt\.Value\)' -and
+        $w[1] -match '(?s)var sentAt = DateTime\.UtcNow;\s*var failures = await publisher\.PublishBatchAsync\(.*?if \(failures\[i\] is null\)\s*\{\s*pending\[i\]\.MarkPublished\(sentAt\)' -and
+        $w[1] -match '(?s)var retriedAt = await TryPublishWithRetryAsync\(.*?if \(retriedAt is null\)\s*\{\s*break;\s*\}\s*pending\[i\]\.MarkPublished\(retriedAt\.Value\)' -and
         $w[1] -match 'var sentAt = DateTime\.UtcNow;\s*await publisher\.PublishAsync\([^;]*\);\s*return sentAt;')
 }
 foreach ($name in $publishers.Keys) {
     $p = $publishers[$name]
     Check "$name publisher: required-queue check, mandatory publish, tracked confirms" (
         $p.Contains("QueueDeclarePassiveAsync") -and $p.Contains("mandatory: true") -and $p.Contains("publisherConfirmationTrackingEnabled: true") -and
-        (Before $p "QueueDeclarePassiveAsync" "BasicPublishAsync"))
+        ((Before $p "QueueDeclarePassiveAsync" "BasicPublishAsync") -or
+         # Batched Outbox publishers (midterm review): the routing check is a
+         # method called before the batch's publishes.
+         ((Before $p "await AssertRequiredRoutingAsync(channel" "channel.BasicPublishAsync(") -and
+          $p -match '(?s)private async Task AssertRequiredRoutingAsync\(.*?QueueDeclarePassiveAsync')))
 }
 Check "every publish arrow is drawn as mandatory with a confirm" ([regex]::Matches($both, 'publish \w+ \([^)]*mandatory[^)]*confirm').Count -eq 5)
 
@@ -258,7 +269,7 @@ SELECT concat_ws('|',
         if (-not (Wait-Until { $null -ne (Mq "/overview") } 90)) { throw "throwaway RabbitMQ did not start" }
 
         $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
-        Start-Svc "FlashSale.OrderService" @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+        Start-Svc "FlashSale.OrderService" @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
         Start-Svc "FlashSale.InventoryService" @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
         Start-Svc "FlashSale.ProcessWorker" @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
         $queues = "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessingStarted", "OrderProcessed", "ProcessWorker.StockReserved"

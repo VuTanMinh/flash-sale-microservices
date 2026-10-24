@@ -33,7 +33,7 @@ sequenceDiagram
     IS->>PGI: one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row
     IS->>MQ: ack OrderPlaced
 
-    loop every 2s
+    loop every 2s, or at once after a full batch
         IP->>PGI: SELECT up to 50 unpublished rows, oldest first
     end
     IP->>MQ: check required queue StockRejected, publish StockRejected (mandatory, confirm)

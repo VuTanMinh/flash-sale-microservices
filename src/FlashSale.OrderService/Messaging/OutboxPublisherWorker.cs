@@ -29,6 +29,7 @@ public class OutboxPublisherWorker : BackgroundService
         TimeSpan.FromSeconds(4),
     ];
     private const int MaxAttempts = 4; // 1 initial + 3 retries, per RetryDelays above
+    private const int BatchSize = 50;
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OutboxPublisherWorker> _logger;
@@ -48,7 +49,16 @@ public class OutboxPublisherWorker : BackgroundService
         {
             try
             {
-                await PublishPendingEventsAsync(stoppingToken);
+                // A full batch that all published means more rows are probably
+                // waiting: go again at once instead of sleeping. Sleeping after
+                // every batch capped publishing below BatchSize / PollInterval
+                // (25 events/s), whatever the load (midterm review). The poll
+                // interval now only applies when the Outbox is (nearly) empty or
+                // a publish failed, so a broker outage still backs off.
+                if (await PublishPendingEventsAsync(stoppingToken))
+                {
+                    continue;
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -70,7 +80,12 @@ public class OutboxPublisherWorker : BackgroundService
         }
     }
 
-    private async Task PublishPendingEventsAsync(CancellationToken stoppingToken)
+    /// <summary>
+    /// Publishes up to BatchSize of the oldest unpublished rows. Returns true when
+    /// the batch was full and every row published, i.e. the caller should run
+    /// again at once rather than wait for the next poll.
+    /// </summary>
+    private async Task<bool> PublishPendingEventsAsync(CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OrderServiceDbContext>();
@@ -81,20 +96,61 @@ public class OutboxPublisherWorker : BackgroundService
         var pending = await dbContext.OutboxEvents
             .Where(e => !e.Published)
             .OrderBy(e => e.CreatedAt)
-            .Take(50)
+            .Take(BatchSize)
             .ToListAsync(stoppingToken);
 
-        foreach (var outboxEvent in pending)
+        var published = 0;
+        if (pending.Count > 0)
         {
-            var sentAt = await TryPublishWithRetryAsync(publisher, outboxEvent.EventType, outboxEvent.Payload, outboxEvent.Id, stoppingToken);
-            if (sentAt is not null)
+            // The whole batch goes out on one channel with its confirms
+            // awaited together, then one save marks every confirmed row
+            // (midterm review: a channel and a save per row capped the drain at
+            // a few dozen events/s). A crash after the confirms but before the
+            // save sends the batch again; consumers drop the repeats by
+            // MessageId, the same at-least-once contract as before.
+            var sentAt = DateTime.UtcNow;
+            var failures = await publisher.PublishBatchAsync(
+                pending.Select(e => new OutboxMessage(e.EventType, e.Payload)).ToList(), stoppingToken);
+            for (var i = 0; i < pending.Count; i++)
             {
-                outboxEvent.MarkPublished(sentAt.Value);
+                if (failures[i] is null)
+                {
+                    pending[i].MarkPublished(sentAt);
+                    published++;
+                }
+            }
+
+            await dbContext.SaveChangesAsync(stoppingToken);
+
+            // Rows the batch could not publish get the per-message retry with
+            // backoff, oldest first. The first one that still fails ends this
+            // poll, so a broker outage costs one row's backoff, not the
+            // batch's; the rest wait for the next poll.
+            for (var i = 0; i < pending.Count; i++)
+            {
+                if (failures[i] is null)
+                {
+                    continue;
+                }
+
+                _logger.LogWarning(
+                    failures[i],
+                    "Failed to publish outbox event {OutboxEventId} in its batch; retrying it on its own",
+                    pending[i].Id);
+                var retriedAt = await TryPublishWithRetryAsync(publisher, pending[i].EventType, pending[i].Payload, pending[i].Id, stoppingToken);
+                if (retriedAt is null)
+                {
+                    break;
+                }
+
+                pending[i].MarkPublished(retriedAt.Value);
                 await dbContext.SaveChangesAsync(stoppingToken);
+                published++;
             }
         }
 
         await UpdateBacklogGaugesAsync(dbContext, stoppingToken);
+        return pending.Count == BatchSize && published == pending.Count;
     }
 
     /// <summary>

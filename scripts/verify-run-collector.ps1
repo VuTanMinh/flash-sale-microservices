@@ -24,6 +24,16 @@
 #           rows; redis rows became "unavailable" while Redis was stopped and the
 #           other sources kept sampling; collector.json records run id, interval
 #           and commit.
+#
+# It then checks the EC2-only container-mode paths on a second throwaway broker
+# (verify-rc-mq2) started WITHOUT a published management port (only amqp 5699):
+# the collector run with -RabbitMqContainer (messages_ready peak >= 1 on a queue
+# holding a message; the three rate rows "unavailable" with reason=no management
+# API in container mode; collector.json mode=container; no flashsale_dev or
+# RABBITMQ_PASSWORD value leaks into collector.json/samples.csv), and
+# set-queue-bounds.ps1 applying/removing the policy with rabbitmqctl (no
+# credentials, no port). It confirms the management-API path still works on the
+# main broker, which does publish 15672 (verify-load-shedding.ps1 covers it too).
 # ============================================================
 param(
     [Parameter(Mandatory = $true)][string]$Container,
@@ -33,14 +43,15 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 15     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 26     # number of Check calls in the try block (a truncated run must fail)
 $mq = "verify-rc-mq"; $amqp = 5698; $mgmt = 15698; $redis = "verify-rc-redis"; $redisPort = 6405
+$mq2 = "verify-rc-mq2"; $amqp2 = 5699
 $orderPort = 5156; $invPort = 5157; $workerPort = 5158
 $ex = "flashsale.order.exchange"; $dlx = "flashsale.dlx"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -80,6 +91,19 @@ function QueueDepth([string]$q) {
     if ($line) { return [int](($line -split "`t")[1]) } else { return -1 }
 }
 function QueueExists([string]$q) { return ($null -ne (Mq Get "/queues/%2F/$q")) }
+function RabbitQueueNames([string]$c) {
+    return @(docker exec $c rabbitmqctl -q list_queues name --no-table-headers 2>$null | Where-Object { $_ -and ($_ -notmatch '^\s*$') } | ForEach-Object { ($_ -split "`t")[0] })
+}
+function RabbitQueuePolicy([string]$c, [string]$q) {
+    $line = @(docker exec $c rabbitmqctl -q list_queues name policy --no-table-headers 2>$null | Where-Object { ($_ -split "`t")[0] -eq $q })
+    if ($line.Count -eq 0) { return $null }
+    $parts = @($line[0] -split "`t")
+    if ($parts.Count -ge 2) { return $parts[1] } else { return "" }
+}
+function RabbitQueueMessagesReady([string]$c, [string]$q) {
+    $line = docker exec $c rabbitmqctl -q list_queues name messages_ready --no-table-headers 2>$null | Where-Object { ($_ -split "`t")[0] -eq $q }
+    if ($line) { return [int](($line -split "`t")[1]) } else { return -1 }
+}
 function Wait-Until([scriptblock]$cond, [int]$seconds = 30) { for ($i = 0; $i -lt $seconds; $i++) { if (& $cond) { return $true }; Start-Sleep 1 }; return (& $cond) }
 function Redis([string[]]$cmd) { return (docker exec $redis redis-cli @cmd | Out-String).Trim() }
 function Stock([string]$product) { return (Redis "GET", "inventory:$product") }
@@ -296,12 +320,126 @@ try {
         } catch { $jsonOk = $false; $jsonDetail = "unreadable: $($_.Exception.Message)" }
     } else { $jsonDetail = "missing: $jsonPath" }
     Check "collector.json records run id, interval and git commit" $jsonOk $jsonDetail
+
+    # ---------------------------------------------------------- container-mode broker (no 15672)
+    Write-Output "== Container-mode collector + set-queue-bounds (no published management port)"
+    docker rm -f $mq2 *> $null
+    $defs2 = Join-Path $env:TEMP "verify-rc-definitions2.json"; $conf2 = Join-Path $env:TEMP "verify-rc-rabbitmq2.conf"
+    # Loading definitions at boot skips the default user, so the same account
+    # as the main broker is defined (the in-container publish below uses it).
+    @{
+        users = @(@{ name = "flashsale"; password_hash = $hash; hashing_algorithm = "rabbit_password_hashing_sha256"; tags = @("administrator") })
+        permissions = @(@{ user = "flashsale"; vhost = "/"; configure = ".*"; write = ".*"; read = ".*" })
+        vhosts = @(@{ name = "/" })
+        queues = @(
+            @{ name = "OrderPlaced"; vhost = "/"; durable = $true; auto_delete = $false; arguments = @{} }
+            @{ name = "OrderPlaced.dlq"; vhost = "/"; durable = $true; auto_delete = $false; arguments = @{} }
+        )
+    } | ConvertTo-Json -Depth 8 | Set-Content $defs2 -Encoding ASCII
+    "management.load_definitions = /etc/rabbitmq/definitions.json`nloopback_users = none`n" | Set-Content $conf2 -Encoding ASCII
+    # no 15672 mapping: only the amqp port is published (the EC2 shape)
+    docker run -d --name $mq2 -v "${defs2}:/etc/rabbitmq/definitions.json:ro" -v "${conf2}:/etc/rabbitmq/conf.d/90-verify.conf:ro" `
+        -p "${amqp2}:5672" rabbitmq:3-management | Out-Null
+    # No rabbitmqctl before the broker has booted: a `docker exec` (root) call
+    # that early creates /var/lib/rabbitmq/.erlang.cookie owned by root, and the
+    # broker (user rabbitmq) then crashes with "eacces" reading it.
+    Wait-Until { @(docker logs $mq2 2>&1 | Select-String -SimpleMatch "Server startup complete").Count -gt 0 } 90 | Out-Null
+    $mq2Ready = Wait-Until { $n = RabbitQueueNames $mq2; ($n -contains "OrderPlaced") -and ($n -contains "OrderPlaced.dlq") } 90
+    Check "container-mode broker up: OrderPlaced and OrderPlaced.dlq declared (no 15672 published)" $mq2Ready "queues=$(RabbitQueueNames $mq2 -join ',')"
+    if (-not $mq2Ready) { throw "container-mode broker did not come up" }
+
+    # Publish one message into OrderPlaced via the management API INSIDE the
+    # container (bash /dev/tcp; no published port, no curl/rabbitmqadmin).
+    $publishScript = @'
+set -e
+body='{"properties":{},"routing_key":"OrderPlaced","payload":"hello","payload_encoding":"string"}'
+len=${#body}
+exec 3<>/dev/tcp/127.0.0.1/15672
+printf 'POST /api/exchanges/%%2F/amq.default/publish HTTP/1.1\r\nHost: 127.0.0.1:15672\r\nAuthorization: Basic Zmxhc2hzYWxlOmZsYXNoc2FsZV9kZXY=\r\nContent-Type: application/json\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "$len" "$body" >&3
+cat <&3
+'@
+    $pubOk = $false
+    for ($i = 0; $i -lt 8; $i++) {
+        # Base64 in the command, not stdin: PowerShell 5.1 adds a BOM and CRLF to piped text.
+        $pub64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(($publishScript -replace "`r", "")))
+        docker exec $mq2 bash -c "echo $pub64 | base64 -d | bash" *> $null
+        Start-Sleep 1
+        if ((RabbitQueueMessagesReady $mq2 "OrderPlaced") -ge 1) { $pubOk = $true; break }
+    }
+    Check "container-mode publish: OrderPlaced holds at least one message" $pubOk "messages_ready=$(RabbitQueueMessagesReady $mq2 'OrderPlaced')"
+
+    # Run the collector in container mode with a random RABBITMQ_PASSWORD so the
+    # password and flashsale_dev must not appear anywhere in its output.
+    $randomPw = "rc-secret-" + [guid]::NewGuid().ToString("N")
+    $oldPw = $env:RABBITMQ_PASSWORD
+    $env:RABBITMQ_PASSWORD = $randomPw
+    $outDir2 = Join-Path $env:TEMP "verify-rc2-$runId"
+    New-Item -ItemType Directory -Force -Path $outDir2 | Out-Null
+    $proc2 = Start-Process -FilePath "powershell" -ArgumentList @(
+        "-NoProfile", "-File", $collector,
+        "-RunId", ($runId + "-c"),
+        "-OutDir", $outDir2,
+        "-IntervalSeconds", "5",
+        "-DurationSeconds", "8",
+        "-RabbitMqContainer", $mq2,
+        "-RedisContainer", $redis,
+        "-PostgresContainer", $Container
+    ) -RedirectStandardOutput (Join-Path $outDir2 "collector.out.log") -RedirectStandardError (Join-Path $outDir2 "collector.err.log") -WindowStyle Hidden -PassThru
+    $env:RABBITMQ_PASSWORD = $oldPw
+    $csv2 = Join-Path $outDir2 "samples.csv"
+    $json2 = Join-Path $outDir2 "collector.json"
+    $collector2Started = Wait-Until { Test-Path -LiteralPath $json2 } 20
+    Check "container-mode collector started and wrote collector.json" $collector2Started "json=$json2"
+    if ($collector2Started) { for ($i = 0; $i -lt 30; $i++) { $proc2.Refresh(); if ($proc2.HasExited) { break }; Start-Sleep 1 } }
+    $rows2 = @()
+    if (Test-Path -LiteralPath $csv2) { $rows2 = @(Import-Csv -LiteralPath $csv2) }
+
+    $depthRows2 = @($rows2 | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq "messages_ready" -and (HasLabel $_.labels "queue=OrderPlaced") })
+    $depthVals2 = NumericValues $depthRows2
+    $depthPeak2 = 0.0; if ($depthVals2.Count -gt 0) { $depthPeak2 = ($depthVals2 | Measure-Object -Maximum).Maximum }
+    Check "container-mode: OrderPlaced messages_ready rows exist and peak >= 1" ($depthRows2.Count -ge 1 -and $depthPeak2 -ge 1) "rows=$($depthRows2.Count) peak=$depthPeak2"
+
+    $rateOk = $true; $rateDetail = ""
+    foreach ($rn in "publish_rate", "deliver_get_rate", "ack_rate") {
+        $rr = @($rows2 | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq $rn -and $_.value -eq "unavailable" -and (HasLabel $_.labels "reason=no management API in container mode") })
+        if ($rr.Count -lt 1) { $rateOk = $false; $rateDetail += "$rn:missing; " }
+    }
+    Check "container-mode: publish/deliver/ack rate rows are unavailable with the reason" $rateOk $rateDetail
+
+    $mode2 = ""
+    if (Test-Path -LiteralPath $json2) {
+        try { $j2 = Get-Content -LiteralPath $json2 -Raw | ConvertFrom-Json; $mode2 = [string]$j2.endpoints.rabbitmq.mode } catch { $mode2 = "" }
+    }
+    Check "container-mode: collector.json rabbitmq mode = container" ($mode2 -eq "container") "mode=$mode2"
+
+    $json2Raw = if (Test-Path -LiteralPath $json2) { Get-Content -LiteralPath $json2 -Raw } else { "" }
+    $csv2Raw = if (Test-Path -LiteralPath $csv2) { Get-Content -LiteralPath $csv2 -Raw } else { "" }
+    $leakDefault = (($json2Raw -like "*flashsale_dev*") -or ($csv2Raw -like "*flashsale_dev*"))
+    $leakRandom = (($json2Raw -like "*$randomPw*") -or ($csv2Raw -like "*$randomPw*"))
+    Check "container-mode: flashsale_dev and the RABBITMQ_PASSWORD value appear nowhere" ((-not $leakDefault) -and (-not $leakRandom)) "flashsale_dev=$leakDefault randomPw=$leakRandom"
+
+    # set-queue-bounds on the unpublished-port broker (rabbitmqctl path)
+    & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq2 -MaxLength 3 *> $null
+    $polMain = RabbitQueuePolicy $mq2 "OrderPlaced"
+    $polDlq = RabbitQueuePolicy $mq2 "OrderPlaced.dlq"
+    Check "set-queue-bounds (rabbitmqctl): policy on OrderPlaced, not on OrderPlaced.dlq" (($polMain -eq "flashsale-c3-bounds") -and ($polDlq -ne "flashsale-c3-bounds")) "main=$polMain dlq=$polDlq"
+    & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq2 -Remove *> $null
+    Check "set-queue-bounds -Remove (rabbitmqctl): policy gone from OrderPlaced" ((RabbitQueuePolicy $mq2 "OrderPlaced") -ne "flashsale-c3-bounds") "policy=$(RabbitQueuePolicy $mq2 'OrderPlaced')"
+
+    # the management-API path must still work on a broker that DOES publish 15672
+    & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq -MaxLength 3 *> $null
+    $polMqMain = RabbitQueuePolicy $mq "OrderPlaced"
+    $polMqDlq = RabbitQueuePolicy $mq "OrderPlaced.dlq"
+    Check "set-queue-bounds management-API path still applies (published 15672)" (($polMqMain -eq "flashsale-c3-bounds") -and ($polMqDlq -ne "flashsale-c3-bounds")) "main=$polMqMain dlq=$polMqDlq"
+    & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq -Remove *> $null
+    Check "set-queue-bounds management-API path -Remove" ((RabbitQueuePolicy $mq "OrderPlaced") -ne "flashsale-c3-bounds") "policy=$(RabbitQueuePolicy $mq 'OrderPlaced')"
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
     if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+    if ($proc2 -and -not $proc2.HasExited) { Stop-Process -Id $proc2.Id -Force -ErrorAction SilentlyContinue }
     foreach ($project in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { Stop-Svc $project }
-    foreach ($c in $mq, $redis) { docker rm -f $c *> $null }
+    foreach ($c in $mq, $redis, $mq2) { docker rm -f $c *> $null }
 }
 
 if ($checks -ne $expectedChecks) { Write-Output "FAIL  only $checks of $expectedChecks checks ran"; exit 1 }

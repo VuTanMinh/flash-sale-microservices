@@ -43,7 +43,7 @@ public static class OrderPlacedProcessor
 {
     public static async Task<OrderPlacedProcessingOutcome> ProcessAsync(
         InventoryServiceDbContext dbContext, InventoryReservationService reservationService,
-        OrderPlacedEto orderPlaced, ILogger logger)
+        OrderPlacedEto orderPlaced, ILogger logger, Action? afterReserve = null)
     {
         var alreadyProcessed = await dbContext.ProcessedMessages.AnyAsync(m => m.MessageId == orderPlaced.MessageId);
         if (alreadyProcessed)
@@ -56,6 +56,10 @@ public static class OrderPlacedProcessor
         logger.LogInformation(
             "OrderPlaced {OrderId} for product {ProductId} -> {Result}",
             orderPlaced.OrderId, orderPlaced.ProductId, result);
+
+        // The crash test's hook between the Redis decision and the save below
+        // (FaultInjection.CrashAfterReserveIfTargeted); null outside the consumer.
+        afterReserve?.Invoke();
 
         // DUPLICATE only happens when a *prior* delivery already reserved
         // this order's stock in Redis (reserve.lua's own idempotency check)

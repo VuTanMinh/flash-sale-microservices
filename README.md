@@ -9,10 +9,12 @@ Thiết kế và đánh giá hệ thống microservices xử lý giao dịch son
 
 The report is in `report/`: the LaTeX source, its figures, and the built
 `report/report.pdf` and `report/progress/progress-report.pdf`. The design
-documents (`docs/`) live on the development branch only; the
-`main-test-bug-fix` snapshot carries the code, infrastructure, scripts, tests,
-saved evidence and the report, so the `docs/` links below resolve on the
-development branch.
+documents are in `docs/`.
+
+- [Reproduce the results on a fresh machine](docs/reproduction.md)
+- [Requirement-to-evidence index](docs/evidence-index.md)
+- [Midterm review: what was found and how each finding was resolved](docs/midterm-review-disposition.md)
+- [Test plan (every test case, its inputs, expected result and log)](docs/test-plan.md)
 
 - [Scope and research questions](docs/00-scope-lock.md)
 - [Service boundaries and event flow](docs/service-boundaries.md)
@@ -32,9 +34,9 @@ development branch.
 | `infra/` | Docker Compose (local and `docker-compose.ec2.yml`), Nginx, and `terraform/` for the AWS EC2 deployment |
 | `scripts/` | Database reset/seed, warm-up, validation, verifiers, metric collection/extraction, and Redis Lua |
 | `tests/` | .NET tests, JMeter plans, and `evidence/` (saved verifier logs and run data) |
-| `docs/` | Scope, architecture, correctness, experiment, and API documents (development branch) |
+| `docs/` | Scope, architecture, correctness, experiment, API, reproduction and evidence documents |
 | `report/` | LaTeX report, figures and the built PDFs (report and progress report) |
 
 ## Quickstart
 
-Run the local stack and the three services exactly as described in [Local infrastructure — Running the application on the local stack](docs/infrastructure.md#running-the-application-on-the-local-stack): Compose up, apply the role script on an existing volume, migrate with each service's own account, create the certificate, warm up, then `dotnet run` each service. The own-account runtime is verified by `scripts/verify-runtime-accounts.ps1`. The AWS EC2 deployment required by the brief (one backend host, JMeter on a separate host) is in `infra/terraform/` with `infra/docker-compose.ec2.yml`; its runbook is [docs/deployment.md](docs/deployment.md).
+For a full reproduction from a clean machine, follow [docs/reproduction.md](docs/reproduction.md). To run the local stack and the three services by hand, follow [Local infrastructure — Running the application on the local stack](docs/infrastructure.md#running-the-application-on-the-local-stack). In short: Compose up, apply the role script on an existing volume, migrate with each service's own account, create the certificate, warm up, then `dotnet run` each service. The own-account runtime is verified by `scripts/verify-runtime-accounts.ps1`. The AWS EC2 deployment required by the brief (one backend host, JMeter on a separate host) is in `infra/terraform/` with `infra/docker-compose.ec2.yml`; its runbook is [docs/deployment.md](docs/deployment.md).

@@ -18,4 +18,17 @@ public class ProcessingOptions
     /// to push the pipeline into backlog deliberately.
     /// </summary>
     public int DelayMilliseconds { get; set; } = 200;
+
+    /// <summary>
+    /// How many StockReserved messages the Worker processes at the same time
+    /// (RabbitMQ consumer dispatch concurrency). With one, the Worker finishes
+    /// at most 1000 / DelayMilliseconds orders/s (about 3.7/s measured at
+    /// 200 ms), which capped every end-to-end result (midterm review). Each
+    /// message still takes exactly DelayMilliseconds, so the service time stays
+    /// deterministic; only the parallelism changes. Default 1 keeps the
+    /// earlier behaviour; the Week 13 pilot sets and declares the value. It
+    /// must not exceed RabbitMQ:EventBus:PrefetchCount, which bounds how many
+    /// messages the consumer holds.
+    /// </summary>
+    public ushort MaxConcurrency { get; set; } = 1;
 }

@@ -67,7 +67,7 @@ try {
 
     $log = Join-Path $env:TEMP "verify-sr-order-service.log"
     $envs = @{ ConnectionStrings__Default = "Host=localhost;Port=$DbPort;Database=flashsale;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"
-               ASPNETCORE_URLS = "http://localhost:$port"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+               ASPNETCORE_URLS = "http://localhost:$port"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
     foreach ($k in $envs.Keys) { Set-Item "Env:$k" -Value $envs[$k] }
     $svc = Start-Process -FilePath dotnet -ArgumentList "run", "--no-build", "--no-launch-profile" -WorkingDirectory (Join-Path $repoRoot "src\FlashSale.OrderService") `
         -RedirectStandardOutput $log -RedirectStandardError "$log.err" -WindowStyle Hidden -PassThru

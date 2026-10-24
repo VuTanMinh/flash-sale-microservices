@@ -1,0 +1,237 @@
+# Sequence Diagrams
+
+These are the diagrams for the one workflow the system has: placing an order.
+They are drawn from the code as it is on branch `week1-2` (Week 8). Every
+arrow is a call that exists in the source. The step numbers match the
+numbered steps in `docs/workflow.md`, which names the class behind each step,
+its failure branch and its test case.
+
+`scripts/verify-workflow.ps1` checks the diagrams in two ways:
+
+- It compares each claim with the code and configuration.
+- It traces real orders through all three services and checks that the
+  recorded hops happen in this order.
+
+The `.mmd` files in `report/figures/` must be identical to the blocks below.
+The report's PNGs are rendered from them with mermaid-cli 11 and
+`report/figures/mermaid-sequence.json`, which wraps long labels so the text
+stays readable at page width.
+
+**Changes from the earlier version (2026-10-02, Week 8 box 4):**
+
+- **Nginx re-added (Week 12 box 1).** Clients POST and poll through Nginx,
+  which reverse-proxies to Order Service and applies the C3 rate limit to
+  `POST /api/orders` (429 over the limit).
+- **Publishers now show routed confirmation (Week 6).** Before publishing,
+  each publisher checks that every required subscriber queue exists and is
+  bound. It then publishes with `mandatory` and waits for the confirm.
+  `StockReserved` needs both `StockReserved` and `ProcessWorker.StockReserved`.
+- **Inbox steps are drawn.** In both services the Inbox check comes before
+  the business step. The Inbox row commits in the same transaction as the
+  Outbox row (Inventory) or the state change (Order Service).
+- **The warm-up gate (Week 7) is drawn.** `reserve.lua` reads `sale:open`,
+  and `NOT_OPEN` becomes `StockRejected` with nothing deducted.
+- **The fork after `StockReserved` is drawn as `par`.** The two consumers run
+  concurrently.
+
+## Happy path: stock available
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant NX as Nginx
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    participant OP as Order Outbox publisher
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    participant R as Redis
+    participant PGI as PostgreSQL (inventory_service)
+    participant IP as Inventory Outbox publisher
+    participant PW as Process Worker
+
+    Client->>NX: POST /api/orders (Idempotency-Key, quantity 1)
+    Note over NX: C3 gateway rate limit (429 when over ORDER_RATE)
+    autonumber off
+    NX->>OS: POST /api/orders (Idempotency-Key, quantity 1)
+    autonumber 2
+    OS->>PGO: look up the Idempotency-Key (not found)
+    OS->>PGO: one transaction: INSERT order (PendingStock) + Outbox row OrderPlaced (new MessageId)
+    OS-->>NX: 201 Created (state PendingStock)
+    autonumber off
+    NX-->>Client: 201 Created (state PendingStock)
+    autonumber 5
+
+    loop every 2s, or at once after a full batch
+        OP->>PGO: SELECT up to 50 unpublished rows, oldest first
+    end
+    OP->>MQ: check required queue OrderPlaced exists and is bound
+    OP->>MQ: publish OrderPlaced (mandatory, publisher confirm)
+    MQ-->>OP: routed and confirmed
+    OP->>PGO: mark the row published
+
+    MQ->>IS: deliver OrderPlaced
+    IS->>PGI: Inbox: MessageId already processed? (no)
+    IS->>R: EVAL reserve.lua (inventory, processed and sale:open keys)
+    R-->>IS: RESERVED (stock - 1, order id added to the processed set)
+    IS->>PGI: one transaction: Outbox row StockReserved (if none for this OrderId) + Inbox row
+    IS->>MQ: ack OrderPlaced
+
+    loop every 2s, or at once after a full batch
+        IP->>PGI: SELECT up to 50 unpublished rows, oldest first
+    end
+    IP->>MQ: check required queues StockReserved and ProcessWorker.StockReserved
+    IP->>MQ: publish StockReserved (mandatory, publisher confirm)
+    MQ-->>IP: routed and confirmed
+    IP->>PGI: mark the row published
+
+    par queue StockReserved
+        MQ->>OS: deliver StockReserved
+        OS->>PGO: one transaction: Inbox check, PendingStock to Confirmed, Inbox row
+        OS->>MQ: ack StockReserved
+    and queue ProcessWorker.StockReserved
+        MQ->>PW: deliver StockReserved
+        PW->>MQ: check required queue OrderProcessingStarted, publish OrderProcessingStarted (derived MessageId, mandatory, confirm)
+        PW->>PW: fixed processing delay (200 ms)
+        PW->>MQ: check required queue OrderProcessed, publish OrderProcessed (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
+        PW->>MQ: ack StockReserved
+    end
+
+    MQ->>OS: deliver OrderProcessingStarted
+    OS->>PGO: one transaction: Inbox check, Confirmed to Processing, Inbox row
+    OS->>MQ: ack OrderProcessingStarted
+
+    MQ->>OS: deliver OrderProcessed
+    OS->>PGO: one transaction: Inbox check, Processing to Completed, Inbox row
+    OS->>MQ: ack OrderProcessed
+
+    Client->>NX: GET /api/orders/{id}
+    autonumber off
+    NX->>OS: GET /api/orders/{id}
+    autonumber 36
+    OS-->>NX: 200 OK (state Completed)
+    autonumber off
+    NX-->>Client: 200 OK (state Completed)
+```
+
+The Process Worker has no Inbox. A redelivered `StockReserved` makes it publish
+`OrderProcessingStarted` again with the same derived `MessageId` and
+`OrderProcessed` again with `MessageId = OrderId`; Order Service's Inbox absorbs
+both copies.
+
+**Races in the `par` block (handled since Week 9).** The two branches are
+independent, and each Worker event (`OrderProcessingStarted`, then
+`OrderProcessed`) is a separate hop. If either reaches Order Service before
+step 22 has committed, the order is still `PendingStock`. Order Service then
+writes nothing for it and republishes it onto that event's own delayed retry
+queues (`OrderProcessingStarted.retry.1`–`.3` and `OrderProcessed.retry.1`–`.3`,
+2 s / 4 s / 8 s). It is applied once the order is `Confirmed`, and dead-lettered
+only if it is still early after three requeues (`docs/design-decisions.md` §2,
+TP-M02). A completion that arrives while the order is `Confirmed` (the start
+event is still in flight) is applied as `Confirmed → Processing → Completed` in
+one transaction, with the `Processing` history row implied
+(`docs/order-state-machine.md`).
+
+## Rejection path: sold out, or sale not open
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant NX as Nginx
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    participant R as Redis
+    participant PGI as PostgreSQL (inventory_service)
+    participant IP as Inventory Outbox publisher
+
+    Client->>NX: POST /api/orders (Idempotency-Key, quantity 1)
+    Note over NX: C3 gateway rate limit (429 when over ORDER_RATE)
+    autonumber off
+    NX->>OS: POST /api/orders (Idempotency-Key, quantity 1)
+    autonumber 2
+    OS->>PGO: one transaction: INSERT order (PendingStock) + Outbox row OrderPlaced
+    OS-->>NX: 201 Created (state PendingStock)
+    autonumber off
+    NX-->>Client: 201 Created (state PendingStock)
+    autonumber 4
+    Note over OS,MQ: Order Outbox publisher sends OrderPlaced exactly as in the happy path
+
+    MQ->>IS: deliver OrderPlaced
+    IS->>PGI: Inbox: MessageId already processed? (no)
+    IS->>R: EVAL reserve.lua (inventory, processed and sale:open keys)
+    alt sale open, stock is 0
+        R-->>IS: REJECTED (nothing deducted)
+    else no confirmed warm-up (sale:open missing)
+        R-->>IS: NOT_OPEN (nothing deducted)
+    end
+    IS->>PGI: one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row
+    IS->>MQ: ack OrderPlaced
+
+    loop every 2s, or at once after a full batch
+        IP->>PGI: SELECT up to 50 unpublished rows, oldest first
+    end
+    IP->>MQ: check required queue StockRejected, publish StockRejected (mandatory, confirm)
+    IP->>PGI: mark the row published
+
+    MQ->>OS: deliver StockRejected
+    OS->>PGO: one transaction: Inbox check, PendingStock to Rejected, Inbox row
+    OS->>MQ: ack StockRejected
+
+    Client->>NX: GET /api/orders/{id}
+    autonumber off
+    NX->>OS: GET /api/orders/{id}
+    autonumber 18
+    OS-->>NX: 200 OK (state Rejected)
+    autonumber off
+    NX-->>Client: 200 OK (state Rejected)
+```
+
+The Process Worker does not subscribe to `StockRejected`, so a rejected order
+never reaches it.
+
+`DUPLICATE` (a redelivered `OrderPlaced` whose order already holds a unit)
+does not need its own diagram. It follows the happy path from step 14 and
+maps to `StockReserved` without deducting again. Because the Outbox row is
+"ensure it exists for this OrderId", a redelivery cannot leave the order
+waiting with no result.
+
+## Processing hop: the Worker events (Week 11 box 2)
+
+The two Worker events and the state changes they drive, shown on their own
+(they are also part of the happy path above):
+
+```mermaid
+sequenceDiagram
+    participant MQ as RabbitMQ
+    participant OrderSvc as Order Service
+    participant PGOrd as Postgres (order_service)
+    participant ProcSvc as Process Worker
+    MQ->>ProcSvc: deliver StockReservedEto
+    ProcSvc->>MQ: publish OrderProcessingStartedEto (derived MessageId, StartedAt, mandatory, confirm)
+    MQ->>OrderSvc: deliver OrderProcessingStartedEto
+    OrderSvc->>PGOrd: one transaction: Inbox check, Confirmed to Processing, Inbox row (+ history)
+    ProcSvc->>ProcSvc: deterministic processing delay
+    ProcSvc->>MQ: publish OrderProcessedEto (MessageId = OrderId, ProcessingStartedAt, mandatory, confirm)
+    MQ->>OrderSvc: deliver OrderProcessedEto
+    OrderSvc->>PGOrd: one transaction: Inbox check, Processing to Completed, Inbox row (+ history)
+```
+
+If `OrderProcessedEto` arrives before the started event, Order Service applies
+`Confirmed → Processing → Completed` in one transaction, with the `Processing`
+history row marked as implied and `At` = the later of `ProcessingStartedAt` and
+the confirmation time (the Worker can start before `Confirmed` is recorded).
+`ProcessingFailed` has no producer (success-only Process Worker) and is
+unreachable by design.
+
+## Not drawn as arrows
+
+- **Retry and DLQ branches.** Every consumer and publisher has a failure
+  branch. `docs/workflow.md` lists each one with its test case, rather than
+  doubling the arrows here.
+- **Reconciliation.** `ReconciliationWorker` checks every 30 s for orders
+  stuck in `PendingStock` for more than 30 s and writes a new `OrderPlaced`
+  Outbox row for them. This is a safety net and is verified in Week 10.

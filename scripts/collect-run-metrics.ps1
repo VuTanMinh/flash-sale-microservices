@@ -5,12 +5,20 @@
 # every flashsale_* Prometheus sample).
 #
 #   powershell -File .\scripts\collect-run-metrics.ps1 -RunId pilot-001
+#   powershell -File .\scripts\collect-run-metrics.ps1 -RunId pilot-001 -RabbitMqContainer <rabbit>
 #
 # Defaults target the local stack: RabbitMQ management on http://localhost:15672
 # (flashsale/flashsale_dev), Redis container "infra-redis-1", PostgreSQL
 # container "infra-postgres-1", and the three services' /metrics URLs from
 # infra/prometheus.yml (Order https://localhost:44314/metrics, Inventory
 # https://localhost:44379/metrics, Worker http://localhost:5100/metrics).
+#
+# On the EC2 stack only Nginx publishes a host port and the broker uses
+# ${RABBITMQ_PASSWORD}, so pass -RabbitMqContainer <name> instead of
+# -RabbitMqUrl: the per-queue rows then come from `rabbitmqctl list_queues
+# ... --formatter json` (no URL, no password). -RabbitMqPassword defaults to
+# $env:RABBITMQ_PASSWORD when that is set, else flashsale_dev; it is never
+# written to collector.json, samples.csv or the console.
 #
 # Every -IntervalSeconds (default 5) it appends one row per value to
 # <OutDir>/samples.csv, in long format:
@@ -24,7 +32,10 @@
 #              head_message_timestamp are management statistics refreshed every
 #              collect_statistics_interval (5 s by default), so a value can be
 #              that interval stale. oldest_age_seconds = now - head_message_timestamp
-#              (0 when the queue is empty).
+#              (0 when the queue is empty). In -RabbitMqContainer mode these rows
+#              come from rabbitmqctl instead; the three rates become "unavailable"
+#              (labels "reason=no management API in container mode"), and
+#              head_message_timestamp is parsed from "" / an epoch number / a date.
 #   redis    : calls and usec (labels "command=evalsha"/"command=eval") from
 #              INFO commandstats. Both are cumulative; mean latency per interval
 #              is delta(usec)/delta(calls) (extraction in Task C). A fresh Redis
@@ -65,7 +76,8 @@ param(
     [int]$DurationSeconds = 0,
     [string]$RabbitMqUrl = "http://localhost:15672",
     [string]$RabbitMqUser = "flashsale",
-    [string]$RabbitMqPassword = "flashsale_dev",
+    [string]$RabbitMqPassword = "",
+    [string]$RabbitMqContainer = "",
     [string]$RedisContainer = "infra-redis-1",
     [string]$PostgresContainer = "infra-postgres-1",
     [string]$OrderMetricsUrl = "https://localhost:44314/metrics",
@@ -78,6 +90,17 @@ param(
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $inv = [Globalization.CultureInfo]::InvariantCulture
+
+# RabbitMQ password: explicit -RabbitMqPassword wins; otherwise RABBITMQ_PASSWORD
+# from the environment (the EC2 stack sets it), else the local default. It is
+# never written to collector.json, samples.csv or the console.
+if ([string]::IsNullOrEmpty($RabbitMqPassword)) {
+    if ($env:RABBITMQ_PASSWORD) { $RabbitMqPassword = $env:RABBITMQ_PASSWORD }
+    else { $RabbitMqPassword = "flashsale_dev" }
+}
+# RabbitMQ sampling mode: "management" (HTTP API) or "container" (rabbitmqctl).
+$rabbitMqMode = "management"
+if ($RabbitMqContainer) { $rabbitMqMode = "container" }
 
 if ($OutDir -eq "") { $OutDir = Join-Path (Join-Path (Get-Location).Path "experiments") $RunId }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -99,7 +122,16 @@ $script:sourceFailures = 0
 $script:prevCpu = $null   # Linux /proc/stat delta, @(total, idle)
 $script:pending = New-Object System.Collections.ArrayList   # rows buffered per interval
 
-# collector.json -- the RabbitMQ password is deliberately NOT written (A3).
+# collector.json -- the RabbitMQ password is deliberately NOT written (A3). The
+# rabbitmq entry records which mode ran: "management" (with the URL) or
+# "container" (with the container name); neither includes the password.
+$rabbitMqInfo = [ordered]@{ mode = $rabbitMqMode }
+if ($rabbitMqMode -eq "management") {
+    $rabbitMqInfo.management_url = $RabbitMqUrl
+    $rabbitMqInfo.user = $RabbitMqUser
+} else {
+    $rabbitMqInfo.container = $RabbitMqContainer
+}
 [ordered]@{
     run_id = $RunId
     interval_seconds = $IntervalSeconds
@@ -107,15 +139,14 @@ $script:pending = New-Object System.Collections.ArrayList   # rows buffered per 
     host_os = $(if ($onWindows) { "Windows" } else { "Linux" })
     git_commit = $gitCommit
     endpoints = [ordered]@{
-        rabbitmq_management_url = $RabbitMqUrl
-        rabbitmq_user = $RabbitMqUser
+        rabbitmq = $rabbitMqInfo
         redis_container = $RedisContainer
         postgres_container = $PostgresContainer
         order_metrics_url = $OrderMetricsUrl
         inventory_metrics_url = $InventoryMetricsUrl
         worker_metrics_url = $WorkerMetricsUrl
     }
-} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${RabbitMqUser}:${RabbitMqPassword}")) }
 
@@ -164,6 +195,7 @@ function Fetch-Content([string]$url) {
 }
 
 function Sample-RabbitMq([string]$t) {
+    if ($rabbitMqMode -eq "container") { Sample-RabbitMq-Container $t; return }
     try {
         $overview = Mq Get "/overview"
         # PowerShell 5.1: Invoke-RestMethod returns a JSON array as one object;
@@ -194,6 +226,68 @@ function Sample-RabbitMq([string]$t) {
                 Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "unavailable"
             } else {
                 Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "0"
+            }
+        }
+    } catch {
+        Write-Unavailable $t "rabbitmq" $_.Exception.Message
+    }
+}
+
+# Parse a rabbitmqctl head_message_timestamp value -- "" (empty queue / no
+# message timestamp), an epoch number (seconds, or milliseconds when > 1e11), or
+# a date string -- to epoch seconds. Returns $null when it cannot be parsed.
+function Head-ToEpoch([object]$head) {
+    if ($null -eq $head) { return $null }
+    $s = "$head".Trim()
+    if ($s -eq "") { return $null }
+    if ($s -match '^-?\d+$') {
+        $v = [long]$s
+        if ($v -gt 100000000000) { $v = [long][math]::Floor($v / 1000.0) }
+        return $v
+    }
+    try { return [DateTimeOffset]::Parse($s, $inv).ToUnixTimeSeconds() } catch { return $null }
+}
+
+function Sample-RabbitMq-Container([string]$t) {
+    try {
+        $out = @(docker exec $RabbitMqContainer rabbitmqctl list_queues name messages_ready messages_unacknowledged head_message_timestamp --formatter json 2>$null)
+        if ($LASTEXITCODE -ne 0) { throw "rabbitmqctl list_queues failed (exit $LASTEXITCODE)" }
+        $json = ($out -join "`n").Trim()
+        # publish/deliver/ack rates exist only in the management statistics, which
+        # have no rabbitmqctl equivalent; record them "unavailable" (never 0,
+        # never omitted) with the reason.
+        Write-Row $t "rabbitmq" "publish_rate" "reason=no management API in container mode" "unavailable"
+        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=no management API in container mode" "unavailable"
+        Write-Row $t "rabbitmq" "ack_rate" "reason=no management API in container mode" "unavailable"
+        # An empty answer is missing data, not "no queues".
+        if ($json -eq "") { throw "rabbitmqctl list_queues returned nothing" }
+        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $queues = @(($json | ConvertFrom-Json) | ForEach-Object { $_ })
+        foreach ($q in $queues) {
+            if ($null -eq $q.name) { continue }
+            $qname = [string]$q.name
+            Write-Metric $t "rabbitmq" "messages_ready" "queue=$qname" $q.messages_ready
+            Write-Metric $t "rabbitmq" "messages_unacknowledged" "queue=$qname" $q.messages_unacknowledged
+            $headStr = if ($null -eq $q.head_message_timestamp) { "" } else { "$($q.head_message_timestamp)".Trim() }
+            $ready = if ($null -eq $q.messages_ready) { 0 } else { [long]$q.messages_ready }
+            $unack = if ($null -eq $q.messages_unacknowledged) { 0 } else { [long]$q.messages_unacknowledged }
+            if ($headStr -eq "") {
+                # No head timestamp: a queue with messages but no timestamp is not
+                # an age of 0; an empty queue is.
+                if (($ready -gt 0) -or ($unack -gt 0)) {
+                    Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "unavailable"
+                } else {
+                    Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "0"
+                }
+            } else {
+                $epoch = Head-ToEpoch $q.head_message_timestamp
+                if ($null -eq $epoch) {
+                    Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "unavailable"
+                } else {
+                    $age = [long]($now - $epoch)
+                    if ($age -lt 0) { $age = 0 }
+                    Write-Row $t "rabbitmq" "oldest_age_seconds" "queue=$qname" "$age"
+                }
             }
         }
     } catch {

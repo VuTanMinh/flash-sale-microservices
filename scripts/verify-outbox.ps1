@@ -49,7 +49,7 @@ try {
     $env:ConnectionStrings__Default = "Host=localhost;Port=$DbPort;Database=flashsale;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"
     $env:ASPNETCORE_URLS = "http://localhost:$ServicePort"
     $env:RabbitMQ__Connections__Default__Port = "$BrokerPort"
-    $env:Reconciliation__StuckTimeoutSeconds = "3600"
+    $env:Reconciliation__Enabled = "false"
     $svc = Start-Process -FilePath dotnet -ArgumentList "run", "--no-build", "--no-launch-profile" `
         -WorkingDirectory (Join-Path $repoRoot "src\FlashSale.OrderService") -RedirectStandardOutput $log -RedirectStandardError "$log.err" -WindowStyle Hidden -PassThru
     foreach ($v in "ConnectionStrings__Default", "ASPNETCORE_URLS", "RabbitMQ__Connections__Default__Port", "Reconciliation__StuckTimeoutSeconds") { Set-Item "Env:$v" -Value $null }
@@ -117,7 +117,11 @@ try {
     # Windows PowerShell 5.1 returns a JSON array as ONE pipeline object;
     # unroll it so each message is filtered on its own.
     $msgs = @($msgs | ForEach-Object { $_ })
-    Check "broker: capture queue holds one message per published order (2 orders were created)" ($msgs.Count -eq 2) "$($msgs.Count) messages"
+    # Rows another run left unpublished in the shared database are published to
+    # this broker too, so count only the two orders this run created.
+    $orderId2 = Sql "SELECT `"Id`" FROM order_service.orders WHERE `"IdempotencyKey`" = '$k2';"
+    $ours = @($msgs | Where-Object { @($orderId, $orderId2) -contains ($_.payload | ConvertFrom-Json).OrderId })
+    Check "broker: capture queue holds one message per order this run created (2)" ($ours.Count -eq 2) "$($ours.Count) of $($msgs.Count) messages"
     $forOrder = @($msgs | Where-Object { ($_.payload | ConvertFrom-Json).OrderId -eq $orderId })
     Check "retries: exactly one OrderPlaced for the order reached the queue" ($forOrder.Count -eq 1) "$($forOrder.Count) messages"
     if ($forOrder.Count -ge 1) {
@@ -126,6 +130,30 @@ try {
     }
     $rowsAfter = [int](Sql "SELECT count(*) FROM order_service.outbox_events e JOIN order_service.orders o ON o.`"Id`" = e.`"OrderId`" WHERE o.`"IdempotencyKey`" = '$k1';")
     Check "retries: still exactly one Outbox row for the order (no re-insert)" ($rowsAfter -eq 1)
+
+    # Continuous draining (midterm review): 300 unpublished rows at once. The
+    # earlier loop slept 2 s after every batch of 50, so 300 rows needed at
+    # least 5 sleeps (10 s) whatever the broker's speed, capping publishing
+    # below 25 events/s. Now a full, fully published batch is followed at once
+    # by the next, and each batch shares one channel, one confirm wait and
+    # one save, so the drain is bounded by publish speed instead.
+    $tag = "outbox-drain-" + [guid]::NewGuid().ToString("N")
+    Sql "INSERT INTO order_service.outbox_events (`"Id`", `"OrderId`", `"EventType`", `"Payload`", `"Published`", `"CreatedAt`") SELECT gen_random_uuid(), gen_random_uuid(), 'OrderPlaced', json_build_object('OrderId', gen_random_uuid(), 'MessageId', gen_random_uuid(), 'ProductId', '$tag', 'Quantity', 1)::jsonb, false, (now() at time zone 'utc') FROM generate_series(1, 300);" | Out-Null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $left = 300
+    while ($sw.Elapsed.TotalSeconds -lt 60) {
+        $left = [int](Sql "SELECT count(*) FROM order_service.outbox_events WHERE `"Payload`"->>'ProductId' = '$tag' AND NOT `"Published`";")
+        if ($left -eq 0) { break }
+        Start-Sleep -Milliseconds 250
+    }
+    $sw.Stop()
+    $secs = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+    $rate = $(if ($secs -gt 0) { [math]::Round(300 / $secs) } else { 0 })
+    # The bound allows up to one 2-s poll wait before the worker sees the rows.
+    # Sleeping after each batch needed >= 10 s; a channel and a save per row
+    # (no sleep) measured 8.1 s here, so 4 s fails both earlier designs.
+    Check "throughput: 300 queued Outbox rows drain in < 4 s (measured $secs s, ~$rate events/s)" ($left -eq 0 -and $secs -lt 4) "left=$left seconds=$secs rate=$rate/s"
+    Sql "DELETE FROM order_service.outbox_events WHERE `"Payload`"->>'ProductId' = '$tag';" | Out-Null
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {

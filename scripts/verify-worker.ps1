@@ -39,6 +39,9 @@
 #   G. Late stock result after completion: the completed order's StockReserved is
 #      republished to Order Service's StockReserved queue -> a no-op (state
 #      Completed, timestamps unchanged), no DLQ.
+#   H. Concurrency (midterm review): 8 copies of a completed order's StockReserved
+#      at delay 1000ms, first with Processing:MaxConcurrency 1 (control: >= 8 s)
+#      then 4 (< 4.5 s) -> still one applied completion, no DLQ.
 #
 # End state: every main and retry queue empty, every DLQ still empty, every order
 # Completed with exactly one Redis deduction (SCARD = number of orders placed, and
@@ -52,14 +55,14 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 51     # number of Check calls in the try block (R3: a truncated run must fail)
+$expectedChecks = 56     # number of Check calls in the try block (R3: a truncated run must fail)
 $mq = "verify-wk-mq"; $amqp = 5694; $mgmt = 15694; $redis = "verify-wk-redis"; $redisPort = 6401
 $orderPort = 5138; $invPort = 5139; $workerPort = 5140
 $ex = "flashsale.order.exchange"; $dlx = "flashsale.dlx"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -132,7 +135,10 @@ function WorkerProcessed() {
     try { $m = (Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:$workerPort/metrics" -TimeoutSec 5).Content }
     catch { return -1 }
     $line = @($m -split "`r?`n" | Where-Object { $_ -like "flashsale_orders_processed_total*" })[0]
-    if (-not $line) { return -1 }
+    # The counter is exported from its first increment on: an answering
+    # endpoint without the line means nothing processed yet (0), and -1 is
+    # kept for "endpoint not answering".
+    if (-not $line) { return 0 }
     $parts = @($line -split " ")
     return [int]$parts[$parts.Count - 1]
 }
@@ -218,11 +224,12 @@ function Publish-QueueParallel([string]$queue, [string]$eventType, [string[]]$pa
 function AllDlqsEmpty() { foreach ($q in $allDlqs) { if ((QueueCount $q) -ne 0) { return $false } }; return $true }
 
 # Start the Worker via `dotnet run` with its stdout redirected (plain-text log).
-function Start-Worker([string]$tag, [int]$delayMs) {
+function Start-Worker([string]$tag, [int]$delayMs, [int]$concurrency = 1) {
     $envs = @{
         "Urls" = "http://localhost:$workerPort"
         "RabbitMQ__Connections__Default__Port" = "$amqp"
         "Processing__DelayMilliseconds" = "$delayMs"
+        "Processing__MaxConcurrency" = "$concurrency"
     }
     foreach ($k in $envs.Keys) { Set-Item "Env:$k" -Value $envs[$k] }
     $log = Join-Path $env:TEMP "verify-wk-worker-$tag.log"
@@ -250,10 +257,16 @@ function Start-WorkerOwnConsole([string]$tag, [int]$delayMs) {
     # never see the Ctrl+C sent below. Clear the flag here so the Worker inherits
     # normal Ctrl+C handling whatever shell launched this script.
     [VerifierConsole]::SetConsoleCtrlHandler([IntPtr]::Zero, $false) | Out-Null
-    $proc = Start-Process -FilePath $workerExe -WorkingDirectory (Split-Path $workerExe) -PassThru
+    # Through conhost.exe explicitly: when Windows Terminal is the default
+    # console host, a plain Start-Process of a console exe is handed to it and
+    # can hang without ever starting the process (seen 2026-10-24). conhost
+    # still gives the Worker a console of its own; the Worker is its child.
+    $proc = Start-Process -FilePath (Join-Path $env:WINDIR "System32\conhost.exe") -ArgumentList "`"$workerExe`"" -WorkingDirectory (Split-Path $workerExe) -PassThru
     foreach ($k in $envs.Keys) { Set-Item "Env:$k" -Value $null }
     $script:logs["FlashSale.ProcessWorker"] = $workerJsonLog
-    $script:workerPid = $proc.Id
+    $script:worker = $null
+    Wait-Until { $script:worker = @(Get-CimInstance Win32_Process -Filter "Name='FlashSale.ProcessWorker.exe' AND ParentProcessId=$($proc.Id)")[0]; $null -ne $script:worker } 30 | Out-Null
+    $script:workerPid = $(if ($script:worker) { [int]$script:worker.ProcessId } else { $proc.Id })
     Wait-Until { (JsonLogCount "Consuming StockReserved") -gt $consumeBefore } 90 | Out-Null
 }
 # Send a real Ctrl+C to the Worker's console from a SHORT-LIVED HELPER process.
@@ -496,6 +509,41 @@ try {
     Check "G: the late StockReserved is a no-op (state stays Completed, timestamps unchanged)" (
         (State $gOrder) -eq "Completed" -and (Ts $gOrder "CompletedAt") -eq $gCompletedBefore -and (Ts $gOrder "ConfirmedOrRejectedAt") -eq $gDecidedBefore) "state=$(State $gOrder) decided=$gDecidedBefore completed=$gCompletedBefore"
     Check "G: no DLQ grew" (AllDlqsEmpty) (($allDlqs | ForEach-Object { "$_=$(QueueCount $_)" }) -join ",")
+
+    # ======================================================== H. concurrency
+    # Midterm review (throughput): one Worker handled one order at a time, so
+    # its rate was capped near 1 / (delay + publish time). Processing:MaxConcurrency
+    # lets several handlers wait out the delay together. The same 8 copies at
+    # delay 1000ms run once at concurrency 1 (the control: serial, >= 8 s) and
+    # once at 4 (two waves, well under the serial time).
+    Write-Output "== H. Concurrency (8 copies, delay 1000ms, MaxConcurrency 1 then 4)"
+    $hOrder = $aOrders[4]
+    $hPayload = ResultPayload $hOrder
+    $hCompletedBefore = Ts $hOrder "CompletedAt"
+    $hSecs = @{}
+    foreach ($n in 1, 4) {
+        Start-Worker "h$n" 1000 $n
+        # /metrics can answer a moment after the "Consuming" line (-1 until then).
+        # A fresh Worker exports no counter line yet; WorkerProcessed reads that as 0.
+        Wait-Until { (WorkerProcessed) -ge 0 } 30 | Out-Null
+        # A message left in the Worker queue by an earlier case would be counted
+        # as one of the 8: start timing only once the queue is empty and the
+        # counter has stopped moving.
+        Wait-Until { (QueueCount "ProcessWorker.StockReserved") -eq 0 } 30 | Out-Null
+        do { $hBefore = WorkerProcessed; Start-Sleep 2 } while ((WorkerProcessed) -ne $hBefore)
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        for ($i = 0; $i -lt 8; $i++) { Publish-Queue "ProcessWorker.StockReserved" "StockReserved" $hPayload }
+        while ((WorkerProcessed) -lt ($hBefore + 8) -and $sw.Elapsed.TotalSeconds -lt 60) { Start-Sleep -Milliseconds 200 }
+        $sw.Stop()
+        $hSecs[$n] = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+        Check "H: MaxConcurrency $n processed all 8 copies and logged '$n at a time'" (
+            (WorkerProcessed) -ge ($hBefore + 8) -and (Log "FlashSale.ProcessWorker") -match "$n at a time") "processed=$((WorkerProcessed) - $hBefore) seconds=$($hSecs[$n])"
+        Stop-Svc "FlashSale.ProcessWorker"
+    }
+    Check "H: control, MaxConcurrency 1 is serial (8 x 1000ms took >= 8 s; measured $($hSecs[1]) s)" ($hSecs[1] -ge 8)
+    Check "H: MaxConcurrency 4 overlaps the work (< 4.5 s; measured $($hSecs[4]) s)" ($hSecs[4] -lt 4.5)
+    Check "H: still one applied completion (one Inbox row, CompletedAt unchanged) and no DLQ" (
+        (OrdInbox $hOrder) -eq 1 -and (Ts $hOrder "CompletedAt") -eq $hCompletedBefore -and (AllDlqsEmpty)) "rows=$(OrdInbox $hOrder) completed=$(Ts $hOrder 'CompletedAt')"
 
     # ======================================================== end state
     Write-Output "== End state"

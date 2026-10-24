@@ -29,7 +29,9 @@ foreach ($r in $rows) {
     Check "$($r.Id) has all eight fields" ([bool]$complete)
     Check "$($r.Id) status is PASS, FAIL or NOT RUN" ($r.Status -in @("PASS", "FAIL", "NOT RUN"))
     if ($r.Status -eq "PASS") {
-        $path = ($r.Evidence -replace '`', '')
+        # The cell may name more than one log (negative controls, earlier runs,
+        # counts in brackets); the first path is the evidence for the PASS.
+        $path = [regex]::Match(($r.Evidence -replace '`', ''), 'tests/[A-Za-z0-9_./-]+').Value
         $full = Join-Path $root $path
         $tracked = [bool](git -C $root ls-files --error-unmatch $path 2>$null)
         $shows = $false

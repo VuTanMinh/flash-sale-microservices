@@ -16,6 +16,14 @@ namespace FlashSale.OrderService.Messaging;
 /// </summary>
 public class ReconciliationOptions
 {
+    /// <summary>
+    /// False stops the job entirely. Verifiers that must not be disturbed by
+    /// reconciliation set this; they used to set StuckTimeoutSeconds = 3600,
+    /// which still re-triggered any order older than an hour left in a shared
+    /// test database by an earlier run.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
     public int PollIntervalSeconds { get; set; } = 30;
 
     public int StuckTimeoutSeconds { get; set; } = 30;

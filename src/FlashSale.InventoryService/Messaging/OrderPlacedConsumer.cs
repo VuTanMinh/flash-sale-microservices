@@ -271,7 +271,10 @@ public class OrderPlacedConsumer : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var reservationService = scope.ServiceProvider.GetRequiredService<InventoryReservationService>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<InventoryServiceDbContext>();
-                return await OrderPlacedProcessor.ProcessAsync(dbContext, reservationService, orderPlaced, _logger);
+                return await OrderPlacedProcessor.ProcessAsync(
+                    dbContext, reservationService, orderPlaced, _logger,
+                    // Crash test only (midterm review): no-op unless configured.
+                    () => FaultInjection.CrashAfterReserveIfTargeted(_configuration, orderPlaced.CorrelationId, _logger));
             }
             catch (Exception ex)
             {

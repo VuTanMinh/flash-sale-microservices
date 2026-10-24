@@ -98,7 +98,7 @@ try {
 
     $orderLog = Start-Service "FlashSale.OrderService" $orderPort @{
         ConnectionStrings__Default = "Host=localhost;Port=$DbPort;Database=flashsale;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"
-        ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+        ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
 
     # A. valid route
     New-Queue "OrderPlaced"; Bind "OrderPlaced" "OrderPlaced"

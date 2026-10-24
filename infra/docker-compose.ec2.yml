@@ -156,10 +156,17 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      # The Worker's appsettings.json sets "Urls": "http://localhost:5100",
+      # which overrides ASPNETCORE_URLS, so the container listened on its own
+      # loopback and Prometheus and the collector got "connection refused" on
+      # process-worker:8080 (Week 12 EC2 run). An unprefixed Urls variable
+      # overrides appsettings.json.
+      Urls: http://+:8080
       RabbitMQ__Connections__Default__HostName: rabbitmq
       RabbitMQ__Connections__Default__Port: 5672
       RabbitMQ__Connections__Default__UserName: flashsale
       RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      Processing__MaxConcurrency: ${PROCESSING_MAX_CONCURRENCY:-1}
     depends_on:
       rabbitmq:
         condition: service_healthy

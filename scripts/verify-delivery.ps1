@@ -14,10 +14,18 @@
 #   Crash: for each of the four consumers, FaultInjection kills the process
 #          after its commit and before its ack; after a restart the same
 #          message is redelivered and treated as already processed.
+#   Crash between Redis and PostgreSQL (midterm review): Inventory is killed
+#          after reserve.lua took the unit and before the save of the result
+#          and Inbox row. After a restart the redelivered OrderPlaced gets
+#          DUPLICATE from Lua and writes the missing StockReserved with no
+#          second deduction. -NegativeControlForgetReservation removes the
+#          order from Redis's processed set before the restart (no Lua
+#          idempotency), and must fail the "exactly 1 unit" check.
 # ============================================================
 param(
     [Parameter(Mandatory = $true)][string]$Container,
-    [int]$DbPort = 55432
+    [int]$DbPort = 55432,
+    [switch]$NegativeControlForgetReservation
 )
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -28,7 +36,7 @@ $ex = "flashsale.order.exchange"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
 $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev")) }
 $svcEnv = @{
-    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__StuckTimeoutSeconds = "3600" }
+    "FlashSale.OrderService" = @{ ConnectionStrings__Default = "$pg;Username=order_service_user;Password=order_service_dev;Maximum Pool Size=60"; ASPNETCORE_URLS = "http://localhost:$orderPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Reconciliation__Enabled = "false" }
     "FlashSale.InventoryService" = @{ ConnectionStrings__Default = "$pg;Username=inventory_service_user;Password=inventory_service_dev;Search Path=inventory_service;Maximum Pool Size=30"; ASPNETCORE_URLS = "http://localhost:$invPort"; RabbitMQ__Connections__Default__Port = "$amqp"; Redis__Configuration = "localhost:$redisPort" }
     "FlashSale.ProcessWorker" = @{ Urls = "http://localhost:$workerPort"; RabbitMQ__Connections__Default__Port = "$amqp" }
 }
@@ -191,6 +199,28 @@ try {
     Check "Inventory replay: the same MessageId was redelivered and acked as already processed" ((Log "FlashSale.InventoryService") -match "OrderPlaced $m3 for order $o3 already processed")
     Check "Inventory replay: one effect (Completed, 1 Inbox row, 1 Outbox row, still exactly 1 unit taken)" ($done -and (InvInbox $m3) -eq 1 -and (InvOutbox $o3) -eq 1 -and [int](Redis "GET", "inventory:$p") -eq $stock - 1)
 
+    # 1b. Inventory between the Redis reservation and the PostgreSQL save
+    $k = "dl-crash-res-" + [guid]::NewGuid()
+    Stop-Svc "FlashSale.InventoryService"; Start-Svc "FlashSale.InventoryService" "crash-res" @("OrderPlaced.AfterReserve", $k)
+    $stock = [int](Redis "GET", "inventory:$p")
+    $o3b = Post-Order $p $k
+    $died = Wait-Until { -not (Running "FlashSale.InventoryService") } 40
+    $m3b = PlacedMsg $o3b
+    Check "Reserve crash: the process was killed after reserve.lua and before the save (fault log line, process gone)" ($died -and (Log "FlashSale.InventoryService") -match "Fault injection: OrderPlaced reserved in Redis")
+    Check "Reserve crash: Redis holds the unit but PostgreSQL has nothing (1 unit taken, order in the processed set, no Inbox row, no result row)" (
+        [int](Redis "GET", "inventory:$p") -eq $stock - 1 -and (Redis "SISMEMBER", "processed:$p", $o3b) -eq "1" -and (InvInbox $m3b) -eq 0 -and (InvOutbox $o3b) -eq 0 -and (State $o3b) -eq "PendingStock") "stock=$(Redis 'GET', "inventory:$p") inbox=$(InvInbox $m3b) outbox=$(InvOutbox $o3b) state=$(State $o3b)"
+    Check "Reserve crash: the unacknowledged OrderPlaced is back in its queue" (Wait-Until { (QueueCount "OrderPlaced") -eq 1 } 20) "OrderPlaced=$(QueueCount 'OrderPlaced')"
+    if ($NegativeControlForgetReservation) {
+        Write-Host "NEGATIVE CONTROL: removing $o3b from processed:$p before the restart"
+        Redis "SREM", "processed:$p", $o3b | Out-Null
+    }
+    Start-Svc "FlashSale.InventoryService" "restart-res"
+    $done = Wait-Until { (State $o3b) -eq "Completed" } 60
+    Check "Reserve replay: the redelivered OrderPlaced got DUPLICATE from reserve.lua" ((Log "FlashSale.InventoryService") -match "OrderPlaced $o3b for product $p -> Duplicate")
+    Check "Reserve replay: the missing StockReserved was written once and the order completed (1 Inbox row, 1 StockReserved row)" (
+        $done -and (InvInbox $m3b) -eq 1 -and (InvOutbox $o3b) -eq 1 -and (Sql "SELECT `"EventType`" FROM inventory_service.outbox_events WHERE `"OrderId`" = '$o3b';") -eq "StockReserved") "state=$(State $o3b) inbox=$(InvInbox $m3b) outbox=$(InvOutbox $o3b)"
+    Check "Reserve replay: still exactly 1 unit taken for the order (no second deduction)" ([int](Redis "GET", "inventory:$p") -eq $stock - 1) "stock before=$stock now=$(Redis 'GET', "inventory:$p")"
+
     # 2. Order Service StockResult
     $k = "dl-crash-sr-" + [guid]::NewGuid()
     Stop-Svc "FlashSale.OrderService"; Start-Svc "FlashSale.OrderService" "crash-sr" @("StockResult", $k)
@@ -236,7 +266,7 @@ try {
     Check "Process Worker replay: Order Service absorbed the copy (already processed; 1 Inbox row; completion timestamp unchanged)" ($absorbed -and (OrdInbox $o6) -eq 1 -and (Ts $o6 "CompletedAt") -eq $completed)
 
     # ---------------------------------------------------------- end state
-    Check "stock for ${p}: 10 - 6 orders = 4, and Redis recorded exactly those 6 orders" ((Redis "GET", "inventory:$p") -eq "4" -and (Redis "SCARD", "processed:$p") -eq "6")
+    Check "stock for ${p}: 10 - 7 orders = 3, and Redis recorded exactly those 7 orders" ((Redis "GET", "inventory:$p") -eq "3" -and (Redis "SCARD", "processed:$p") -eq "7") "stock=$(Redis 'GET', "inventory:$p") scard=$(Redis 'SCARD', "processed:$p")"
     $all = $queues + @($queues | ForEach-Object { "$_.dlq" })
     $empty = Wait-Until { @($all | Where-Object { (QueueCount $_) -ne 0 }).Count -eq 0 } 20
     Check "every queue and every DLQ is empty at the end" $empty (($all | ForEach-Object { "$_=$(QueueCount $_)" }) -join ",")

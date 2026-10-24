@@ -1,0 +1,15 @@
+﻿PASS  commit: 201, exactly one order and one unpublished OrderPlaced Outbox row
+PASS  commit: Outbox payload names this order and carries a MessageId
+PASS  rollback: Outbox insert refused -> request fails (5xx) and NO order row exists
+PASS  rollback: after the fault is removed the same key creates the order normally (201)
+PASS  retries: publisher logged failed attempts while the broker was down (2)
+PASS  retries: row still unpublished and payload unchanged
+PASS  retries: once the broker is up the row is marked published
+PASS  broker: capture queue holds one message per order this run created (2)
+PASS  retries: exactly one OrderPlaced for the order reached the queue
+PASS  retries: delivered MessageId equals the one stored at commit time (76e50f3c-6553-4150-afb6-f6ab8fddf450)
+PASS  retries: still exactly one Outbox row for the order (no re-insert)
+PASS  throughput: 300 queued Outbox rows drain in < 4 s (measured 1.3 s, ~231 events/s)
+
+Outbox commit/rollback and stable MessageId verified.
+Exit code: 0
