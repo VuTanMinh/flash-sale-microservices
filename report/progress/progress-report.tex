@@ -101,9 +101,9 @@ the gateway, the application and the broker, and the required Terraform
 deployment on AWS EC2 with JMeter on a separate machine. The automated
 verifiers and the unit tests pass on the assessed code
 (Section~\ref{sec:verification}); passing tests show the cases they cover,
-not universal correctness. In one local overload run the system refused
-excess load early, lost no accepted order, and cleared its backlog in under
-7 seconds. Open limitations are listed in Section~\ref{sec:limits}.
+not universal correctness. In one local overload run and one EC2 run on the
+assessed code, the system refused excess load early, lost no accepted order,
+and cleared its backlog in under 7 seconds. Open limitations are listed in Section~\ref{sec:limits}.
 
 The comparison between the asynchronous design and the synchronous PostgreSQL
 baseline, the experiments with extra Inventory consumers, and the official
@@ -313,7 +313,10 @@ orders waited about 40\,s end to end, and the backlog took 105\,s to clear,
 failing the 60\,s target. The new in-flight limit refuses what the Worker
 cannot finish: fewer orders are accepted (548 instead of 808), but each
 completes in about 6\,s and the backlog clears in 6.9\,s (4.5\,s in the repeat
-run) (Figures~\ref{fig:before} and~\ref{fig:after}).
+run) (Figures~\ref{fig:before} and~\ref{fig:after}). The same plan on EC2 with
+the assessed code accepted 582 orders, completed each in about 5.5\,s and
+cleared the backlog in 6.2\,s; every refused key was checked and none left an
+order.
 
 \begin{table}[htbp]
 \centering\small
@@ -322,19 +325,19 @@ run) (Figures~\ref{fig:before} and~\ref{fig:after}).
 \label{tab:overload}
 \begin{tabularx}{\textwidth}{Yrrrr}
 \toprule
-Overload run (pre-pilot limits) & Local 22 Oct & Local 23 Oct & Local 23 Oct & EC2 22 Oct \\
- & (before) & (+ prefetch) & (+ in-flight) & (before) \\
+Overload run (pre-pilot limits) & Local 22 Oct & Local 23 Oct & Local 23 Oct & EC2 24 Oct \\
+ & (before) & (+ prefetch) & (+ in-flight) & (assessed code) \\
 \midrule
-Order submissions & 3,995 & 4,027 & 4,084 & 4,029 \\
-Refused 429 / 503 & 2,390 / 832 & 2,403 / 816 & 2,464 / 1,072 & 2,411 / 720 \\
-Accepted, all completed & 773 & 808 & 548 & 898 \\
-Accepted (201) response, p50 / p95 & 38 / 65\,ms & -- & 27 / 39\,ms & -- \\
-Refused 429 / 503 response, p95 & 4 / 37\,ms & -- & 3 / 25\,ms & -- \\
-Accepted to stock decision, p50 / p95 & -- & -- & 1.2 / 2.2\,s & -- \\
-Accepted to Completed, p50 / p95 & 38 / 64\,s & 40 / 66\,s & 6.1 / 6.8\,s & -- \\
-Backlog drain after overload & 3.9\,s\textsuperscript{a} & 105\,s & 6.9\,s & 2.4\,s\textsuperscript{a} \\
-Final drain after the last request & 59\,s & 55\,s & 7.1\,s & 48\,s \\
-Recovery time\textsuperscript{b} & 7\,s & 5\,s & 7\,s & -- \\
+Order submissions & 3,995 & 4,027 & 4,084 & 4,069 \\
+Refused 429 / 503 & 2,390 / 832 & 2,403 / 816 & 2,464 / 1,072 & 2,445 / 1,042 \\
+Accepted, all completed & 773 & 808 & 548 & 582 \\
+Accepted (201) response, p50 / p95 & 38 / 65\,ms & -- & 27 / 39\,ms & 13 / 31\,ms \\
+Refused 429 / 503 response, p95 & 4 / 37\,ms & -- & 3 / 25\,ms & 2 / 23\,ms \\
+Accepted to stock decision, p50 / p95 & -- & -- & 1.2 / 2.2\,s & 1.2 / 1.9\,s \\
+Accepted to Completed, p50 / p95 & 38 / 64\,s & 40 / 66\,s & 6.1 / 6.8\,s & 5.5 / 6.1\,s \\
+Backlog drain after overload & 3.9\,s\textsuperscript{a} & 105\,s & 6.9\,s & 6.2\,s \\
+Final drain after the last request & 59\,s & 55\,s & 7.1\,s & 6.5\,s \\
+Recovery time\textsuperscript{b} & 7\,s & 5\,s & 7\,s & 6\,s \\
 Recovery-phase p95 latency & 63\,ms & 55\,ms & 34\,ms & 19\,ms \\
 \bottomrule
 \end{tabularx}
@@ -344,9 +347,10 @@ which missed messages already delivered to the Worker; not comparable with the
 other columns. \textsuperscript{b}First 10\,s window after the recovery phase
 starts with no refusals, no errors, p95 at most 1\,s and at least one accepted
 order per second. Response times count POST submissions only, never status
-polls; ``--'' means the raw file needed is not archived. The EC2 run used the
-code from before the review; its raw data was not archived, so it cannot be
-re-measured.\par}
+polls; ``--'' means the raw file needed is not archived. The EC2 value uses
+the second-pass definition (p95 of accepted responses only, no 1\,s gap in
+the window). An earlier EC2 run on 22 October used the code from before the
+review and its raw data was not archived; it is superseded by this one.\par}
 \end{table}
 
 In every run, the refusals matched JMeter, the Nginx log and the admission
@@ -378,10 +382,11 @@ a backend (\texttt{m7i-flex.large}) that runs the stack in Docker Compose with
 pinned images, and a separate JMeter host (\texttt{c7i-flex.large})
 (Figure~\ref{fig:ec2}). Only Nginx is reachable, and only from the JMeter
 host. There is no SSH (AWS Systems Manager is used instead), no NAT, Elastic
-IP or load balancer, and both hosts terminate themselves after four hours. Two
-live sessions passed: only port 80 answered from the JMeter host, a JMeter
-smoke test ran 44 of 44 requests successfully, and both sessions were
-destroyed with nothing left behind.\par}
+IP or load balancer, and both hosts terminate themselves after four hours.
+Three live sessions passed: only port 80 answered from the JMeter host, a
+JMeter smoke test ran 44 of 44 requests successfully, two overload runs
+completed (the second on the assessed code), and every session was destroyed
+with nothing left behind.\par}
 
 \begin{figure}[htbp]
 \centering
@@ -428,7 +433,8 @@ in the code or the saved data before it was fixed, and each fix was re-tested:
     sleep after a full batch. The EC2 Worker listened only on its own
     loopback, so its metrics were never scraped there; this is fixed, and the
     queue policy and the collector now work through \texttt{docker exec}
-    without a published management port. The extractor judges recovery
+    without a published management port; all three were checked on EC2 on
+    24 October. The extractor judges recovery
     latency on accepted responses only and has fixtures for all-429, all-503,
     too little throughput, a gap in the window, missing samples and a failed
     database query.
@@ -443,7 +449,7 @@ cases and logs. Three kinds of evidence are kept apart: offline checks that
 read code, documents and configuration (design alignment, requirement trace,
 deployment files); application tests that run the services on throwaway
 containers on the development PC; and live deployment evidence from the two
-EC2 sessions (port isolation, smoke test, one overload run). All 22 verifiers
+EC2 sessions (port isolation, smoke test, two overload runs). All 22 verifiers
 pass in their latest runs on the final code (Figure~\ref{fig:verif}); the
 counts are read from the logs by the chart script, not typed in. The 98 unit
 tests also pass. Most verifiers were also run with a negative control that
@@ -469,7 +475,9 @@ management plugin, Nginx 1.31.3; the verifiers start these from the
 with \texttt{dotnet test}; the six PostgreSQL race tests used a throwaway
 PostgreSQL~16 container. The EC2 sessions used \texttt{m7i-flex.large}
 (backend) and \texttt{c7i-flex.large} (JMeter) in \texttt{ap-southeast-2}, on
-the code from before the review; no EC2 session was run after it.
+the code from before the review, and a third on 24 October on the assessed
+code (Table~\ref{tab:overload}); its raw JTL, collector samples and stage
+intervals are archived in \texttt{tests/evidence/}.
 
 \begin{table}[htbp]
 \centering\small
@@ -585,11 +593,12 @@ own statement, not derived from the repository history.
   \item \textbf{One run per configuration.} Every number in
     Table~\ref{tab:overload} is a single run on one PC; no spread can be
     reported until the repeated runs of Week~14.
-  \item \textbf{Development PC, not EC2.} The local runs share one machine
-    between the load generator, the services and the broker. The only EC2
-    overload run used the code from before the review, and its raw data was
-    not archived (\nolinkurl{tests/evidence/20261022T163505Z-ec2-overload.log}
-    keeps only its console summary).
+  \item \textbf{Development PC and one EC2 run.} The local runs share one
+    machine between the load generator, the services and the broker. EC2 has
+    one run on the assessed code (24 October, raw data archived); the earlier
+    EC2 run of 22 October used the code from before the review and kept only
+    its console summary
+    (\nolinkurl{tests/evidence/20261022T163505Z-ec2-overload.log}).
   \item \textbf{Fixed downstream delay.} The Worker's 200\,ms delay is a
     stand-in for real work, so completion latency mostly measures this
     setting and the Worker's concurrency.

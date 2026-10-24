@@ -162,7 +162,7 @@ docker exec infra-rabbitmq-1 rabbitmqctl set_policy flashsale-c3-bounds \
 
 # 5c. Check that Prometheus scrapes all three services (each must say "up").
 #     Prometheus has no host port; ask it from inside its container:
-docker compose -f infra/docker-compose.ec2.yml exec -T prometheus \
+docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml exec -T prometheus \
   wget -qO- http://localhost:9090/api/v1/targets \
   | grep -o '"job":"[a-z-]*"\|"health":"[a-z]*"' | paste - -
 ```
@@ -171,7 +171,10 @@ Expected: `order-service`, `inventory-service`, `process-worker` and
 `prometheus`, each `"health":"up"`. Before the fix in `docker-compose.ec2.yml`
 (the Worker's `Urls` setting), `process-worker` was down: the Worker listened
 on its own loopback (Week 12 run: "Connection refused (172.18.0.7:8080)").
-This check has **not yet been run on EC2** after the fix.
+Run on EC2 on 2026-10-24 (code `45486aa`): all four targets `up`, the Worker's
+`/metrics` answered 200, `set-queue-bounds.ps1` applied the policy through
+`rabbitmqctl` and the collector ran in container mode
+(`tests/evidence/20261024T104902Z-ec2-overload.log`).
 
 ## 6. Smoke test from the JMeter host
 

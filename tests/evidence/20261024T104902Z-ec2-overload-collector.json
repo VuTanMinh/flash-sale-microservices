@@ -1,0 +1,18 @@
+{
+  "run_id": "ec2-overload",
+  "interval_seconds": 5,
+  "start_time_utc": "2026-10-24T10:48:25.3143460Z",
+  "host_os": "Linux",
+  "git_commit": "45486aa8285c00f8e7e447866f31c0e286882662",
+  "endpoints": {
+    "rabbitmq": {
+      "mode": "container",
+      "container": "infra-rabbitmq-1"
+    },
+    "redis_container": "infra-redis-1",
+    "postgres_container": "infra-postgres-1",
+    "order_metrics_url": "http://172.18.0.5:8080/metrics",
+    "inventory_metrics_url": "http://172.18.0.7:8080/metrics",
+    "worker_metrics_url": "http://172.18.0.6:8080/metrics"
+  }
+}

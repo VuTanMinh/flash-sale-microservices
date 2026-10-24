@@ -1,0 +1,227 @@
+{
+  "run_id": "ec2-overload",
+  "window_from_utc": "2026-10-24T10:49:04.2680000Z",
+  "window_to_utc": "2026-10-24T10:51:33.8470000Z",
+  "percentile_method": "nearest-rank",
+  "jtl": {
+    "source": "raw.jtl (/tmp/overload/raw.jtl)",
+    "submission_count": 4069,
+    "submission_elapsed_ms": {
+      "source": "raw.jtl elapsed (nearest-rank)",
+      "p50": 1.0,
+      "p95": 18.0,
+      "p99": 38.0,
+      "max": 589.0
+    },
+    "offered_throughput_per_s": 27.203016466215175,
+    "overload_rejection_pct": 85.69673138363234,
+    "internal_error_pct": 0.0,
+    "other_non_2xx_pct": 0.0,
+    "polling_count": 92,
+    "polling_elapsed_ms": {
+      "source": "raw.jtl elapsed (nearest-rank)",
+      "p50": 7.0,
+      "p95": 13.0,
+      "p99": 77.0,
+      "max": 77.0
+    }
+  },
+  "database": {
+    "source": "PostgreSQL (order_service.orders, order_service.outbox_events, inventory_service.outbox_events)",
+    "run_membership": "jtl idempotencyKey (4069 submitted keys)",
+    "accepted_count": 582,
+    "final_state_counts": {
+      "Completed": 582
+    },
+    "completed_count": 582,
+    "pending_count": 0,
+    "stages_ms": {
+      "accepted_to_published": {
+        "source": "orders + outbox joins",
+        "p50": 1119.815,
+        "p95": 1866.811,
+        "p99": 1979.663,
+        "negative_count": 0,
+        "missing_count": 0
+      },
+      "published_to_decided": {
+        "source": "orders + outbox joins",
+        "p50": 21.516,
+        "p95": 94.494,
+        "p99": 931.886,
+        "negative_count": 0,
+        "missing_count": 0
+      },
+      "decided_to_applied": {
+        "source": "orders + outbox joins",
+        "p50": 1350.075,
+        "p95": 1422.508,
+        "p99": 2099.1,
+        "negative_count": 0,
+        "missing_count": 0
+      },
+      "applied_to_completed": {
+        "source": "orders + outbox joins",
+        "p50": 2829.262,
+        "p95": 4410.67,
+        "p99": 5086.782,
+        "negative_count": 0,
+        "missing_count": 0
+      },
+      "accepted_to_completed": {
+        "source": "orders + outbox joins",
+        "p50": 5471.777,
+        "p95": 6143.924,
+        "p99": 7747.191,
+        "negative_count": 0,
+        "missing_count": 0
+      }
+    },
+    "stock_rates_pct": {
+      "source": "inventory_service.outbox_events",
+      "reserved": 100.0,
+      "rejected": 0.0,
+      "reserved_count": 582,
+      "rejected_count": 0
+    }
+  },
+  "collector": {
+    "peak_queue_depth": {
+      "source": "samples.csv (rabbitmq messages_ready + messages_unacknowledged)",
+      "per_queue": {
+        "StockRejected": 0.0,
+        "OrderProcessingStarted.retry.3": 0.0,
+        "ProcessWorker.StockReserved": 20.0,
+        "StockReserved": 2.0,
+        "ProcessWorker.StockReserved.dlq": 0.0,
+        "StockReserved.dlq": 0.0,
+        "OrderPlaced.dlq": 0.0,
+        "OrderProcessed.retry.1": 0.0,
+        "OrderProcessingStarted.retry.2": 0.0,
+        "OrderProcessingStarted.dlq": 0.0,
+        "StockRejected.dlq": 0.0,
+        "OrderProcessed.dlq": 0.0,
+        "OrderProcessed.retry.3": 0.0,
+        "OrderProcessingStarted.retry.1": 1.0,
+        "OrderProcessingStarted": 0.0,
+        "OrderProcessed": 1.0,
+        "OrderProcessed.retry.2": 0.0,
+        "OrderPlaced": 2.0
+      }
+    },
+    "peak_oldest_age_seconds": {
+      "source": "samples.csv (rabbitmq oldest_age_seconds)",
+      "per_queue": {
+        "StockRejected": 0.0,
+        "OrderProcessingStarted.retry.3": 0.0,
+        "ProcessWorker.StockReserved": 5.0,
+        "StockReserved": 0.0,
+        "ProcessWorker.StockReserved.dlq": 0.0,
+        "StockReserved.dlq": 0.0,
+        "OrderPlaced.dlq": 0.0,
+        "OrderProcessed.retry.1": 0.0,
+        "OrderProcessingStarted.retry.2": 0.0,
+        "OrderProcessingStarted.dlq": 0.0,
+        "StockRejected.dlq": 0.0,
+        "OrderProcessed.dlq": 0.0,
+        "OrderProcessed.retry.3": 0.0,
+        "OrderProcessingStarted.retry.1": 2.0,
+        "OrderProcessingStarted": 0.0,
+        "OrderProcessed": 0.0,
+        "OrderProcessed.retry.2": 0.0,
+        "OrderPlaced": 0.0
+      }
+    },
+    "drain_time_s": {
+      "source": "samples.csv (queues + outbox gauges) + DB pending-order count",
+      "value": 6.508
+    },
+    "recovery_time_s": {
+      "source": "raw.jtl 10-s windows after overload removal + -StableRange",
+      "overload_removed_utc": "2026-10-24T10:50:34.1160000Z",
+      "window_length_s": 10,
+      "criteria": {
+        "max_p95_ms": 1000,
+        "max_error_pct": 0.0,
+        "max_refused_pct": 0.0,
+        "min_throughput_per_s": 1.0
+      },
+      "value": 6.0
+    },
+    "counters": {
+      "source": "samples.csv (service flashsale_*_total, reset-aware increase)",
+      "retries": 0.0,
+      "duplicates": 15.0,
+      "dead_lettered": 0.0,
+      "reconciliation": 0.0
+    },
+    "host_cpu_percent": {
+      "source": "samples.csv (host)",
+      "mean": 21.272665697312416,
+      "peak": 76.62835249042146
+    },
+    "host_memory_used_bytes": {
+      "source": "samples.csv (host)",
+      "mean": 1938652242.3908045,
+      "peak": 1990742016.0
+    },
+    "process_cpu_rate_cores": {
+      "source": "samples.csv (service process_cpu_seconds_total rate)",
+      "per_service": {
+        "order-service": {
+          "peak": 0.6064157168566288,
+          "mean": 0.07577276096652115
+        },
+        "inventory-service": {
+          "peak": 0.2071112000000003,
+          "mean": 0.02248541511564808
+        },
+        "process-worker": {
+          "peak": 0.146369526094781,
+          "mean": 0.014058431634860969
+        }
+      }
+    },
+    "process_memory_bytes": {
+      "source": "samples.csv (service process_working_set_bytes)",
+      "per_service": {
+        "order-service": {
+          "peak": 372744192.0,
+          "mean": 318806463.2643678
+        },
+        "inventory-service": {
+          "peak": 277688320.0,
+          "mean": 265084598.43678162
+        },
+        "process-worker": {
+          "peak": 128843776.0,
+          "mean": 122537819.21839081
+        }
+      }
+    },
+    "db_connections": {
+      "source": "samples.csv (postgres)",
+      "mean": 8.03448275862069,
+      "peak": 13.0
+    },
+    "redis_mean_latency_us": {
+      "source": "samples.csv (redis delta(usec)/delta(calls))",
+      "value": 50.56483126110124
+    },
+    "broker_rates": {
+      "source": "samples.csv (rabbitmq)",
+      "publish": {
+        "peak": null,
+        "mean": null
+      },
+      "deliver_get": {
+        "peak": null,
+        "mean": null
+      },
+      "ack": {
+        "peak": null,
+        "mean": null
+      }
+    }
+  }
+}

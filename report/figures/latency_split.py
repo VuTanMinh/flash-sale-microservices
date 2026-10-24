@@ -20,7 +20,7 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EVIDENCE = os.path.join(ROOT, "tests", "evidence")
-RUNS = ["20261022T152931Z", "20261023T144923Z"]
+RUNS = ["20261022T152931Z", "20261023T144923Z", "20261024T104902Z-ec2"]
 
 
 def rank(sorted_values, p):

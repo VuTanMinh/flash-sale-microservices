@@ -1,0 +1,297 @@
+EC2 overload rerun on the code after the midterm review (main-test-bug-fix 45486aa), 2026-10-24.
+backend i-0017aee82de2b8669 m7i-flex.large 172.31.2.54; jmeter i-05c107d33a938b4e7 c7i-flex.large 172.31.12.51; ap-southeast-2.
+C3 on: Nginx ORDER_RATE 20r/s burst 1; admission 8 concurrent / Outbox backlog 20 / in-flight 30 (fresh database: baseline 0 + 30); queue policy max-length 5; prefetch 20; Worker 1 at a time.
+Phases 3/60/3 req/s for 30/60/60 s, product flash-product-1, stock 10000. Driven over SSM Run Command (read-only profile); every step's output below, unedited.
+Raw files archived next to this log (20261024T104902Z-ec2-overload-*): raw.jtl (sha256 55146535b68ab516ed8143e5b2c45999aa63e01fbb88c524fc1d3c9a6e80d735), samples.csv, stage-intervals.csv, summary.json, collector.json, jmeter.log.
+Step 4 stopped at the extraction line on a quoting error in the run script (a PowerShell backtick in bash); step 4b re-ran only the extraction and packaging. The collector had already been stopped by step 4 after the drain.
+
+=== 1. deploy and EC2-fix checks ===
+command 2c6d2201-ebd1-4fad-bc66-4609fb053bb0
+status Success exit 0
+cloud-init: status: done
+git version 2.50.1
+PowerShell 7.4.20
+commit: 45486aa
+ADMISSION_ENABLED=true
+ADMISSION_MAX_CONCURRENT_NEW_ORDERS=8
+ADMISSION_MAX_OUTBOX_BACKLOG=20
+ADMISSION_MAX_IN_FLIGHT_ORDERS=30
+PROCESSING_MAX_CONCURRENCY=1
+ORDER_RATE=20r/s
+ORDER_BURST=1
+Unable to find image 'mcr.microsoft.com/dotnet/sdk:10.0.300' locally
+10.0.300: Pulling from dotnet/sdk
+cb259a83ac3d: Pulling fs layer
+58abd912a5fb: Pulling fs layer
+b6cff015c25a: Pulling fs layer
+ffe6f39219bf: Pulling fs layer
+a31473e9874a: Pulling fs layer
+2d0efc714cbd: Pulling fs layer
+ee9163fb697b: Pulling fs layer
+5cb60dc27d81: Pulling fs layer
+3f4fdeb9039b: Pulling fs layer
+0ab943b3c9a1: Pulling fs layer
+2d0efc714cbd: Waiting
+ee9163fb697b: Waiting
+5cb60dc27d81: Waiting
+3f4fdeb9039b: Waiting
+0ab943b3c9a1: Waiting
+ffe6f39219bf: Waiting
+a31473e9874a: Waiting
+58abd912a5fb: Verifying Checksum
+58abd912a5fb: Download complete
+b6cff015c25a: Verifying Checksum
+b6cff015c25a: Download complete
+a31473e9874a: Verifying Checksum
+a31473e9874a: Download complete
+2d0efc714cbd: Verifying Checksum
+2d0efc714cbd: Download complete
+ee9163fb697b: Verifying Checksum
+ee9163fb697b: Download complete
+ffe6f39219bf: Verifying Checksum
+ffe6f39219bf: Download complete
+3f4fdeb9039b: Download complete
+cb259a83ac3d: Verifying Checksum
+cb259a83ac3d: Download complete
+0ab943b3c9a1: Verifying Checksum
+0ab943b3c9a1: Download complete
+cb259a83ac3d: Pull complete
+58abd912a5fb: Pull complete
+b6cff015c25a: Pull complete
+ffe6f39219bf: Pull complete
+a31473e9874a: Pull complete
+2d0efc714cbd: Pull complete
+ee9163fb697b: Pull complete
+5cb60dc27d81: Verifying Checksum
+5cb60dc27d81: Download complete
+5cb60dc27d81: Pull complete
+3f4fdeb9039b: Pull complete
+0ab943b3c9a1: Pull complete
+Digest: sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6
+Status: Downloaded newer image for mcr.microsoft.com/dotnet/sdk:10.0.300
+== build 10:44:31
+== up 10:45:54
+grafana running Up 59 seconds
+inventory-service running Up About a minute
+inventory-service-migrate exited Exited (0) 34 seconds ago
+nginx running Up 59 seconds
+order-service running Up About a minute
+order-service-migrate exited Exited (0) 30 seconds ago
+postgres running Up About a minute (healthy)
+process-worker running Up About a minute
+prometheus running Up 59 seconds
+rabbitmq running Up About a minute (healthy)
+redis running Up About a minute (healthy)
+== published host ports (expect only nginx 80)
+infra-nginx-1 0.0.0.0:80->80/tcp, :::80->80/tcp
+== Worker listens on 8080 inside the network (fix G3)
+process-worker /metrics HTTP 200
+== Prometheus targets (fix G3; each must be up)
+time="2026-10-24T10:47:59Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ORDER_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"INVENTORY_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"RABBITMQ_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"RABBITMQ_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ADMISSION_ENABLED\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ADMISSION_MAX_CONCURRENT_NEW_ORDERS\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ADMISSION_MAX_OUTBOX_BACKLOG\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ORDER_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ORDER_RATE\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ORDER_BURST\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"ORDER_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"INVENTORY_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"RABBITMQ_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"INVENTORY_SERVICE_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-10-24T10:47:59Z" level=warning msg="The \"RABBITMQ_PASSWORD\" variable is not set. Defaulting to a blank string."
+"job":"inventory-service"	"job":"inventory-service"
+"health":"up"	"job":"order-service"
+"job":"order-service"	"health":"up"
+"job":"process-worker"	"job":"process-worker"
+"health":"up"	"job":"prometheus"
+"job":"prometheus"	"health":"up"
+== queue bound through scripts/set-queue-bounds.ps1 (fix G1: no 15672 published, no password)
+Set policy 'flashsale-c3-bounds' (max-length=5, overflow=reject-publish) on the six main queues.
+Effective policy per queue (rabbitmqctl list_queues name policy):
+  StockRejected                    flashsale-c3-bounds
+  OrderProcessingStarted.retry.3   -
+  ProcessWorker.StockReserved      flashsale-c3-bounds
+  StockReserved                    flashsale-c3-bounds
+  ProcessWorker.StockReserved.dlq  -
+  StockReserved.dlq                -
+  OrderPlaced.dlq                  -
+  OrderProcessed.retry.1           -
+  OrderProcessingStarted.retry.2   -
+  OrderProcessingStarted.dlq       -
+  StockRejected.dlq                -
+  OrderProcessed.dlq               -
+  OrderProcessed.retry.3           -
+  OrderProcessingStarted.retry.1   -
+  OrderProcessingStarted           flashsale-c3-bounds
+  OrderProcessed                   flashsale-c3-bounds
+  OrderProcessed.retry.2           -
+  OrderPlaced                      flashsale-c3-bounds
+Policies (rabbitmqctl list_policies):
+vhost	name	pattern	apply-to	definition	priority
+/	flashsale-c3-bounds	^(OrderPlaced|StockReserved|StockRejected|ProcessWorker\.StockReserved|OrderProcessingStarted|OrderProcessed)$	queues	{"max-length":5,"overflow":"reject-publish"}	0
+Queues (rabbitmqctl list_queues name policy messages_ready messages_unacknowledged):
+name	policy	messages_ready	messages_unacknowledged
+StockRejected	flashsale-c3-bounds	0	0
+OrderProcessingStarted.retry.3		0	0
+ProcessWorker.StockReserved	flashsale-c3-bounds	0	0
+StockReserved	flashsale-c3-bounds	0	0
+ProcessWorker.StockReserved.dlq		0	0
+StockReserved.dlq		0	0
+OrderPlaced.dlq		0	0
+OrderProcessed.retry.1		0	0
+OrderProcessingStarted.retry.2		0	0
+OrderProcessingStarted.dlq		0	0
+StockRejected.dlq		0	0
+OrderProcessed.dlq		0	0
+OrderProcessed.retry.3		0	0
+OrderProcessingStarted.retry.1		0	0
+OrderProcessingStarted	flashsale-c3-bounds	0	0
+OrderProcessed	flashsale-c3-bounds	0	0
+OrderProcessed.retry.2		0	0
+OrderPlaced	flashsale-c3-bounds	0	0
+== warm-up flash-product-1 = 10000
+OK
+health 200
+done 10:48:02
+
+--- stderr ---
+
+
+
+=== 2. collector start (container mode) ===
+command f227a704-ce1e-4b58-9259-b3c03b2897a8
+status Success exit 0
+collector pid: 35331
+rows so far: 461
+mode: {'mode': 'container', 'container': 'infra-rabbitmq-1'}
+unavailable rows by source/name (rates are expected in container mode):
+      1 host,cpu_percent
+      4 rabbitmq,ack_rate
+      4 rabbitmq,deliver_get_rate
+      4 rabbitmq,publish_rate
+process-worker service rows: 24
+infra-order-service-1 started 2026-10-24T10:46:44.20324225Z restarts 0
+infra-inventory-service-1 started 2026-10-24T10:46:39.498402786Z restarts 0
+infra-process-worker-1 started 2026-10-24T10:46:39.356079445Z restarts 0
+10000
+
+--- stderr ---
+
+
+
+=== 3. JMeter three-phase run (JMeter host) ===
+command 986d4b70-f410-4f7e-8406-d7b731368ede
+status Success exit 0
+cloud-init: status: done
+5.6.3
+openjdk version "17.0.20.1" 2026-08-18 LTS
+commit: 45486aa
+== run start 10:49:02
+summary =    171 in 00:00:26 =    6.6/s Avg:    47 Min:     1 Max:   589 Err:    80 (46.78%)
+summary =   1836 in 00:00:56 =   32.8/s Avg:     8 Min:     0 Max:   589 Err:  1554 (84.64%)
+summary =   3636 in 00:01:26 =   42.3/s Avg:     6 Min:     0 Max:   589 Err:  3172 (87.24%)
+summary =   4059 in 00:01:56 =   35.0/s Avg:     6 Min:     0 Max:   589 Err:  3487 (85.91%)
+summary =   4149 in 00:02:26 =   28.4/s Avg:     6 Min:     0 Max:   589 Err:  3487 (84.04%)
+summary =   4161 in 00:02:30 =   27.8/s Avg:     6 Min:     0 Max:   589 Err:  3487 (83.80%)
+... end of run
+== run end 10:51:35
+dashboard ok
+rows 4161 columns ['timeStamp', 'elapsed', 'label', 'responseCode', 'responseMessage', 'threadName', 'dataType', 'success', 'failureMessage', 'bytes', 'sentBytes', 'grpThreads', 'allThreads', 'URL', 'Latency', 'IdleTime', 'Connect', 'idempotencyKey']
+submit by label+code [(('submit-baseline', '201'), 106), (('submit-baseline', '429'), 9), (('submit-baseline', '503'), 71), (('submit-overload', '201'), 297), (('submit-overload', '429'), 2421), (('submit-overload', '503'), 895), (('submit-recovery', '201'), 179), (('submit-recovery', '429'), 15), (('submit-recovery', '503'), 76)]
+all by code [('200', 92), ('201', 582), ('429', 2445), ('503', 1042)]
+first_submission_ms 1792838944268 last_submission_ms 1792839093847 overload_first_ms 1792838974070 overload_last_ms 1792839034112
+recovery_submissions 270 recovery_p95_ms 19 recovery_non_429_503_errors 0
+run_non_429_503_errors 0 []
+KEYS429 da5e6c33-aab6-45af-93e4-85dcf70a73f5 f0fd3c67-20e1-4a56-beb3-f8f1d83233dc 8a2357da-c8af-4b7b-8126-14c160e62cf6 b3fb8285-fa31-4630-aa42-d19bd9009cbf 906e3846-c5e4-4987-99e9-9da5d40a90d3 edcd675f-be8f-4da1-b320-ec505bd19edc 703174ef-ca64-4549-a31b-998c18f21834 3ad4fad3-770f-44d6-b3d7-817b4cc65829 aff6406e-6e72-43df-b7ec-1e388a20d1e8 89c65d3d-cc66-46a1-a1f4-30a383544da6
+KEYS503 f9ca762a-10a9-4408-a7cf-7f99aa35351b 07ec7697-dd3c-49e2-94c6-d9b18a21b87f f38dd96a-844e-4e5b-9727-e438d551ef0b aec355d9-0751-4d96-b7e9-6e21899fb3cb 3f043916-fab7-4ac0-ab64-041b0b3b82b3 87ae9e4a-6b77-4659-8dd9-7723b40e8313 51374a20-5b76-498a-9a97-292ea56745b2 90c06373-b2be-4b1b-af3f-4d02b5ee3679 a35092dc-59a6-46e3-b633-29ef0a58877f ccc7f2ec-11fb-4353-b429-7f7172fa9b77
+accepted_201 582
+
+--- stderr ---
+
+
+
+=== 4. drain, accounting, every refused key, counters, validator ===
+command 6a8bbbd5-9867-4e3a-89c9-ebdbb0d8ef60
+status Failed exit 2
+raw.jtl sha256 55146535b68ab516 rows 4161
+== wait for the drain 10:55:27
+drained at 10:55:27
+order_outbox=0 inventory_outbox=0 pending=0 queues=0
+collector rows: 11880
+infra-order-service-1 started 2026-10-24T10:46:44.20324225Z restarts 0
+infra-inventory-service-1 started 2026-10-24T10:46:39.498402786Z restarts 0
+infra-process-worker-1 started 2026-10-24T10:46:39.356079445Z restarts 0
+== accounting
+accepted=582 scard=582 stock=9418
+Completed|582
+== every refused key checked (not a sample): orders with a 429/503 key (expect 0)
+refused keys: 3487
+CREATE TABLE
+COPY 3487
+refused keys with an order row: 0
+== accepted keys vs order rows (every 201 key has exactly one order)
+201 keys: 582
+CREATE TABLE
+COPY 582
+201 keys with an order row: 582
+== gateway and admission counters
+nginx 429 lines: 2445
+flashsale_admission_rejected_total{reason="concurrency"} 0
+flashsale_admission_rejected_total{reason="backlog"} 30
+flashsale_admission_rejected_total{reason="inflight"} 1012
+== validator C3
+
+
+Invariant                                 Status Detail
+---------                                 ------ ------
+1. available_inventory >= 0               PASS   stock 9418
+2. successful_reservations <= initial     PASS   Redis reservations 582, successful orders 582, initial 10000
+3. one reservation per order              PASS   Redis reservations and successful orders are the same 582 order ids
+4. duplicate message never double-deducts PASS   units taken 582 = distinct reserved orders 582; Inbox MessageId unique in both services
+5. accepted-order accounting              PASS   terminal 582 + outstanding 0 = accepted 582
+
+
+RESULT: all checks hold for C3.
+== extraction with the full JTL (run membership by Idempotency-Key; stable range as local TP-L04 case H)
+/var/lib/amazon/ssm/i-0017aee82de2b8669/document/orchestration/6a8bbbd5-9867-4e3a-89c9-ebdbb0d8ef60/awsrunShellScript/0.awsrunShellScript/_script.sh: line 51: unexpected EOF while looking for matching ``'
+
+--- stderr ---
+failed to run commands: exit status 2
+
+
+=== 4b. extraction with the full JTL and packaging ===
+command 280a35bd-8d77-40b1-83bd-d83559484d1c
+status Success exit 0
+== extraction with the full JTL (run membership by Idempotency-Key; stable range as local TP-L04 case H)
+extract exit 0
+run=ec2-overload window=2026-10-24T10:49:04.2680000Z..2026-10-24T10:51:33.8470000Z percentile=nearest-rank
+DB accepted=582 completed=582 pending=0
+collector drain_time_s=6.508 recovery_time_s=6 redis_latency_us=50.5648312611012
+summary=/tmp/overload/summary.json intervals=/tmp/overload/stage-intervals.csv
+membership jtl idempotencyKey (4069 submitted keys)
+accepted 582 completed 582 pending 0 states {'Completed': 582}
+submissions 4069 p50/p95 1.0 18.0
+stage accepted_to_published {'source': 'orders + outbox joins', 'p50': 1119.815, 'p95': 1866.811, 'p99': 1979.663, 'negative_count': 0, 'missing_count': 0}
+stage published_to_decided {'source': 'orders + outbox joins', 'p50': 21.516, 'p95': 94.494, 'p99': 931.886, 'negative_count': 0, 'missing_count': 0}
+stage decided_to_applied {'source': 'orders + outbox joins', 'p50': 1350.075, 'p95': 1422.508, 'p99': 2099.1, 'negative_count': 0, 'missing_count': 0}
+stage applied_to_completed {'source': 'orders + outbox joins', 'p50': 2829.262, 'p95': 4410.67, 'p99': 5086.782, 'negative_count': 0, 'missing_count': 0}
+stage accepted_to_completed {'source': 'orders + outbox joins', 'p50': 5471.777, 'p95': 6143.924, 'p99': 7747.191, 'negative_count': 0, 'missing_count': 0}
+final drain_time_s 6.508 | recovery_time_s 6.0 {'max_p95_ms': 1000, 'max_error_pct': 0.0, 'max_refused_pct': 0.0, 'min_throughput_per_s': 1.0}
+peak depth {'ProcessWorker.StockReserved': 20.0, 'StockReserved': 2.0, 'OrderProcessingStarted.retry.1': 1.0, 'OrderProcessed': 1.0, 'OrderPlaced': 2.0}
+== package for download
+ec2run.tgz sha256 28ea50f3c97e743e5745e519782c3c3a4bd823c231e5af8d6d0ae10f60d45831 bytes 247610
+
+--- stderr ---
+
+
+
+=== backlog drain after overload (definition of verify-load-shedding.ps1 case H, computed from the archived samples.csv) ===
+baseline max outbox 1 depth 20 | peak outbox 1 depth (ready+unacked) 21 | max unacked 20 | backlog drain after overload 6.2 s
+
+=== teardown (owner ran terraform destroy; checked with the read-only profile, 2026-10-24 11:05 UTC) ===
+instances not terminated: none; volumes: none; flashsale security groups: none; elastic IPs: none;
+network interfaces: none; terraform state list: empty

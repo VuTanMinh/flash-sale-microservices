@@ -3062,7 +3062,7 @@ the earlier ones missed the Worker's backlog and could count a phase that
 refused everything as recovered.
 
 \paragraph{Preliminary observations (local PC, one run each).}
-Table~\ref{tab:overload-local-ec2} compares three local runs and the EC2 run.
+Table~\ref{tab:overload-local-ec2} compares three local runs and two EC2 runs.
 The first local run (22 October) passed every check of the time: the 2,390
 refusals logged by Nginx and the 832 counted by the admission metric matched
 JMeter exactly, all 773 accepted orders completed with one unit of stock each,
@@ -3118,36 +3118,52 @@ came from the Outbox-backlog bound, including a few during the slow phases, so
 that threshold, like the others, must be set at the Week~13 pilot. This run
 used the code from before the review, and its raw JTL and samples were not
 copied back before the stack was destroyed, so it cannot be re-measured with
-the new definitions. It was not repeated on the new code; its numbers describe
-the earlier code only.
+the new definitions; its numbers describe the earlier code only.
+
+On 24 October the same plan ran again on EC2 on the code after the review
+(\texttt{main-test-bug-fix} \texttt{45486aa}, in-flight bound 30 on a fresh
+database), and every raw file was copied back over SSM with its sha256 checked
+(\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload-*}). Of 4,069 order
+submissions, Nginx refused 2,445 with 429 and admission 1,042 with 503 (30
+backlog, 1,012 in-flight); both counts matched JMeter exactly, and \emph{every}
+one of the 3,487 refused keys, not a sample, was checked: none has an order
+row. All 582 accepted orders completed with exactly 582 units taken, the
+validator passed C3, no container restarted, the backlog after the overload
+drained in 6.2\,s, the final drain took 6.5\,s and recovery 6\,s. The same
+session confirmed the three EC2 fixes of the review's second pass: the
+Worker's metrics answer, Prometheus scrapes all three services, and the queue
+policy and collector work through \texttt{docker exec} without the management
+port.
 
 \begin{table}[tbp]
 \centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrr}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lrrrrr}
 \toprule
-TP-L04 run (pre-pilot) & Local 22 Oct & Local 23 Oct & Local 23 Oct & EC2 22 Oct \\
- & (before) & (+ prefetch) & (+ in-flight) & (before) \\
+TP-L04 run (pre-pilot) & Local 22 Oct & Local 23 Oct & Local 23 Oct & EC2 22 Oct & EC2 24 Oct \\
+ & (before) & (+ prefetch) & (+ in-flight) & (before) & (after) \\
 \midrule
-Order submissions (3 phases) & 3,995 & 4,027 & 4,084 & 4,029 \\
-Refused by Nginx (429) & 2,390 & 2,403 & 2,464 & 2,411 \\
-Refused by admission (503) & 832 & 816 & 1,072 & 720 \\
-Accepted and completed & 773 & 808 & 548 & 898 \\
-Lost orders / extra stock & 0 / 0 & 0 / 0 & 0 / 0 & 0 / 0 \\
-Accepted to Completed p50/p95 & 38 / 64\,s & 40 / 66\,s & 6.1 / 6.8\,s & -- \\
-Backlog drain after overload & 3.9\,s\textsuperscript{a} & 105\,s & 6.9\,s & 2.4\,s\textsuperscript{a} \\
-Final drain after last request & 59\,s & 55\,s & 7.1\,s & 48\,s \\
-Recovery time & 7\,s & 5\,s & 7\,s & -- \\
-Recovery-phase p95 latency & 63\,ms & 55\,ms & 34\,ms & 19\,ms \\
-Service restarts & 0 & 0 & 0 & 0 \\
+Order submissions (3 phases) & 3,995 & 4,027 & 4,084 & 4,029 & 4,069 \\
+Refused by Nginx (429) & 2,390 & 2,403 & 2,464 & 2,411 & 2,445 \\
+Refused by admission (503) & 832 & 816 & 1,072 & 720 & 1,042 \\
+Accepted and completed & 773 & 808 & 548 & 898 & 582 \\
+Lost orders / extra stock & 0 / 0 & 0 / 0 & 0 / 0 & 0 / 0 & 0 / 0 \\
+Accepted to Completed p50/p95 & 38 / 64\,s & 40 / 66\,s & 6.1 / 6.8\,s & -- & 5.5 / 6.1\,s \\
+Backlog drain after overload & 3.9\,s\textsuperscript{a} & 105\,s & 6.9\,s & 2.4\,s\textsuperscript{a} & 6.2\,s \\
+Final drain after last request & 59\,s & 55\,s & 7.1\,s & 48\,s & 6.5\,s \\
+Recovery time & 7\,s & 5\,s & 7\,s & -- & 6\,s\textsuperscript{b} \\
+Recovery-phase p95 latency & 63\,ms & 55\,ms & 34\,ms & 19\,ms & 19\,ms \\
+Service restarts & 0 & 0 & 0 & 0 & 0 \\
 \bottomrule
 \end{tabular}
 \caption{The same overload plan, one run each. Counts match JMeter, the Nginx
 log and the admission metric in every run. \textsuperscript{a}The earlier,
 narrower measure that missed messages already delivered to the Worker; not
 comparable with the other two. The 22 October local run was re-extracted with
-the current extractor; the EC2 run could not be.}
+the current extractor; the 22 October EC2 run could not be.
+\textsuperscript{b}With the second-pass definition (p95 of accepted responses
+only, no 1\,s gap in the window).}
 \label{tab:overload-local-ec2}
 \end{table}
 
@@ -3186,18 +3202,20 @@ read-only identity for \texttt{terraform plan} and checks. It runs commands on
 the two tagged instances through Systems Manager, and can create, change or
 delete nothing.
 
-\paragraph{Evidence (TP-L03, TP-L04).} The offline checker
+\sloppy\paragraph{Evidence (TP-L03, TP-L04).} The offline checker
 \texttt{scripts/verify-deployment.ps1} passes 19 of 19 checks: format and
 validation, no open ingress, no forbidden resources, allowed instance types,
-pinned images, only Nginx published, and the three images build. Two live
+pinned images, only Nginx published, and the three images build. Three live
 sessions passed and were destroyed the same day, after which no instance,
 disk, address or security group was left. In the first, every service came
 up, and from the JMeter host only port 80 answered; ports 22, 3000, 5432,
 5672, 6379, 8080, 9090 and 15672 were closed. A JMeter smoke test of 44
 requests passed with 5 orders completed
-(\texttt{tests/evidence/20261022T093449Z-ec2-deployment.log}). The second
+(\nolinkurl{tests/evidence/20261022T093449Z-ec2-deployment.log}). The second
 was the overload run in Table~\ref{tab:overload-local-ec2}
-(\texttt{tests/evidence/20261022T163505Z-ec2-overload.log}).
+(\nolinkurl{tests/evidence/20261022T163505Z-ec2-overload.log}), and the third
+its rerun on the reviewed code
+(\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par\fussy
 
 \section{Verification Summary}
 
@@ -3286,8 +3304,8 @@ finding (\texttt{docs/midterm-review-disposition.md}):
     \texttt{Urls} setting overrode the container's), so its metrics were never
     scraped there; the Compose file now overrides it. The queue policy and the
     collector work through \texttt{docker exec} with no published management
-    port and no password on the command line. Neither has been run on EC2
-    since the change.
+    port and no password on the command line. All three were checked on EC2
+    on 24 October (Section~\ref{sec:ec2-deployment}).
   \item The extractor judges recovery latency on accepted responses only,
     needs submissions in every second of the window, never reads a missing
     backlog series as 0, and exits 2 with every database-derived value
@@ -3297,9 +3315,9 @@ finding (\texttt{docs/midterm-review-disposition.md}):
     re-sent orders left over from earlier runs in the shared test database.
 \end{itemize}
 
-Still open: the EC2 overload run describes the code from before the review,
-its raw data was not archived, and every limit is a pre-pilot value that the
-Week~13 pilot fixes.
+Still open: every limit is a pre-pilot value that the Week~13 pilot fixes,
+and each overload number is a single run. The 22 October EC2 run's raw data
+remains lost; the 24 October run on the reviewed code replaces it.
 
 % ============================================================
 \chapter{Experimental Design}

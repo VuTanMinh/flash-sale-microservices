@@ -9,8 +9,7 @@ results and negative controls of each case.
 Kinds of evidence: **offline** checks read code, documents and configuration;
 **application** tests run the services on throwaway containers on the
 development PC; **live** evidence comes from the EC2 sessions (TP-L03, and the EC2
-half of TP-L04, which ran on the code from before the review and whose raw data
-was not archived).
+half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
 
 | Requirement | Case | Status | Evidence named in the test plan | Latest run |
 |---|---|---|---|---|
@@ -46,7 +45,7 @@ was not archived).
 |  | TP-P08 | PASS | `tests/evidence/20261024T073819Z-extract.log` | `tests/evidence/20261024T073819Z-extract.log` |
 | Controlled rejection under overload; backlog drains without a restart | TP-L01 | PASS | `tests/evidence/20261019T161529Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log` |
 |  | TP-L02 | PASS | `tests/evidence/20261020T030050Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log` |
-|  | TP-L04 | PASS | `tests/evidence/20261023T160859Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log`, `tests/evidence/20261022T093449Z-ec2-deployment.log` |
+|  | TP-L04 | PASS | `tests/evidence/20261024T080008Z-load-shedding.log` | `tests/evidence/20261024T080008Z-load-shedding.log`, `tests/evidence/20261022T093449Z-ec2-deployment.log` |
 | Schema per service, own database accounts | TP-E01 | PASS | `tests/evidence/20261001T114318Z-environment-fresh.log` | `tests/evidence/20261013T145229Z-environment.log` |
 |  | TP-E02 | PASS | `tests/evidence/20261001T114318Z-environment-existing.log` | `tests/evidence/20261013T145229Z-environment.log` |
 |  | TP-E04 | PASS | `tests/evidence/20261023T173539Z-runtime-accounts.log` | `tests/evidence/20261023T173539Z-runtime-accounts.log` |
@@ -57,9 +56,9 @@ was not archived).
 
 ## Not covered by a saved run
 
-- Raw data of the Week 12 EC2 overload run (JTL, collector samples): lost with
+- Raw data of the 22 Oct EC2 overload run (JTL, collector samples): lost with
   the instances; only `tests/evidence/20261022T163505Z-ec2-overload.log` (console
-  summary) exists. It is not reconstructed.
-- The EC2 changes of the midterm review's second pass (Worker metrics address,
-  queue policy and collector through `docker exec`) were verified locally only.
+  summary) exists. It is not reconstructed; the 24 Oct EC2 rerun on the reviewed
+  code (`tests/evidence/20261024T104902Z-ec2-overload*`, raw data archived)
+  replaces it.
 - TP-X01–X03 belong to Weeks 13–14.
