@@ -389,7 +389,7 @@ export HEAP="-Xms1g -Xmx2g"
 # form 1 -- interactive SSM session (nohup; the pid is for checking only)
 nohup /opt/jmeter/bin/jmeter -n -t tests/jmeter/workload.jmx \
   -Jhost=<backend-private-ip> -Jport=80 -Jpath=/api/orders -JproductsFile=products.csv \
-  -Jthreads1=50 -Jrate1=50 -Jduration1=60 -Jsample_variables=idempotencyKey \
+  -Jmode=open -Jthreads1=50 -Jrate1=50 -Jduration1=60 -Jsample_variables=idempotencyKey \
   -l /tmp/run.jtl -j /tmp/run-jmeter.log > /tmp/run.out 2>&1 &
 echo $! > /tmp/run.pid
 cat /tmp/run.pid                      # check: the wrapper pid
@@ -400,7 +400,7 @@ pkill -f ApacheJMeter.jar             # stop (jmeter.sh runs java without exec, 
 systemd-run --unit=jmeter-run --collect --working-directory=/opt/flash-sale-microservices \
   env HEAP="-Xms1g -Xmx2g" /opt/jmeter/bin/jmeter -n -t tests/jmeter/workload.jmx \
   -Jhost=<backend-private-ip> -Jport=80 -Jpath=/api/orders -JproductsFile=products.csv \
-  -Jthreads1=50 -Jrate1=50 -Jduration1=60 -Jsample_variables=idempotencyKey \
+  -Jmode=open -Jthreads1=50 -Jrate1=50 -Jduration1=60 -Jsample_variables=idempotencyKey \
   -l /tmp/run.jtl -j /tmp/run-jmeter.log
 journalctl -u jmeter-run -f            # follow (--collect removed the unit once it ended)
 ```

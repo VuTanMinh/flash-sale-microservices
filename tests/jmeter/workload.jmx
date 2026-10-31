@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Week 13 (TP-X04): one parameterised workload plan that covers every brief
-  section 6 workload profile. Five stages run one after another, each an
-  OPEN-LOOP target rate (a Constant Throughput Timer paces arrivals independently
-  of response time, with enough threads that the timer is never the limit).
+  section 6 workload profile. Five stages run one after another, each with a
+  target rate set by a Constant Throughput Timer.
+
+  -Jmode=open is the true open-loop mode: threads only submit and never poll, so
+  arrivals do not depend on how fast orders finish. -Jmode=poll (the default)
+  polls each accepted order to a terminal state before the thread submits again,
+  so it is closed-loop and rateN is only a ceiling (docs/workload-profiles.md).
 
   Properties (-J):
     -Jhost=<host>   -Jport=<port>   -Jpath=/api/orders | /api/c1/orders
     -JproductsFile=<csv>   (CSV Data Set, recycle on, all threads; one "productId" per row)
     per stage N (1..5):  -JthreadsN=<n>  -JrateN=<r/s>  -JdurationN=<seconds>
     -Jloops1=<n>   stage 1 loop count (default -1 = run for duration1)
+    -Jmode=poll|open   default poll; open never polls
 
   Stages run one after another via ThreadGroup.delay = the sum of the previous
   stages' durations (__intSum), so the threads all start at t=0 but stage N
@@ -153,8 +158,8 @@
           </RegexExtractor>
           <hashTree/>
         </hashTree>
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned" enabled="true">
-          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER")}</stringProp>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned and mode is not open" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER" &amp;&amp; "${__P(mode,poll)}" != "open")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -304,8 +309,8 @@
           </RegexExtractor>
           <hashTree/>
         </hashTree>
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned" enabled="true">
-          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER")}</stringProp>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned and mode is not open" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER" &amp;&amp; "${__P(mode,poll)}" != "open")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -455,8 +460,8 @@
           </RegexExtractor>
           <hashTree/>
         </hashTree>
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned" enabled="true">
-          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER")}</stringProp>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned and mode is not open" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER" &amp;&amp; "${__P(mode,poll)}" != "open")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -606,8 +611,8 @@
           </RegexExtractor>
           <hashTree/>
         </hashTree>
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned" enabled="true">
-          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER")}</stringProp>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned and mode is not open" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER" &amp;&amp; "${__P(mode,poll)}" != "open")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -757,8 +762,8 @@
           </RegexExtractor>
           <hashTree/>
         </hashTree>
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned" enabled="true">
-          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER")}</stringProp>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Poll only when an order id was returned and mode is not open" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${orderId}" != "NO_ORDER" &amp;&amp; "${__P(mode,poll)}" != "open")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>

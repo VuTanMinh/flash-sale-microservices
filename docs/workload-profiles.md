@@ -1,10 +1,10 @@
 # Workload profiles (Week 13, TP-X04)
 
 Every brief §6 workload profile is one parameterisation of
-`tests/jmeter/workload.jmx` — a single open-loop plan (built-in elements only, no
+`tests/jmeter/workload.jmx` — a single plan (built-in elements only, no
 plugins/JSR223, so it runs on Java 25) that POSTs `/api/orders` (or
-`/api/c1/orders`) with a fresh `Idempotency-Key`, then polls accepted orders to a
-terminal state. Product ids come from a CSV Data Set (`-JproductsFile`, recycle
+`/api/c1/orders`) with a fresh `Idempotency-Key`. By default it then polls accepted
+orders to a terminal state; `-Jmode=open` submits only (see "Open-loop mode"). Product ids come from a CSV Data Set (`-JproductsFile`, recycle
 on, all threads). Five stages run one after another; stage `N` has
 `threadsN`/`rateN` (per second)/`durationN` (seconds), and a stage with
 `threadsN=0` is skipped (set its `durationN=0` too so it adds no delay). Stage 1
@@ -28,6 +28,10 @@ Before every run, reset + seed + warm up (`docs/deployment.md` §10), and run
 | below / equal / above inventory | stage 1 with `loops1` | `threads1=5 loops1=N/5 duration1=600` (exact total `5×(N/5)=N`), others 0 | one product, stock `S`; run `N<S`, `N=S`, `N>S` |
 
 ## Commands
+
+Add `-Jmode=open` to any command below when the run measures a rate or compares
+configurations (see "Open-loop mode"). Without it the plan polls, and `rateN` is
+only a ceiling.
 
 One product per run unless stated. `path` is `/api/orders` for C2/C3/C4 and
 `/api/c1/orders` for the C1 baseline (the plan skips polling automatically on
@@ -110,6 +114,42 @@ of a 30-request run). Use `duration1=600` (or more) so the scheduler never
 truncates the loop, and set `rate1` high (e.g. 1000) so the Constant Throughput
 Timer never throttles it.
 
+## Open-loop mode (Week 13, TP-X05)
+
+**Problem.** With polling on, each thread waits for its order to finish before it
+submits again, so the submit rate falls to the Worker's completion rate (see
+"`rateN` is a ceiling" below). C1 does not poll, so C1 and C2 were not compared at
+equal offered load.
+
+**Design.** `-Jmode=open` makes the threads submit only. The default stays
+`-Jmode=poll`, so every existing profile is unchanged. The one change is in the
+`IfController` of each stage, which already skips polling when there is no order
+id; it now also skips it when `mode` is `open`. Nothing in the services changes.
+
+**What it gives up.** No client-side completion latency: end-to-end latency comes
+from the database timestamps (`extract-run-metrics.ps1`), which is the
+definition already used. The brief's polling client is still covered by
+`-Jmode=poll`.
+
+**How it is checked.** `verify-ec2-stack.ps1 -Cases F`: C1 and C2 at requested
+10/s and 50/s, achieved rate at least 90 % of requested, no poll rows, every
+submission 2xx; for C2, a drain and then the validator plus one order per 2xx
+submission. Correctness is always checked afterwards with
+`validate-correctness.ps1`, and the achieved rate is always read from the JTL.
+
+**Prototype result (local Docker, 20 s, not committed evidence yet).**
+
+| Config | Requested | Achieved, open | Achieved, poll | Orders drained (open) |
+|---|---|---|---|---|
+| C1 | 10/s | 10.6/s | 10.7/s | not applicable (synchronous) |
+| C1 | 50/s | 52.0/s | 52.1/s | not applicable (synchronous) |
+| C2 | 10/s | 10.7/s | 3.7/s | 213 of 213, 32 s after the load |
+| C2 | 50/s | 52.0/s | 5.9/s | 1028 of 1028, 217 s after the load |
+
+C2 still completes at the Worker's 5 orders/s, so at 50/s the backlog drains after
+the load instead of slowing the load down. These are low local rates, so they
+say nothing yet about the higher rates of the EC2 pilot.
+
 ## What the plan cannot do
 
 - **Product affinity is by CSV only.** All threads share one recycled CSV cursor,
@@ -129,10 +169,10 @@ Timer never throttles it.
   replicas alike, and 4.5/s at `rate1=10 threads1=20`. The same `rate1=10
   threads1=20` on `/api/c1/orders`, which does not poll, achieved 11.1/s. Read the
   achieved rate from the JTL and report that number, never `rateN`. To reach a
-  rate, either raise `threadsN` to about `rateN` × the seconds an order takes to
+  rate with polling on, either raise `threadsN` to about `rateN` × the seconds an order takes to
   finish (up to the 20 s polling bound, so 50/s can need 1000 threads), or raise
-  `PROCESSING_MAX_CONCURRENCY`. The thread counts in the commands above were not
-  sized this way.
+  `PROCESSING_MAX_CONCURRENCY`, or, the normal choice, use `-Jmode=open`. The
+  thread counts in the commands above were not sized for polling.
 - **Exact volume is stage-1 only.** Only stage 1 has `loops1`; a fixed total for
   multi-stage profiles is not expressed directly (use rate × duration instead).
 - **No per-phase JMeter dashboard inside the plan.** Samplers are labelled

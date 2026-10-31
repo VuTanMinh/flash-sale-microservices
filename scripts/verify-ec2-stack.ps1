@@ -38,11 +38,16 @@
 #      and below/equal/above inventory (exact volume = 5 x N/5 = N,
 #      reservations = min(requests, stock)).
 #
+#   F  open-loop mode (-Jmode=open): C1 and C2 at requested 10/s and 50/s for 20 s.
+#      achieved submissions/s from the JTL >= 90 % of requested, no poll rows, every
+#      submission 2xx, and after the drain the validator passes (C2: the database
+#      also holds one order per 2xx submission).
+#
 # This verifier needs Docker Desktop and JMeter; if either is missing it fails
 # SETUP ERROR (do not weaken a check to get a pass).
 # ============================================================
 param(
-    [ValidateSet("A", "B", "C", "D", "E")][string[]]$Cases = @("A", "B", "C", "D", "E")
+    [ValidateSet("A", "B", "C", "D", "E", "F")][string[]]$Cases = @("A", "B", "C", "D", "E", "F")
 )
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -54,7 +59,7 @@ $nginxHostPort = 18080
 $rabbitPromHostPort = 15792
 $failures = 0
 $checks = 0
-$caseChecks = @{ A = 3; B = 4; C = 18; D = 3; E = 30 }
+$caseChecks = @{ A = 3; B = 4; C = 18; D = 3; E = 30; F = 16 }
 $expectedChecks = 0
 foreach ($c in $Cases) { $expectedChecks += $caseChecks[$c] }
 
@@ -181,6 +186,16 @@ function Jtl-Stage429Count([string]$jtl, [int]$stage) {
 function Jtl-StageNon2xxCount([string]$jtl, [int]$stage) {
     if (-not (Test-Path -LiteralPath $jtl)) { return -1 }
     return @(Import-Csv -LiteralPath $jtl | Where-Object { [string]$_.label -eq "submit-stage$stage" -and [string]$_.responseCode -notmatch '^2\d\d$' }).Count
+}
+# Submissions per second actually achieved, from the first to the last submit row.
+function Jtl-AchievedRate([string]$jtl) {
+    if (-not (Test-Path -LiteralPath $jtl)) { return 0.0 }
+    $ts = @(Import-Csv -LiteralPath $jtl | Where-Object { [string]$_.label -match 'submit' } | ForEach-Object { [long]$_.timeStamp })
+    if ($ts.Count -lt 2) { return 0.0 }
+    $m = $ts | Measure-Object -Minimum -Maximum
+    $span = ($m.Maximum - $m.Minimum) / 1000.0
+    if ($span -le 0) { return 0.0 }
+    return [math]::Round(($ts.Count - 1) / $span, 1)
 }
 # Reset + seed + warm-up several products at once (the skewed profile).
 function Reset-Seed-Warm-Multi([hashtable]$products) {
@@ -498,6 +513,43 @@ services:
             Check "E: volume $($vol.Name) validator passes" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
         }
     }
+
+    # ---------------------------------------------------------- F
+    if ($Cases -contains "F") {
+        Write-Output "== F. open-loop mode: achieved rate against requested rate"
+        $openStock = 3000
+        foreach ($cfg in @(@{ Name = "C1"; Path = "/api/c1/orders" }, @{ Name = "C2"; Path = "/api/orders" })) {
+            foreach ($o in @(@{ Rate = 10; Threads = 20 }, @{ Rate = 50; Threads = 50 })) {
+                $tag = "$($cfg.Name) at $($o.Rate)/s"
+                if ($cfg.Name -eq "C1") {
+                    & (Join-Path $repoRoot "scripts\reset-and-seed.ps1") -Container $pg -Products @{ $workProduct = $openStock } *> $null
+                    if ($LASTEXITCODE -ne 0) { throw "reset+seed failed for $tag" }
+                } elseif (-not (Reset-Seed-Warm $workProduct $openStock)) { throw "reset+seed+warm-up failed for $tag" }
+                $jtl = Join-Path $env:TEMP "ec2v-open-$($cfg.Name)-$($o.Rate).jtl"
+                Run-Jmeter "open" @("-Jmode=open", "-JproductsFile=products.csv", "-Jthreads1=$($o.Threads)", "-Jrate1=$($o.Rate)", "-Jduration1=20", "-Jthreads2=0", "-Jduration2=0", "-Jthreads3=0", "-Jduration3=0", "-Jthreads4=0", "-Jduration4=0", "-Jthreads5=0", "-Jduration5=0") $jtl $cfg.Path | Out-Null
+                $achieved = Jtl-AchievedRate $jtl
+                Check "F: $tag achieved >= 90 % of requested" ($achieved -ge (0.9 * $o.Rate)) "achieved=$achieved requested=$($o.Rate) submits=$(Jtl-SubmitCount $jtl)"
+                $polls = Jtl-PollCount $jtl
+                Check "F: $tag has no poll rows" ($polls -eq 0) "polls=$polls"
+                $bad = Jtl-Non2xxCount $jtl
+                Check "F: $tag every submission 2xx" ($bad -eq 0) "non2xx=$bad"
+                if ($cfg.Name -eq "C1") {
+                    $v = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C1 -ProductId $workProduct -InitialStock $openStock -PgContainer $pg -RedisContainer $redis *>&1 | Out-String
+                    $vExit = $LASTEXITCODE
+                    Check "F: $tag validator passes" ($vExit -eq 0) "exit=$vExit"
+                } else {
+                    $t0 = Get-Date
+                    $drained = Wait-Until { (Int1 "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$workProduct' AND `"State`" NOT IN ('Completed','Rejected');") -eq 0 } 420
+                    $drainS = [int]((Get-Date) - $t0).TotalSeconds
+                    $v = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -ProductId $workProduct -InitialStock $openStock -PgContainer $pg -RedisContainer $redis *>&1 | Out-String
+                    $vExit = $LASTEXITCODE
+                    $orders = Int1 "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$workProduct';"
+                    $sub2xx = Jtl-2xxSubmitCount $jtl
+                    Check "F: $tag drained, validator passes, one order per 2xx submission" ($drained -and $vExit -eq 0 -and $orders -gt 0 -and $orders -eq $sub2xx) "drained=$drained after ${drainS}s exit=$vExit orders=$orders submits=$sub2xx"
+                }
+            }
+        }
+    }
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
@@ -509,5 +561,5 @@ finally {
 
 if ($checks -ne $expectedChecks) { Write-Output "FAIL  only $checks of $expectedChecks checks ran"; exit 1 }
 if ($failures -gt 0) { Write-Output "$failures check(s) failed."; exit 1 }
-Write-Output "All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, and every workload profile runs clean."
+Write-Output "All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, every workload profile runs clean, and open-loop mode reaches its requested rate."
 exit 0
