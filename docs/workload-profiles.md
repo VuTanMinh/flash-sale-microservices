@@ -137,14 +137,16 @@ submission 2xx; for C2, a drain and then the validator plus one order per 2xx
 submission. Correctness is always checked afterwards with
 `validate-correctness.ps1`, and the achieved rate is always read from the JTL.
 
-**Prototype result (local Docker, 20 s, not committed evidence yet).**
+**Result (local Docker, 20 s per run, clean clone of 4777c41).** Open mode is
+`tests/evidence/20261031T171915Z-ec2-stack.log`; the poll column is the negative control,
+`tests/evidence/20261031T174117Z-ec2-stack-negative-poll-mode.log`.
 
 | Config | Requested | Achieved, open | Achieved, poll | Orders drained (open) |
 |---|---|---|---|---|
-| C1 | 10/s | 10.6/s | 10.7/s | not applicable (synchronous) |
-| C1 | 50/s | 52.0/s | 52.1/s | not applicable (synchronous) |
-| C2 | 10/s | 10.7/s | 3.7/s | 213 of 213, 32 s after the load |
-| C2 | 50/s | 52.0/s | 5.9/s | 1028 of 1028, 217 s after the load |
+| C1 | 10/s | 10.9/s | 10.6/s | not applicable (synchronous) |
+| C1 | 50/s | 52.0/s | 52.2/s | not applicable (synchronous) |
+| C2 | 10/s | 10.9/s | 3.7/s | 217 of 217, 29 s after the load |
+| C2 | 50/s | 52.1/s | 6.5/s | 1030 of 1030, 214 s after the load |
 
 C2 still completes at the Worker's 5 orders/s, so at 50/s the backlog drains after
 the load instead of slowing the load down. These are low local rates, so they

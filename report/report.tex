@@ -3384,7 +3384,12 @@ The configurations are those of the brief:
 \end{itemize}
 Every run uses the same JMeter plan, run from a separate machine, and the
 same seeded stock (\texttt{scripts/reset-and-seed.ps1},
-\texttt{scripts/warm-up.ps1}). After each run,
+\texttt{scripts/warm-up.ps1}). Rate measurements use the plan's open-loop mode
+(\texttt{-Jmode=open}, TP-X05), in which threads only submit: when threads also
+polled each order to completion, the submit rate fell to the Process Worker's
+completion rate (3.7/s at a requested 10/s and 6.5/s at 50/s on local Docker),
+so C1 and C2 would not have received equal load. Each table states the rate
+achieved, read from the JTL, not the rate requested. After each run,
 \texttt{scripts/validate-correctness.ps1} gives its correctness verdict. A
 configuration that is fast but over-sells has not won anything, so no
 performance number is reported without that verdict.
