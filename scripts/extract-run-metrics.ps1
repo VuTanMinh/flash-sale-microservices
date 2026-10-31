@@ -502,36 +502,69 @@ if (Test-Path -LiteralPath $samplesPath) {
         $delRate = MeanPeak (NumericSeries "rabbitmq" "deliver_get_rate" $null)
         $ackRate = MeanPeak (NumericSeries "rabbitmq" "ack_rate" $null)
 
-        # process CPU (rate of process_cpu_seconds_total, cores) and memory per service
+        # process CPU (rate of process_cpu_seconds_total, cores) and memory per
+        # service. With C4 replicas the collector stamps an instance= label per
+        # replica, so a plain per-service sort interleaves replicas and takes
+        # deltas ACROSS different replicas. Compute per (service, instance) first,
+        # then sum across instances at each sample timestamp (every replica of a
+        # service is sampled at the same utc_time), then MeanPeak the sums. With a
+        # single URL (no instance label) this reduces to the same per-service
+        # numbers as before.
         $procCpu = [ordered]@{}; $procMem = [ordered]@{}
         foreach ($r in $rows) {
             if ($r.source -ne "service") { continue }
             $svc = LabelValue ([string]$r.labels) "service"
             if ($svc -eq "") { continue }
+            $inst = LabelValue ([string]$r.labels) "instance"
+            $key = "$svc|$inst"
             if ($r.name -eq "process_cpu_seconds_total") {
-                if (-not $procCpu.Contains($svc)) { $procCpu[$svc] = New-Object System.Collections.Generic.List[object] }
+                if (-not $procCpu.Contains($key)) { $procCpu[$key] = New-Object System.Collections.Generic.List[object] }
                 $tt = Time ([string]$r.utc_time); $vv = Num ([string]$r.value)
-                if ($null -ne $tt -and $null -ne $vv) { $procCpu[$svc].Add(@{ t = $tt; v = $vv }) }
+                if ($null -ne $tt -and $null -ne $vv) { $procCpu[$key].Add(@{ t = $tt; v = $vv }) }
             } elseif ($r.name -eq "process_working_set_bytes") {
-                if (-not $procMem.Contains($svc)) { $procMem[$svc] = New-Object System.Collections.Generic.List[double] }
-                $vv = Num ([string]$r.value)
-                if ($null -ne $vv) { $procMem[$svc].Add($vv) }
+                if (-not $procMem.Contains($key)) { $procMem[$key] = New-Object System.Collections.Generic.List[object] }
+                $tt = Time ([string]$r.utc_time); $vv = Num ([string]$r.value)
+                if ($null -ne $tt -and $null -ne $vv) { $procMem[$key].Add(@{ t = $tt; v = $vv }) }
             }
         }
+        $cpuSvcs = New-Object System.Collections.Generic.List[string]
+        foreach ($key in $procCpu.Keys) { $s = ($key -split '\|')[0]; if (-not $cpuSvcs.Contains($s)) { $cpuSvcs.Add($s) } }
+        $memSvcs = New-Object System.Collections.Generic.List[string]
+        foreach ($key in $procMem.Keys) { $s = ($key -split '\|')[0]; if (-not $memSvcs.Contains($s)) { $memSvcs.Add($s) } }
+
         $procCpuOut = [ordered]@{}
-        foreach ($svc in $procCpu.Keys) {
-            $pts = @($procCpu[$svc] | Sort-Object { $_.t })
-            $rates = @()
-            for ($i = 1; $i -lt $pts.Count; $i++) {
-                $dt = ($pts[$i].t - $pts[$i - 1].t).TotalSeconds
-                $dv = $pts[$i].v - $pts[$i - 1].v
-                if ($dt -gt 0 -and $dv -ge 0) { $rates += ($dv / $dt) }
+        foreach ($svc in $cpuSvcs) {
+            $bucketSum = @{}   # timestamp ticks -> summed rate across instances
+            foreach ($key in $procCpu.Keys) {
+                if (($key -split '\|')[0] -ne $svc) { continue }
+                $pts = @($procCpu[$key] | Sort-Object { $_.t })
+                for ($i = 1; $i -lt $pts.Count; $i++) {
+                    $dt = ($pts[$i].t - $pts[$i - 1].t).TotalSeconds
+                    $dv = $pts[$i].v - $pts[$i - 1].v
+                    if ($dt -gt 0 -and $dv -ge 0) {
+                        $tk = [long]$pts[$i].t.Ticks
+                        if (-not $bucketSum.ContainsKey($tk)) { $bucketSum[$tk] = 0.0 }
+                        $bucketSum[$tk] = $bucketSum[$tk] + ($dv / $dt)
+                    }
+                }
             }
-            if ($rates.Count -eq 0) { $procCpuOut[$svc] = "unavailable" }
-            else { $procCpuOut[$svc] = MeanPeak @($rates) }
+            $vals = @($bucketSum.Values | ForEach-Object { [double]$_ })
+            if ($vals.Count -eq 0) { $procCpuOut[$svc] = "unavailable" }
+            else { $procCpuOut[$svc] = MeanPeak @($vals) }
         }
         $procMemOut = [ordered]@{}
-        foreach ($svc in $procMem.Keys) { $procMemOut[$svc] = MeanPeak @($procMem[$svc].ToArray()) }
+        foreach ($svc in $memSvcs) {
+            $bucketSum = @{}   # timestamp ticks -> summed bytes across instances
+            foreach ($key in $procMem.Keys) {
+                if (($key -split '\|')[0] -ne $svc) { continue }
+                foreach ($pt in $procMem[$key]) {
+                    $tk = [long]$pt.t.Ticks
+                    if (-not $bucketSum.ContainsKey($tk)) { $bucketSum[$tk] = 0.0 }
+                    $bucketSum[$tk] = $bucketSum[$tk] + [double]$pt.v
+                }
+            }
+            $procMemOut[$svc] = MeanPeak @($bucketSum.Values | ForEach-Object { [double]$_ })
+        }
 
         # Redis mean latency = delta(usec) / delta(calls) over the window
         $redisLatency = $null

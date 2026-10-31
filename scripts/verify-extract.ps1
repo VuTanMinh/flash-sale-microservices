@@ -45,7 +45,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 52     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 54     # number of Check calls in the try block (a truncated run must fail)
 
 # real-run stack (Part 2)
 $mq = "verify-ex-mq"; $amqp = 5700; $mgmt = 15700; $redis = "verify-ex-redis"; $redisPort = 6410
@@ -300,6 +300,37 @@ try {
     Check "collector: db connections mean/peak=1.8/3.0" (Near $sum.collector.db_connections.mean 1.8 0.0001 -and Near $sum.collector.db_connections.peak 3.0) "got=$($sum.collector.db_connections.mean)/$($sum.collector.db_connections.peak)"
     Check "collector: redis latency stays unavailable" (IsUnavailable $sum.collector.redis_mean_latency_us.value) "got=$($sum.collector.redis_mean_latency_us.value)"
     Check "collector: broker rates publish=100/120 deliver=50/60 ack=50/60" (Near $sum.collector.broker_rates.publish.mean 100.0 -and Near $sum.collector.broker_rates.publish.peak 120.0 -and Near $sum.collector.broker_rates.deliver_get.mean 50.0 -and Near $sum.collector.broker_rates.deliver_get.peak 60.0 -and Near $sum.collector.broker_rates.ack.mean 50.0 -and Near $sum.collector.broker_rates.ack.peak 60.0) "pub=$($sum.collector.broker_rates.publish.mean)/$($sum.collector.broker_rates.publish.peak)"
+
+    # ---- multi-instance fixture (C4 replicas shape): two inventory instances
+    #      sampled at the same timestamps. Correct (per-instance deltas/values,
+    #      then summed per timestamp bucket): CPU rate = 2/s + 3/s = 5/s (mean and
+    #      peak 5), memory = 1000+2000 .. 1400+2400 summed per bucket = 3000..3800
+    #      (mean 3400, peak 3800). The old per-service interleave would take deltas
+    #      ACROSS the two instances and average the memory values, so both checks
+    #      fail against the old logic.
+    $multiCsv = Join-Path $runDir "multi-instance-samples.csv"
+    $multiRows = New-Object System.Collections.Generic.List[string]
+    $multiRows.Add("utc_time,source,name,labels,value")
+    $cpu0 = @(100, 102, 104, 106, 108); $cpu1 = @(200, 203, 206, 209, 212)
+    $mem0 = @(1000, 1100, 1200, 1300, 1400); $mem1 = @(2000, 2100, 2200, 2300, 2400)
+    for ($i = 0; $i -lt 5; $i++) {
+        $tt = $t[$i]
+        $multiRows.Add("$tt,service,process_cpu_seconds_total,service=inventory-service;instance=i0,$($cpu0[$i])")
+        $multiRows.Add("$tt,service,process_cpu_seconds_total,service=inventory-service;instance=i1,$($cpu1[$i])")
+        $multiRows.Add("$tt,service,process_working_set_bytes,service=inventory-service;instance=i0,$($mem0[$i])")
+        $multiRows.Add("$tt,service,process_working_set_bytes,service=inventory-service;instance=i1,$($mem1[$i])")
+    }
+    [IO.File]::WriteAllLines($multiCsv, $multiRows.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    $multiDir = Join-Path $runDir "multi-instance"
+    New-Item -ItemType Directory -Force -Path $multiDir | Out-Null
+    Copy-Item -LiteralPath $jtlPath -Destination (Join-Path $multiDir "raw.jtl")
+    Copy-Item -LiteralPath $multiCsv -Destination (Join-Path $multiDir "samples.csv")
+    & powershell -NoProfile -File $extract -RunId "multi" -RunDir $multiDir -From $from -To $to *> $null
+    $multiExit = $LASTEXITCODE
+    $multiSum = $null
+    try { $multiSum = Get-Content -LiteralPath (Join-Path $multiDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "multi-instance: process cpu rate sums per-instance deltas (mean/peak=5/5)" ($multiExit -eq 0 -and $null -ne $multiSum -and (Near $multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.mean 5.0) -and (Near $multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.peak 5.0)) "mean=$($multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.mean) peak=$($multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.peak)"
+    Check "multi-instance: process memory sums per bucket (mean/peak=3400/3800)" ($multiExit -eq 0 -and $null -ne $multiSum -and (Near $multiSum.collector.process_memory_bytes.per_service.'inventory-service'.mean 3400.0) -and (Near $multiSum.collector.process_memory_bytes.per_service.'inventory-service'.peak 3800.0)) "mean=$($multiSum.collector.process_memory_bytes.per_service.'inventory-service'.mean) peak=$($multiSum.collector.process_memory_bytes.per_service.'inventory-service'.peak)"
 
     # ---- Part 1b (external review after Week 12). Run membership comes from
     #      the run's own Idempotency-Keys, a reconciliation re-publish does not

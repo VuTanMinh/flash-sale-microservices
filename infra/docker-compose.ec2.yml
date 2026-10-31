@@ -13,9 +13,25 @@
 # service starts. The C3 RabbitMQ queue policy is applied out-of-band by
 # scripts/set-queue-bounds.ps1 (see docs/deployment.md), not by this file.
 
+# The root volume is 30 GiB and the services log per order, so json-file logs
+# must be capped or a long load run fills the disk. Every service (the one-shot
+# migrations included) uses this anchor: at most 3 files of 50 MB each, so a
+# container never keeps more than ~150 MB of `docker logs`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16.14
+    # Raise the server connection limit for C4 (1, 2 or 4 Inventory replicas)
+    # while keeping the per-service pool sizes unchanged (Order 60 + Inventory
+    # 30 per replica): 4 replicas need 60 + 4x30 = 180, plus ~3 reserved for the
+    # admin/health connections, so 200 leaves 17 of headroom. Overridable with
+    # PG_MAX_CONNECTIONS in infra/ec2.env (see infra/ec2.env.example).
+    command: ["postgres", "-c", "max_connections=${PG_MAX_CONNECTIONS:-200}"]
     environment:
       POSTGRES_USER: flashsale   # fixed: initdb/01-create-service-roles.sql references 'flashsale'
       POSTGRES_DB: flashsale
@@ -33,6 +49,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    logging: *default-logging
     restart: unless-stopped
 
   redis:
@@ -44,6 +61,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    logging: *default-logging
     restart: unless-stopped
 
   rabbitmq:
@@ -56,6 +74,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+    logging: *default-logging
     restart: unless-stopped
 
   # --- One-shot migrations (run once, exit 0, then the service starts) ---
@@ -75,6 +94,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    logging: *default-logging
     restart: "no"
 
   inventory-service-migrate:
@@ -90,6 +110,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    logging: *default-logging
     restart: "no"
 
   # --- Long-running services ---
@@ -121,6 +142,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    logging: *default-logging
     restart: unless-stopped
 
   inventory-service:
@@ -146,6 +168,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    logging: *default-logging
     restart: unless-stopped
 
   process-worker:
@@ -170,11 +193,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    logging: *default-logging
     restart: unless-stopped
 
   nginx:
     image: nginx:1.31.3
-    ports: ["80:80"]
+    ports: ["${NGINX_HOST_PORT:-80}:80"]
     # Same template as the local stack; the image entrypoint expands the
     # ${ORDER_*} placeholders. ORDER_UPSTREAM points at the Order Service
     # container over plain HTTP.
@@ -187,6 +211,7 @@ services:
       - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
     depends_on:
       - order-service
+    logging: *default-logging
     restart: unless-stopped
 
   prometheus:
@@ -198,6 +223,7 @@ services:
       - order-service
       - inventory-service
       - process-worker
+    logging: *default-logging
     restart: unless-stopped
 
   grafana:
@@ -211,6 +237,7 @@ services:
       - grafanadata:/var/lib/grafana
     depends_on:
       - prometheus
+    logging: *default-logging
     restart: unless-stopped
 
 volumes:

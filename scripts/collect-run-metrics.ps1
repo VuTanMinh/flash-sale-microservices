@@ -36,6 +36,12 @@
 #              come from rabbitmqctl instead; the three rates become "unavailable"
 #              (labels "reason=no management API in container mode"), and
 #              head_message_timestamp is parsed from "" / an epoch number / a date.
+#              Pass -RabbitMqMetricsUrl "http://<broker-ip>:15692/metrics" (with
+#              -RabbitMqContainer) to compute the three rates from the broker's
+#              Prometheus endpoint instead: each rate is the delta of
+#              rabbitmq_global_messages_received/delivered/acknowledged_total over
+#              the elapsed seconds between samples (first sample, a counter that
+#              went backwards, or a failed read is "unavailable", never 0).
 #   redis    : calls and usec (labels "command=evalsha"/"command=eval") from
 #              INFO commandstats. Both are cumulative; mean latency per interval
 #              is delta(usec)/delta(calls) (extraction in Task C). A fresh Redis
@@ -45,7 +51,10 @@
 #              per usename.
 #   service  : every flashsale_* sample plus process_cpu_seconds_total and
 #              process_working_set_bytes, scraped from each service's /metrics
-#              (labels "service=<job>" plus the sample's own labels).
+#              (labels "service=<job>" plus the sample's own labels). For C4,
+#              -InventoryMetricsUrl may list several URLs (one per replica);
+#              each row then also carries an "instance=<url>" label so replicas
+#              stay distinguishable.
 #   host     : cpu_percent and memory_used_bytes/memory_total_bytes. Windows:
 #              performance counters + CIM. Linux: /proc/stat and /proc/meminfo.
 #              The Linux branch ran in mcr.microsoft.com/powershell:7.4-ubuntu-22.04
@@ -78,10 +87,11 @@ param(
     [string]$RabbitMqUser = "flashsale",
     [string]$RabbitMqPassword = "",
     [string]$RabbitMqContainer = "",
+    [string]$RabbitMqMetricsUrl = "",
     [string]$RedisContainer = "infra-redis-1",
     [string]$PostgresContainer = "infra-postgres-1",
     [string]$OrderMetricsUrl = "https://localhost:44314/metrics",
-    [string]$InventoryMetricsUrl = "https://localhost:44379/metrics",
+    [string[]]$InventoryMetricsUrl = @("https://localhost:44379/metrics"),
     [string]$WorkerMetricsUrl = "http://localhost:5100/metrics"
 )
 
@@ -90,6 +100,13 @@ param(
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $inv = [Globalization.CultureInfo]::InvariantCulture
+
+# `pwsh -File` binds each parameter to one string and rejects repeated parameters,
+# so the runbook passes several Inventory URLs as ONE comma-separated string.
+# Split every element on commas (trimming, dropping empties) so
+# -InventoryMetricsUrl "a,b" and repeated (interactive) -InventoryMetricsUrl both
+# work; a single URL behaves exactly as it does now.
+$InventoryMetricsUrl = @($InventoryMetricsUrl | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
 
 # RabbitMQ password: explicit -RabbitMqPassword wins; otherwise RABBITMQ_PASSWORD
 # from the environment (the EC2 stack sets it), else the local default. It is
@@ -120,6 +137,7 @@ Set-Content -LiteralPath $csvPath -Value "utc_time,source,name,labels,value" -En
 $script:rowCount = 0
 $script:sourceFailures = 0
 $script:prevCpu = $null   # Linux /proc/stat delta, @(total, idle)
+$script:prevMqRates = $null   # RabbitMQ Prometheus counter delta, @{ received; delivered; ack; t }
 $script:pending = New-Object System.Collections.ArrayList   # rows buffered per interval
 
 # collector.json -- the RabbitMQ password is deliberately NOT written (A3). The
@@ -131,6 +149,7 @@ if ($rabbitMqMode -eq "management") {
     $rabbitMqInfo.user = $RabbitMqUser
 } else {
     $rabbitMqInfo.container = $RabbitMqContainer
+    if ($RabbitMqMetricsUrl) { $rabbitMqInfo.metrics_url = $RabbitMqMetricsUrl }
 }
 [ordered]@{
     run_id = $RunId
@@ -143,7 +162,7 @@ if ($rabbitMqMode -eq "management") {
         redis_container = $RedisContainer
         postgres_container = $PostgresContainer
         order_metrics_url = $OrderMetricsUrl
-        inventory_metrics_url = $InventoryMetricsUrl
+        inventory_metrics_url = @($InventoryMetricsUrl)
         worker_metrics_url = $WorkerMetricsUrl
     }
 } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
@@ -152,8 +171,9 @@ $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]:
 
 # Windows PowerShell 5.1 has no -SkipCertificateCheck; HttpWebRequest honours
 # the process-wide callback instead. pwsh 6+ uses -SkipCertificateCheck per
-# request (Fetch-Content below).
-if (($PSVersionTable.PSVersion.Major -lt 6) -and (($OrderMetricsUrl -like "https://*") -or ($InventoryMetricsUrl -like "https://*") -or ($WorkerMetricsUrl -like "https://*"))) {
+# request (Fetch-Content below). $InventoryMetricsUrl may now hold several URLs.
+$anyHttpsMetrics = ($OrderMetricsUrl -like "https://*") -or ($WorkerMetricsUrl -like "https://*") -or (@($InventoryMetricsUrl | Where-Object { $_ -like "https://*" }).Count -gt 0)
+if (($PSVersionTable.PSVersion.Major -lt 6) -and $anyHttpsMetrics) {
     [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { return $true }
 }
 
@@ -248,17 +268,85 @@ function Head-ToEpoch([object]$head) {
     try { return [DateTimeOffset]::Parse($s, $inv).ToUnixTimeSeconds() } catch { return $null }
 }
 
+# RabbitMQ publish/deliver/ack rates in -RabbitMqContainer mode. Without
+# -RabbitMqMetricsUrl the management statistics are unavailable (rabbitmqctl has
+# no equivalent), so the three rates are "unavailable" with that reason. With
+# -RabbitMqMetricsUrl (the broker's Prometheus endpoint, port 15692, no
+# credentials) each rate is the delta of the matching global counter over the
+# elapsed seconds since the previous sample; the first sample, a counter that
+# went backwards (broker restart) and a failed read are "unavailable" with a
+# reason, never 0.
+function Sample-MqRates([string]$t) {
+    if ([string]::IsNullOrEmpty($RabbitMqMetricsUrl)) {
+        Write-Row $t "rabbitmq" "publish_rate" "reason=no management API in container mode" "unavailable"
+        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=no management API in container mode" "unavailable"
+        Write-Row $t "rabbitmq" "ack_rate" "reason=no management API in container mode" "unavailable"
+        return
+    }
+    $reason = ""
+    $vals = $null
+    try {
+        $content = Fetch-Content $RabbitMqMetricsUrl
+        # The broker labels each global counter by protocol/queue_type, so one
+        # counter spans several lines (e.g. ..._delivered_total{protocol=...,
+        # queue_type=...}); match an optional {...} and SUM every matching line.
+        $vals = @{ received = 0.0; delivered = 0.0; ack = 0.0 }
+        $seen = @{ received = $false; delivered = $false; ack = $false }
+        foreach ($line in ($content -split "`n")) {
+            $line = $line.Trim()
+            if ($line -eq "" -or $line.StartsWith("#")) { continue }
+            if ($line -match '^rabbitmq_global_messages_received_total(\{[^}]*\})?\s+(\S+)') { $vals.received += [double]$Matches[2]; $seen.received = $true }
+            elseif ($line -match '^rabbitmq_global_messages_delivered_total(\{[^}]*\})?\s+(\S+)') { $vals.delivered += [double]$Matches[2]; $seen.delivered = $true }
+            elseif ($line -match '^rabbitmq_global_messages_acknowledged_total(\{[^}]*\})?\s+(\S+)') { $vals.ack += [double]$Matches[2]; $seen.ack = $true }
+        }
+        if (-not ($seen.received -and $seen.delivered -and $seen.ack)) {
+            $reason = "metrics missing one or more counters"
+        }
+    } catch {
+        $reason = "metrics read failed: " + $_.Exception.Message
+    }
+    if ($reason -ne "") {
+        $clean = ($reason -replace '[\r\n\t]+', ' ' -replace ',', ' ' -replace '"', "'").Trim()
+        if ($clean.Length -gt 120) { $clean = $clean.Substring(0, 120) }
+        Write-Row $t "rabbitmq" "publish_rate" "reason=$clean" "unavailable"
+        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=$clean" "unavailable"
+        Write-Row $t "rabbitmq" "ack_rate" "reason=$clean" "unavailable"
+        return
+    }
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ($null -eq $script:prevMqRates) {
+        Write-Row $t "rabbitmq" "publish_rate" "reason=first sample, no previous counter" "unavailable"
+        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=first sample, no previous counter" "unavailable"
+        Write-Row $t "rabbitmq" "ack_rate" "reason=first sample, no previous counter" "unavailable"
+        $script:prevMqRates = @{ received = [double]$vals.received; delivered = [double]$vals.delivered; ack = [double]$vals.ack; t = $now }
+        return
+    }
+    $dt = [double]($now - $script:prevMqRates.t)
+    if ($dt -le 0) {
+        Write-Row $t "rabbitmq" "publish_rate" "reason=no elapsed time between samples" "unavailable"
+        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=no elapsed time between samples" "unavailable"
+        Write-Row $t "rabbitmq" "ack_rate" "reason=no elapsed time between samples" "unavailable"
+        $script:prevMqRates = @{ received = [double]$vals.received; delivered = [double]$vals.delivered; ack = [double]$vals.ack; t = $now }
+        return
+    }
+    foreach ($key in @("received", "delivered", "ack")) {
+        $name = if ($key -eq "received") { "publish_rate" } elseif ($key -eq "delivered") { "deliver_get_rate" } else { "ack_rate" }
+        $cur = [double]$vals[$key]; $prev = [double]$script:prevMqRates[$key]
+        if ($cur -lt $prev) {
+            Write-Row $t "rabbitmq" $name "reason=counter went backwards (broker restart)" "unavailable"
+        } else {
+            Write-Row $t "rabbitmq" $name "" (Fmt (($cur - $prev) / $dt))
+        }
+    }
+    $script:prevMqRates = @{ received = [double]$vals.received; delivered = [double]$vals.delivered; ack = [double]$vals.ack; t = $now }
+}
+
 function Sample-RabbitMq-Container([string]$t) {
     try {
         $out = @(docker exec $RabbitMqContainer rabbitmqctl list_queues name messages_ready messages_unacknowledged head_message_timestamp --formatter json 2>$null)
         if ($LASTEXITCODE -ne 0) { throw "rabbitmqctl list_queues failed (exit $LASTEXITCODE)" }
         $json = ($out -join "`n").Trim()
-        # publish/deliver/ack rates exist only in the management statistics, which
-        # have no rabbitmqctl equivalent; record them "unavailable" (never 0,
-        # never omitted) with the reason.
-        Write-Row $t "rabbitmq" "publish_rate" "reason=no management API in container mode" "unavailable"
-        Write-Row $t "rabbitmq" "deliver_get_rate" "reason=no management API in container mode" "unavailable"
-        Write-Row $t "rabbitmq" "ack_rate" "reason=no management API in container mode" "unavailable"
+        Sample-MqRates $t
         # An empty answer is missing data, not "no queues".
         if ($json -eq "") { throw "rabbitmqctl list_queues returned nothing" }
         $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -333,7 +421,7 @@ function Sample-Postgres([string]$t) {
     }
 }
 
-function Sample-Service([string]$url, [string]$service, [string]$t) {
+function Sample-Service([string]$url, [string]$service, [string]$t, [string]$instance = "") {
     try {
         $content = Fetch-Content $url
         foreach ($line in ($content -split "`n")) {
@@ -343,12 +431,14 @@ function Sample-Service([string]$url, [string]$service, [string]$t) {
             $name = $Matches[1]; $raw = $Matches[3]; $value = $Matches[4]
             if ($name -like "flashsale_*" -or $name -eq "process_cpu_seconds_total" -or $name -eq "process_working_set_bytes") {
                 $labels = "service=$service"
+                if ($instance -ne "") { $labels = $labels + ";instance=$instance" }
                 if ($raw) { $labels = $labels + ";" + $raw }
                 Write-Row $t "service" $name $labels $value
             }
         }
     } catch {
-        Write-Unavailable $t "service" ("$service : " + $_.Exception.Message)
+        $who = $service; if ($instance -ne "") { $who = "$service ($instance)" }
+        Write-Unavailable $t "service" ("$who : " + $_.Exception.Message)
     }
 }
 
@@ -415,7 +505,9 @@ while ($true) {
     Sample-Redis $t
     Sample-Postgres $t
     Sample-Service $OrderMetricsUrl "order-service" $t
-    Sample-Service $InventoryMetricsUrl "inventory-service" $t
+    foreach ($invUrl in @($InventoryMetricsUrl)) {
+        Sample-Service $invUrl "inventory-service" $t $invUrl
+    }
     Sample-Service $WorkerMetricsUrl "process-worker" $t
     Sample-Host $t
     $sampleMs = [int]([DateTime]::UtcNow - $sampleStart).TotalMilliseconds

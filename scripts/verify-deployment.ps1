@@ -108,11 +108,49 @@ foreach ($img in $allImages) {
 }
 Check "every Compose image pinned (no latest, full version)" ($unpinned.Count -eq 0) ($unpinned -join ', ')
 
-# Only Nginx publishes a host port in the EC2 Compose file (80:80, once).
+# Only Nginx publishes a host port in the EC2 Compose file, once, and it is 80 on
+# EC2: NGINX_HOST_PORT exists only so verify-ec2-stack.ps1 can use another port on
+# a developer machine, so the example env file must not set it.
 $ec2Compose = Get-Content -Raw (Join-Path $repoRoot "infra\docker-compose.ec2.yml")
 $portsCount = ([regex]::Matches($ec2Compose, '(?m)^\s*ports:')).Count
-$nginxPorts = $ec2Compose -match 'ports:\s*\["80:80"\]'
-Check "only Nginx publishes a host port (80) in the EC2 Compose" ($portsCount -eq 1 -and $nginxPorts) "ports blocks: $portsCount"
+$nginxPorts = $ec2Compose -match 'ports:\s*\["\$\{NGINX_HOST_PORT:-80\}:80"\]'
+$ec2EnvExample = Get-Content -Raw (Join-Path $repoRoot "infra\ec2.env.example")
+$portOverridden = $ec2EnvExample -match '(?m)^\s*NGINX_HOST_PORT\s*='
+Check "only Nginx publishes a host port (80) in the EC2 Compose" ($portsCount -eq 1 -and $nginxPorts -and -not $portOverridden) "ports blocks: $portsCount, nginx form ok: $nginxPorts, env example overrides the port: $portOverridden"
+
+# ---------------------------------------------------------------------------
+# Gateway routes (FIX 1, Week 13): POST /api/c1/orders (the C1 baseline) must be
+# proxied through Nginx and share the same rate-limit bucket as POST /api/orders,
+# while everything else stays 404.
+# ---------------------------------------------------------------------------
+$nginxConf = Get-Content -Raw (Join-Path $repoRoot "infra\nginx.conf")
+Check "nginx.conf: POST /api/c1/orders shares the rate-limit map entry" ($nginxConf.Contains('(?:c1/)?orders')) "the map regex must match /api/orders and /api/c1/orders"
+Check "nginx.conf: location = /api/c1/orders proxies to the upstream" ($nginxConf -match 'location\s*=\s*/api/c1/orders\s*\{') "the C1 route must be proxied, not 404"
+Check "nginx.conf: keeps the 404 default for everything else" ($nginxConf -match 'return\s+404') "the gateway must stay closed except the two order routes"
+
+# ---------------------------------------------------------------------------
+# Week 13 docs + logging checks: hashtables must go through -Command (pwsh -File
+# cannot pass a hashtable), systemd-run must set a working directory, and every
+# service must carry the json-file log cap.
+# ---------------------------------------------------------------------------
+$deploymentMd = Get-Content -Raw (Join-Path $repoRoot "docs\deployment.md")
+$workloadMd = Get-Content -Raw (Join-Path $repoRoot "docs\workload-profiles.md")
+
+$badHashLines = @()
+foreach ($doc in @($deploymentMd, $workloadMd)) {
+    foreach ($line in @($doc -split "`n")) {
+        if ($line -match '-File' -and $line -match '@\{') { $badHashLines += $line.Trim() }
+    }
+}
+Check "docs never pass a hashtable via -File (no line has both -File and @{)" ($badHashLines.Count -eq 0) ($badHashLines -join ' | ')
+
+$systemdLines = @([regex]::Matches($deploymentMd, '(?m)^systemd-run[^\r\n]*') | ForEach-Object { $_.Value })
+$badSystemd = @($systemdLines | Where-Object { $_ -notmatch '--working-directory=' })
+Check "every systemd-run command has --working-directory=" ($badSystemd.Count -eq 0) ($badSystemd -join ' | ')
+
+$composeImageCount = ([regex]::Matches($ec2Compose, '(?m)^\s*image:')).Count
+$composeLoggingCount = ([regex]::Matches($ec2Compose, '(?m)^\s*logging:\s*\*default-logging')).Count
+Check "every service in the EC2 Compose has logging (json-file cap)" ($composeLoggingCount -eq $composeImageCount -and $composeLoggingCount -gt 0) "images=$composeImageCount logging=$composeLoggingCount"
 
 # ---------------------------------------------------------------------------
 # Terraform fmt / validate (need the terraform binary, no AWS)

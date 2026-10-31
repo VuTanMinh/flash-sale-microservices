@@ -5,9 +5,11 @@
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\validate-correctness.ps1 -Config C2 -ProductId flash-product-1 -InitialStock 1000
 #   powershell -ExecutionPolicy Bypass -File .\scripts\validate-correctness.ps1 -Config C1 -ProductId c1-demo-product -InitialStock 100
-#   C3 (Week 12 box 2) runs the same command with -Config C3 and the same C2
+#   C3 (Week 12 box 2) and C4 (Week 13) run the same command as C2 with the same
 #   evidence (service state + Redis) -- checks 0-5, no extra configuration.
-#   C4 stays for Week 13 (do not add it here).
+#   -Products @{ 'p1' = n1; 'p2' = n2 } is an alternative to -ProductId/
+#   -InitialStock: every product is checked with the same -Config and the script
+#   exits non-zero if any product fails.
 #
 # Statuses: PASS, FAIL, INCONCLUSIVE (run not settled / data missing),
 # NOT APPLICABLE (with the reason; only C1 invariant 4, which has no
@@ -16,9 +18,10 @@
 # a missing key or a failed query is never reported as PASS.
 # ============================================================
 param(
-    [Parameter(Mandatory = $true)][ValidateSet("C1", "C2", "C3")][string]$Config,
-    [Parameter(Mandatory = $true)][string]$ProductId,
-    [Parameter(Mandatory = $true)][int]$InitialStock,
+    [Parameter(Mandatory = $true)][ValidateSet("C1", "C2", "C3", "C4")][string]$Config,
+    [string]$ProductId,
+    [int]$InitialStock = -1,
+    [hashtable]$Products = $null,
     [string]$PgContainer = "infra-postgres-1",
     [string]$RedisContainer = "infra-redis-1"
 )
@@ -27,9 +30,21 @@ param(
 $ErrorActionPreference = "Continue"
 $results = New-Object System.Collections.Generic.List[object]
 function Add-Result([string]$invariant, [string]$status, [string]$detail) {
-    $results.Add([pscustomobject]@{ Invariant = $invariant; Status = $status; Detail = $detail })
+    $results.Add([pscustomobject]@{ Product = $ProductId; Invariant = $invariant; Status = $status; Detail = $detail })
 }
-if ($ProductId -notmatch '^[A-Za-z0-9_-]+$') { Write-Host "Invalid -ProductId" -ForegroundColor Red; exit 2 }
+# One product (-ProductId/-InitialStock) or many (-Products). -Products is the
+# Week 13 experiment shape: every product is checked with the same -Config, and
+# the script exits non-zero if any product fails.
+$productsToCheck = New-Object System.Collections.Generic.List[object]
+if ($Products -and $Products.Count -gt 0) {
+    foreach ($p in @($Products.Keys | Sort-Object)) { $productsToCheck.Add([pscustomobject]@{ Id = [string]$p; Stock = [int]$Products[$p] }) }
+} else {
+    if ([string]::IsNullOrWhiteSpace($ProductId) -or $InitialStock -lt 0) { Write-Host "Either -Products or -ProductId/-InitialStock is required." -ForegroundColor Red; exit 2 }
+    $productsToCheck.Add([pscustomobject]@{ Id = $ProductId; Stock = $InitialStock })
+}
+foreach ($prod in $productsToCheck) {
+    if ("$($prod.Id)" -notmatch '^[A-Za-z0-9_-]+$') { Write-Host "Invalid product id '$($prod.Id)'" -ForegroundColor Red; exit 2 }
+}
 
 function Sql([string]$sql) {
     $out = $sql | docker exec -i $PgContainer psql -U flashsale -d flashsale -At -v ON_ERROR_STOP=1 -f - 2>&1
@@ -45,8 +60,11 @@ function Redis([string[]]$a) {
 # indexing a string returns a CHARACTER ('2'[0] -> [int] 50), not the value.
 function Int1($rows) { $v = @($rows); if ($v.Count -ne 1 -or "$($v[0])" -notmatch '^-?\d+$') { throw "expected one integer, got '$($v -join ',')'" }; return [int]"$($v[0])" }
 
-Write-Host "Validating $Config for product '$ProductId' (initial stock $InitialStock)`n" -ForegroundColor Cyan
-try {
+foreach ($prod in $productsToCheck) {
+    $ProductId = [string]$prod.Id
+    $InitialStock = [int]$prod.Stock
+    Write-Host "Validating $Config for product '$ProductId' (initial stock $InitialStock)`n" -ForegroundColor Cyan
+    try {
     if ($Config -eq "C1") {
         # C1: synchronous conditional UPDATE on order_service.inventory; each
         # request logs one decision row in baseline_orders.
@@ -66,9 +84,9 @@ try {
         Add-Result "4. duplicate message never double-deducts" "NOT APPLICABLE" "C1 is synchronous: no broker messages exist to be duplicated"
     }
     else {
-        # C2 and C3 (Week 12 box 2): Redis is the stock decision (inventory +
-        # processed set); order_service.orders is the order outcome. C3 uses
-        # exactly this C2 evidence -- no extra queries, no extra configuration.
+        # C2, C3 and C4: Redis is the stock decision (inventory + processed
+        # set); order_service.orders is the order outcome. C3 and C4 use exactly
+        # this C2 evidence -- no extra queries, no extra configuration.
         $inv = Redis @("GET", "inventory:$ProductId")
         $inv = @($inv)
         if ($inv.Count -eq 0 -or "$($inv[0])" -notmatch '^-?\d+$') { throw "inventory:$ProductId is not set in Redis (was warm-up run?)" }
@@ -127,13 +145,14 @@ try {
             Add-Result "5. accepted-order accounting" "PASS" "terminal $terminal + outstanding $outstanding = accepted $($terminal + $outstanding)"
         }
     }
-}
-catch {
-    Add-Result "setup" "SETUP ERROR" $_.Exception.Message
+    }
+    catch {
+        Add-Result "setup" "SETUP ERROR" $_.Exception.Message
+    }
 }
 
 $results | Format-Table -AutoSize -Wrap | Out-String -Width 200 | Write-Host
 $bad = @($results | Where-Object { $_.Status -notin "PASS", "NOT APPLICABLE" })
 if ($bad.Count -gt 0) { Write-Host "RESULT: FAILED ($($bad.Count) not passing)" -ForegroundColor Red; exit 1 }
-Write-Host "RESULT: all checks hold for $Config." -ForegroundColor Green
+Write-Host "RESULT: all checks hold for $Config ($($productsToCheck.Count) product(s))." -ForegroundColor Green
 exit 0

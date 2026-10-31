@@ -23,17 +23,23 @@
 #           sample gap is <= interval + 1 s; every main queue has messages_ready
 #           rows; redis rows became "unavailable" while Redis was stopped and the
 #           other sources kept sampling; collector.json records run id, interval
-#           and commit.
+#           and commit. The main collector is started with a comma-separated
+#           -InventoryMetricsUrl (two URLs to the same service) and the split
+#           produces exactly those two instance= labels.
 #
 # It then checks the EC2-only container-mode paths on a second throwaway broker
-# (verify-rc-mq2) started WITHOUT a published management port (only amqp 5699):
-# the collector run with -RabbitMqContainer (messages_ready peak >= 1 on a queue
-# holding a message; the three rate rows "unavailable" with reason=no management
-# API in container mode; collector.json mode=container; no flashsale_dev or
-# RABBITMQ_PASSWORD value leaks into collector.json/samples.csv), and
-# set-queue-bounds.ps1 applying/removing the policy with rabbitmqctl (no
-# credentials, no port). It confirms the management-API path still works on the
-# main broker, which does publish 15672 (verify-load-shedding.ps1 covers it too).
+# (verify-rc-mq2) started WITHOUT a published management port (only amqp 5699 and
+# Prometheus 15692 on host 15902): the collector run with -RabbitMqContainer
+# (messages_ready peak >= 1 on a queue holding a message; the three rate rows
+# "unavailable" with reason=no management API in container mode; collector.json
+# mode=container; no flashsale_dev or RABBITMQ_PASSWORD value leaks into
+# collector.json/samples.csv), a run with -RabbitMqMetricsUrl against that 15692
+# (first sample "unavailable" with reason=first sample; publish_rate and
+# deliver_get_rate rise above 0 while messages are published and got; the ack rate
+# stays numeric), and set-queue-bounds.ps1 applying/removing the policy with
+# rabbitmqctl (no credentials, no port). It confirms the management-API path
+# still works on the main broker, which does publish 15672
+# (verify-load-shedding.ps1 covers it too).
 # ============================================================
 param(
     [Parameter(Mandatory = $true)][string]$Container,
@@ -43,9 +49,9 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 26     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 30     # number of Check calls in the try block (a truncated run must fail)
 $mq = "verify-rc-mq"; $amqp = 5698; $mgmt = 15698; $redis = "verify-rc-redis"; $redisPort = 6405
-$mq2 = "verify-rc-mq2"; $amqp2 = 5699
+$mq2 = "verify-rc-mq2"; $amqp2 = 5699; $mq2Prom = 15902
 $orderPort = 5156; $invPort = 5157; $workerPort = 5158
 $ex = "flashsale.order.exchange"; $dlx = "flashsale.dlx"
 $pg = "Host=localhost;Port=$DbPort;Database=flashsale"
@@ -151,6 +157,35 @@ function NumericValues([object[]]$rows) {
 }
 # Parse a CSV utc_time value (yyyy-MM-ddTHH:mm:ss.fffZ); $null on failure.
 function Time([string]$s) { try { return [DateTime]::Parse($s, [Globalization.CultureInfo]::InvariantCulture) } catch { return $null } }
+# Wait (up to 45 s) for samples.csv to hold a collector/sample_duration_ms row
+# whose utc_time is LATER than $afterUtc. utc_time is parsed as UTC
+# (AssumeUniversal, AdjustToUniversal), never local, and the file is read with
+# shared access because the running collector holds it open. Used by the
+# RabbitMQ-rates case so a sample that actually observed the publishes/gets
+# exists before STOP is written.
+function Wait-SampleAfter([string]$csvPath, [DateTime]$afterUtc) {
+    for ($i = 0; $i -lt 45; $i++) {
+        $text = ""
+        if (Test-Path -LiteralPath $csvPath) {
+            try {
+                $fs = New-Object IO.FileStream($csvPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+                try { $text = (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+            } catch { $text = "" }
+        }
+        if ($text -ne "") {
+            $rows = @()
+            try { $rows = @($text | ConvertFrom-Csv) } catch { $rows = @() }
+            foreach ($r in $rows) {
+                if ([string]$r.source -ne "collector" -or [string]$r.name -ne "sample_duration_ms") { continue }
+                $t = $null
+                try { $t = [DateTime]::Parse([string]$r.utc_time, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]'AssumeUniversal, AdjustToUniversal') } catch { $t = $null }
+                if ($null -ne $t -and $t -gt $afterUtc) { return $true }
+            }
+        }
+        Start-Sleep 1
+    }
+    return $false
+}
 
 # ================================================================== run
 try {
@@ -209,7 +244,7 @@ try {
         "-RedisContainer", $redis,
         "-PostgresContainer", $Container,
         "-OrderMetricsUrl", "http://localhost:$orderPort/metrics",
-        "-InventoryMetricsUrl", "http://localhost:$invPort/metrics",
+        "-InventoryMetricsUrl", "http://localhost:$invPort/metrics,http://127.0.0.1:$invPort/metrics",
         "-WorkerMetricsUrl", "http://localhost:$workerPort/metrics"
     ) -RedirectStandardOutput (Join-Path $outDir "collector.out.log") -RedirectStandardError (Join-Path $outDir "collector.err.log") -WindowStyle Hidden -PassThru
     $csvPath = Join-Path $outDir "samples.csv"
@@ -248,6 +283,20 @@ try {
         if (@($rows | Where-Object { $_.source -eq $src }).Count -ge 1) { $srcPresent += $src }
     }
     Check "rows from every source (rabbitmq, redis, postgres, service, host)" ($srcPresent.Count -eq 5) "present=$($srcPresent -join ',')"
+
+    # The comma-separated -InventoryMetricsUrl (two URLs to the same service)
+    # must split into exactly two instance= labels on the inventory rows.
+    $invMemRows = @($rows | Where-Object { $_.source -eq "service" -and $_.name -eq "process_working_set_bytes" -and (HasLabel ([string]$_.labels) "service=inventory-service") })
+    $instLabels = @{}
+    foreach ($r in $invMemRows) {
+        foreach ($part in ([string]$r.labels -split ';')) {
+            if ($part -like "instance=*") { $instLabels[$part] = $true }
+        }
+    }
+    $wantInst1 = "instance=http://localhost:$invPort/metrics"
+    $wantInst2 = "instance=http://127.0.0.1:$invPort/metrics"
+    $instOk = ($instLabels.Count -eq 2 -and $instLabels.ContainsKey($wantInst1) -and $instLabels.ContainsKey($wantInst2))
+    Check "collector split the comma-separated -InventoryMetricsUrl into exactly two instance labels" $instOk "instances=$(@($instLabels.Keys | Sort-Object) -join ',')"
 
     $depthRows = @($rows | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq "messages_ready" -and (HasLabel $_.labels "queue=OrderPlaced") })
     $depthVals = NumericValues $depthRows
@@ -337,9 +386,12 @@ try {
         )
     } | ConvertTo-Json -Depth 8 | Set-Content $defs2 -Encoding ASCII
     "management.load_definitions = /etc/rabbitmq/definitions.json`nloopback_users = none`n" | Set-Content $conf2 -Encoding ASCII
-    # no 15672 mapping: only the amqp port is published (the EC2 shape)
+    # no 15672 mapping: only the amqp port is published (the EC2 shape). 15692
+    # (rabbitmq_prometheus, enabled by default in rabbitmq:3-management) is
+    # published on $mq2Prom so the collector's -RabbitMqMetricsUrl path can be
+    # checked below.
     docker run -d --name $mq2 -v "${defs2}:/etc/rabbitmq/definitions.json:ro" -v "${conf2}:/etc/rabbitmq/conf.d/90-verify.conf:ro" `
-        -p "${amqp2}:5672" rabbitmq:3-management | Out-Null
+        -p "${amqp2}:5672" -p "${mq2Prom}:15692" rabbitmq:3-management | Out-Null
     # No rabbitmqctl before the broker has booted: a `docker exec` (root) call
     # that early creates /var/lib/rabbitmq/.erlang.cookie owned by root, and the
     # broker (user rabbitmq) then crashes with "eacces" reading it.
@@ -418,6 +470,75 @@ cat <&3
     $leakRandom = (($json2Raw -like "*$randomPw*") -or ($csv2Raw -like "*$randomPw*"))
     Check "container-mode: flashsale_dev and the RABBITMQ_PASSWORD value appear nowhere" ((-not $leakDefault) -and (-not $leakRandom)) "flashsale_dev=$leakDefault randomPw=$leakRandom"
 
+    # ---------------------------------------------------------- RabbitMQ rates from the Prometheus endpoint (15692)
+    Write-Output "== RabbitMQ publish/deliver/ack rates via -RabbitMqMetricsUrl (15692)"
+    # In-container management-API request helper (bash /dev/tcp): the broker has
+    # no curl/rabbitmqadmin and 15672 is not published, so the rate case below
+    # publishes and gets messages through 127.0.0.1:15672 INSIDE the container.
+    $mq2Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("flashsale:flashsale_dev"))
+    function Mq2-Request([string]$method, [string]$path, [string]$body) {
+        $tpl = @'
+set -e
+body='@BODY@'
+len=${#body}
+exec 3<>/dev/tcp/127.0.0.1/15672
+printf '@METHOD@ /api@PATH@ HTTP/1.1\r\nHost: 127.0.0.1:15672\r\nAuthorization: Basic @AUTH@\r\nContent-Type: application/json\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "$len" "$body" >&3
+cat <&3
+'@
+        $script = $tpl.Replace('@BODY@', $body).Replace('@METHOD@', $method).Replace('@PATH@', $path).Replace('@AUTH@', $mq2Auth)
+        $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(($script -replace "`r", "")))
+        docker exec $mq2 bash -c "echo $b64 | base64 -d | bash" *> $null
+    }
+    $outDir3 = Join-Path $env:TEMP "verify-rc3-$runId"
+    New-Item -ItemType Directory -Force -Path $outDir3 | Out-Null
+    $proc3 = Start-Process -FilePath "powershell" -ArgumentList @(
+        "-NoProfile", "-File", $collector,
+        "-RunId", ($runId + "-rates"),
+        "-OutDir", $outDir3,
+        "-IntervalSeconds", "3",
+        "-DurationSeconds", "0",
+        "-RabbitMqContainer", $mq2,
+        "-RabbitMqMetricsUrl", "http://localhost:$mq2Prom/metrics",
+        "-RedisContainer", $redis,
+        "-PostgresContainer", $Container
+    ) -RedirectStandardOutput (Join-Path $outDir3 "collector.out.log") -RedirectStandardError (Join-Path $outDir3 "collector.err.log") -WindowStyle Hidden -PassThru
+    $csv3 = Join-Path $outDir3 "samples.csv"
+    $json3 = Join-Path $outDir3 "collector.json"
+    $collector3Started = Wait-Until { Test-Path -LiteralPath $json3 } 20
+    Check "rates collector started against 15692" $collector3Started "json=$json3"
+    if (-not $collector3Started) { throw "rates collector did not start" }
+    # Wait for the FIRST sample (no previous counter yet) before publishing, then
+    # for a sample AFTER the publishes and AFTER the gets. A timed-out wait leaves
+    # the rate checks with too few samples, so they FAIL rather than pass.
+    Wait-SampleAfter $csv3 ([DateTime]::MinValue) | Out-Null
+    $pubBody = '{"properties":{},"routing_key":"OrderPlaced","payload":"hello","payload_encoding":"string"}'
+    for ($i = 0; $i -lt 6; $i++) { Mq2-Request "POST" "/exchanges/%%2F/amq.default/publish" $pubBody; Start-Sleep -Milliseconds 300 }
+    $afterPub = [DateTime]::UtcNow
+    Wait-SampleAfter $csv3 $afterPub | Out-Null
+    for ($i = 0; $i -lt 6; $i++) { Mq2-Request "POST" "/queues/%%2F/OrderPlaced/get" '{"count":1,"ackmode":"ack_requeue_false","encoding":"auto"}'; Start-Sleep -Milliseconds 300 }
+    $afterGet = [DateTime]::UtcNow
+    Wait-SampleAfter $csv3 $afterGet | Out-Null
+    Set-Content -LiteralPath (Join-Path $outDir3 "STOP") -Value "stop" -Encoding ASCII
+    for ($i = 0; $i -lt 30; $i++) { $proc3.Refresh(); if ($proc3.HasExited) { break }; Start-Sleep 1 }
+    $rows3 = @()
+    if (Test-Path -LiteralPath $csv3) { $rows3 = @(Import-Csv -LiteralPath $csv3) }
+    $rateRows3 = @($rows3 | Where-Object { $_.source -eq "rabbitmq" -and ($_.name -in @("publish_rate", "deliver_get_rate", "ack_rate")) } | Sort-Object utc_time)
+    $firstTime = $null
+    if ($rateRows3.Count -gt 0) { $firstTime = ($rateRows3 | ForEach-Object { [string]$_.utc_time } | Sort-Object | Select-Object -First 1) }
+    $firstRates = @($rateRows3 | Where-Object { [string]$_.utc_time -eq $firstTime })
+    $firstOk = $true
+    foreach ($rn in "publish_rate", "deliver_get_rate", "ack_rate") {
+        $fr = @($firstRates | Where-Object { $_.name -eq $rn })
+        if ($fr.Count -ne 1 -or [string]$fr[0].value -ne "unavailable" -or -not (HasLabel ([string]$fr[0].labels) "reason=first sample, no previous counter")) { $firstOk = $false }
+    }
+    Check "rates: first sample is unavailable (reason=first sample)" ($rateRows3.Count -ge 3 -and $firstOk) "first=$(if ($firstRates.Count) { (@($firstRates | ForEach-Object { "$($_.name)=$($_.value)" }) -join ',') } else { 'none' })"
+    $pubVals3 = NumericValues @($rows3 | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq "publish_rate" })
+    $delVals3 = NumericValues @($rows3 | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq "deliver_get_rate" })
+    $ackVals3 = NumericValues @($rows3 | Where-Object { $_.source -eq "rabbitmq" -and $_.name -eq "ack_rate" })
+    $pubMax3 = 0.0; if ($pubVals3.Count -gt 0) { $pubMax3 = ($pubVals3 | Measure-Object -Maximum).Maximum }
+    $delMax3 = 0.0; if ($delVals3.Count -gt 0) { $delMax3 = ($delVals3 | Measure-Object -Maximum).Maximum }
+    Check "rates: publish_rate and deliver_get_rate rose above 0 (ack numeric)" ($pubMax3 -gt 0 -and $delMax3 -gt 0 -and $ackVals3.Count -ge 1) "publish_max=$pubMax3 deliver_max=$delMax3 ack_samples=$($ackVals3.Count)"
+
     # set-queue-bounds on the unpublished-port broker (rabbitmqctl path)
     & (Join-Path $repoRoot "scripts\set-queue-bounds.ps1") -Container $mq2 -MaxLength 3 *> $null
     $polMain = RabbitQueuePolicy $mq2 "OrderPlaced"
@@ -438,6 +559,7 @@ catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
     if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
     if ($proc2 -and -not $proc2.HasExited) { Stop-Process -Id $proc2.Id -Force -ErrorAction SilentlyContinue }
+    if ($proc3 -and -not $proc3.HasExited) { Stop-Process -Id $proc3.Id -Force -ErrorAction SilentlyContinue }
     foreach ($project in "FlashSale.OrderService", "FlashSale.InventoryService", "FlashSale.ProcessWorker") { Stop-Svc $project }
     foreach ($c in $mq, $redis, $mq2) { docker rm -f $c *> $null }
 }
