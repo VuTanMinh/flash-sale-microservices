@@ -1,0 +1,38 @@
+Negative control: no-comma-split. Verifier: scripts\verify-run-collector.ps1 -Container verify-env-pg -DbPort 56432. Stamp 20261031T155904Z. Base commit e95b1568a5a7a3cffac2a7d7785d7004fc7377ba plus the working tree.
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,OrderProcessingStarted=True,OrderProcessed=True,ProcessWorker.StockReserved=True,OrderPlaced.dlq=True,StockReserved.dlq=True,StockRejected.dlq=True,OrderProcessingStarted.dlq=True,OrderProcessed.dlq=True,ProcessWorker.StockReserved.dlq=True
+PASS  warm-up: rc-rc-155904 has 50 units
+== Start the run-time collector
+PASS  collector started and wrote collector.json -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc-rc-155904\collector.json
+== Analyse samples.csv
+PASS  samples.csv has rows -- rows=1199
+PASS  rows from every source (rabbitmq, redis, postgres, service, host) -- present=rabbitmq,redis,postgres,service,host
+FAIL  collector split the comma-separated -InventoryMetricsUrl into exactly two instance labels -- instances=
+PASS  OrderPlaced queue depth peaked >= 1 while Inventory was stopped -- peak=3
+PASS  OrderPlaced oldest message age > 0 while waiting -- max_age=33
+PASS  Redis calls rose during the run -- calls min=1 max=2 samples=8
+PASS  connections >= 1 per service account (order_service_user, inventory_service_user) -- order=4 inventory=1
+PASS  host CPU and memory present -- cpu_samples=10 mem_used=14227005440 mem_total=14702026752
+PASS  accepted counter rose by the number of orders placed -- accepted_max=6 placed=6
+PASS  sampling cadence: mean gap <= interval + 1 s -- mean_gap=5.088 gaps=9 mean_sample_ms=3344.5
+PASS  every main queue has messages_ready rows -- missing=
+PASS  Redis rows became unavailable (not 0) while Redis was stopped, and the other sources kept sampling -- unavailable_rows=5 first=2026-10-31T16:00:08.173Z
+PASS  collector.json records run id, interval and git commit -- run_id=rc-155904 interval=5 (want 5) commit=e95b1568a5a7a3cffac2a7d7785d7004fc7377ba (want e95b1568a5a7a3cffac2a7d7785d7004fc7377ba)
+== Container-mode collector + set-queue-bounds (no published management port)
+PASS  container-mode broker up: OrderPlaced and OrderPlaced.dlq declared (no 15672 published) -- queues=OrderPlaced.dlq OrderPlaced
+PASS  container-mode publish: OrderPlaced holds at least one message -- messages_ready=1
+PASS  container-mode collector started and wrote collector.json -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc2-rc-155904\collector.json
+PASS  container-mode: OrderPlaced messages_ready rows exist and peak >= 1 -- rows=1 peak=1
+PASS  container-mode: publish/deliver/ack rate rows are unavailable with the reason
+PASS  container-mode: collector.json rabbitmq mode = container -- mode=container
+PASS  container-mode: flashsale_dev and the RABBITMQ_PASSWORD value appear nowhere -- flashsale_dev=False randomPw=False
+== RabbitMQ publish/deliver/ack rates via -RabbitMqMetricsUrl (15692)
+PASS  rates collector started against 15692 -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc3-rc-155904\collector.json
+PASS  rates: first sample is unavailable (reason=first sample) -- first=ack_rate=unavailable,deliver_get_rate=unavailable,publish_rate=unavailable
+PASS  rates: publish_rate and deliver_get_rate rose above 0 (ack numeric) -- publish_max=0.555555555555556 deliver_max=0.555555555555556 ack_samples=5
+PASS  set-queue-bounds (rabbitmqctl): policy on OrderPlaced, not on OrderPlaced.dlq -- main=flashsale-c3-bounds dlq=
+PASS  set-queue-bounds -Remove (rabbitmqctl): policy gone from OrderPlaced -- policy=
+PASS  set-queue-bounds management-API path still applies (published 15672) -- main=flashsale-c3-bounds dlq=
+PASS  set-queue-bounds management-API path -Remove -- policy=
+1 check(s) failed.
+Exit code: 1

@@ -119,9 +119,20 @@ Timer never throttles it.
 - **Polling is bounded** (40 polls ≈ 20 s). An order that has not reached a
   terminal state in that window is no longer polled; its POST is still counted,
   but the end-to-end completion latency for that order is not observed.
-- **Open loop with a busy thread.** Because each accepted order is polled to a
-  terminal state, a thread is busy until that completes; `threadsN` must be high
-  enough that the Constant Throughput Timer can still sustain `rateN`.
+- **`rateN` is a ceiling, not the offered load (measured).** Each thread polls its
+  accepted order to a terminal state before it submits again, so the plan is
+  closed-loop: once polling takes longer than the rate allows, the submit rate
+  falls to the downstream completion rate. The Worker's defaults (200 ms, one at a
+  time) complete 5 orders/s, and the clean-clone run
+  (`tests/evidence/20261031T161516Z-ec2-stack.log`, commit a791d71, local Docker)
+  achieved 5.6-5.7 submissions/s at `rate1=50 threads1=50`, with 1, 2 and 4
+  replicas alike, and 4.5/s at `rate1=10 threads1=20`. The same `rate1=10
+  threads1=20` on `/api/c1/orders`, which does not poll, achieved 11.1/s. Read the
+  achieved rate from the JTL and report that number, never `rateN`. To reach a
+  rate, either raise `threadsN` to about `rateN` × the seconds an order takes to
+  finish (up to the 20 s polling bound, so 50/s can need 1000 threads), or raise
+  `PROCESSING_MAX_CONCURRENCY`. The thread counts in the commands above were not
+  sized this way.
 - **Exact volume is stage-1 only.** Only stage 1 has `loops1`; a fixed total for
   multi-stage profiles is not expressed directly (use rate × duration instead).
 - **No per-phase JMeter dashboard inside the plan.** Samplers are labelled

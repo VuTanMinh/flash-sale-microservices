@@ -1020,7 +1020,9 @@ oversold, but 3--31 of every 150--300 requests failed with HTTP 500
 \texttt{max\_connections = 100} leaves for ordinary roles (97), and both
 services share that server. The pools are now capped at 60 (Order Service)
 and 30 (Inventory Service). These sizes are part of the experiment
-configuration and are recorded with every run.
+configuration and are recorded with every run. C4 keeps these pools, so four
+Inventory replicas can open $60 + 4 \times 30 = 180$ connections; the EC2
+stack therefore raises \texttt{max\_connections} to 200.
 
 \subsection{Correctness criteria}
 
@@ -2709,10 +2711,12 @@ DLQ message count & \texttt{consumer\_dead\_lettered\_total}; DLQ depth & Extrac
 Pending order count & Each order's own timestamps & Extracted \\
 CPU, RAM, DB connections & \texttt{process\_*} per service;
   \texttt{pg\_stat\_activity}; host counters & Collected (Linux path
-  checked in a container and on EC2 in Week~12, where the Process Worker's
-  endpoint was not reachable yet) \\
+  checked in a container and on EC2; with C4 replicas, process CPU and memory
+  are summed per service, TP-P08) \\
 Redis latency & Redis \texttt{INFO commandstats} (Lua calls) & Collected \\
-RabbitMQ publish, deliver, ack rates & Management API \texttt{message\_stats} & Collected \\
+RabbitMQ publish, deliver, ack rates & Management API \texttt{message\_stats}
+  locally; on EC2, deltas of the broker's Prometheus counters (port 15692,
+  TP-L08) & Collected \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -1,0 +1,39 @@
+Verifier: scripts\verify-run-collector.ps1 -Container verify-env-pg -DbPort 56432
+Clean clone of main-test-bug-fix at commit a791d719b5e6358f5b626512873f612fec99015d; fresh database (verify-env-pg on port 56432; 55432 is inside a Windows excluded port range on this PC); stamp 20261031T160941Z.
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,OrderProcessingStarted=True,OrderProcessed=True,ProcessWorker.StockReserved=True,OrderPlaced.dlq=True,StockReserved.dlq=True,StockRejected.dlq=True,OrderProcessingStarted.dlq=True,OrderProcessed.dlq=True,ProcessWorker.StockReserved.dlq=True
+PASS  warm-up: rc-rc-160943 has 50 units
+== Start the run-time collector
+PASS  collector started and wrote collector.json -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc-rc-160943\collector.json
+== Analyse samples.csv
+PASS  samples.csv has rows -- rows=1133
+PASS  rows from every source (rabbitmq, redis, postgres, service, host) -- present=rabbitmq,redis,postgres,service,host
+PASS  collector split the comma-separated -InventoryMetricsUrl into exactly two instance labels -- instances=instance=http://127.0.0.1:5157/metrics,instance=http://localhost:5157/metrics
+PASS  OrderPlaced queue depth peaked >= 1 while Inventory was stopped -- peak=3
+PASS  OrderPlaced oldest message age > 0 while waiting -- max_age=29
+PASS  Redis calls rose during the run -- calls min=1 max=2 samples=8
+PASS  connections >= 1 per service account (order_service_user, inventory_service_user) -- order=4 inventory=1
+PASS  host CPU and memory present -- cpu_samples=9 mem_used=14217400320 mem_total=14702026752
+PASS  accepted counter rose by the number of orders placed -- accepted_max=6 placed=6
+PASS  sampling cadence: mean gap <= interval + 1 s -- mean_gap=5.2605 gaps=8 mean_sample_ms=4850.11111111111
+PASS  every main queue has messages_ready rows -- missing=
+PASS  Redis rows became unavailable (not 0) while Redis was stopped, and the other sources kept sampling -- unavailable_rows=4 first=2026-10-31T16:10:52.771Z
+PASS  collector.json records run id, interval and git commit -- run_id=rc-160943 interval=5 (want 5) commit=a791d719b5e6358f5b626512873f612fec99015d (want a791d719b5e6358f5b626512873f612fec99015d)
+== Container-mode collector + set-queue-bounds (no published management port)
+PASS  container-mode broker up: OrderPlaced and OrderPlaced.dlq declared (no 15672 published) -- queues=OrderPlaced.dlq OrderPlaced
+PASS  container-mode publish: OrderPlaced holds at least one message -- messages_ready=1
+PASS  container-mode collector started and wrote collector.json -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc2-rc-160943\collector.json
+PASS  container-mode: OrderPlaced messages_ready rows exist and peak >= 1 -- rows=1 peak=1
+PASS  container-mode: publish/deliver/ack rate rows are unavailable with the reason
+PASS  container-mode: collector.json rabbitmq mode = container -- mode=container
+PASS  container-mode: flashsale_dev and the RABBITMQ_PASSWORD value appear nowhere -- flashsale_dev=False randomPw=False
+== RabbitMQ publish/deliver/ack rates via -RabbitMqMetricsUrl (15692)
+PASS  rates collector started against 15692 -- json=E:\Agent_Memory\DACNTT\tmp\verify-rc3-rc-160943\collector.json
+PASS  rates: first sample is unavailable (reason=first sample) -- first=ack_rate=unavailable,deliver_get_rate=unavailable,publish_rate=unavailable
+PASS  rates: publish_rate and deliver_get_rate rose above 0 (ack numeric) -- publish_max=0.444444444444444 deliver_max=0.625 ack_samples=5
+PASS  set-queue-bounds (rabbitmqctl): policy on OrderPlaced, not on OrderPlaced.dlq -- main=flashsale-c3-bounds dlq=
+PASS  set-queue-bounds -Remove (rabbitmqctl): policy gone from OrderPlaced -- policy=
+PASS  set-queue-bounds management-API path still applies (published 15672) -- main=flashsale-c3-bounds dlq=
+PASS  set-queue-bounds management-API path -Remove -- policy=
+All checks passed: the run-time collector sampled every source and recorded a failing source as unavailable, never 0.
+Exit code: 0

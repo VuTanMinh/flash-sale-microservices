@@ -1,0 +1,308 @@
+Negative control: no-log-cap. Verifier: scripts\verify-ec2-stack.ps1 -Cases A. Stamp 20261031T155753Z. Base commit e95b1568a5a7a3cffac2a7d7785d7004fc7377ba plus the working tree.
+== Environment
+== Build + up (project flashsale-ec2v)
+powershell.exe : docker.exe :  Image flashsale-inventory-service:10.0 Building 
+At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\bdf7f23c-5d79-5373-a4ec-c84a32a595e7\scratchpad\neg.ps1:26 
+char:5
++     & powershell -NoProfile -File $verifier @vArgs *>> $log
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (docker.exe :  I...:10.0 Building :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+At E:\Agent_Memory\DACNTT\scratch\w13clean\scripts\verify-ec2-stack.ps1:74 char:5
++     & docker compose -p $project --env-file $envFile -f $composeFile  ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Image flashsal...:10.0 Building :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Image flashsale-order-service:10.0 Building 
+ Image flashsale-inventory-service:10.0 Building 
+ Image flashsale-process-worker:10.0 Building 
+ Image flashsale-order-service:10.0 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.79kB done
+#1 DONE 0.0s
+
+#2 [process-worker internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.02kB 0.0s done
+#2 DONE 0.1s
+
+#3 [order-service-migrate internal] load build definition from Dockerfile
+#3 transferring dockerfile: 1.39kB 0.0s done
+#3 DONE 0.1s
+
+#4 [inventory-service-migrate internal] load build definition from Dockerfile
+#4 transferring dockerfile: 1.19kB done
+#4 DONE 0.1s
+
+#5 [inventory-service-migrate] resolve image config for docker-image://docker.io/docker/dockerfile:1
+#5 DONE 1.8s
+
+#6 [process-worker] docker-image://docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+#6 resolve docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e 0.1s done
+#6 CACHED
+
+#7 [inventory-service internal] load metadata for mcr.microsoft.com/dotnet/sdk:10.0.300
+#7 DONE 0.3s
+
+#8 [inventory-service-migrate internal] load metadata for mcr.microsoft.com/dotnet/aspnet:10.0.8
+#8 DONE 0.3s
+
+#9 [inventory-service-migrate internal] load .dockerignore
+#9 transferring context: 910B done
+#9 DONE 0.0s
+
+#10 [order-service internal] load build context
+#10 DONE 0.0s
+
+#11 [inventory-service internal] load build context
+#11 DONE 0.0s
+
+#12 [inventory-service build 1/5] FROM mcr.microsoft.com/dotnet/sdk:10.0.300@sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6
+#12 resolve mcr.microsoft.com/dotnet/sdk:10.0.300@sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6 0.1s done
+#12 resolve mcr.microsoft.com/dotnet/sdk:10.0.300@sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6 0.1s done
+#12 DONE 0.1s
+
+#13 [process-worker final 1/4] FROM mcr.microsoft.com/dotnet/aspnet:10.0.8@sha256:8c0b6857eab7b2aa57884c839bf4678414606bd7d17370f18a842ac5cf414711
+#13 resolve mcr.microsoft.com/dotnet/aspnet:10.0.8@sha256:8c0b6857eab7b2aa57884c839bf4678414606bd7d17370f18a842ac5cf414711 0.1s done
+#13 DONE 0.1s
+
+#10 [order-service-migrate internal] load build context
+#10 transferring context: 18.52kB 0.0s done
+#10 DONE 0.1s
+
+#14 [order-service build 5/5] RUN dotnet publish src/FlashSale.OrderService/FlashSale.OrderService.csproj     --configuration Release --output /app/publish
+#14 CACHED
+
+#15 [order-service final 3/4] COPY --from=build /app/publish ./
+#15 CACHED
+
+#16 [process-worker build 4/5] COPY src/ src/
+#16 CACHED
+
+#17 [process-worker build 5/5] RUN dotnet publish src/FlashSale.ProcessWorker/FlashSale.ProcessWorker.csproj     --configuration Release --output /app/publish
+#17 CACHED
+
+#18 [process-worker final 3/4] COPY --from=build /app/publish ./
+#18 CACHED
+
+#19 [process-worker build 3/5] COPY global.json ./
+#19 CACHED
+
+#20 [process-worker build 2/5] WORKDIR /src
+#20 CACHED
+
+#21 [process-worker final 2/4] WORKDIR /app
+#21 CACHED
+
+#22 [order-service-migrate final 4/4] RUN mkdir -p /app/Logs && chown -R "1654":"1654" /app
+#22 CACHED
+
+#23 [process-worker final 4/4] RUN mkdir -p /app/Logs && chown -R "1654":"1654" /app
+#23 CACHED
+
+#11 [inventory-service internal] load build context
+#11 transferring context: 918.24kB 0.1s done
+#11 DONE 0.2s
+
+#24 [process-worker] exporting to image
+#24 exporting layers 0.0s done
+#24 exporting manifest sha256:b1ee8ce6b0cf1abf2d365b3b9fe468d8382bb67c7d26cc877c7026ad2536ae0b 0.0s done
+#24 exporting config sha256:4c1a6264ed95fd8e1abbc4cb489f18e8454d8d71595abcec10134cc55c11f399 0.0s done
+#24 ...
+
+#21 [inventory-service-migrate final 2/4] WORKDIR /app
+#21 CACHED
+
+#20 [inventory-service-migrate build 2/5] WORKDIR /src
+#20 CACHED
+
+#25 [inventory-service-migrate build 4/6] COPY src/ src/
+#25 CACHED
+
+#26 [inventory-service-migrate build 5/6] COPY scripts/ scripts/
+#26 CACHED
+
+#27 [inventory-service-migrate build 6/6] RUN dotnet publish src/FlashSale.InventoryService/FlashSale.InventoryService.csproj     --configuration Release --output /app/publish
+#27 CACHED
+
+#28 [inventory-service-migrate build 3/6] COPY global.json ./
+#28 CACHED
+
+#29 [inventory-service-migrate final 3/4] COPY --from=build /app/publish ./
+#29 CACHED
+
+#30 [inventory-service final 4/4] RUN mkdir -p /app/Logs && chown -R "1654":"1654" /app
+#30 CACHED
+
+#24 [process-worker] exporting to image
+#24 exporting attestation manifest sha256:8579c615442ee7da95424642f9972dddde40936b52d36a696932e00935d4e23e
+#24 exporting attestation manifest sha256:8579c615442ee7da95424642f9972dddde40936b52d36a696932e00935d4e23e 0.2s done
+#24 exporting manifest list sha256:7c780052b0fffed1f0c9bf378e2334958ec0decf4ec4b485735b8ee9771f3eb4
+#24 exporting manifest list sha256:7c780052b0fffed1f0c9bf378e2334958ec0decf4ec4b485735b8ee9771f3eb4 0.1s done
+#24 naming to docker.io/library/flashsale-process-worker:10.0
+#24 naming to docker.io/library/flashsale-process-worker:10.0 0.1s done
+#24 unpacking to docker.io/library/flashsale-process-worker:10.0 0.1s done
+#24 DONE 0.7s
+
+#31 [order-service-migrate] exporting to image
+#31 exporting layers 0.0s done
+#31 exporting manifest sha256:55eac0e27bc614d018a1d164bc25b7d4f8ec52a3938aedd77f9710c1f4993c97 done
+#31 exporting config sha256:5c79e00825ed69a2e47db7747e5a0b54d58eed16466c7f572a48ceafeb67866c 0.0s done
+#31 exporting attestation manifest sha256:fc936d383da2456d6529ded446a7d62d6c5177843970d5781e59c8c3d0f12199 0.1s done
+#31 exporting manifest list sha256:2343c82c6f9935c850402bdd20f9daef7b7ff116b9c50b10529687f3f503d6a5 0.1s done
+#31 naming to docker.io/library/flashsale-order-service:10.0 0.0s done
+#31 unpacking to docker.io/library/flashsale-order-service:10.0 0.1s done
+#31 DONE 0.6s
+
+#32 [order-service] exporting to image
+#32 exporting layers 0.0s done
+#32 exporting manifest sha256:3892afbd8bb251444cb3fbd9800452c256de4f0c2c941f27d19c3cd54686f1f1 0.0s done
+#32 exporting config sha256:9217721d687efa54c6e6435d40bc6792a935d17465e7d9094d7101e2576f2ade 0.1s done
+#32 exporting attestation manifest sha256:dcba48391fea072e15f5c6e4c4850f20a7a0db1fbec0bc2a9f8b723ae3e2e8e4 0.2s done
+#32 exporting manifest list sha256:3998573ee9d03be792127592b70df0321146e723c64f2fe19e07f62f3d898e10 0.1s done
+#32 naming to docker.io/library/flashsale-order-service:10.0 0.0s done
+#32 unpacking to docker.io/library/flashsale-order-service:10.0 0.1s done
+#32 DONE 0.8s
+
+#33 [inventory-service] exporting to image
+#33 exporting layers done
+#33 exporting manifest sha256:d4ce7fb0444481eebca95e681e9063b3d903e89825e2acba92aa3fb1968a7d20 0.1s done
+#33 exporting config sha256:e1db808f543442b6e01cde7fc7fdec488ba252ba100b198e747c70c9a58f39d0 0.1s done
+#33 exporting attestation manifest sha256:6575bd6096d551035ef74589b8528eefe64f97ce1de2ae680837894ce71dce99 0.1s done
+#33 exporting manifest list sha256:cbd2146de202402f86ab4e32d6f163a80a710811a65c069c32b4c27a7503ffbb 0.2s done
+#33 naming to docker.io/library/flashsale-inventory-service:10.0 0.0s done
+#33 unpacking to docker.io/library/flashsale-inventory-service:10.0
+#33 ...
+
+#34 [order-service-migrate] resolving provenance for metadata file
+#34 DONE 0.2s
+
+#35 [process-worker] resolving provenance for metadata file
+#35 DONE 0.1s
+
+#36 [order-service] resolving provenance for metadata file
+#36 DONE 0.0s
+
+#37 [inventory-service-migrate] exporting to image
+#37 exporting layers 0.0s done
+#37 exporting manifest sha256:f13f6ff8ffd3973937e9fef05832f48132a2a521f45fc891eb09dbac9c6d38d5 0.1s done
+#37 exporting config sha256:f1b405f502c7ea3a47f90343b29b21ef1ba68f1578e8febd55d46a8eedd35d1a 0.1s done
+#37 exporting attestation manifest sha256:2754ce7cd84ab39247dbae9f6136fd977d74546086520b1a64391e917fee9f08 0.1s done
+#37 exporting manifest list sha256:bded1c784d47238c149757c9d13342f094dd7023a06d60dfb0820c070a3d411e 0.1s done
+#37 naming to docker.io/library/flashsale-inventory-service:10.0 0.0s done
+#37 unpacking to docker.io/library/flashsale-inventory-service:10.0 1.0s done
+#37 DONE 1.7s
+
+#33 [inventory-service] exporting to image
+#33 unpacking to docker.io/library/flashsale-inventory-service:10.0 1.0s done
+#33 DONE 1.8s
+
+#38 [inventory-service-migrate] resolving provenance for metadata file
+#38 DONE 0.1s
+
+#39 [inventory-service] resolving provenance for metadata file
+#39 DONE 0.0s
+ Image flashsale-inventory-service:10.0 Built 
+ Image flashsale-process-worker:10.0 Built 
+ Image flashsale-inventory-service:10.0 Built 
+ Image flashsale-order-service:10.0 Built 
+ Image flashsale-order-service:10.0 Built 
+0
+docker.exe :  Volume flashsale-ec2v_promdata Creating 
+At E:\Agent_Memory\DACNTT\scratch\w13clean\scripts\verify-ec2-stack.ps1:74 char:5
++     & docker compose -p $project --env-file $envFile -f $composeFile  ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Volume flashsa...mdata Creating :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Volume flashsale-ec2v_grafanadata Creating 
+ Network flashsale-ec2v_default Creating 
+ Volume flashsale-ec2v_redisdata Creating 
+ Volume flashsale-ec2v_pgdata Creating 
+ Volume flashsale-ec2v_redisdata Creating 
+ Volume flashsale-ec2v_grafanadata Creating 
+ Volume flashsale-ec2v_promdata Creating 
+ Volume flashsale-ec2v_pgdata Creating 
+ Network flashsale-ec2v_default Creating 
+ Volume flashsale-ec2v_promdata Created 
+ Volume flashsale-ec2v_promdata Created 
+ Volume flashsale-ec2v_redisdata Created 
+ Volume flashsale-ec2v_redisdata Created 
+ Volume flashsale-ec2v_grafanadata Created 
+ Volume flashsale-ec2v_grafanadata Created 
+ Volume flashsale-ec2v_pgdata Created 
+ Volume flashsale-ec2v_pgdata Created 
+ Network flashsale-ec2v_default Created 
+ Network flashsale-ec2v_default Created 
+ Container flashsale-ec2v-redis-1 Creating 
+ Container flashsale-ec2v-postgres-1 Creating 
+ Container flashsale-ec2v-rabbitmq-1 Creating 
+ Container flashsale-ec2v-postgres-1 Created 
+ Container flashsale-ec2v-inventory-service-migrate-1 Creating 
+ Container flashsale-ec2v-order-service-migrate-1 Creating 
+ Container flashsale-ec2v-redis-1 Created 
+ Container flashsale-ec2v-rabbitmq-1 Created 
+ Container flashsale-ec2v-process-worker-1 Creating 
+ Container flashsale-ec2v-inventory-service-migrate-1 Created 
+ Container flashsale-ec2v-inventory-service-1 Creating 
+ Container flashsale-ec2v-order-service-migrate-1 Created 
+ Container flashsale-ec2v-order-service-1 Creating 
+ Container flashsale-ec2v-process-worker-1 Created 
+ Container flashsale-ec2v-order-service-1 Created 
+ Container flashsale-ec2v-nginx-1 Creating 
+ Container flashsale-ec2v-inventory-service-1 Created 
+ Container flashsale-ec2v-prometheus-1 Creating 
+ Container flashsale-ec2v-nginx-1 Created 
+ Container flashsale-ec2v-prometheus-1 Created 
+ Container flashsale-ec2v-grafana-1 Creating 
+ Container flashsale-ec2v-grafana-1 Created 
+ Container flashsale-ec2v-postgres-1 Starting 
+ Container flashsale-ec2v-rabbitmq-1 Starting 
+ Container flashsale-ec2v-redis-1 Starting 
+ Container flashsale-ec2v-postgres-1 Started 
+ Container flashsale-ec2v-postgres-1 Waiting 
+ Container flashsale-ec2v-postgres-1 Waiting 
+ Container flashsale-ec2v-rabbitmq-1 Started 
+ Container flashsale-ec2v-rabbitmq-1 Waiting 
+ Container flashsale-ec2v-redis-1 Started 
+ Container flashsale-ec2v-postgres-1 Healthy 
+ Container flashsale-ec2v-inventory-service-migrate-1 Starting 
+ Container flashsale-ec2v-postgres-1 Healthy 
+ Container flashsale-ec2v-order-service-migrate-1 Starting 
+ Container flashsale-ec2v-inventory-service-migrate-1 Started 
+ Container flashsale-ec2v-postgres-1 Waiting 
+ Container flashsale-ec2v-redis-1 Waiting 
+ Container flashsale-ec2v-rabbitmq-1 Waiting 
+ Container flashsale-ec2v-inventory-service-migrate-1 Waiting 
+ Container flashsale-ec2v-order-service-migrate-1 Started 
+ Container flashsale-ec2v-order-service-migrate-1 Waiting 
+ Container flashsale-ec2v-postgres-1 Waiting 
+ Container flashsale-ec2v-rabbitmq-1 Waiting 
+ Container flashsale-ec2v-redis-1 Healthy 
+ Container flashsale-ec2v-postgres-1 Healthy 
+ Container flashsale-ec2v-postgres-1 Healthy 
+ Container flashsale-ec2v-inventory-service-migrate-1 Exited 
+ Container flashsale-ec2v-rabbitmq-1 Healthy 
+ Container flashsale-ec2v-process-worker-1 Starting 
+ Container flashsale-ec2v-rabbitmq-1 Healthy 
+ Container flashsale-ec2v-rabbitmq-1 Healthy 
+ Container flashsale-ec2v-inventory-service-1 Starting 
+ Container flashsale-ec2v-process-worker-1 Started 
+ Container flashsale-ec2v-inventory-service-1 Started 
+ Container flashsale-ec2v-order-service-migrate-1 Exited 
+ Container flashsale-ec2v-order-service-1 Starting 
+ Container flashsale-ec2v-order-service-1 Started 
+ Container flashsale-ec2v-nginx-1 Starting 
+ Container flashsale-ec2v-prometheus-1 Starting 
+ Container flashsale-ec2v-nginx-1 Started 
+ Container flashsale-ec2v-prometheus-1 Started 
+ Container flashsale-ec2v-grafana-1 Starting 
+ Container flashsale-ec2v-grafana-1 Started 
+0
+== A. all services healthy + Prometheus targets
+PASS  A: all services healthy/running -- containers=flashsale-ec2v-nginx-1,flashsale-ec2v-order-service-1,flashsale-ec2v-inventory-service-1,flashsale-ec2v-process-worker-1,flashsale-ec2v-prometheus-1,flashsale-ec2v-grafana-1
+PASS  A: Prometheus reports order/inventory/process-worker/rabbitmq/prometheus up -- up=inventory-service,order-service,process-worker,prometheus,rabbitmq
+FAIL  A: every running container logs json-file capped at 50m -- flashsale-ec2v-grafana-1=json-file/; flashsale-ec2v-inventory-service-1=json-file/; flashsale-ec2v-nginx-1=json-file/; flashsale-ec2v-order-service-1=json-file/; flashsale-ec2v-postgres-1=json-file/; flashsale-ec2v-process-worker-1=json-file/; flashsale-ec2v-prometheus-1=json-file/; flashsale-ec2v-rabbitmq-1=json-file/; flashsale-ec2v-redis-1=json-file/; 
+1 check(s) failed.
+Exit code: 1
