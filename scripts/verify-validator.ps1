@@ -26,8 +26,9 @@ function Run([string]$config, [string]$product, [int]$initial) {
     $out = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config $config -ProductId $product -InitialStock $initial -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
     return [pscustomobject]@{ Code = $LASTEXITCODE; Text = $out }
 }
+# Rows are: Product, Invariant, Status, Detail.
 function Status([string]$text, [string]$invariantPrefix) {
-    $line = ($text -split "`n" | Where-Object { $_ -match "^\s*$([regex]::Escape($invariantPrefix))" } | Select-Object -First 1)
+    $line = ($text -split "`n" | Where-Object { $_ -match "^\s*\S+\s+$([regex]::Escape($invariantPrefix))" } | Select-Object -First 1)
     if (-not $line) { return "" }
     foreach ($s in "NOT APPLICABLE", "INCONCLUSIVE", "SETUP ERROR", "PASS", "FAIL") { if ($line -match [regex]::Escape($s)) { return $s } }
     return ""
