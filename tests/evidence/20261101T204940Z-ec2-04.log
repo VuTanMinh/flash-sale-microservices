@@ -1,0 +1,30 @@
+command fe332ee1-1c71-4048-b861-eb91d23e7f85
+status Success exit 0
+target inventory-service up
+target order-service up
+target process-worker up
+target prometheus up
+target rabbitmq up
+== /tmp/matrix/20261101T184412Z-C1-r1-5rps-rep1/
+STOP collector.json db.dump samples.csv validator.log 
+rows {'rabbitmq': 513, 'redis': 36, 'postgres': 27, 'service': 639, 'host': 27, 'collector': 9}
+unavailable {'rabbitmq/publish_rate': 1, 'rabbitmq/deliver_get_rate': 1, 'rabbitmq/ack_rate': 1, 'host/cpu_percent': 1}
+== /tmp/matrix/20261101T184412Z-C2-r1-5rps-rep1/
+STOP collector.json db.dump samples.csv validator.log 
+rows {'rabbitmq': 513, 'redis': 36, 'postgres': 27, 'service': 630, 'host': 27, 'collector': 9}
+unavailable {'rabbitmq/publish_rate': 1, 'rabbitmq/deliver_get_rate': 1, 'rabbitmq/ack_rate': 1, 'host/cpu_percent': 1}
+== /tmp/matrix/20261101T184412Z-C3-r1-5rps-rep1/
+STOP collector.json db.dump samples.csv validator.log 
+rows {'rabbitmq': 513, 'redis': 30, 'postgres': 27, 'service': 573, 'host': 27, 'collector': 9}
+unavailable {'rabbitmq/publish_rate': 1, 'rabbitmq/deliver_get_rate': 1, 'rabbitmq/ack_rate': 1, 'host/cpu_percent': 1}
+412
+      3 publish_rate,0
+      2 deliver_get_rate,0
+      2 ack_rate,0
+      1 publish_rate,unavailable
+      1 publish_rate,27.4
+utc_time,source,name,labels,value
+2026-11-01T18:44:58.945Z,rabbitmq,publish_rate,"reason=first sample, no previous counter",unavailable
+
+--- stderr ---
+

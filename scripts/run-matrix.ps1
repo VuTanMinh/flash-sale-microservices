@@ -276,6 +276,13 @@ function Invoke-BackendStep([string]$name, [hashtable]$stepArgs, [int]$timeoutSe
     foreach ($k in $stepArgs.Keys) { if ("$($stepArgs[$k])" -ne "") { $line += " -$k '$($stepArgs[$k])'" } }
     return (Invoke-Ssm $BackendInstance @($line) $timeoutSeconds)
 }
+# Read from the running Worker on the host, so the manifest holds what ran.
+function Worker-Concurrency {
+    $w = "$Project-process-worker-1"
+    if ($Transport -eq "Local") { return (Container-Env $w "Processing__MaxConcurrency") }
+    $o = Invoke-Ssm $BackendInstance @("docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $w | grep '^Processing__MaxConcurrency=' | cut -d= -f2") 60
+    return "$($o.Output)".Trim()
+}
 function Jmeter-Args([string]$path, [int]$rate, [int]$threadCount) {
     $a = @("-n", "-t", "tests/jmeter/workload.jmx", "-Jhost=$BackendHost", "-Jport=$BackendPort", "-Jpath=$path",
         "-JproductsFile=products.csv", "-Jmode=open", "-Jthreads1=$threadCount", "-Jrate1=$rate", "-Jduration1=$DurationSeconds",
@@ -291,23 +298,29 @@ function Local-JtlStats([string]$jtl) {
     $ts = @($subs | ForEach-Object { [long]$_.timeStamp } | Sort-Object)
     $span = 0.0; if ($ts.Count -gt 1) { $span = ($ts[-1] - $ts[0]) / 1000.0 }
     $achieved = 0.0; if ($span -gt 0) { $achieved = [math]::Round(($ts.Count - 1) / $span, 1) }
+    $ok = @($subs | Where-Object { [string]$_.responseCode -match '^2\d\d$' } | ForEach-Object { [double]$_.elapsed } | Sort-Object)
+    function Rank([double]$p) { if ($ok.Count -eq 0) { return $null }; return $ok[[math]::Max(0, [int][math]::Ceiling($p / 100.0 * $ok.Count) - 1)] }
     return [ordered]@{
         submissions = $subs.Count; submissions_2xx = @($subs | Where-Object { [string]$_.responseCode -match '^2\d\d$' }).Count
         polls = @($rows | Where-Object { [string]$_.label -match 'poll' }).Count; achieved_per_s = $achieved; codes = $codes
+        http_ms = [ordered]@{ p50 = (Rank 50); p95 = (Rank 95); p99 = (Rank 99) }
+        first_ms = $(if ($ts.Count) { $ts[0] }); last_ms = $(if ($ts.Count) { $ts[-1] })
     }
 }
 # The same numbers on the JMeter host, which has python3 and no pwsh.
 function Remote-JtlStatsLines([string]$jtl) {
     return @(
         "python3 - <<'PY'",
-        "import csv, json, re",
+        "import csv, json, math, re",
         "rows = list(csv.DictReader(open('$jtl')))",
         "subs = [r for r in rows if 'submit' in r['label']]",
         "codes = {}",
         "for r in subs: codes[r['responseCode']] = codes.get(r['responseCode'], 0) + 1",
         "ts = sorted(int(r['timeStamp']) for r in subs)",
         "span = (ts[-1] - ts[0]) / 1000.0 if len(ts) > 1 else 0.0",
-        "print('JTLSTATS ' + json.dumps({'submissions': len(subs), 'submissions_2xx': sum(1 for r in subs if re.fullmatch(r'2\d\d', r['responseCode'])), 'polls': sum(1 for r in rows if 'poll' in r['label']), 'achieved_per_s': round((len(ts) - 1) / span, 1) if span else 0.0, 'codes': codes}))",
+        "ok = sorted(float(r['elapsed']) for r in subs if re.fullmatch(r'2\d\d', r['responseCode']))",
+        "rank = lambda p: ok[max(0, math.ceil(p / 100.0 * len(ok)) - 1)] if ok else None",
+        "print('JTLSTATS ' + json.dumps({'submissions': len(subs), 'submissions_2xx': sum(1 for r in subs if re.fullmatch(r'2\d\d', r['responseCode'])), 'polls': sum(1 for r in rows if 'poll' in r['label']), 'achieved_per_s': round((len(ts) - 1) / span, 1) if span else 0.0, 'codes': codes, 'http_ms': {'p50': rank(50), 'p95': rank(95), 'p99': rank(99)}, 'first_ms': ts[0] if ts else None, 'last_ms': ts[-1] if ts else None}))",
         "PY"
     )
 }
@@ -363,6 +376,7 @@ foreach ($cell in $cells) {
     }
     $prep = Invoke-BackendStep "prepare" @{ Config = $cell.Config; ReplicaCount = $cell.Replicas; Stock = $Stock; QueueMaxLength = $QueueMaxLength; OpenOrderRate = $OpenOrderRate; OpenOrderBurst = $OpenOrderBurst; ShedOrderRate = $ShedOrderRate; ShedOrderBurst = $ShedOrderBurst } 900
     $manifest["prepare"] = Json-After $prep.Output "PREPARE"
+    $manifest["worker_concurrency"] = Worker-Concurrency
     if ($prep.Exit -ne 0 -or $null -eq $manifest["prepare"]) {
         $manifest["failed_step"] = "prepare"; $manifest["detail"] = $prep.Output
     } else {

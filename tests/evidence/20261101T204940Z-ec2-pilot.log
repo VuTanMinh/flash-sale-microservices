@@ -1,0 +1,38 @@
+Week 13 pilot on EC2 (backend m7i-flex.large, JMeter c7i-flex.large, ap-southeast-2), 2026-11-01. Code 35864a9, clean tree on both hosts.
+Driver: scripts/run-matrix.ps1 -Transport Ssm, workload.jmx -Jmode=open, 60 s load, stock 100000, 1 repeat per cell. These are pilot numbers, labelled as pilot data, not official results.
+Pilot settings: queue bound 1000 on C3/C4, gateway 200r/s burst 100 on C3/C4, MaxConcurrentNewOrders 64, Outbox backlog limit off, Worker concurrency 32.
+Tune rows change one setting: backlog limit 500, 2000, 5000 (200/s), 2000 (400/s), then Worker concurrency 8 (C2, 200/s).
+Live check before the pilot (section 11a): MATRIX PASS 3 run(s), all 5 Prometheus targets up, service metrics numeric on the Linux collector, json-file 50m log cap, only port 80 open from the JMeter host.
+No container restarts and 0 "too many clients" across all runs. Every validator passed. Each JTL recounted equal to its manifest.
+JMeter CPU during the five tune runs: average 13-17 %, peak 71 %. It was not sampled during the 18 pilot runs. The C3 400/s run reached 306.6/s, so the generator was not what held C1 and C2 near 180/s.
+Backend container CPU peaks: order-service 99.8 %, postgres 99.6 %, rabbitmq 99.5 % of one core, on a 2-vCPU host.
+Bound comparison at 100/s (C3): bound 5, 30 s load, 2919 accepted, 305 s drain; bound 1000, 60 s load, 5592 accepted, 360 s drain.
+
+group cfg replicas requested achieved submitted accepted completed http_p95_ms e2e_p95_s 429 503 other drain_s sustained_per_s validator
+pilot C1 1 100 100.5 6024 6024 0 163.0 n/a 0 0 0 0 100 PASS
+pilot C1 1 200 186.9 11246 11246 0 1535.0 n/a 0 0 0 0 187 PASS
+pilot C1 1 400 180.4 11017 11017 0 3216.0 n/a 0 0 0 0 184 PASS
+pilot C2 1 100 94.9 5693 5693 5684 1424.0 89 0 0 0 110 33 PASS
+pilot C2 1 200 157.0 9457 9457 9443 1687.0 175 0 0 0 166 42 PASS
+pilot C2 1 400 177.9 10843 10843 10837 2998.0 208 0 0 0 674 15 PASS
+pilot C3 1 100 94.0 5636 5592 5585 1486.0 120 0 44 0 360 13 PASS
+pilot C3 1 200 177.4 10659 6270 6251 1708.0 150 0 4389 0 326 16 PASS
+pilot C3 1 400 306.6 18816 4432 4425 3012.0 111 6646 7738 0 137 22 PASS
+pilot C4 1 100 99.9 5976 5976 5940 1085.0 122 0 0 0 149 29 PASS
+pilot C4 1 200 179.6 10810 7140 7127 1764.0 175 0 3670 0 164 32 PASS
+pilot C4 1 400 302.0 18471 4242 4215 3013.0 103 6303 7926 0 91 28 PASS
+pilot C4 2 100 98.4 5905 5901 5890 1154.0 124 0 4 0 335 15 PASS
+pilot C4 2 200 175.7 10578 7327 7321 1783.0 177 5 3246 0 366 17 PASS
+pilot C4 2 400 293.4 17944 4257 4238 3143.0 101 5760 7927 0 133 22 PASS
+pilot C4 4 100 96.3 5765 5765 5732 1396.0 141 0 0 0 348 14 PASS
+pilot C4 4 200 176.9 10646 6503 6480 1762.0 168 0 4143 0 357 16 PASS
+pilot C4 4 400 295.0 18091 4284 4272 3148.0 113 5881 7926 0 113 25 PASS
+tune C3 1 200 160.9 9674 1084 1084 2844.0 66 0 8590 0 9 16 PASS
+tune C3 1 200 147.0 8832 2960 2960 2825.0 90 0 5872 0 67 23 PASS
+tune C3 1 200 137.5 8278 4649 4611 2827.0 118 0 3629 0 356 11 PASS
+tune C3 1 400 170.0 10392 2043 2033 5071.0 63 397 7952 0 32 22 PASS
+tune C2 1 200 114.7 6908 6908 6871 2670.0 168 0 0 0 167 30 PASS
+
+sustained_per_s = accepted / (60 s load + drain). e2e_p95 = accepted to Completed, from the run database. C1 is synchronous and has no e2e stage.
+db.dump files stayed on the backend: 295 MB is impractical over SSM, and extract-run-metrics ran against each database before the next reset (summary.json in the bundle).
+Exit code: 0

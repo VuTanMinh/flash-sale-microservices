@@ -166,6 +166,13 @@ docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml up -d
 docker compose -f infra/docker-compose.ec2.yml ps
 ```
 
+C1 needs its baseline tables, which the migrations do not create. Apply them once,
+as the admin account, after the stack is up:
+
+```bash
+docker exec -i infra-postgres-1 psql -U flashsale -d flashsale -v ON_ERROR_STOP=1 -q < scripts/schema/baseline-schema.sql
+```
+
 PostgreSQL runs `infra/initdb/01-create-service-roles.sql` and
 `infra/initdb-ec2/02-service-roles-passwords.sh` automatically on first init
 (fresh `pgdata` volume). On a re-used volume, apply both once:
@@ -272,8 +279,10 @@ back. The commands below are for a run by hand.
 Every other limit stays in `infra/ec2.env`: `ADMISSION_MAX_CONCURRENT_NEW_ORDERS`,
 `ADMISSION_MAX_OUTBOX_BACKLOG`, `ADMISSION_MAX_IN_FLIGHT_ORDERS` and
 `PROCESSING_MAX_CONCURRENCY` are the same for every config. The C3 values of `n`,
-the gateway limit and those limits are pilot results (Week 13), so the table
-shows the current defaults. C1 and C2 have no gateway limit to study, so theirs
+the gateway limit and those limits are set from the Week 13 pilot
+(`tests/evidence/20261101T204940Z-ec2-pilot.log`), so the table shows the current
+defaults. `-MaxLength 5` in step 5b is a smoke value: at 100/s it held the pipeline
+to about 10 orders/s, so measured runs use a far higher bound. C1 and C2 have no gateway limit to study, so theirs
 sits far above any offered rate.
 
 By hand, as root in the repo, for C2 after C3 or C4:
