@@ -43,11 +43,17 @@
 #      submission 2xx, and after the drain the validator passes (C2: the database
 #      also holds one order per 2xx submission).
 #
+#   G  run-matrix.ps1 and the queue-bound gate (TP-X06): -ExpectMaxLength and
+#      validator check 6 fail while the C3 policy is on the broker; a C3 then C2
+#      matrix (5/s for 10 s, -Jmode=open) passes, each manifest reads back the
+#      right bound, admission and gateway from the running stack, and the policy
+#      is gone from the broker afterwards.
+#
 # This verifier needs Docker Desktop and JMeter; if either is missing it fails
 # SETUP ERROR (do not weaken a check to get a pass).
 # ============================================================
 param(
-    [ValidateSet("A", "B", "C", "D", "E", "F")][string[]]$Cases = @("A", "B", "C", "D", "E", "F")
+    [ValidateSet("A", "B", "C", "D", "E", "F", "G")][string[]]$Cases = @("A", "B", "C", "D", "E", "F", "G")
 )
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -59,7 +65,7 @@ $nginxHostPort = 18080
 $rabbitPromHostPort = 15792
 $failures = 0
 $checks = 0
-$caseChecks = @{ A = 3; B = 4; C = 18; D = 3; E = 30; F = 16 }
+$caseChecks = @{ A = 3; B = 4; C = 18; D = 3; E = 30; F = 16; G = 13 }
 $expectedChecks = 0
 foreach ($c in $Cases) { $expectedChecks += $caseChecks[$c] }
 
@@ -550,6 +556,52 @@ services:
             }
         }
     }
+
+    # ---------------------------------------------------------- G
+    if ($Cases -contains "G") {
+        Write-Output "== G. run-matrix.ps1 and the queue-bound gate"
+        $bounds = Join-Path $repoRoot "scripts\set-queue-bounds.ps1"
+        & $bounds -Container $rabbit -Remove | Out-Null
+        & $bounds -Container $rabbit -ExpectMaxLength 0 | Out-Null
+        Check "G: gate passes with no policy on the broker" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+        & $bounds -Container $rabbit -MaxLength 7 | Out-Null
+        & $bounds -Container $rabbit -ExpectMaxLength 0 | Out-Null
+        Check "G: gate fails for C1/C2 while the policy is on the broker" ($LASTEXITCODE -eq 1) "exit=$LASTEXITCODE"
+        & $bounds -Container $rabbit -ExpectMaxLength 7 | Out-Null
+        Check "G: gate passes for the bound that is set" ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+        $v = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -ProductId $workProduct -InitialStock 1 -PgContainer $pg -RedisContainer $redis -RabbitMqContainer $rabbit *>&1 | Out-String
+        Check "G: validator check 6 fails for C2 while the policy is on the broker" ($LASTEXITCODE -ne 0 -and $v -match '6\. queue bound off\s+FAIL') "exit=$LASTEXITCODE"
+        & $bounds -Container $rabbit -Remove | Out-Null
+
+        $mxOut = Join-Path $env:TEMP "ec2v-matrix"
+        Remove-Item -LiteralPath $mxOut -Recurse -Force -ErrorAction SilentlyContinue
+        $mxBound = 50
+        & (Join-Path $repoRoot "scripts\run-matrix.ps1") -Project $project -EnvFile "infra/ec2-verify.env" -ExtraComposeFile $overrideFile `
+            -BackendPort $nginxHostPort -RabbitMqMetricsUrl "http://localhost:$rabbitPromHostPort/metrics" `
+            -Configs C3, C2 -Rates 5 -Repeats 1 -DurationSeconds 10 -Threads 10 -Stock 1000 -QueueMaxLength $mxBound -OutDir $mxOut *>&1 | ForEach-Object { Write-Output "   $_" }
+        $mxExit = $LASTEXITCODE
+        Set-Location -LiteralPath $repoRoot
+        Check "G: the C3 then C2 matrix exits 0" ($mxExit -eq 0) "exit=$mxExit"
+        $manifests = @(Get-ChildItem -LiteralPath $mxOut -Recurse -Filter manifest.json -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName | ConvertFrom-Json })
+        $m3 = @($manifests | Where-Object { $_.config -eq "C3" }) | Select-Object -First 1
+        $m2 = @($manifests | Where-Object { $_.config -eq "C2" }) | Select-Object -First 1
+        Check "G: one PASS manifest for each config, with a commit and image ids" ($manifests.Count -eq 2 -and $m3.status -eq "PASS" -and $m2.status -eq "PASS" -and $m3.prepare.commit -match '^[0-9a-f]{40}$' -and $m2.prepare.images) "runs=$($manifests.Count) c3=$($m3.status)/$($m3.failed_step) c2=$($m2.status)/$($m2.failed_step)"
+        Check "G: C3 ran with its bound, admission on and the shedding gateway" ($m3.prepare.queue_bound_expected -eq $mxBound -and $m3.prepare.gates.queue_bound -and $m3.prepare.admission_enabled -eq "true" -and $m3.prepare.gateway_rate -eq "200r/s") "gate='$($m3.prepare.queue_bound_gate)' admission=$($m3.prepare.admission_enabled) gateway=$($m3.prepare.gateway_rate)"
+        Check "G: C2 ran after C3 with the bound gone, admission off and the open gateway" ($m2.prepare.queue_bound_expected -eq 0 -and $m2.prepare.gates.queue_bound -and $m2.prepare.admission_enabled -eq "false" -and $m2.prepare.gateway_rate -eq "10000r/s" -and $m2.started_utc -gt $m3.ended_utc) "gate='$($m2.prepare.queue_bound_gate)' admission=$($m2.prepare.admission_enabled) gateway=$($m2.prepare.gateway_rate)"
+        Check "G: both runs open-loop: submissions and no poll rows" ($m3.load.submissions -gt 0 -and $m2.load.submissions -gt 0 -and $m3.load.polls -eq 0 -and $m2.load.polls -eq 0 -and $m3.jmeter_mode -eq "open") "c3=$($m3.load.submissions)/$($m3.load.polls) c2=$($m2.load.submissions)/$($m2.load.polls)"
+        Check "G: both runs drained, validated, accounted and dumped" ($m3.post.drained -and $m2.post.drained -and $m3.post.validator_exit -eq 0 -and $m2.post.validator_exit -eq 0 -and $m3.post.db_dump -and $m2.post.db_dump -and $m3.post.db_accepted -eq $m3.load.submissions_2xx -and $m2.post.db_accepted -eq $m2.load.submissions_2xx) "c3_accepted=$($m3.post.db_accepted) c2_accepted=$($m2.post.db_accepted)"
+        $v2Log = ""
+        $v2Dir = @(Get-ChildItem -LiteralPath $mxOut -Directory -Filter "*-C2-*" -ErrorAction SilentlyContinue) | Select-Object -First 1
+        if ($v2Dir) { $v2Log = Get-Content -Raw -LiteralPath (Join-Path $v2Dir.FullName "validator.log") -ErrorAction SilentlyContinue }
+        Check "G: the C2 validator log shows check 6 PASS" ("$v2Log" -match '6\. queue bound off\s+PASS') "log=$($v2Dir.FullName)"
+        & $bounds -Container $rabbit -ExpectMaxLength 0 | Out-Null
+        $brokerClean = ($LASTEXITCODE -eq 0)
+        $queuePolicies = @(docker exec $rabbit rabbitmqctl -q list_queues name policy --no-table-headers 2>$null | Where-Object { "$_" -match 'flashsale-c3-bounds' })
+        Check "G: no queue on the broker carries the policy after the matrix" ($brokerClean -and $queuePolicies.Count -eq 0) "queues_with_policy=$($queuePolicies.Count)"
+        $refused = & (Join-Path $repoRoot "scripts\run-matrix.ps1") -Project "infra" -Configs C2 -Rates 1 -OutDir $mxOut 2>&1 | Out-String
+        Check "G: run-matrix refuses the local infra project" ($LASTEXITCODE -eq 2 -and $refused -match 'Refusing') "exit=$LASTEXITCODE"
+        Set-Location -LiteralPath $repoRoot
+    }
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
@@ -561,5 +613,5 @@ finally {
 
 if ($checks -ne $expectedChecks) { Write-Output "FAIL  only $checks of $expectedChecks checks ran"; exit 1 }
 if ($failures -gt 0) { Write-Output "$failures check(s) failed."; exit 1 }
-Write-Output "All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, every workload profile runs clean, and open-loop mode reaches its requested rate."
+Write-Output "All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, every workload profile runs clean, open-loop mode reaches its requested rate, and the matrix leaves no queue bound behind."
 exit 0

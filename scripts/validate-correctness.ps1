@@ -10,6 +10,8 @@
 #   -Products @{ 'p1' = n1; 'p2' = n2 } is an alternative to -ProductId/
 #   -InitialStock: every product is checked with the same -Config and the script
 #   exits non-zero if any product fails.
+#   -RabbitMqContainer <rabbit> adds check 6 for C1 and C2: the C3 queue bound must
+#   not be on the broker, or the run was not the configuration it claims to be.
 #
 # Statuses: PASS, FAIL, INCONCLUSIVE (run not settled / data missing),
 # NOT APPLICABLE (with the reason; only C1 invariant 4, which has no
@@ -23,7 +25,8 @@ param(
     [int]$InitialStock = -1,
     [hashtable]$Products = $null,
     [string]$PgContainer = "infra-postgres-1",
-    [string]$RedisContainer = "infra-redis-1"
+    [string]$RedisContainer = "infra-redis-1",
+    [string]$RabbitMqContainer = ""
 )
 # Continue: native stderr must not become a terminating error (PS 5.1); every
 # call is checked explicitly instead.
@@ -149,6 +152,15 @@ foreach ($prod in $productsToCheck) {
     catch {
         Add-Result "setup" "SETUP ERROR" $_.Exception.Message
     }
+}
+
+if ($RabbitMqContainer -and $Config -in "C1", "C2") {
+    $ProductId = "(broker)"
+    $bound = @(& (Join-Path $PSScriptRoot "set-queue-bounds.ps1") -Container $RabbitMqContainer -ExpectMaxLength 0)
+    $boundExit = $LASTEXITCODE
+    if ($boundExit -eq 0) { Add-Result "6. queue bound off" "PASS" "no C3 policy on the broker" }
+    elseif ($boundExit -eq 1) { Add-Result "6. queue bound off" "FAIL" "$bound" }
+    else { Add-Result "6. queue bound off" "SETUP ERROR" "$bound" }
 }
 
 $results | Format-Table -AutoSize -Wrap | Out-String -Width 200 | Write-Host

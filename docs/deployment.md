@@ -1,11 +1,12 @@
-# EC2 deployment runbook (Week 12 box 3)
+# EC2 deployment runbook
 
-This is the runbook for the **offline half** of the box: one EC2 backend host runs
-PostgreSQL, Redis, RabbitMQ, Nginx, the three services, Prometheus and Grafana
-with Docker Compose; a second EC2 host runs JMeter. Nothing here is run against
-AWS in this offline task — `terraform plan`/`apply` and the Docker builds are the
-owner's/Claude's steps. The Terraform and Compose files are validated offline
-first (`scripts/verify-deployment.ps1`, TP-L03).
+One EC2 backend host runs PostgreSQL, Redis, RabbitMQ, Nginx, the three services,
+Prometheus and Grafana with Docker Compose; a second EC2 host runs JMeter.
+`terraform apply` and `destroy` are the owner's steps. The Terraform and Compose
+files are validated offline first (`scripts/verify-deployment.ps1`, TP-L03).
+
+For a session, follow **0a** first, then sections 2 to 6, the config table in
+**5f**, and the matrix in **11**.
 
 Security model: the only inbound hole is **TCP 80 on the backend, from the JMeter
 security group only**. No SSH, no `0.0.0.0/0` ingress, no NAT gateway, no Elastic
@@ -34,6 +35,36 @@ password — a known value — so keeping that UI behind a 404 is intentional.
 - The instance profile `flashsale-ec2-ssm` already exists (owner-created).
 - The `main-test-bug-fix` branch is pushed to GitHub (per Part A4 the owner pushes when
   they say so). Both EC2 hosts clone from there.
+
+## 0a. Day-of checklist (owner, before each session)
+
+1. Create the tfvars file if it is not there. It is git-ignored and holds no secret:
+
+   ```bash
+   cd infra/terraform
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+
+2. Log in the deploy profile (the temporary session lasts about 12 h) and confirm it:
+
+   ```bash
+   aws login --profile flashsale-deploy
+   aws sts get-caller-identity --profile flashsale-deploy
+   ```
+
+3. Check that the instance profile still exists:
+
+   ```bash
+   aws iam get-instance-profile --instance-profile-name flashsale-ec2-ssm --profile flashsale-deploy
+   ```
+
+4. Check that the commit you mean to run is on GitHub. The hosts clone
+   `main-test-bug-fix`, so an unpushed commit is not what they run.
+5. Size the safety timer. Each host terminates itself after 4 h by default, and
+   anything not copied back goes with it. For a longer session, add
+   `-var auto_terminate_minutes=<minutes>` (30 to 720) to `terraform apply`. A
+   matrix takes about (load + drain + 1 min) per run, so count it before you start.
+6. After section 6, run the live check in **11a** before any number counts.
 
 ## 1. Certificate decision (Order Service, non-Development)
 
@@ -214,6 +245,47 @@ fourth file would be written the oldest is deleted. Copy any log evidence
 back before it rotates, because a long run can rotate a busy service's logs
 several times.
 
+## 5f. Per-config setup (Week 13)
+
+Set the whole row before every run. **Leaving C3 or C4 is the trap:**
+`reset-and-seed.ps1 -Full` purges the queues but keeps the RabbitMQ policy, so
+the next C1 or C2 run stays bounded unless the policy is removed.
+`scripts/run-matrix.ps1` (section 11) applies this table and reads every value
+back. The commands below are for a run by hand.
+
+| Config | Path (`-Jpath`) | Queue bound | `ADMISSION_ENABLED` | `ORDER_RATE` / `ORDER_BURST` | Inventory replicas | Validator `-Config` |
+| --- | --- | --- | --- | --- | --- | --- |
+| C1 | `/api/c1/orders` | removed (`-Remove`) | `false` | `10000r/s` / `5000` | 1 | `C1` |
+| C2 | `/api/orders` | removed (`-Remove`) | `false` | `10000r/s` / `5000` | 1 | `C2` |
+| C3 | `/api/orders` | set (`-MaxLength <n>`) | `true` | `200r/s` / `100` | 1 | `C3` |
+| C4, 1 replica | `/api/orders` | set (`-MaxLength <n>`) | `true` | `200r/s` / `100` | 1 | `C4` |
+| C4, 2 replicas | `/api/orders` | set (`-MaxLength <n>`) | `true` | `200r/s` / `100` | 2 | `C4` |
+| C4, 4 replicas | `/api/orders` | set (`-MaxLength <n>`) | `true` | `200r/s` / `100` | 4 | `C4` |
+
+Every other limit stays in `infra/ec2.env`: `ADMISSION_MAX_CONCURRENT_NEW_ORDERS`,
+`ADMISSION_MAX_OUTBOX_BACKLOG`, `ADMISSION_MAX_IN_FLIGHT_ORDERS` and
+`PROCESSING_MAX_CONCURRENCY` are the same for every config. The C3 values of `n`,
+the gateway limit and those limits are pilot results (Week 13), so the table
+shows the current defaults. C1 and C2 have no gateway limit to study, so theirs
+sits far above any offered rate.
+
+By hand, as root in the repo, for C2 after C3 or C4:
+
+```bash
+# The shell wins over --env-file. Admission and the gateway are read at start.
+ADMISSION_ENABLED=false ORDER_RATE=10000r/s ORDER_BURST=5000 \
+  docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml up -d --scale inventory-service=1
+# Nginx keeps the address it resolved at start, so it follows Order Service.
+ADMISSION_ENABLED=false ORDER_RATE=10000r/s ORDER_BURST=5000 \
+  docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml up -d --no-deps --force-recreate nginx
+pwsh -File scripts/set-queue-bounds.ps1 -Container infra-rabbitmq-1 -Remove
+# Gate: exits 1 if the bound is still on the broker. Do not start the load if it does.
+pwsh -File scripts/set-queue-bounds.ps1 -Container infra-rabbitmq-1 -ExpectMaxLength 0
+```
+
+For C3 and C4, use the row's values, `-MaxLength <n>` in place of `-Remove`, and
+`-ExpectMaxLength <n>` as the gate.
+
 ## 6. Smoke test from the JMeter host
 
 Open a session on the JMeter host and clone the repo (it needs only the JMX):
@@ -373,9 +445,10 @@ pwsh -NoProfile -Command "& ./scripts/warm-up.ps1 -Container infra-redis-1 -Prod
 
 # ... run the load (below) ...
 
-# backend post-run validator (C4 == the C2/C3 checks)
+# backend post-run validator (C4 == the C2/C3 checks). Use the config you ran:
+# with -RabbitMqContainer, C1 and C2 also fail if the queue bound is on the broker.
 pwsh -File scripts/validate-correctness.ps1 -Config C4 -ProductId flash-product-1 -InitialStock 1000 \
-  -PgContainer infra-postgres-1 -RedisContainer infra-redis-1
+  -PgContainer infra-postgres-1 -RedisContainer infra-redis-1 -RabbitMqContainer infra-rabbitmq-1
 ```
 
 ### JMeter, detached
@@ -408,8 +481,8 @@ journalctl -u jmeter-run -f            # follow (--collect removed the unit once
 ### Collector, detached
 
 The collector runs until you drop a `STOP` file (`-DurationSeconds 0`). Start it
-before the load, then `touch /tmp/<out>/STOP` after the drain to end it. Build the
-replica URL list AFTER scaling (replica IPs change on every scale).
+before the load and stop it after the drain, with the separate block below. Build
+the replica URL list AFTER scaling (replica IPs change on every scale).
 
 ```bash
 # backend, as root in the repo.
@@ -427,7 +500,6 @@ nohup pwsh -File scripts/collect-run-metrics.ps1 -RunId run1 -OutDir /tmp/run1 -
   -InventoryMetricsUrl "$INV_URLS" \
   -WorkerMetricsUrl "http://$(ip infra-process-worker-1):8080/metrics" > /tmp/run1.out 2>&1 &
 echo $! > /tmp/run1.pid
-touch /tmp/run1/STOP                  # stop after the drain
 tail -f /tmp/run1.out                 # follow
 
 # form 2 -- SSM Run Command (systemd-run --unit; --working-directory so the relative script path resolves, --setenv=HOME for pwsh)
@@ -438,6 +510,64 @@ systemd-run --unit=collector-run1 --collect --working-directory=/opt/flash-sale-
   -OrderMetricsUrl "http://$(ip infra-order-service-1):8080/metrics" \
   -InventoryMetricsUrl "$INV_URLS" \
   -WorkerMetricsUrl "http://$(ip infra-process-worker-1):8080/metrics"
-touch /tmp/run1/STOP                  # stop after the drain
 journalctl -u collector-run1 -f       # follow (--collect removed the unit once it ended)
 ```
+
+**Run this only to stop the collector**, after the load has ended and the backlog
+has drained. It ends the collector at once, so never paste it with the blocks above:
+
+```bash
+touch /tmp/run1/STOP
+```
+
+## 11. The run matrix (Week 13)
+
+`scripts/run-matrix.ps1` runs configs x load levels x repeats. For each run it
+applies the row from section 5f, resets, seeds and warms up, checks the gates,
+starts the collector, sends one `workload.jmx` load with `-Jmode=open`, waits for
+the drain, validates, dumps the database and writes one `manifest.json`. It stops
+at the first run that fails. C4 runs once for each of `-Replicas`.
+
+Run it from your PC, not inside a host: it drives both hosts over SSM Run Command,
+so a closed session cannot end it, and it needs `flashsale-plan` to be allowed
+`ssm:SendCommand`.
+
+```powershell
+powershell -File .\scripts\run-matrix.ps1 -Transport Ssm -BackendInstance <backend-id> -JMeterInstance <jmeter-id> -BackendHost <backend-private-ip> -Configs C1,C2,C3,C4 -Rates 50,200 -Repeats 1 -OutDir <local-folder>
+```
+
+- **A failed gate** means the stack is not the config the run claims, and no load
+  is sent. The manifest names the gate under `prepare.gates`.
+- **The achieved rate** is in `load.achieved_per_s`. A shortfall is a result and
+  does not fail the run; report the achieved rate.
+- **Where the files are:** `manifest.json` is on your PC. `raw.jtl` is on the
+  JMeter host, and the collector files, `validator.log` and `db.dump` are on the
+  backend, each under `/tmp/matrix/<run-id>/`. Copy them back before
+  `terraform destroy`, as in section 9.
+- **Latency breakdown:** the run keeps the database rows in `db.dump` because the
+  next reset wipes them. Running `extract-run-metrics.ps1` on those dumps is not
+  automated yet.
+
+### 11a. Live check at the start of the first session
+
+The SSM path cannot be tested offline. Case G of `verify-ec2-stack.ps1` proves the
+same steps on a local stack through the `Local` transport only, so run this short
+matrix before any measured run:
+
+```powershell
+powershell -File .\scripts\run-matrix.ps1 -Transport Ssm -BackendInstance <backend-id> -JMeterInstance <jmeter-id> -BackendHost <backend-private-ip> -Configs C3,C2,C1 -Rates 5 -DurationSeconds 20 -Stock 1000 -OutDir <local-folder>
+```
+
+It must print `MATRIX PASS: 3 run(s).`, and it covers the moves that matter: C3 to
+C2 removes the bound, and C1 runs through Nginx. Then, on the backend:
+
+```bash
+# Every target "up", as in step 5c (order, inventory, worker, rabbitmq, prometheus).
+docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml exec -T prometheus \
+  wget -qO- http://localhost:9090/api/v1/targets \
+  | grep -o '"job":"[a-z-]*"\|"health":"[a-z]*"' | paste - -
+```
+
+Also check that the collector's `samples.csv` on the backend holds numeric rows for
+the services, not `unavailable`: the local test cannot reach those endpoints. If
+anything here fails, stop and fix it. These three runs are a check, not pilot data.

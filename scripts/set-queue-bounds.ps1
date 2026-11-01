@@ -5,6 +5,12 @@
 #   powershell -File .\scripts\set-queue-bounds.ps1 -Container <rabbit> -MaxLength 3
 #   powershell -File .\scripts\set-queue-bounds.ps1 -Container <rabbit> -Remove
 #   powershell -File .\scripts\set-queue-bounds.ps1 -Container <rabbit> -Inspect
+#   powershell -File .\scripts\set-queue-bounds.ps1 -Container <rabbit> -ExpectMaxLength 0
+#
+# -ExpectMaxLength is the gate before a run (Week 13, TP-X06): it changes nothing
+# and exits 1 unless the broker holds exactly that bound, where 0 means no policy
+# at all. A full reset purges queues but keeps policies, so without this a C1 or
+# C2 run after C3/C4 would silently stay bounded. Exit 2: the broker did not answer.
 #
 # <rabbit> is the RabbitMQ container name. When the container publishes its
 # management port (15672), the policy is applied through the management API: the
@@ -31,7 +37,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Container,
     [int]$MaxLength = 0,
     [switch]$Remove,
-    [switch]$Inspect
+    [switch]$Inspect,
+    [int]$ExpectMaxLength = -1
 )
 $ErrorActionPreference = "Continue"
 
@@ -43,6 +50,24 @@ if ($Inspect) {
     @(docker exec $Container rabbitmqctl list_policies 2>&1) | ForEach-Object { Write-Output $_ }
     Write-Output "Queues (rabbitmqctl list_queues name policy messages_ready messages_unacknowledged):"
     @(docker exec $Container rabbitmqctl list_queues name policy messages_ready messages_unacknowledged 2>&1) | ForEach-Object { Write-Output $_ }
+    exit 0
+}
+
+if ($ExpectMaxLength -ge 0) {
+    $raw = (docker exec $Container rabbitmqctl -q list_policies --formatter json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) { Write-Output "ERROR: could not read policies from '$Container'"; exit 2 }
+    $actual = 0
+    foreach ($p in @($raw | ConvertFrom-Json | ForEach-Object { $_ })) {
+        if ([string]$p.name -ne $PolicyName) { continue }
+        $def = $p.definition
+        if ($def -is [string]) { $def = $def | ConvertFrom-Json }
+        $actual = [int]$def.'max-length'
+    }
+    if ($actual -ne $ExpectMaxLength) {
+        Write-Output "BOUND MISMATCH: '$PolicyName' max-length is $actual, expected $ExpectMaxLength (0 = no policy)."
+        exit 1
+    }
+    Write-Output "Bound as expected: max-length $actual (0 = no policy)."
     exit 0
 }
 
