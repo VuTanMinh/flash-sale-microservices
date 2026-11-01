@@ -63,8 +63,10 @@ hours could end the pilot midway and lose its data.
 ```powershell
 $env:AWS_PROFILE = "flashsale-deploy-tf"
 terraform init
-terraform apply -var-file=terraform.tfvars -var auto_terminate_minutes=480
+terraform apply "-var-file=terraform.tfvars" "-var=auto_terminate_minutes=480"
 ```
+
+The quotes matter in Windows PowerShell 5.1: without them it splits `-var-file=terraform.tfvars` at the dot, and Terraform stops with "Too many command line arguments".
 
 Read the plan. **It should say** `4 to add, 0 to change, 0 to destroy`. If it does,
 type `yes`. If it shows anything else, type `no` and tell Claude.
@@ -95,7 +97,7 @@ servers is lost here.
 ```powershell
 cd D:\DACNTT\infra\terraform
 $env:AWS_PROFILE = "flashsale-deploy-tf"
-terraform destroy -var-file=terraform.tfvars
+terraform destroy "-var-file=terraform.tfvars"
 ```
 
 Type `yes`. **It should end with** `Destroy complete! Resources: 4 destroyed.`

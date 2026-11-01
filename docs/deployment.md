@@ -67,7 +67,7 @@ password — a known value — so keeping that UI behind a 404 is intentional.
    `main-test-bug-fix`, so an unpushed commit is not what they run.
 5. Size the safety timer. Each host terminates itself after 4 h by default, and
    anything not copied back goes with it. For a longer session, add
-   `-var auto_terminate_minutes=<minutes>` (30 to 720) to `terraform apply`. A
+   `"-var=auto_terminate_minutes=<minutes>"` (30 to 720) to `terraform apply`. A
    matrix takes about (load + drain + 1 min) per run, so count it before you start.
 6. After section 6, run the live check in **11a** before any number counts.
 
@@ -90,12 +90,14 @@ copied over SSM.
 
 ## 2. Validate Terraform (offline, read-only profile)
 
+The quotes matter in Windows PowerShell 5.1: without them it splits `-var-file=terraform.tfvars` at the dot, and Terraform stops with "Too many command line arguments".
+
 ```bash
 cd infra/terraform
 terraform init                      # writes .terraform.lock.hcl (commit it)
 terraform fmt -check -recursive
 terraform validate
-terraform plan -var-file=terraform.tfvars   # profile: flashsale-plan (read-only)
+terraform plan "-var-file=terraform.tfvars"   # profile: flashsale-plan (read-only)
 ```
 
 The `plan` is read-only and must be run with the read-only profile. Do not run
@@ -105,7 +107,7 @@ The `plan` is read-only and must be run with the read-only profile. Do not run
 
 ```bash
 cd infra/terraform
-terraform apply -var-file=terraform.tfvars   # profile: flashsale-deploy
+terraform apply "-var-file=terraform.tfvars"   # profile: flashsale-deploy
 terraform output backend_private_ip
 terraform output jmeter_private_ip
 ```
@@ -116,7 +118,7 @@ Note the two private IPs for the next steps.
 boot (`auto_terminate_minutes`, default `240`) and Terraform sets
 `instance_initiated_shutdown_behavior = "terminate"`, so a forgotten session
 powers the host off and AWS terminates it. This is only a safety net. Change the
-window at apply time with `-var auto_terminate_minutes=...` (30–720). It does
+window at apply time with `"-var=auto_terminate_minutes=..."` (30–720). It does
 not remove the security groups — `terraform destroy` is still the normal way to
 clean up.
 
@@ -337,7 +339,7 @@ docker compose -f infra/docker-compose.ec2.yml down -v
 
 # Locally: destroy the resources (deploy profile).
 cd infra/terraform
-terraform destroy -var-file=terraform.tfvars   # profile: flashsale-deploy
+terraform destroy "-var-file=terraform.tfvars"   # profile: flashsale-deploy
 
 # Leftover check: no instances, security groups, volumes or the SSM-managed
 # profile should remain. Confirm in the console (or with the read-only profile:
