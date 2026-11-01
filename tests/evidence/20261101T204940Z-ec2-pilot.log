@@ -32,7 +32,11 @@ tune C3 1 200 147.0 8832 2960 2960 2825.0 90 0 5872 0 67 23 PASS
 tune C3 1 200 137.5 8278 4649 4649 2827.0 118 0 3629 0 356 11 PASS
 tune C3 1 400 170.0 10392 2043 2043 5071.0 63 397 7952 0 32 22 PASS
 tune C2 1 200 114.7 6908 6908 6908 2670.0 168 0 0 0 167 30 PASS
+sub C2 1 25 25.4 1519 1519 1519 54.0 3.5 0 0 0 0 25 PASS
+sub C2 1 50 50.7 3031 3031 3031 121.0 4.2 0 0 0 0 51 PASS
+sub C4 2 50 49.6 2974 2974 2974 786.0 38.1 0 0 0 303 8 PASS
 
 sustained_per_s = accepted / (60 s load + drain). e2e_p95 = accepted to Completed, from the run database. C1 is synchronous and has no e2e stage. completed comes from the validator (full count). summary.json counts orders by time window, because the JTL is on the other host, so its counts run a few short at the window edges and its e2e percentiles use those orders.
 db.dump files stayed on the backend: 295 MB is impractical over SSM, and extract-run-metrics ran against each database before the next reset (summary.json in the bundle).
+sub rows: added below capacity, with the C4 settings of the pilot; queue bound 1000, Worker 32, backlog limit off.
 Exit code: 0
