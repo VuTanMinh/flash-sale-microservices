@@ -52,6 +52,11 @@ password — a known value — so keeping that UI behind a 404 is intentional.
    aws sts get-caller-identity --profile flashsale-deploy
    ```
 
+   Terraform does not read that login directly. Set
+   `$env:AWS_PROFILE = "flashsale-deploy-tf"` first: that profile borrows it through
+   `credential_process`. This applies wherever a Terraform command below says
+   "profile: flashsale-deploy".
+
 3. Check that the instance profile still exists:
 
    ```bash
@@ -544,6 +549,15 @@ powershell -File .\scripts\run-matrix.ps1 -Transport Ssm -BackendInstance <backe
   JMeter host, and the collector files, `validator.log` and `db.dump` are on the
   backend, each under `/tmp/matrix/<run-id>/`. Copy them back before
   `terraform destroy`, as in section 9.
+- **Drain time:** the Worker finishes about 5 orders/s at the default
+  `PROCESSING_MAX_CONCURRENCY=1`, so an open-loop run at 50/s for 60 s needs about
+  10 minutes to drain, and a run that passes `-DrainTimeoutSeconds` (default 900)
+  fails. Set the Worker concurrency in `infra/ec2.env` before the pilot, and count
+  the drain in the safety timer.
+- **Hardware limit:** the backend stays on `m7i-flex.large` (owner's decision).
+  The study does not chase the brief's 2,000 attempts/s target with bigger
+  hardware, so results report the achieved rate together with the hardware, as a
+  limitation against that target.
 - **Latency breakdown:** the run keeps the database rows in `db.dump` because the
   next reset wipes them. Running `extract-run-metrics.ps1` on those dumps is not
   automated yet.

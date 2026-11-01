@@ -71,7 +71,6 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location -LiteralPath $repoRoot
 $pg = "$Project-postgres-1"; $redis = "$Project-redis-1"; $rabbit = "$Project-rabbitmq-1"
 $nginx = "$Project-nginx-1"; $order = "$Project-order-service-1"
-$collectorUnit = "matrix-collector"
 
 function Compose([string[]]$composeArgs) {
     $files = @("-f", "infra/docker-compose.ec2.yml")
@@ -108,6 +107,8 @@ function Queue-Consumers([string]$queue) {
     return 0
 }
 function Is-Shedding([string]$cfg) { return ($cfg -in "C3", "C4") }
+# One unit per run: systemd can still hold the last run's unit when the next one starts.
+function Collector-Unit { return "matrix-collector-$(Split-Path -Leaf $RunDir)" }
 
 # ------------------------------------------------------------------ backend steps
 function Step-Prepare {
@@ -179,7 +180,7 @@ function Step-CollectStart {
         $a += @("-RabbitMqMetricsUrl", "http://$(Container-Ip $rabbit):15692/metrics", "-InventoryMetricsUrl", $inv,
             "-OrderMetricsUrl", "http://$(Container-Ip $order):8080/metrics",
             "-WorkerMetricsUrl", "http://$(Container-Ip "$Project-process-worker-1"):8080/metrics")
-        & systemd-run "--unit=$collectorUnit" --collect "--working-directory=$repoRoot" --setenv=HOME=/root pwsh @a 2>&1 | Out-Null
+        & systemd-run "--unit=$(Collector-Unit)" --collect "--working-directory=$repoRoot" --setenv=HOME=/root pwsh @a 2>&1 | Out-Null
     } else {
         # The service metrics are on the Compose network, out of reach from a Docker Desktop host.
         if ($RabbitMqMetricsUrl) { $a += @("-RabbitMqMetricsUrl", $RabbitMqMetricsUrl) }
@@ -193,7 +194,7 @@ function Step-CollectStart {
 }
 
 function Collector-Running {
-    if ($IsLinux) { return ((systemctl is-active $collectorUnit 2>$null | Out-String).Trim() -eq "active") }
+    if ($IsLinux) { return ((systemctl is-active (Collector-Unit) 2>$null | Out-String).Trim() -in "active", "activating", "deactivating") }
     $pidFile = Join-Path $RunDir "collector.pid"
     if (-not (Test-Path -LiteralPath $pidFile)) { return $false }
     return ($null -ne (Get-Process -Id ([int](Get-Content -LiteralPath $pidFile)) -ErrorAction SilentlyContinue))
@@ -272,7 +273,7 @@ function Invoke-BackendStep([string]$name, [hashtable]$stepArgs, [int]$timeoutSe
         return @{ Exit = $LASTEXITCODE; Output = ($o -join "`n") }
     }
     $line = "cd $HostRepo && HOME=/root pwsh -NoProfile -File scripts/run-matrix.ps1"
-    foreach ($k in $stepArgs.Keys) { $line += " -$k '$($stepArgs[$k])'" }
+    foreach ($k in $stepArgs.Keys) { if ("$($stepArgs[$k])" -ne "") { $line += " -$k '$($stepArgs[$k])'" } }
     return (Invoke-Ssm $BackendInstance @($line) $timeoutSeconds)
 }
 function Jmeter-Args([string]$path, [int]$rate, [int]$threadCount) {
