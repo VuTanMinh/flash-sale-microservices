@@ -358,3 +358,4 @@ PASS  G: the C2 validator log shows check 6 PASS -- log=E:\Agent_Memory\DACNTT\t
 PASS  G: no queue on the broker carries the policy after the matrix -- queues_with_policy=0
 PASS  G: run-matrix refuses the local infra project -- exit=2
 All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, every workload profile runs clean, open-loop mode reaches its requested rate, and the matrix leaves no queue bound behind.
+Exit code: 0

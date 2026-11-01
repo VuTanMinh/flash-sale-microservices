@@ -357,3 +357,4 @@ FAIL  G: the C2 validator log shows check 6 PASS -- log=E:\Agent_Memory\DACNTT\t
 FAIL  G: no queue on the broker carries the policy after the matrix -- queues_with_policy=6
 PASS  G: run-matrix refuses the local infra project -- exit=2
 7 check(s) failed.
+Exit code: 1

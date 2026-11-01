@@ -32,3 +32,4 @@ SKIP  smoke from the JMeter host (tests/jmeter/deploy-smoke-test.jmx: POST /api/
 SKIP  backend internal ports closed from the JMeter host (5432, 5672, 15672, 6379, 9090, 3000 must not answer; only 80)
 
 All offline deployment checks passed.
+Exit code: 0

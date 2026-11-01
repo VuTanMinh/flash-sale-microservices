@@ -17,3 +17,4 @@ PASS  C3 order in an unexpected state -> check 5 FAIL and exit 1
 PASS  database unreachable -> SETUP ERROR and exit 1
 
 Validator passes correct runs and fails every broken one (no false green).
+Exit code: 0
