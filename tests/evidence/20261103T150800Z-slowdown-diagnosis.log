@@ -1,0 +1,102 @@
+Week 13 slowdown diagnosis, final. Local scratch Compose project flashsale-diag, all services pinned to two CPU cores except the u- points, 60 s open-loop load after a warm-up load (except e-c2-cold). No AWS.
+Set 1: clean clone of 29eefa4, unmodified code. Set 2: ecea5cf plus the uncommitted consumer concurrency option (8 files, handlers not yet concurrency-safe). Set 3: ecea5cf plus the option and the concurrency-safe handlers (9 files). The code changes are not committed.
+Values are repeat1/repeat2. Local absolute numbers are not EC2 numbers: compare points within one set. Possibly disturbed by host load: low-all-rep2-25rps-rep1 (build) and st120-all-100rps-rep1 (unit tests).
+The Docker restart at about 12:44 UTC killed bd5000-all-100rps-rep1 before it saved; it was rerun from the start.
+counters come from Order and Inventory only, so retries reads 0 (the Worker was not scraped). dlq is the queue depth at the end of the run. oc = Order Service consumer concurrency, ic = Inventory consumer concurrency, st = reconciliation StuckTimeoutSeconds, bd = queue bound.
+
+--- set 1: one variable at a time ---
+point rate n drain_s e2e50 dec2app50 to_dec50 dlq retries dup recon requeue peakSR peakOPS peakOP peakPW peakOPl
+base-c2 50 2 29/76 36/69 33/52 2/15 0/0 0/0 1175/3945 365/1260 27/62 1965/2046 1983/2087 1988/2050 85/112 120/856 val 0/0
+a-bound 50 2 9/376 13/84 10/67 2/14 0/36 0/0 158/7851 0/1831 91/18 757/1018 741/1020 757/1019 100/1019 79/807 val 0/0
+b-adm-gw 50 2 10/46 11/51 9/46 2/3 0/0 0/0 36/2256 0/714 20/58 697/2337 712/2284 710/2269 97/143 125/297 val 0/0
+b-adm-gw-ob 50 2 44/26 48/33 43/29 3/3 0/0 0/0 2502/324 836/77 22/49 2049/1853 1896/1803 1889/1802 188/100 168/106 val 0/0
+c-rep2 50 2 36/57 44/67 42/53 2/7 0/0 0/0 1061/1871 331/593 63/82 2387/2339 2395/2183 2410/2200 251/411 67/226 val 0/0
+c-rep4 50 2 40/129 47/82 45/62 2/19 0/0 0/0 1595/5922 514/1929 24/101 2507/2535 2456/2147 2474/2093 216/772 50/123 val 0/0
+d-allon-rep1 50 2 334/114 47/81 42/66 3/11 17/38 0/0 6338/6507 1082/1387 29/31 1019/1020 1020/1020 1020/1018 1003/976 235/487 val 0/0
+d-allon-rep2 50 2 363/141 118/91 96/74 5/13 57/50 0/0 9665/7695 2046/1846 61/120 1019/1020 1020/1020 1019/1009 1010/1013 42/293 val 0/0
+d-allon-rep4 50 2 82/364 68/100 61/64 3/15 33/26 0/0 6970/8959 1363/1867 173/102 1019/1020 1020/1020 1018/1020 1019/1016 37/0 val 0/0
+e-c2-cold 50 2 84/44 76/53 48/45 27/6 0/0 0/0 3500/2611 1087/884 177/43 1802/2220 1931/2211 1838/2214 73/113 878/151 val 0/0
+base-c2 100 2 190/123 92/104 61/59 30/38 0/0 0/0 12320/7213 4096/2372 14/41 3751/3833 3744/3778 3744/3775 129/116 2505/2763 val 0/0
+a-bound 100 2 164/501 122/132 91/87 18/31 25/72 0/0 12606/11470 2522/2141 83/37 1020/1020 1020/1020 1020/1020 1014/1017 1015/1019 val 0/0
+b-adm-gw 100 2 128/164 122/135 86/64 27/67 0/0 0/0 2737/3197 1641/1850 54/93 4238/3363 4268/3314 4268/3315 144/100 2314/3454 val 0/0
+b-adm-gw-ob 100 2 91/113 102/75 53/34 50/42 0/0 0/0 2636/5167 1473/1699 59/84 2540/1499 2559/1520 2559/1539 121/92 1772/1539 val 0/0
+c-rep2 100 2 209/300 118/131 77/75 40/53 0/0 0/0 11758/11002 3901/3653 57/43 3960/3332 3617/2922 3633/2941 1338/1453 2578/2528 val 0/0
+c-rep4 100 2 126/137 111/119 77/71 27/43 0/0 0/0 2389/1770 2390/1445 243/123 5104/3029 4485/2617 4384/2609 2122/2005 935/917 val 0/0
+d-allon-rep1 100 2 154/233 127/150 95/73 20/64 46/19 0/0 11398/10431 2233/2193 44/160 1020/1017 1020/1019 1020/1014 1010/1015 1015/1002 val 0/0
+d-allon-rep2 100 2 363/245 216/191 140/115 48/57 46/4 0/0 16779/11678 3662/2661 112/92 1020/1019 1020/1020 1019/1018 1020/1019 1007/998 val 0/0
+d-allon-rep4 100 2 349/227 171/169 100/115 48/39 22/12 0/0 13106/12529 3272/2590 115/143 1020/1019 1020/1020 1014/1016 1019/1019 684/473 val 0/0
+r-c2-norecon 100 2 114/109 100/101 33/35 60/61 0/0 0/0 84/56 0/0 84/33 1542/1921 1558/1853 1569/1877 137/149 2602/3250 val 0/0
+r-all-norecon 100 2 164/142 122/117 60/59 56/50 0/0 0/0 3072/3563 0/0 103/91 1019/1019 1020/1020 1015/1012 1016/1009 1025/991 val 0/0
+u-c2-uncapped 100 2 79/32 44/22 8/4 35/17 0/0 0/0 3782/549 1123/150 168/26 453/265 472/224 490/214 124/144 3179/2048 val 0/0
+u-rep4-uncap 100 2 95/43 70/33 67/31 2/2 0/0 0/0 4051/2253 1682/739 14/20 4732/2818 2368/1178 2371/1181 3101/1804 235/62 val 0/0
+
+--- set 2: low load, consumer concurrency, mitigations (handlers not yet concurrency-safe) ---
+point rate n drain_s e2e50 dec2app50 to_dec50 dlq retries dup recon requeue peakSR peakOPS peakOP peakPW peakOPl
+low-base 25 2 2/2 3/3 1/1 2/1 0/0 0/0 211/250 0/0 180/245 90/24 68/24 57/22 59/31 50/17 val 0/0
+low-bound 25 2 3/2 4/3 2/1 2/1 0/0 0/0 277/227 0/0 230/226 33/29 38/35 42/25 26/27 26/33 val 0/0
+low-all-rep1 25 2 3/2 5/3 3/1 2/1 0/0 0/0 226/248 0/0 153/241 86/30 121/21 119/24 21/33 47/43 val 0/0
+low-all-rep2 25 2 3/2 9/2 6/1 2/1 0/0 0/0 39/222 0/0 31/226 203/1 203/13 200/17 58/0 0/3 val 0/0
+oc1-c2 50 2 80/29 61/35 53/31 7/2 0/0 0/0 4218/776 1374/239 40/38 2112/1886 2159/1808 2166/1816 79/122 412/283 val 0/0
+oc4-c2 50 2 48/12 46/20 26/15 16/4 0/0 0/0 2176/40 654/0 190/17 1070/1160 1138/1129 1128/1131 89/100 581/140 val 0/0
+oc1-c2 100 2 272/129 123/116 59/78 61/33 0/0 0/0 11110/3750 3685/1893 78/144 2876/4014 2852/4122 2868/4098 177/189 3173/2374 val 0/0
+oc4-c2 100 2 165/177 71/78 2/2 69/75 0/0 0/0 7498/7566 2301/2432 469/217 427/315 573/368 450/375 106/120 2584/3690 val 0/0
+oc16-c2 100 2 111/97 68/51 2/2 66/48 0/0 0/0 5134/5503 1470/1716 289/353 63/260 148/259 137/257 134/132 2545/2990 val 0/0
+oc4-rep4-ic4 100 2 78/118 74/83 30/38 40/43 0/0 0/0 2019/4145 702/1360 217/37 2202/2843 404/552 397/582 1957/2355 0/50 val 0/0
+oc4-all-rep2 100 2 154/252 96/92 34/30 59/56 0/0 0/0 5912/9759 1330/2808 45/206 1014/999 681/517 696/579 1004/1000 1012/976 val 0/0
+oc16-all-rep2 100 2 137/83 63/61 2/3 55/52 0/0 0/0 5544/2350 1760/732 477/386 112/187 70/86 64/104 591/763 956/712 val 0/0
+st120-all 100 2 383/194 183/129 97/69 56/48 36/4 0/0 10442/6955 2048/1141 149/174 1020/1020 1020/1020 1019/1020 1016/1017 994/998 val 0/0
+bd5000-all 100 2 209/188 127/158 69/98 53/58 0/0 0/0 7355/2124 2378/1939 204/66 2562/4076 2421/3758 2427/3755 1000/1509 2005/2785 val 0/0
+fix-all 100 2 89/82 87/76 28/20 55/55 0/0 0/0 777/1056 0/0 104/266 994/948 494/410 485/412 893/951 913/1001 val 0/0
+
+--- set 3: concurrency points on the concurrency-safe handlers ---
+point rate n drain_s e2e50 dec2app50 to_dec50 dlq retries dup recon requeue peakSR peakOPS peakOP peakPW peakOPl
+oc1-c2 50 2 39/50 48/55 42/44 6/6 0/0 0/0 1876/1904 601/742 66/36 2422/2114 2371/2046 2377/2042 129/116 268/573 val 0/0
+oc4-c2 50 2 15/23 25/34 19/23 6/9 0/0 0/0 42/291 0/88 36/20 1406/1394 1293/1396 1295/1392 167/56 148/109 val 0/0
+oc1-c2 100 2 117/161 112/110 62/59 41/49 0/0 0/0 2771/9744 2009/3203 41/79 3945/3368 3897/3334 3891/3337 161/117 2512/3246 val 0/0
+oc4-c2 100 2 105/101 63/63 8/14 53/48 0/0 0/0 4450/4346 1451/1385 88/114 1055/1257 1110/1329 1112/1268 138/145 3083/2771 val 0/0
+oc16-c2 100 2 75/79 55/50 2/2 53/48 0/0 0/0 2032/3118 690/996 136/120 326/416 331/466 344/482 61/136 2448/2894 val 0/0
+oc4-all-rep2 100 2 111/117 77/86 27/34 49/50 0/0 0/0 4673/5691 938/1156 85/124 1015/1016 501/825 517/819 1012/1008 937/910 val 0/0
+fix-all 100 2 98/98 81/81 28/32 53/47 0/0 0/0 1319/1762 0/0 88/150 1019/1015 699/944 670/949 1016/1019 1013/1032 val 0/0
+
+--- dead-letter reason (a-bound-100rps-rep2, 72 messages) ---
+"x-first-death-queue":"ProcessWorker.StockReserved"
+"x-first-death-reason":"rejected"
+Worker log lines, grouped:
+flashsale-diag-process-worker-1 1043 Failed to process order <id> (attempt 1/4); retrying in 00:00:01
+flashsale-diag-process-worker-1 263 Failed to process order <id> (attempt 2/4); retrying in 00:00:02
+flashsale-diag-process-worker-1 122 Failed to process order <id> (attempt 3/4); retrying in 00:00:04
+flashsale-diag-process-worker-1 72 Failed to process StockReserved message; routing to DLQ
+flashsale-diag-process-worker-1 72 Failed to process order <id> after 4 attempts; routing to DLQ
+Exception behind every failed publish: RabbitMQ.Client.Exceptions.PublishException (1572 in that run), the broker refusing a publish to a queue at max-length with overflow=reject-publish.
+
+--- corrected error table, all 26 EC2 runs ---
+dead_lettered counts each Worker dead letter twice (two metric families summed by extract-run-metrics.ps1); dlq_peak is the real number of messages.
+group run achieved accepted retries requeued_early duplicates dead_lettered reconciliation dlq_peak drain_s
+pilot C1-r1-100rps 100.5 6024 0.0 None 0.0 0.0 0.0 0 0
+pilot C1-r1-200rps 186.9 11246 0.0 None 0.0 0.0 0.0 0 0
+pilot C1-r1-400rps 180.4 11017 0.0 None 0.0 0.0 0.0 0 0
+pilot C2-r1-100rps 94.9 5693 0.0 None 9168.0 0.0 2851.0 0 110
+pilot C2-r1-200rps 157.0 9457 0.0 None 3258.0 0.0 2015.0 0 166
+pilot C2-r1-400rps 177.9 10843 0.0 None 28363.0 0.0 9383.0 0 674
+pilot C3-r1-100rps 94.0 5592 629.0 None 10067.0 56.0 2210.0 {'ProcessWorker.StockReserved.dlq': 28} 360
+pilot C3-r1-200rps 177.4 6270 666.0 None 17401.0 104.0 4624.0 {'ProcessWorker.StockReserved.dlq': 52} 326
+pilot C3-r1-400rps 306.6 4432 344.0 None 12042.0 0.0 3008.0 0 137
+pilot C4-r1-100rps 99.9 5976 564.0 None 13788.0 76.0 3271.0 {'ProcessWorker.StockReserved.dlq': 38} 149
+pilot C4-r1-200rps 179.6 7140 771.0 None 11209.0 40.0 2298.0 {'ProcessWorker.StockReserved.dlq': 20} 164
+pilot C4-r1-400rps 302.0 4242 367.0 None 7115.0 0.0 1269.0 0 91
+pilot C4-r2-100rps 98.4 5901 494.0 None 16231.0 58.0 3900.0 {'ProcessWorker.StockReserved.dlq': 29} 335
+pilot C4-r2-200rps 175.7 7327 660.0 None 22447.0 66.0 5981.0 {'ProcessWorker.StockReserved.dlq': 33} 366
+pilot C4-r2-400rps 293.4 4257 67.0 None 11115.0 0.0 2836.0 0 133
+pilot C4-r4-100rps 96.3 5765 581.0 None 16638.0 98.0 3927.0 {'ProcessWorker.StockReserved.dlq': 49} 348
+pilot C4-r4-200rps 176.9 6503 673.0 None 19097.0 156.0 4505.0 {'ProcessWorker.StockReserved.dlq': 78} 357
+pilot C4-r4-400rps 295.0 4284 280.0 None 10716.0 22.0 2322.0 {'ProcessWorker.StockReserved.dlq': 11} 113
+tune C3-r1-200rps 160.9 1084 28.0 None 1117.0 0.0 580.0 0 9
+tune C3-r1-200rps 147.0 2960 281.0 None 5414.0 2.0 1118.0 {'ProcessWorker.StockReserved.dlq': 1} 67
+tune C3-r1-200rps 137.5 4649 395.0 None 6846.0 10.0 1341.0 {'ProcessWorker.StockReserved.dlq': 5} 356
+tune C3-r1-400rps 170.0 2043 39.0 None 2605.0 0.0 508.0 0 32
+tune C2-r1-200rps 114.7 6908 0.0 None 1772.0 0.0 1603.0 0 167
+sub C2-r1-25rps 25.4 1519 0.0 None 173.0 0.0 0.0 0 0
+sub C2-r1-50rps 50.7 3031 0.0 None 305.0 0.0 0.0 0 0
+sub C4-r2-50rps 49.6 2974 351.0 None 2053.0 12.0 26.0 {'ProcessWorker.StockReserved.dlq': 6} 303
+['dead_lettered', 'duplicates', 'reconciliation', 'retries', 'source']
+Exit code: 0
