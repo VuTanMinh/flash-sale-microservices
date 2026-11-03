@@ -1,0 +1,4 @@
+Week 13: extract-run-metrics.ps1 counts each Worker dead letter once. verify-extract run from a clean clone of fd27e4d with the working-tree changes copied over it, on verify-env-pg at port 56432.
+Logs: 20261103T161839Z-extract-dlq-count-fix.log
+The new check: a Worker dead letter that increments both metric families is counted once (dead_lettered=1).
+Exit code: 0

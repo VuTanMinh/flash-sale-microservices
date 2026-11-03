@@ -473,7 +473,8 @@ if (Test-Path -LiteralPath $samplesPath) {
         }
         $cRetries = CategoryIncrease @("flashsale_consumer_retries_total")
         $cDups = CategoryIncrease @("flashsale_consumer_duplicates_total")
-        $cDlq = CategoryIncrease @("flashsale_consumer_dead_lettered_total", "flashsale_process_worker_dead_lettered_total")
+        # Worker's own family left out: it bumps both families per message, so the consumer family alone already counts each dead letter once.
+        $cDlq = CategoryIncrease @("flashsale_consumer_dead_lettered_total")
         $cRecon = CategoryIncrease @("flashsale_reconciliation_retriggers_total", "flashsale_reconciliation_given_up_total")
 
         # ---- host CPU / memory, process CPU / memory, DB connections, broker rates

@@ -45,7 +45,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 54     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 55     # number of Check calls in the try block (a truncated run must fail)
 
 # real-run stack (Part 2)
 $mq = "verify-ex-mq"; $amqp = 5700; $mgmt = 15700; $redis = "verify-ex-redis"; $redisPort = 6410
@@ -331,6 +331,32 @@ try {
     try { $multiSum = Get-Content -LiteralPath (Join-Path $multiDir "summary.json") -Raw | ConvertFrom-Json } catch { }
     Check "multi-instance: process cpu rate sums per-instance deltas (mean/peak=5/5)" ($multiExit -eq 0 -and $null -ne $multiSum -and (Near $multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.mean 5.0) -and (Near $multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.peak 5.0)) "mean=$($multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.mean) peak=$($multiSum.collector.process_cpu_rate_cores.per_service.'inventory-service'.peak)"
     Check "multi-instance: process memory sums per bucket (mean/peak=3400/3800)" ($multiExit -eq 0 -and $null -ne $multiSum -and (Near $multiSum.collector.process_memory_bytes.per_service.'inventory-service'.mean 3400.0) -and (Near $multiSum.collector.process_memory_bytes.per_service.'inventory-service'.peak 3800.0)) "mean=$($multiSum.collector.process_memory_bytes.per_service.'inventory-service'.mean) peak=$($multiSum.collector.process_memory_bytes.per_service.'inventory-service'.peak)"
+
+    # ---- dead-letter fixture: the Worker's StockReservedConsumer increments BOTH
+    #      the shared flashsale_consumer_dead_lettered_total and its own
+    #      flashsale_process_worker_dead_lettered_total for the same message
+    #      (StockReservedConsumer.cs DeadLetteredTotal.Inc() + ConsumerMetrics).
+    #      The extraction must count only the shared consumer family, so one
+    #      message is one dead letter; the old code summed both and reported 2.
+    $dlqCsv = Join-Path $runDir "worker-dlq-samples.csv"
+    $dlqRows = New-Object System.Collections.Generic.List[string]
+    $dlqRows.Add("utc_time,source,name,labels,value")
+    $dlqVals = @(0, 1, 1, 1, 1)
+    for ($i = 0; $i -lt 5; $i++) {
+        $tt = $t[$i]
+        $dlqRows.Add("$tt,service,flashsale_consumer_dead_lettered_total,service=process-worker;consumer=ProcessWorker.StockReserved;reason=exhausted,$($dlqVals[$i])")
+        $dlqRows.Add("$tt,service,flashsale_process_worker_dead_lettered_total,service=process-worker,$($dlqVals[$i])")
+    }
+    [IO.File]::WriteAllLines($dlqCsv, $dlqRows.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    $dlqDir = Join-Path $runDir "worker-dlq"
+    New-Item -ItemType Directory -Force -Path $dlqDir | Out-Null
+    Copy-Item -LiteralPath $jtlPath -Destination (Join-Path $dlqDir "raw.jtl")
+    Copy-Item -LiteralPath $dlqCsv -Destination (Join-Path $dlqDir "samples.csv")
+    & powershell -NoProfile -File $extract -RunId "worker-dlq" -RunDir $dlqDir -From $from -To $to *> $null
+    $dlqExit = $LASTEXITCODE
+    $dlqSum = $null
+    try { $dlqSum = Get-Content -LiteralPath (Join-Path $dlqDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "dead-letter: a Worker dead letter that bumps both families is counted once (dead_lettered=1)" ($dlqExit -eq 0 -and $null -ne $dlqSum -and (Near $dlqSum.collector.counters.dead_lettered 1)) "exit=$dlqExit got=$($dlqSum.collector.counters.dead_lettered)"
 
     # ---- Part 1b (external review after Week 12). Run membership comes from
     #      the run's own Idempotency-Keys, a reconciliation re-publish does not
