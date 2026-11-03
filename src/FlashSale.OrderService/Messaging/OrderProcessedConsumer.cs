@@ -89,11 +89,21 @@ public class OrderProcessedConsumer : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderProcessedConsumer> _logger;
     private readonly IConfiguration _configuration;
+    // Serialises BasicAckAsync/BasicNackAsync on the shared _channel (see AckAsync
+    // and NackAsync): with ConsumerDispatchConcurrency > 1 the client dispatches
+    // several handlers at once, and RabbitMQ.Client requires mutual exclusion for
+    // acknowledgement operations on a shared channel (dotnet-api-guide,
+    // "Concurrency Considerations").
+    private readonly SemaphoreSlim _ackNackGate = new(1);
     private IConnection? _connection;
     private IChannel? _channel;
 
     /// <summary>Publisher-confirming channel, used only by <see cref="RequeueForRetryAsync"/>.</summary>
     private IChannel? _requeueChannel;
+
+    // Serialises the requeue publish on _requeueChannel (see RequeueForRetryAsync):
+    // RabbitMQ.Client forbids concurrent publishing on a shared channel.
+    private readonly SemaphoreSlim _requeueGate = new(1);
 
     public OrderProcessedConsumer(
         IOptions<RabbitMqOptions> options, IServiceScopeFactory scopeFactory, ILogger<OrderProcessedConsumer> logger,
@@ -115,6 +125,9 @@ public class OrderProcessedConsumer : BackgroundService
             Port = _options.Connections.Default.Port,
             UserName = _options.Connections.Default.UserName,
             Password = _options.Connections.Default.Password,
+            // 1 by default (unchanged behaviour); raise via
+            // RabbitMQ__EventBus__ConsumerDispatchConcurrency (Week 13 diagnosis).
+            ConsumerDispatchConcurrency = Math.Max((ushort)1, _options.EventBus.ConsumerDispatchConcurrency),
         };
 
         while (!stoppingToken.IsCancellationRequested)
@@ -193,13 +206,6 @@ public class OrderProcessedConsumer : BackgroundService
                     _options.EventBus.OrderProcessedQueueName, _options.EventBus.ExchangeName,
                     routingKey: "OrderProcessed", cancellationToken: stoppingToken);
 
-                var consumer = new AsyncEventingBasicConsumer(_channel);
-                consumer.ReceivedAsync += OnMessageReceivedAsync;
-
-                await _channel.BasicConsumeAsync(
-                    _options.EventBus.OrderProcessedQueueName, autoAck: false, consumerTag: string.Empty,
-                    noLocal: false, exclusive: false, arguments: null, consumer, stoppingToken);
-
                 // A second channel, used only to requeue an early completion,
                 // with publisher confirms and confirmation tracking on -- the
                 // same two flags Order Service's own outbox publisher uses, for
@@ -210,11 +216,21 @@ public class OrderProcessedConsumer : BackgroundService
                 // thing true: an unroutable or nacked requeue publish throws
                 // instead of returning quietly, so the original is never acked
                 // for a retry that never actually reached a queue.
+                //
+                // Created before BasicConsumeAsync, so no delivery can reach
+                // RequeueForRetryAsync while _requeueChannel is still null (Week 13).
                 _requeueChannel = await _connection.CreateChannelAsync(
                     new CreateChannelOptions(
                         publisherConfirmationsEnabled: true,
                         publisherConfirmationTrackingEnabled: true),
                     cancellationToken: stoppingToken);
+
+                var consumer = new AsyncEventingBasicConsumer(_channel);
+                consumer.ReceivedAsync += OnMessageReceivedAsync;
+
+                await _channel.BasicConsumeAsync(
+                    _options.EventBus.OrderProcessedQueueName, autoAck: false, consumerTag: string.Empty,
+                    noLocal: false, exclusive: false, arguments: null, consumer, stoppingToken);
 
                 _logger.LogInformation(
                     "Consuming OrderProcessed from queue '{Queue}'", _options.EventBus.OrderProcessedQueueName);
@@ -251,7 +267,7 @@ public class OrderProcessedConsumer : BackgroundService
             {
                 _logger.LogError("Invalid OrderProcessed message: {Field} is empty; routing to DLQ", invalidField);
                 ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "invalid").Inc();
-                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                await NackAsync(eventArgs.DeliveryTag, requeue: false);
                 return;
             }
 
@@ -295,7 +311,7 @@ public class OrderProcessedConsumer : BackgroundService
                         // below and dead-letters the original loudly instead.
                         ConsumerMetrics.RequeuedEarly.WithLabels("OrderProcessed").Inc();
                         await RequeueForRetryAsync(eventArgs, orderProcessed, nextAttempt);
-                        await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+                        await AckAsync(eventArgs.DeliveryTag);
                         return;
                     }
 
@@ -303,7 +319,7 @@ public class OrderProcessedConsumer : BackgroundService
                         "OrderProcessed {MessageId} for order {OrderId} is still early after {MaxAttempts} attempts; the order is still {State}; routing to DLQ",
                         orderProcessed.MessageId, orderProcessed.OrderId, RequeueDelays.Length, OrderState.PendingStock);
                     ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "exhausted").Inc();
-                    await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                    await NackAsync(eventArgs.DeliveryTag, requeue: false);
                     return;
                 case ResultProcessingOutcome.OrderNotFound:
                     _logger.LogWarning(
@@ -324,7 +340,7 @@ public class OrderProcessedConsumer : BackgroundService
 
             // Week 9 crash test only (TP-M01): no-op unless configured.
             FaultInjection.CrashBeforeAckIfTargeted(_configuration, "OrderProcessed", orderProcessed.CorrelationId, _logger);
-            await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+            await AckAsync(eventArgs.DeliveryTag);
         }
         catch (InvalidOrderStateTransitionException ex)
         {
@@ -334,13 +350,39 @@ public class OrderProcessedConsumer : BackgroundService
             // same class of conflict.
             _logger.LogError(ex, "Order state conflict processing a completion event; routing to DLQ");
             ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", "conflict").Inc();
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process completion event after retries; routing to DLQ");
             ConsumerMetrics.DeadLettered.WithLabels("OrderProcessed", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
+        }
+    }
+
+    private async Task AckAsync(ulong deliveryTag)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicAckAsync(deliveryTag, multiple: false);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
+    private async Task NackAsync(ulong deliveryTag, bool requeue)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue);
+        }
+        finally
+        {
+            _ackNackGate.Release();
         }
     }
 
@@ -464,13 +506,21 @@ public class OrderProcessedConsumer : BackgroundService
             Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
         };
 
-        await _requeueChannel!.BasicPublishAsync(
-            _options.EventBus.DeadLetterExchangeName,
-            RetryQueueName(nextAttempt - 1),
-            mandatory: true,
-            basicProperties: properties,
-            body: eventArgs.Body,
-            cancellationToken: CancellationToken.None);
+        await _requeueGate.WaitAsync();
+        try
+        {
+            await _requeueChannel!.BasicPublishAsync(
+                _options.EventBus.DeadLetterExchangeName,
+                RetryQueueName(nextAttempt - 1),
+                mandatory: true,
+                basicProperties: properties,
+                body: eventArgs.Body,
+                cancellationToken: CancellationToken.None);
+        }
+        finally
+        {
+            _requeueGate.Release();
+        }
     }
 
     public override void Dispose()

@@ -39,7 +39,7 @@ param(
     [int]$DurationSeconds = 60,
     [int]$Threads = 0,
     [int]$Stock = 100000,
-    [int]$QueueMaxLength = 5,
+    [int]$QueueMaxLength = 1000,
     [string]$OpenOrderRate = "10000r/s",
     [string]$OpenOrderBurst = "5000",
     [string]$ShedOrderRate = "200r/s",

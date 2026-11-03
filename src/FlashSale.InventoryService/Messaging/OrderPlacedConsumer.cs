@@ -63,6 +63,12 @@ public class OrderPlacedConsumer : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderPlacedConsumer> _logger;
     private readonly IConfiguration _configuration;
+    // Serialises BasicAckAsync/BasicNackAsync on the shared _channel (see AckAsync
+    // and NackAsync): with ConsumerDispatchConcurrency > 1 the client dispatches
+    // several handlers at once, and RabbitMQ.Client requires mutual exclusion for
+    // acknowledgement operations on a shared channel (dotnet-api-guide,
+    // "Concurrency Considerations").
+    private readonly SemaphoreSlim _ackNackGate = new(1);
     private IConnection? _connection;
     private IChannel? _channel;
 
@@ -87,6 +93,9 @@ public class OrderPlacedConsumer : BackgroundService
             Port = _options.Connections.Default.Port,
             UserName = _options.Connections.Default.UserName,
             Password = _options.Connections.Default.Password,
+            // 1 by default (unchanged behaviour); raise via
+            // RabbitMQ__EventBus__ConsumerDispatchConcurrency (Week 13 diagnosis).
+            ConsumerDispatchConcurrency = Math.Max((ushort)1, _options.EventBus.ConsumerDispatchConcurrency),
         };
 
         // Reconnect-with-backoff loop: a transient broker outage at startup
@@ -193,7 +202,7 @@ public class OrderPlacedConsumer : BackgroundService
             {
                 _logger.LogError("Invalid OrderPlaced message: {Field} is empty; routing to DLQ", invalidField);
                 ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", "invalid").Inc();
-                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                await NackAsync(eventArgs.DeliveryTag, requeue: false);
                 return;
             }
 
@@ -206,7 +215,7 @@ public class OrderPlacedConsumer : BackgroundService
             {
                 _logger.LogError("Invalid OrderPlaced message: Quantity must be 1; routing to DLQ");
                 ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", "invalid").Inc();
-                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                await NackAsync(eventArgs.DeliveryTag, requeue: false);
                 return;
             }
 
@@ -231,7 +240,7 @@ public class OrderPlacedConsumer : BackgroundService
 
             // Week 9 crash test only (TP-M01): no-op unless configured.
             FaultInjection.CrashBeforeAckIfTargeted(_configuration, "OrderPlaced", orderPlaced.CorrelationId, _logger);
-            await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+            await AckAsync(eventArgs.DeliveryTag);
         }
         catch (Exception ex)
         {
@@ -243,7 +252,7 @@ public class OrderPlacedConsumer : BackgroundService
             // it back onto this same queue forever.
             _logger.LogError(ex, "Failed to process OrderPlaced message; routing to DLQ");
             ConsumerMetrics.DeadLettered.WithLabels("OrderPlaced", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
         }
     }
 
@@ -262,6 +271,32 @@ public class OrderPlacedConsumer : BackgroundService
     /// prior attempt actually succeeded just sees AlreadyProcessed via the
     /// Inbox check and returns cleanly, rather than double-processing.
     /// </summary>
+    private async Task AckAsync(ulong deliveryTag)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicAckAsync(deliveryTag, multiple: false);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
+    private async Task NackAsync(ulong deliveryTag, bool requeue)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
     private async Task<OrderPlacedProcessingOutcome> ProcessWithRetryAsync(OrderPlacedEto orderPlaced)
     {
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)

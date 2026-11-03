@@ -278,12 +278,15 @@ back. The commands below are for a run by hand.
 
 Every other limit stays in `infra/ec2.env`: `ADMISSION_MAX_CONCURRENT_NEW_ORDERS`,
 `ADMISSION_MAX_OUTBOX_BACKLOG`, `ADMISSION_MAX_IN_FLIGHT_ORDERS` and
-`PROCESSING_MAX_CONCURRENCY` are the same for every config. The C3 values of `n`,
-the gateway limit and those limits are set from the Week 13 pilot
-(`tests/evidence/20261101T204940Z-ec2-pilot.log`), so the table shows the current
-defaults. `-MaxLength 5` in step 5b is a smoke value: at 100/s it held the pipeline
-to about 10 orders/s, so measured runs use a far higher bound. C1 and C2 have no gateway limit to study, so theirs
-sits far above any offered rate.
+`PROCESSING_MAX_CONCURRENCY` are the same for every config. The Week 13 values are
+set: queue bound 1000, Order Service consumer concurrency 4, Worker concurrency 20,
+reconciliation timeout 120 s, Outbox limit 2000 and the gateway at `200r/s` with
+burst 100, from the Week 13 pilot and slowdown diagnosis
+(`tests/evidence/20261101T204940Z-ec2-pilot.log`,
+`tests/evidence/20261103T150800Z-slowdown-diagnosis.log`), so the table shows the
+current defaults. `-MaxLength 5` in step 5b is a smoke value: at 100/s it held the
+pipeline to about 10 orders/s, so measured runs use a far higher bound. C1 and C2
+have no gateway limit to study, so theirs sits far above any offered rate.
 
 By hand, as root in the repo, for C2 after C3 or C4:
 

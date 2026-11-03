@@ -1,0 +1,9 @@
+started 2026-11-03T15:14:16.5610233Z
+delivery exit=1 fails=1 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T151416Z-delivery-c1.log
+delivery-ordering exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T151741Z-delivery-ordering-c1.log
+processing exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T152001Z-processing-c1.log
+worker exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T152402Z-worker-c1.log
+failures exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T153122Z-failures-c1.log
+reconciliation exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T153602Z-reconciliation-c1.log
+inventory exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T153944Z-inventory-c1.log
+finished 2026-11-03T15:40:31.3958399Z

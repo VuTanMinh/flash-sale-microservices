@@ -1,0 +1,45 @@
+Week 13: Order Service and Inventory consumer dispatch concurrency (option, default 1) and concurrency-safe acknowledgements and requeue publishes in all five consumers.
+Code under test: fd27e4d plus the working-tree changes, built from a clean clone on E: (all three services build with 0 warnings). Unit tests: 98 passed, 6 skipped, the same as unmodified fd27e4d.
+Pass A = concurrency 1 (the default). Pass B = RabbitMQ__EventBus__ConsumerDispatchConcurrency=4, inherited by every service the verifiers start (Order and Inventory both read it).
+
+--- consumer verifiers ---
+[summary-c1.txt]
+started 2026-11-03T15:14:16.5610233Z
+delivery exit=1 fails=1
+delivery-ordering exit=0 fails=0
+processing exit=0 fails=0
+worker exit=0 fails=0
+failures exit=0 fails=0
+reconciliation exit=0 fails=0
+inventory exit=0 fails=0
+finished 2026-11-03T15:40:31.3958399Z
+[summary-c4.txt]
+started 2026-11-03T15:40:31.4370608Z
+delivery exit=0 fails=0
+delivery-ordering exit=0 fails=0
+processing exit=0 fails=0
+worker exit=0 fails=0
+failures exit=0 fails=0
+reconciliation exit=0 fails=0
+inventory exit=0 fails=0
+finished 2026-11-03T16:08:56.9555459Z
+[summary-rerun.txt]
+started 2026-11-03T16:12:06.2081542Z
+delivery exit=0 fails=0
+delivery exit=0 fails=0
+extract exit=0 fails=0
+finished 2026-11-03T16:20:48.6395436Z
+[summary-base2.txt]
+started 2026-11-03T16:27:07.8307996Z
+delivery exit=0 fails=0
+delivery exit=0 fails=0
+finished 2026-11-03T16:32:36.5741655Z
+
+Pass A verify-delivery failed one check: "Reserve crash: the unacknowledged OrderPlaced is back in its queue" (OrderPlaced=0 after 20 s). The crash is a Process.Kill() before the acknowledgement code runs, and the replay that follows proves the message was not lost.
+
+--- A/B: verify-delivery, 10 valid runs each, fixed and unmodified code alternated, concurrency 1 ---
+Both copies of verify-delivery.ps1 carried the same scratch-only patch (not committed): the requeue check records the seconds until OrderPlaced is back and a 1 s trace of ready/unacked/consumers, and keeps the same 20 s pass limit.
+fixed: 10 valid runs, crash check failures 0, other failures 0, requeue seconds 1,3.1,1,0,0,1,4.1,3.1,4.1,6.1
+unmodified: 10 valid runs, crash check failures 0, other failures 1, requeue seconds 3.1,0,1,0,0,2,2.1,4.1,4.1,3.1
+The one failure on unmodified code is the same kind of race in another consumer: "OrderProcessed crash: the unacknowledged OrderProcessed is back in its queue" (OrderProcessed=0). So the requeue-after-crash checks are timing-sensitive on unmodified code too; the fixed code does not fail them more often.
+Full table: ab\results.csv. Exit code: 0

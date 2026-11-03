@@ -1,0 +1,3 @@
+started 2026-11-03T16:20:48.6738602Z
+delivery exit=1 fails=2 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T162048Z-delivery-base.log
+finished 2026-11-03T16:24:59.3914611Z

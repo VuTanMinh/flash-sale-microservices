@@ -128,11 +128,16 @@ services:
       RabbitMQ__Connections__Default__Port: 5672
       RabbitMQ__Connections__Default__UserName: flashsale
       RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      # Consumer dispatch concurrency (1 = the client default).
+      RabbitMQ__EventBus__ConsumerDispatchConcurrency: ${ORDER_CONSUMER_CONCURRENCY:-1}
       # C3 admission (off by default == C2 behaviour; see docs/load-shedding.md)
       Admission__Enabled: ${ADMISSION_ENABLED}
       Admission__MaxConcurrentNewOrders: ${ADMISSION_MAX_CONCURRENT_NEW_ORDERS}
       Admission__MaxOutboxBacklog: ${ADMISSION_MAX_OUTBOX_BACKLOG}
       Admission__MaxInFlightOrders: ${ADMISSION_MAX_IN_FLIGHT_ORDERS:-0}
+      # Reconciliation stuck timeout (30 s = the code default; see
+      # RECONCILIATION_STUCK_TIMEOUT_SECONDS in infra/ec2.env.example).
+      Reconciliation__StuckTimeoutSeconds: ${RECONCILIATION_STUCK_TIMEOUT_SECONDS:-30}
     volumes:
       - ./openiddict.pfx:/app/openiddict.pfx:ro
     depends_on:
@@ -158,6 +163,8 @@ services:
       RabbitMQ__Connections__Default__Port: 5672
       RabbitMQ__Connections__Default__UserName: flashsale
       RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      # Consumer dispatch concurrency (1 = the client default).
+      RabbitMQ__EventBus__ConsumerDispatchConcurrency: ${INVENTORY_CONSUMER_CONCURRENCY:-1}
       Redis__Configuration: redis:6379
     depends_on:
       inventory-service-migrate:
@@ -189,6 +196,8 @@ services:
       RabbitMQ__Connections__Default__Port: 5672
       RabbitMQ__Connections__Default__UserName: flashsale
       RabbitMQ__Connections__Default__Password: ${RABBITMQ_PASSWORD}
+      # Consumer prefetch (20 = the appsettings default).
+      RabbitMQ__EventBus__PrefetchCount: ${WORKER_PREFETCH:-20}
       Processing__MaxConcurrency: ${PROCESSING_MAX_CONCURRENCY:-1}
     depends_on:
       rabbitmq:

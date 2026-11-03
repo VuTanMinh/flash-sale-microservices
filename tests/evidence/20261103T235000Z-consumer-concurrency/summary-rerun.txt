@@ -1,0 +1,5 @@
+started 2026-11-03T16:12:06.2081542Z
+delivery exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T161206Z-delivery-c1-rerun.log
+delivery exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T161529Z-delivery-c1-rerun.log
+extract exit=0 fails=0 log=E:\Agent_Memory\DACNTT\tmp\w13diag\verify\20261103T161839Z-extract-c1-rerun.log
+finished 2026-11-03T16:20:48.6395436Z

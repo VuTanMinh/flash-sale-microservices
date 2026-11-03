@@ -58,6 +58,12 @@ public class StockResultConsumer : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<StockResultConsumer> _logger;
     private readonly IConfiguration _configuration;
+    // Serialises BasicAckAsync/BasicNackAsync on the shared _channel (see AckAsync
+    // and NackAsync): with ConsumerDispatchConcurrency > 1 the client dispatches
+    // several handlers at once, and RabbitMQ.Client requires mutual exclusion for
+    // acknowledgement operations on a shared channel (dotnet-api-guide,
+    // "Concurrency Considerations").
+    private readonly SemaphoreSlim _ackNackGate = new(1);
     private IConnection? _connection;
     private IChannel? _channel;
 
@@ -81,6 +87,9 @@ public class StockResultConsumer : BackgroundService
             Port = _options.Connections.Default.Port,
             UserName = _options.Connections.Default.UserName,
             Password = _options.Connections.Default.Password,
+            // 1 by default (unchanged behaviour); raise via
+            // RabbitMQ__EventBus__ConsumerDispatchConcurrency (Week 13 diagnosis).
+            ConsumerDispatchConcurrency = Math.Max((ushort)1, _options.EventBus.ConsumerDispatchConcurrency),
         };
 
         while (!stoppingToken.IsCancellationRequested)
@@ -193,7 +202,7 @@ public class StockResultConsumer : BackgroundService
             {
                 _logger.LogError("Invalid {EventType} message: {Field} is empty; routing to DLQ", eventType, invalidField);
                 ConsumerMetrics.DeadLettered.WithLabels("StockResult", "invalid").Inc();
-                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                await NackAsync(eventArgs.DeliveryTag, requeue: false);
                 return;
             }
 
@@ -244,7 +253,7 @@ public class StockResultConsumer : BackgroundService
 
             // Week 9 crash test only (TP-M01): no-op unless configured.
             FaultInjection.CrashBeforeAckIfTargeted(_configuration, "StockResult", correlationId, _logger);
-            await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+            await AckAsync(eventArgs.DeliveryTag);
         }
         catch (InvalidOrderStateTransitionException ex)
         {
@@ -258,7 +267,7 @@ public class StockResultConsumer : BackgroundService
             // manual inspection rather than silently dropped or retried forever.
             _logger.LogError(ex, "Order state conflict processing a result event; routing to DLQ");
             ConsumerMetrics.DeadLettered.WithLabels("StockResult", "conflict").Inc();
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
         }
         catch (Exception ex)
         {
@@ -268,7 +277,7 @@ public class StockResultConsumer : BackgroundService
             // looping it back onto this same queue forever.
             _logger.LogError(ex, "Failed to process result event after retries; routing to DLQ");
             ConsumerMetrics.DeadLettered.WithLabels("StockResult", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
         }
     }
 
@@ -285,6 +294,32 @@ public class StockResultConsumer : BackgroundService
     /// no benefit. Every other exception gets the full retry treatment before
     /// giving up.
     /// </summary>
+    private async Task AckAsync(ulong deliveryTag)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicAckAsync(deliveryTag, multiple: false);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
+    private async Task NackAsync(ulong deliveryTag, bool requeue)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
     private async Task<ResultProcessingOutcome> ProcessWithRetryAsync(
         Guid orderId, Guid messageId, string eventType, OrderState targetState)
     {

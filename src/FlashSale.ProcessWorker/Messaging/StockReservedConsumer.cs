@@ -62,6 +62,12 @@ public class StockReservedConsumer : BackgroundService
     private readonly OrderProcessingStartedPublisher _startPublisher;
     private readonly ILogger<StockReservedConsumer> _logger;
     private readonly IConfiguration _configuration;
+    // Serialises BasicAckAsync/BasicNackAsync on the shared _channel (see AckAsync
+    // and NackAsync): with ConsumerDispatchConcurrency > 1 the client dispatches
+    // several handlers at once, and RabbitMQ.Client requires mutual exclusion for
+    // acknowledgement operations on a shared channel (dotnet-api-guide,
+    // "Concurrency Considerations").
+    private readonly SemaphoreSlim _ackNackGate = new(1);
     private IConnection? _connection;
     private IChannel? _channel;
     private CancellationToken _stoppingToken;
@@ -187,7 +193,7 @@ public class StockReservedConsumer : BackgroundService
             {
                 _logger.LogError("Invalid StockReserved message: {Field} is empty; routing to DLQ", invalidField);
                 ConsumerMetrics.DeadLettered.WithLabels("ProcessWorker.StockReserved", "invalid").Inc();
-                await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                await NackAsync(eventArgs.DeliveryTag, requeue: false);
                 return;
             }
 
@@ -204,7 +210,7 @@ public class StockReservedConsumer : BackgroundService
 
             // Week 9 crash test only (TP-M01): no-op unless configured.
             FaultInjection.CrashBeforeAckIfTargeted(_configuration, "ProcessWorker", stockReserved.CorrelationId, _logger);
-            await _channel!.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
+            await AckAsync(eventArgs.DeliveryTag);
         }
         catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
         {
@@ -225,7 +231,33 @@ public class StockReservedConsumer : BackgroundService
             DeadLetteredTotal.Inc();
             ConsumerMetrics.DeadLettered.WithLabels("ProcessWorker.StockReserved", ex is System.Text.Json.JsonException ? "invalid" : "exhausted").Inc();
             _logger.LogError(ex, "Failed to process StockReserved message; routing to DLQ");
-            await _channel!.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false);
+            await NackAsync(eventArgs.DeliveryTag, requeue: false);
+        }
+    }
+
+    private async Task AckAsync(ulong deliveryTag)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicAckAsync(deliveryTag, multiple: false);
+        }
+        finally
+        {
+            _ackNackGate.Release();
+        }
+    }
+
+    private async Task NackAsync(ulong deliveryTag, bool requeue)
+    {
+        await _ackNackGate.WaitAsync();
+        try
+        {
+            await _channel!.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue);
+        }
+        finally
+        {
+            _ackNackGate.Release();
         }
     }
 

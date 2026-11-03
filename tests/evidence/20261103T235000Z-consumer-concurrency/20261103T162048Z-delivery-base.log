@@ -1,0 +1,10 @@
+﻿== Inbox uniqueness
+PASS  order_service.processed_messages has a unique index on MessageId
+PASS  a second Inbox row with the same MessageId is refused for order_service_user (unique violation)
+PASS  inventory_service.processed_messages has a unique index on MessageId
+PASS  a second Inbox row with the same MessageId is refused for inventory_service_user (unique violation)
+FAIL  all three services up; all six consumer queues declared 
+FAIL  unexpected error: services did not come up 
+
+2 check(s) failed.
+Exit code: 1
