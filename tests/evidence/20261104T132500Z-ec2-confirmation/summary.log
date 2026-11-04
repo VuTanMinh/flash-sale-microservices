@@ -1,0 +1,31 @@
+Week 13 EC2 confirmation (docs/week13-ec2-confirmation.md), 2026-11-04. Backend m7i-flex.large, JMeter c7i-flex.large, ap-southeast-2, auto_terminate 240. Code 54548db, clean tree on both hosts.
+Live check (section 11a) first: MATRIX PASS, 3 runs. Then 8 runs with the current settings, then 8 with the fixed settings. Each run read the values back from the running containers (oc = Order Service consumer concurrency, rt = reconciliation StuckTimeoutSeconds, w = Worker concurrency, ob = Outbox limit).
+Dead letters are counted once (the extract fix in c6280c6 ran on the hosts). db.dump files stayed on the backend; each run was extracted before the next reset.
+
+runs 16 commits {('54548db', False)} recount ok True validators {'PASS'}
+current C2 r1  50/s ach  50.3 acc  3016 drain   0s e2e95 11.6s http95 296.0 retr 0 dl 0 dlqpk 0 dup 25 rec 0 | oc 1 rt 30 w 32 ob 2000
+current C2 r1 100/s ach 100.6 acc  6029 drain  85s e2e95 74.5s http95 862.0 retr 0 dl 0 dlqpk 0 dup 7531 rec 2497 | oc 1 rt 30 w 32 ob 2000
+current C4 r2  50/s ach  50.3 acc  3013 drain   0s e2e95 18.9s http95 487.0 retr 0 dl 0 dlqpk 0 dup 53 rec 0 | oc 1 rt 30 w 32 ob 2000
+current C4 r2 100/s ach 100.9 acc  6047 drain 111s e2e95 99.7s http95 731.0 retr 528 dl 22 dlqpk 22 dup 12203 rec 2854 | oc 1 rt 30 w 32 ob 2000
+current C2 r1  50/s ach  50.3 acc  3013 drain   0s e2e95 7.6s http95 274.0 retr 0 dl 0 dlqpk 0 dup 279 rec 0 | oc 1 rt 30 w 32 ob 2000
+current C2 r1 100/s ach 101.0 acc  6054 drain  57s e2e95 77.1s http95 862.0 retr 0 dl 0 dlqpk 0 dup 4382 rec 1440 | oc 1 rt 30 w 32 ob 2000
+current C4 r2  50/s ach  50.3 acc  3015 drain   0s e2e95 20.8s http95 525.0 retr 0 dl 0 dlqpk 0 dup 56 rec 0 | oc 1 rt 30 w 32 ob 2000
+current C4 r2 100/s ach 100.8 acc  6050 drain 312s e2e95 92.6s http95 631.0 retr 416 dl 22 dlqpk 22 dup 13803 rec 3479 | oc 1 rt 30 w 32 ob 2000
+fixed   C2 r1  50/s ach  50.4 acc  3019 drain   0s e2e95 5.3s http95 374.0 retr 0 dl 0 dlqpk 0 dup 181 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C2 r1 100/s ach 101.0 acc  6050 drain  24s e2e95 46.4s http95 829.0 retr 0 dl 0 dlqpk 0 dup 123 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C4 r2  50/s ach  49.9 acc  2989 drain   0s e2e95 10.8s http95 664.0 retr 0 dl 0 dlqpk 0 dup 41 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C4 r2 100/s ach 101.2 acc  6067 drain  44s e2e95 56.6s http95 698.0 retr 337 dl 0 dlqpk 0 dup 3217 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C2 r1  50/s ach  50.4 acc  3020 drain   0s e2e95 5.3s http95 363.0 retr 0 dl 0 dlqpk 0 dup 130 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C2 r1 100/s ach 101.0 acc  6061 drain  17s e2e95 43.1s http95 711.0 retr 0 dl 0 dlqpk 0 dup 12 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C4 r2  50/s ach  49.9 acc  2990 drain   0s e2e95 15.0s http95 701.0 retr 0 dl 0 dlqpk 0 dup 26 rec 0 | oc 4 rt 120 w 20 ob 2000
+fixed   C4 r2 100/s ach 101.3 acc  6084 drain 292s e2e95 58.4s http95 677.0 retr 357 dl 2 dlqpk 2 dup 3074 rec 0 | oc 4 rt 120 w 20 ob 2000
+
+Verdict: the fix holds on EC2.
+- Reconciliation: 1440 to 3479 per run at 100/s with the current settings, 0 in every fixed run.
+- Duplicates at 100/s: C2 7531 and 4382 down to 123 and 12; C4 12203 and 13803 down to 3217 and 3074.
+- End-to-end p95 at 100/s: C2 74.5 and 77.1 s down to 46.4 and 43.1 s; C4 99.7 and 92.6 s down to 56.6 and 58.4 s.
+- Dead letters on C4 at 100/s: 22 and 22 down to 0 and 2.
+- The fixed C4 100/s repeat 2 drained in 292 s: it had the 2 dead letters, and a dead-lettered order finishes only through reconciliation, now after 120 s. The current-setting run that drained in 312 s had 22 dead letters waiting the same way.
+- At 50/s both settings drain at once; the fixed end-to-end p95 is lower (C2 5.3 s vs 7.6 to 11.6 s; C4 10.8 to 15.0 s vs 18.9 to 20.8 s).
+No container restarts and 0 "too many clients" over the session.
+Exit code: 0

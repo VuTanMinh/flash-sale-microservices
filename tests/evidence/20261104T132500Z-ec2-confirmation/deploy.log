@@ -1,0 +1,47 @@
+﻿command 243c6ec5-abe2-4dc6-aedd-741e20509e4d
+status Success exit 0
+cloud-init: status: done
+Shutdown scheduled for Wed 2026-11-04 16:24:11 UTC, use 'shutdown -c' to cancel.
+commit: 54548db
+CHANGE_ME left: 1
+PG_MAX_CONNECTIONS=200
+ADMISSION_ENABLED=false
+ADMISSION_MAX_CONCURRENT_NEW_ORDERS=64
+ADMISSION_MAX_OUTBOX_BACKLOG=2000
+ADMISSION_MAX_IN_FLIGHT_ORDERS=0
+PROCESSING_MAX_CONCURRENCY=20
+ORDER_CONSUMER_CONCURRENCY=4
+INVENTORY_CONSUMER_CONCURRENCY=1
+WORKER_PREFETCH=20
+RECONCILIATION_STUCK_TIMEOUT_SECONDS=120
+ORDER_RATE=200r/s
+ORDER_BURST=100
+-rw-r--r--. 1 root root 2575 Nov  4 12:2
+== build 12:26:55
+build exit 0
+== up 12:28:14
+grafana running Up 58 seconds
+inventory-service running Up About a minute
+inventory-service-migrate exited Exited (0) 34 seconds ago
+nginx running Up 59 seconds
+order-service running Up 59 seconds
+order-service-migrate exited Exited (0) 30 seconds ago
+postgres running Up About a minute (healthy)
+process-worker running Up About a minute
+prometheus running Up 58 seconds
+rabbitmq running Up About a minute (healthy)
+redis running Up About a minute (healthy)
+== C1 baseline tables
+NOTICE:  schema "order_service" already exists, skipping
+order_service.inventory|order_service.baseline_orders
+== gateway
+health 200
+== host
+2
+               total        used        free      shared  buff/cache   available
+Mem:            7779        1154         156         192        6468        6135
+/dev/nvme0n1p1   30G  8.5G   22G  29% /
+done 12:30:01
+
+--- stderr ---
+

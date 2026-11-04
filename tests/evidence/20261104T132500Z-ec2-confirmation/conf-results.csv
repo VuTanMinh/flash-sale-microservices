@@ -1,0 +1,17 @@
+setting,run,cfg,rep_replicas,rate,achieved,accepted,jtl_recount_ok,drain_s,e2e_p95_s,http_p95_ms,retries,dead_letters,dlq_peak,duplicates,reconciliation,validator,status,order_conc,recon_timeout,worker,outbox,commit,dirty
+current,C2-r1-50rps-rep1,C2,1,50,50.3,3016,True,0,11.6,296.0,0,0,0,25,0,PASS,PASS,1,30,32,2000,54548db,False
+current,C2-r1-100rps-rep1,C2,1,100,100.6,6029,True,85,74.5,862.0,0,0,0,7531,2497,PASS,PASS,1,30,32,2000,54548db,False
+current,C4-r2-50rps-rep1,C4,2,50,50.3,3013,True,0,18.9,487.0,0,0,0,53,0,PASS,PASS,1,30,32,2000,54548db,False
+current,C4-r2-100rps-rep1,C4,2,100,100.9,6047,True,111,99.7,731.0,528,22,22,12203,2854,PASS,PASS,1,30,32,2000,54548db,False
+current,C2-r1-50rps-rep1,C2,1,50,50.3,3013,True,0,7.6,274.0,0,0,0,279,0,PASS,PASS,1,30,32,2000,54548db,False
+current,C2-r1-100rps-rep1,C2,1,100,101.0,6054,True,57,77.1,862.0,0,0,0,4382,1440,PASS,PASS,1,30,32,2000,54548db,False
+current,C4-r2-50rps-rep1,C4,2,50,50.3,3015,True,0,20.8,525.0,0,0,0,56,0,PASS,PASS,1,30,32,2000,54548db,False
+current,C4-r2-100rps-rep1,C4,2,100,100.8,6050,True,312,92.6,631.0,416,22,22,13803,3479,PASS,PASS,1,30,32,2000,54548db,False
+fixed,C2-r1-50rps-rep1,C2,1,50,50.4,3019,True,0,5.3,374.0,0,0,0,181,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C2-r1-100rps-rep1,C2,1,100,101.0,6050,True,24,46.4,829.0,0,0,0,123,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C4-r2-50rps-rep1,C4,2,50,49.9,2989,True,0,10.8,664.0,0,0,0,41,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C4-r2-100rps-rep1,C4,2,100,101.2,6067,True,44,56.6,698.0,337,0,0,3217,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C2-r1-50rps-rep1,C2,1,50,50.4,3020,True,0,5.3,363.0,0,0,0,130,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C2-r1-100rps-rep1,C2,1,100,101.0,6061,True,17,43.1,711.0,0,0,0,12,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C4-r2-50rps-rep1,C4,2,50,49.9,2990,True,0,15.0,701.0,0,0,0,26,0,PASS,PASS,4,120,20,2000,54548db,False
+fixed,C4-r2-100rps-rep1,C4,2,100,101.3,6084,True,292,58.4,677.0,357,2,2,3074,0,PASS,PASS,4,120,20,2000,54548db,False

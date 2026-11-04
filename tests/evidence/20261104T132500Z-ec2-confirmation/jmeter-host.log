@@ -1,0 +1,22 @@
+﻿command f2b3cabb-5748-44d2-b7b7-28a315b97608
+status Success exit 0
+cloud-init: status: done
+Shutdown scheduled for Wed 2026-11-04 16:24:03 UTC, use 'shutdown -c' to cancel.
+commit: 54548db
+/opt/jmeter/bin/jmeter
+Python 3.9.25
+2
+               total        used        free      shared  buff/cache   available
+Mem:            3815         229        2603           0         982        3367
+/dev/nvme0n1p1   30G  2.4G   28G   8% /
+port 22 closed
+port 3000 closed
+port 5432 closed
+port 5672 closed
+port 6379 closed
+port 8080 closed
+port 9090 closed
+port 15672 closed
+
+--- stderr ---
+
