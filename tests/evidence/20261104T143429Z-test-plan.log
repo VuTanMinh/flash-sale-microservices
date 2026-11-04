@@ -1,0 +1,254 @@
+Run from a clean clone of f4dc737 (Week 13 values locked). Exit code below.
+PASS  test plan has cases (58)
+PASS  case IDs are unique
+PASS  TP-E01 has all eight fields
+PASS  TP-E01 status is PASS, FAIL or NOT RUN
+PASS  TP-E01 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-environment-fresh.log)
+PASS  TP-E01 command script exists (scripts/verify-environment.ps1)
+PASS  TP-E02 has all eight fields
+PASS  TP-E02 status is PASS, FAIL or NOT RUN
+PASS  TP-E02 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-environment-existing.log)
+PASS  TP-E02 command script exists (scripts/verify-environment.ps1)
+PASS  TP-E03 has all eight fields
+PASS  TP-E03 status is PASS, FAIL or NOT RUN
+PASS  TP-E03 PASS has committed evidence that shows a pass (tests/evidence/20261024T084347Z-unit-tests.log)
+PASS  TP-E04 has all eight fields
+PASS  TP-E04 status is PASS, FAIL or NOT RUN
+PASS  TP-E04 PASS has committed evidence that shows a pass (tests/evidence/20261023T173539Z-runtime-accounts.log)
+PASS  TP-E04 command script exists (scripts/verify-runtime-accounts.ps1)
+PASS  TP-B01 has all eight fields
+PASS  TP-B01 status is PASS, FAIL or NOT RUN
+PASS  TP-B01 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T112439Z-c0-race.json)
+PASS  TP-B01 command script exists (scripts/run-baseline.ps1)
+PASS  TP-B02 has all eight fields
+PASS  TP-B02 status is PASS, FAIL or NOT RUN
+PASS  TP-B02 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T112439Z-summary.md)
+PASS  TP-B02 command script exists (scripts/run-baseline.ps1)
+PASS  TP-B03 has all eight fields
+PASS  TP-B03 status is PASS, FAIL or NOT RUN
+PASS  TP-B03 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T090034Z-reset-seed.log)
+PASS  TP-B03 command script exists (scripts/verify-reset-seed.ps1)
+PASS  TP-B04 has all eight fields
+PASS  TP-B04 status is PASS, FAIL or NOT RUN
+PASS  TP-B04 PASS has committed evidence that shows a pass (tests/jmeter/results/20261001T112429Z-c1-smoke-summary.md)
+PASS  TP-B04 command script exists (scripts/run-jmeter-smoke.ps1)
+PASS  TP-D01 has all eight fields
+PASS  TP-D01 status is PASS, FAIL or NOT RUN
+PASS  TP-D01 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-requirements-trace.log)
+PASS  TP-D01 command script exists (scripts/verify-requirements-trace.ps1)
+PASS  TP-D02 has all eight fields
+PASS  TP-D02 status is PASS, FAIL or NOT RUN
+PASS  TP-D02 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-baseline-report.log)
+PASS  TP-D02 command script exists (scripts/verify-baseline-report.ps1)
+PASS  TP-D03 has all eight fields
+PASS  TP-D03 status is PASS, FAIL or NOT RUN
+PASS  TP-D03 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-design-alignment.log)
+PASS  TP-D03 command script exists (scripts/verify-design-alignment.ps1)
+PASS  TP-D04 has all eight fields
+PASS  TP-D04 status is PASS, FAIL or NOT RUN
+PASS  TP-D04 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-design-decisions.log)
+PASS  TP-D04 command script exists (scripts/verify-design-decisions.ps1)
+PASS  TP-A01 has all eight fields
+PASS  TP-A01 status is PASS, FAIL or NOT RUN
+PASS  TP-A01 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A01 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A02 has all eight fields
+PASS  TP-A02 status is PASS, FAIL or NOT RUN
+PASS  TP-A02 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A02 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A03 has all eight fields
+PASS  TP-A03 status is PASS, FAIL or NOT RUN
+PASS  TP-A03 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A03 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A04 has all eight fields
+PASS  TP-A04 status is PASS, FAIL or NOT RUN
+PASS  TP-A04 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A04 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A05 has all eight fields
+PASS  TP-A05 status is PASS, FAIL or NOT RUN
+PASS  TP-A05 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A05 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A06 has all eight fields
+PASS  TP-A06 status is PASS, FAIL or NOT RUN
+PASS  TP-A06 PASS has committed evidence that shows a pass (tests/evidence/20261001T123816Z-unit-tests.trx)
+PASS  TP-A07 has all eight fields
+PASS  TP-A07 status is PASS, FAIL or NOT RUN
+PASS  TP-A07 PASS has committed evidence that shows a pass (tests/evidence/20261001T123816Z-order-api.log)
+PASS  TP-A07 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-O01 has all eight fields
+PASS  TP-O01 status is PASS, FAIL or NOT RUN
+PASS  TP-O01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083744Z-outbox.log)
+PASS  TP-O01 command script exists (scripts/verify-outbox.ps1)
+PASS  TP-O02 has all eight fields
+PASS  TP-O02 status is PASS, FAIL or NOT RUN
+PASS  TP-O02 PASS has committed evidence that shows a pass (tests/evidence/20261001T163055Z-publication.log)
+PASS  TP-O02 command script exists (scripts/verify-publication.ps1)
+PASS  TP-I01 has all eight fields
+PASS  TP-I01 status is PASS, FAIL or NOT RUN
+PASS  TP-I01 PASS has committed evidence that shows a pass (tests/evidence/20261002T051418Z-inventory.log)
+PASS  TP-I01 command script exists (scripts/verify-inventory.ps1)
+PASS  TP-I02 has all eight fields
+PASS  TP-I02 status is PASS, FAIL or NOT RUN
+PASS  TP-I02 PASS has committed evidence that shows a pass (tests/evidence/20261002T051418Z-inventory.log)
+PASS  TP-I02 command script exists (scripts/verify-inventory.ps1)
+PASS  TP-I03 has all eight fields
+PASS  TP-I03 status is PASS, FAIL or NOT RUN
+PASS  TP-I03 PASS has committed evidence that shows a pass (tests/evidence/20261002T052244Z-cross-store.log)
+PASS  TP-I03 command script exists (scripts/verify-cross-store.ps1)
+PASS  TP-W01 has all eight fields
+PASS  TP-W01 status is PASS, FAIL or NOT RUN
+PASS  TP-W01 PASS has committed evidence that shows a pass (tests/evidence/20261002T061249Z-stock-results.log)
+PASS  TP-W01 command script exists (scripts/verify-stock-results.ps1)
+PASS  TP-W02 has all eight fields
+PASS  TP-W02 status is PASS, FAIL or NOT RUN
+PASS  TP-W02 PASS has committed evidence that shows a pass (tests/evidence/20261002T062442Z-validator.log)
+PASS  TP-W02 command script exists (scripts/verify-validator.ps1)
+PASS  TP-W03 has all eight fields
+PASS  TP-W03 status is PASS, FAIL or NOT RUN
+PASS  TP-W03 PASS has committed evidence that shows a pass (tests/evidence/20261002T063611Z-db-exceptions.log)
+PASS  TP-W03 command script exists (scripts/verify-db-exceptions.ps1)
+PASS  TP-W04 has all eight fields
+PASS  TP-W04 status is PASS, FAIL or NOT RUN
+PASS  TP-W04 PASS has committed evidence that shows a pass (tests/evidence/20261002T152659Z-workflow.log)
+PASS  TP-W04 command script exists (scripts/verify-workflow.ps1)
+PASS  TP-M01 has all eight fields
+PASS  TP-M01 status is PASS, FAIL or NOT RUN
+PASS  TP-M01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083445Z-delivery.log)
+PASS  TP-M01 command script exists (scripts/verify-delivery.ps1)
+PASS  TP-M02 has all eight fields
+PASS  TP-M02 status is PASS, FAIL or NOT RUN
+PASS  TP-M02 PASS has committed evidence that shows a pass (tests/evidence/20261003T181814Z-delivery-ordering.log)
+PASS  TP-M02 command script exists (scripts/verify-delivery-ordering.ps1)
+PASS  TP-M03 has all eight fields
+PASS  TP-M03 status is PASS, FAIL or NOT RUN
+PASS  TP-M03 PASS has committed evidence that shows a pass (tests/evidence/20261005T155419Z-delivery-report.log)
+PASS  TP-M03 command script exists (scripts/verify-delivery-report.ps1)
+PASS  TP-F01 has all eight fields
+PASS  TP-F01 status is PASS, FAIL or NOT RUN
+PASS  TP-F01 PASS has committed evidence that shows a pass (tests/evidence/20261011T122332Z-failures.log)
+PASS  TP-F01 command script exists (scripts/verify-failures.ps1)
+PASS  TP-F02 has all eight fields
+PASS  TP-F02 status is PASS, FAIL or NOT RUN
+PASS  TP-F02 PASS has committed evidence that shows a pass (tests/evidence/20261023T160450Z-reconciliation.log)
+PASS  TP-F02 command script exists (scripts/verify-reconciliation.ps1)
+PASS  TP-F03 has all eight fields
+PASS  TP-F03 status is PASS, FAIL or NOT RUN
+PASS  TP-F03 PASS has committed evidence that shows a pass (tests/evidence/20261011T122332Z-failure-report.log)
+PASS  TP-F03 command script exists (scripts/verify-failure-report.ps1)
+PASS  TP-P01 has all eight fields
+PASS  TP-P01 status is PASS, FAIL or NOT RUN
+PASS  TP-P01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083825Z-worker.log)
+PASS  TP-P01 command script exists (scripts/verify-worker.ps1)
+PASS  TP-P02 has all eight fields
+PASS  TP-P02 status is PASS, FAIL or NOT RUN
+PASS  TP-P02 PASS has committed evidence that shows a pass (tests/evidence/20261013T145229Z-processing.log)
+PASS  TP-P02 command script exists (scripts/verify-processing.ps1)
+PASS  TP-P03 has all eight fields
+PASS  TP-P03 status is PASS, FAIL or NOT RUN
+PASS  TP-P03 PASS has committed evidence that shows a pass (tests/evidence/20261013T163219Z-trace.log)
+PASS  TP-P03 command script exists (scripts/trace-order.ps1)
+PASS  TP-P04 has all eight fields
+PASS  TP-P04 status is PASS, FAIL or NOT RUN
+PASS  TP-P04 PASS has committed evidence that shows a pass (tests/evidence/20261013T163454Z-metrics.log)
+PASS  TP-P04 command script exists (scripts/verify-metrics.ps1)
+PASS  TP-P05 has all eight fields
+PASS  TP-P05 status is PASS, FAIL or NOT RUN
+PASS  TP-P05 PASS has committed evidence that shows a pass (tests/evidence/20261014T094153Z-observability-report.log)
+PASS  TP-P05 command script exists (scripts/verify-observability-report.ps1)
+PASS  TP-P06 has all eight fields
+PASS  TP-P06 status is PASS, FAIL or NOT RUN
+PASS  TP-P06 PASS has committed evidence that shows a pass (tests/evidence/20261014T140055Z-message-timestamps.log)
+PASS  TP-P06 command script exists (scripts/verify-message-timestamps.ps1)
+PASS  TP-P07 has all eight fields
+PASS  TP-P07 status is PASS, FAIL or NOT RUN
+PASS  TP-P07 PASS has committed evidence that shows a pass (tests/evidence/20261024T074956Z-run-collector.log)
+PASS  TP-P07 command script exists (scripts/verify-run-collector.ps1)
+PASS  TP-P08 has all eight fields
+PASS  TP-P08 status is PASS, FAIL or NOT RUN
+PASS  TP-P08 PASS has committed evidence that shows a pass (tests/evidence/20261024T073819Z-extract.log)
+PASS  TP-P08 command script exists (scripts/verify-extract.ps1)
+PASS  TP-L01 has all eight fields
+PASS  TP-L01 status is PASS, FAIL or NOT RUN
+PASS  TP-L01 PASS has committed evidence that shows a pass (tests/evidence/20261019T161529Z-load-shedding.log)
+PASS  TP-L01 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L02 has all eight fields
+PASS  TP-L02 status is PASS, FAIL or NOT RUN
+PASS  TP-L02 PASS has committed evidence that shows a pass (tests/evidence/20261020T030050Z-load-shedding.log)
+PASS  TP-L02 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L03 has all eight fields
+PASS  TP-L03 status is PASS, FAIL or NOT RUN
+PASS  TP-L03 PASS has committed evidence that shows a pass (tests/evidence/20261024T084414Z-deployment-offline.log)
+PASS  TP-L03 command script exists (scripts/verify-deployment.ps1)
+PASS  TP-L04 has all eight fields
+PASS  TP-L04 status is PASS, FAIL or NOT RUN
+PASS  TP-L04 PASS has committed evidence that shows a pass (tests/evidence/20261024T080008Z-load-shedding.log)
+PASS  TP-L04 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L05 has all eight fields
+PASS  TP-L05 status is PASS, FAIL or NOT RUN
+PASS  TP-L05 PASS has committed evidence that shows a pass (tests/evidence/20261024T115610Z-replicas-2.log)
+PASS  TP-L05 command script exists (scripts/verify-replicas.ps1)
+PASS  TP-L06 has all eight fields
+PASS  TP-L06 status is PASS, FAIL or NOT RUN
+PASS  TP-L06 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L06 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-L07 has all eight fields
+PASS  TP-L07 status is PASS, FAIL or NOT RUN
+PASS  TP-L07 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L07 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-L08 has all eight fields
+PASS  TP-L08 status is PASS, FAIL or NOT RUN
+PASS  TP-L08 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L08 command script exists (scripts/verify-run-collector.ps1)
+PASS  TP-X04 has all eight fields
+PASS  TP-X04 status is PASS, FAIL or NOT RUN
+PASS  TP-X04 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-X04 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X05 has all eight fields
+PASS  TP-X05 status is PASS, FAIL or NOT RUN
+PASS  TP-X05 PASS has committed evidence that shows a pass (tests/evidence/20261031T171915Z-ec2-stack.log)
+PASS  TP-X05 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X06 has all eight fields
+PASS  TP-X06 status is PASS, FAIL or NOT RUN
+PASS  TP-X06 PASS has committed evidence that shows a pass (tests/evidence/20261101T181846Z-ec2-stack-matrix.log)
+PASS  TP-X06 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X07 has all eight fields
+PASS  TP-X07 status is PASS, FAIL or NOT RUN
+PASS  TP-X07 PASS has committed evidence that shows a pass (tests/evidence/20261104T132500Z-ec2-confirmation/summary.log)
+PASS  TP-X07 command script exists (scripts/run-matrix.ps1)
+PASS  TP-X08 has all eight fields
+PASS  TP-X08 status is PASS, FAIL or NOT RUN
+PASS  TP-X08 PASS has committed evidence that shows a pass (tests/evidence/20261103T235000Z-consumer-concurrency/summary.log)
+PASS  TP-X08 command script exists (scripts/verify-delivery.ps1)
+PASS  TP-X01 has all eight fields
+PASS  TP-X01 status is PASS, FAIL or NOT RUN
+PASS  TP-X01 PASS has committed evidence that shows a pass (tests/evidence/20261101T204940Z-ec2-pilot.log)
+PASS  TP-X01 command script exists (scripts/run-matrix.ps1)
+PASS  TP-X02 has all eight fields
+PASS  TP-X02 status is PASS, FAIL or NOT RUN
+PASS  TP-X02 without PASS claims no evidence
+PASS  TP-X03 has all eight fields
+PASS  TP-X03 status is PASS, FAIL or NOT RUN
+PASS  TP-X03 without PASS claims no evidence
+PASS  roadmap W02 has at least one case
+PASS  roadmap W03 has at least one case
+PASS  roadmap W04 has at least one case
+PASS  roadmap W05 has at least one case
+PASS  roadmap W06 has at least one case
+PASS  roadmap W07 has at least one case
+PASS  roadmap W08 has at least one case
+PASS  roadmap W09 has at least one case
+PASS  roadmap W10 has at least one case
+PASS  roadmap W11 has at least one case
+PASS  roadmap W12 has at least one case
+PASS  roadmap W13 has at least one case
+PASS  roadmap W14 has at least one case
+PASS  report no longer claims 'Passed: 14, Skipped: 0, Total: 14'
+PASS  report no longer claims 'Full suite: 19/19 passing'
+PASS  report no longer claims 'each verified live above or in an earlier week'
+PASS  report no longer claims '14 unit tests'
+PASS  report keeps the \unverified macro for unsupported claims (labels in use: 0)
+PASS  sequence diagrams: 'Verified live' claims carry a not-re-verified note
+PASS  sequence diagrams header no longer says 'verified live'
+
+Test plan is complete and every PASS is backed by committed evidence.
+Exit code: 0
