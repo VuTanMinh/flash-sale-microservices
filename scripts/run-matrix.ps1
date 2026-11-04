@@ -33,8 +33,8 @@
 param(
     [ValidateSet("matrix", "prepare", "collect-start", "post")][string]$Step = "matrix",
     [string[]]$Configs = @("C1", "C2", "C3", "C4"),
-    [string[]]$Rates = @("50"),
-    [int]$Repeats = 1,
+    [string[]]$Rates = @("50", "100", "200"),
+    [int]$Repeats = 3,
     [string[]]$Replicas = @("1", "2", "4"),
     [int]$DurationSeconds = 60,
     [int]$Threads = 0,

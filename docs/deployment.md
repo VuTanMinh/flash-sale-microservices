@@ -279,9 +279,15 @@ back. The commands below are for a run by hand.
 Every other limit stays in `infra/ec2.env`: `ADMISSION_MAX_CONCURRENT_NEW_ORDERS`,
 `ADMISSION_MAX_OUTBOX_BACKLOG`, `ADMISSION_MAX_IN_FLIGHT_ORDERS` and
 `PROCESSING_MAX_CONCURRENCY` are the same for every config. The Week 13 values are
-set: queue bound 1000, Order Service consumer concurrency 4, Worker concurrency 20,
-reconciliation timeout 120 s, Outbox limit 2000 and the gateway at `200r/s` with
-burst 100, from the Week 13 pilot and slowdown diagnosis
+set, and the owner signed them off on 4 November 2026 after the EC2 confirmation
+(`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`): queue bound 1000,
+Order Service consumer concurrency 4, Inventory consumer concurrency 1, Worker
+concurrency 20, reconciliation timeout 120 s, Outbox limit 2000, 64 concurrent new
+orders, the gateway at `200r/s` with burst 100, and 100,000 units of stock. The
+official runs use 50, 100 and 200/s for every config plus 400/s for C3 and C4, C4
+at 1, 2 and 4 replicas, and 60 s of open-loop load with 3 repeats. Those are the
+`run-matrix.ps1` defaults, except 400/s, which is passed as `-Configs C3,C4 -Rates 400`.
+They come from the Week 13 pilot and slowdown diagnosis
 (`tests/evidence/20261101T204940Z-ec2-pilot.log`,
 `tests/evidence/20261103T150800Z-slowdown-diagnosis.log`), so the table shows the
 current defaults. `-MaxLength 5` in step 5b is a smoke value: at 100/s it held the
