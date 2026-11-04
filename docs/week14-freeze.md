@@ -22,7 +22,7 @@ freeze invalid until this manifest is updated and re-verified.
 
 ## 2. Infrastructure
 
-| File | SHA-256 |
+| File | SHA-256 (file with LF line endings, as git stores it) |
 | --- | --- |
 | `infra/terraform/main.tf` | `a915ae3adf4e65fae5208da0053fd6348a2db0e3beda498cb1618dc2ed67b92b` |
 | `infra/terraform/variables.tf` | `902df52839363f1d937780a64a5e27e4834bd42b9e96e6ad37f445cd84627a83` |

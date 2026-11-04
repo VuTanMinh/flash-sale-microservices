@@ -7,7 +7,7 @@
 #   powershell -File .\scripts\verify-freeze.ps1
 #   powershell -File .\scripts\verify-freeze.ps1 -Manifest <copy.md>   (negative controls)
 #
-# Check 1 (frozen commit is the manifest commit's parent) needs the manifest to
+# Check 1 (frozen commit is the parent of the commit that added the manifest) needs the manifest to
 # be committed; before that it reports NOT APPLICABLE, never PASS, and the
 # script exits non-zero.
 # ============================================================
@@ -22,7 +22,15 @@ function Check([string]$name, [bool]$ok, [string]$detail = "") {
     Write-Output "$(if ($ok) { 'PASS' } else { 'FAIL' })  $name$(if ($detail) { " -- $detail" })"
 }
 function Read([string]$rel) { return (Get-Content -Raw -LiteralPath (Join-Path $root $rel) -Encoding UTF8) }
-function Sha256([string]$rel) { return (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $rel)).Hash.ToLowerInvariant() }
+# SHA-256 of the file with LF line endings, as git stores it, so the hash does not
+# depend on how a checkout converts line endings (core.autocrlf).
+function Sha256([string]$rel) {
+    $bytes = [IO.File]::ReadAllBytes((Join-Path $root $rel))
+    $lf = New-Object System.Collections.Generic.List[byte]
+    for ($i = 0; $i -lt $bytes.Length; $i++) { if (-not ($bytes[$i] -eq 13 -and $i + 1 -lt $bytes.Length -and $bytes[$i + 1] -eq 10)) { $lf.Add($bytes[$i]) } }
+    $h = [Security.Cryptography.SHA256]::Create().ComputeHash($lf.ToArray())
+    return (-join ($h | ForEach-Object { $_.ToString("x2") }))
+}
 function Strip([string]$v) { return ($v -replace '`', '').Trim() }
 # Table rows of the manifest: every "| a | b | c |" line that is not a header rule.
 $text = Get-Content -Raw -LiteralPath $Manifest -Encoding UTF8
@@ -53,12 +61,13 @@ Check "1: frozen commit is a full 40-hex SHA" ($sha -ne "") "cell='$frozen'"
 & git -C $root cat-file -e "$sha^{commit}" 2>$null
 Check "1: frozen commit exists in this repository" ($LASTEXITCODE -eq 0 -and $sha) "sha=$sha"
 $mrel = (Resolve-Path -LiteralPath $Manifest).Path.Substring($root.Length + 1) -replace '\\', '/'
-$parent = (git -C $root log -1 --format=%P -- $mrel 2>$null | Out-String).Trim()
+# The commit that first added the manifest; later fixes to the manifest keep it.
+$parent = (@(git -C $root log --diff-filter=A --format=%P -- $mrel 2>$null) | Select-Object -Last 1 | Out-String).Trim()
 if (-not $parent) {
     $notApplicable++
     Write-Output "NOT APPLICABLE  1: frozen commit is the parent of the commit that adds the manifest -- $mrel is not committed yet"
 } else {
-    Check "1: frozen commit is the parent of the commit that last changed the manifest" (($parent -split ' ')[0] -eq $sha) "parent=$parent frozen=$sha"
+    Check "1: frozen commit is the parent of the commit that added the manifest" (($parent -split ' ')[0] -eq $sha) "parent=$parent frozen=$sha"
 }
 if ($sha) {
     $changed = @(git -C $root diff --name-only $sha HEAD 2>$null | Where-Object { $_ -match '^(src|infra|tests/jmeter|scripts)/' -and $_ -ne 'scripts/verify-freeze.ps1' })
