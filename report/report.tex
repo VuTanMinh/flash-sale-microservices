@@ -3519,7 +3519,7 @@ dead-lettered order finishes only through reconciliation, which now waits
 The owner signed off these values on 4 November 2026
 (Table~\ref{tab:locked}). They are in \texttt{infra/ec2.env.example} and in
 the defaults of \texttt{scripts/run-matrix.ps1}, and section~5f of
-\texttt{docs/deployment.md} applies them per configuration.
+\texttt{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \texttt{docs/week14-freeze.md}. \texttt{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, \nolinkurl{tests/evidence/20261104T145044Z-freeze.log}).
 
 \begin{table}[tbp]
 \centering
@@ -3567,12 +3567,132 @@ rather than scaling the hardware to reach it.
 % instrumentation to exist before the runs, not after. Every cell is ---
 % (not 0, not TBD): a dash cannot be mistaken for a measured zero.
 
-This chapter is a set of empty templates, built in Week~11 and filled in
+Section~\ref{sec:results-pilot} is a draft from the Week~13 pilot data. The
+rest of this chapter is a set of empty templates, built in Week~11 and filled in
 Week~14 from the official runs. Each table and figure follows the teacher's
 evaluation plan (§6 of the brief) and the experiment plan: configurations
 C0--C4, the listed metrics, the six correctness checks, and 3--5 runs per
 configuration. Every cell is ``---'' until a run fills it. A dash cannot be
 mistaken for a measured zero.
+
+\section{Pilot results (draft, not final)}
+\label{sec:results-pilot}
+
+\textbf{This section is a draft from pilot data.} It holds the 18 runs of the
+Week~13 EC2 pilot (one run per cell, Section~\ref{sec:pilot}) and points to the
+EC2 confirmation of the fix (Section~\ref{sec:confirmation}). The pilot ran
+\emph{before} the fix and with the pilot's settings, not the values locked for
+Week~14 (Section~\ref{sec:locked}), so its numbers show the shape of each
+configuration, not the final result. The official tables below are filled from
+the Week~14 runs, three repeats per cell, with the locked values. Every pilot
+number comes from \nolinkurl{tests/evidence/20261101T204940Z-ec2-pilot.log} and
+the run bundles next to it.
+
+\begin{table}[tbp]
+\centering
+\small
+\caption{Pilot data, not final: correctness by configuration, Week~13 EC2
+pilot, one run per cell. ``Oversold'' and ``lost'' come from the validator's
+checks (Section~\ref{sec:week8}); every run passed.}
+\label{tab:pilot-correctness}
+\begin{tabular}{@{}lrrrrrl@{}}
+\toprule
+Config & Runs & Validator pass & Accepted & Oversold & Lost & Validator checks \\
+\midrule
+C1 & 3 & 3 of 3 & 28,287 & 0 & 0 & 1--3 and 6 (4 n/a) \\
+C2 & 3 & 3 of 3 & 25,993 & 0 & 0 & 1--6 \\
+C3 & 3 & 3 of 3 & 16,294 & 0 & 0 & 1--5 \\
+C4 & 9 & 9 of 9 & 51,395 & 0 & 0 & 1--5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[tbp]
+\centering
+\scriptsize
+\caption{Pilot data, not final: throughput and latency per run, Week~13 EC2
+pilot, 60\,s open-loop load, one run per row, before the fix. HTTP is the
+client latency of 2xx submissions (ms); E2E is accepted to completed (s). C1 is
+synchronous and has no E2E stage. Percentiles are nearest-rank.}
+\label{tab:pilot-latency}
+\begin{tabular}{@{}lrrrrrrrrr@{}}
+\toprule
+ & & & & & \multicolumn{3}{c}{HTTP (ms)} & \multicolumn{2}{c}{E2E (s)} \\
+\cmidrule(lr){6-8}\cmidrule(l){9-10}
+Run & Req./s & Ach./s & Accepted & 429/503 & p50 & p95 & p99 & p50 & p95 \\
+\midrule
+C1 & 100 & 100.5 & 6,024 & 0 / 0 & 13 & 163 & 718 & -- & -- \\
+C1 & 200 & 186.9 & 11,246 & 0 / 0 & 507 & 1,535 & 2,181 & -- & -- \\
+C1 & 400 & 180.4 & 11,017 & 0 / 0 & 2,134 & 3,216 & 3,759 & -- & -- \\
+C2 & 100 & 94.9 & 5,693 & 0 / 0 & 578 & 1,424 & 1,761 & 79.3 & 88.8 \\
+C2 & 200 & 157.0 & 9,457 & 0 / 0 & 1,248 & 1,687 & 1,851 & 164.2 & 175.3 \\
+C2 & 400 & 177.9 & 10,843 & 0 / 0 & 2,203 & 2,998 & 3,347 & 170.6 & 208.4 \\
+C3 & 100 & 94.0 & 5,592 & 0 / 44 & 540 & 1,486 & 1,844 & 105.3 & 120.2 \\
+C3 & 200 & 177.4 & 6,270 & 0 / 4,389 & 1,116 & 1,708 & 1,899 & 110.0 & 149.9 \\
+C3 & 400 & 306.6 & 4,432 & 6,646 / 7,738 & 1,713 & 3,012 & 3,319 & 89.3 & 111.1 \\
+C4, 1 repl. & 100 & 99.9 & 5,976 & 0 / 0 & 407 & 1,085 & 1,342 & 87.3 & 121.8 \\
+C4, 1 repl. & 200 & 179.6 & 7,140 & 0 / 3,670 & 928 & 1,764 & 2,038 & 150.5 & 174.5 \\
+C4, 1 repl. & 400 & 302.0 & 4,242 & 6,303 / 7,926 & 1,914 & 3,013 & 3,270 & 92.2 & 103.2 \\
+C4, 2 repl. & 100 & 98.4 & 5,901 & 0 / 4 & 349 & 1,154 & 1,611 & 86.9 & 123.7 \\
+C4, 2 repl. & 200 & 175.7 & 7,327 & 5 / 3,246 & 903 & 1,783 & 2,129 & 137.7 & 176.6 \\
+C4, 2 repl. & 400 & 293.4 & 4,257 & 5,760 / 7,927 & 1,816 & 3,143 & 3,500 & 81.1 & 101.4 \\
+C4, 4 repl. & 100 & 96.3 & 5,765 & 0 / 0 & 476 & 1,396 & 1,783 & 101.8 & 140.5 \\
+C4, 4 repl. & 200 & 176.9 & 6,503 & 0 / 4,143 & 1,064 & 1,762 & 2,013 & 124.4 & 168.3 \\
+C4, 4 repl. & 400 & 295.0 & 4,284 & 5,881 / 7,926 & 1,848 & 3,148 & 3,344 & 94.1 & 113.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[tbp]
+\centering
+\scriptsize
+\caption{Pilot data, not final: peak container CPU (\% of one core) during each
+run's load and drain, from \texttt{docker stats} every 5\,s. Inventory sums its
+replicas. The backend has 2 vCPU, so 200\,\% is the whole host.}
+\label{tab:pilot-resource}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+Run & Req./s & Order & Inventory & Worker & PostgreSQL & RabbitMQ & Redis \\
+\midrule
+C1 & 100 & 100 & 1 & 1 & 21 & 114 & 3 \\
+C1 & 200 & 112 & 0 & 0 & 58 & 56 & 0 \\
+C1 & 400 & 108 & 1 & 1 & 53 & 44 & 3 \\
+C2 & 100 & 96 & 35 & 20 & 60 & 76 & 4 \\
+C2 & 200 & 133 & 30 & 22 & 57 & 84 & 4 \\
+C2 & 400 & 143 & 32 & 22 & 52 & 94 & 7 \\
+C3 & 100 & 134 & 35 & 22 & 65 & 133 & 6 \\
+C3 & 200 & 115 & 35 & 22 & 43 & 77 & 4 \\
+C3 & 400 & 133 & 35 & 22 & 43 & 85 & 6 \\
+C4, 1 repl. & 100 & 91 & 38 & 22 & 39 & 75 & 4 \\
+C4, 1 repl. & 200 & 122 & 35 & 20 & 63 & 86 & 6 \\
+C4, 1 repl. & 400 & 124 & 37 & 22 & 48 & 76 & 4 \\
+C4, 2 repl. & 100 & 90 & 53 & 22 & 42 & 106 & 6 \\
+C4, 2 repl. & 200 & 130 & 59 & 21 & 51 & 82 & 7 \\
+C4, 2 repl. & 400 & 141 & 56 & 21 & 52 & 69 & 5 \\
+C4, 4 repl. & 100 & 95 & 89 & 23 & 42 & 125 & 7 \\
+C4, 4 repl. & 200 & 93 & 77 & 20 & 43 & 76 & 3 \\
+C4, 4 repl. & 400 & 144 & 75 & 21 & 40 & 74 & 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{What the pilot shows, before the fix.} No configuration oversold or
+lost an order (Table~\ref{tab:pilot-correctness}). C1 and C2 both stop near 180
+accepted requests/s whatever is offered (Table~\ref{tab:pilot-latency}). By then Order Service alone uses about
+a full core or more of the two (93--144\,\% at 200 and 400/s,
+Table~\ref{tab:pilot-resource}), so the 2-vCPU host is the ceiling. C1 answers
+fastest at 100/s because it does all its work in the request, while the
+asynchronous configurations accept quickly and finish later: their end-to-end
+time grows to minutes once the offered rate passes what the queued path can
+finish. C3 and C4 refuse most of a 400/s load early (429 and 503) and stay
+correct. Extra Inventory replicas change none of this, for the reason found in
+Section~\ref{sec:slowdown}.
+
+\paragraph{After the fix.} Table~\ref{tab:confirmation} is the pilot-scale
+comparison on EC2 with the fix: two repeats per cell, C2 and C4 at 50 and
+100/s. At 100/s the end-to-end p95 falls by about 40\,\%, reconciliation falls
+to none and duplicates by 75--99\,\%. These are still pilot numbers; the
+official comparison of C1 to C4 at the locked values follows below.
 
 \section{Measurement Method}
 
