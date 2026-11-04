@@ -3546,6 +3546,35 @@ Run length and repeats & 60\,s of open-loop load, 3 repeats \\
 \end{tabular}
 \end{table}
 
+\section{Workload profiles}
+\label{sec:profiles}
+
+The brief lists several load profiles. The official matrix measures one of them
+across every configuration: \textbf{steady load on one hot product}, at 50, 100
+and 200/s, with 400/s for C3 and C4 as a sustained overload above capacity. The
+other profiles are \textbf{coverage only}. They show that the JMeter plan and the
+system handle each shape correctly, but they are not repeated or compared
+across configurations. All of them ran on the EC2 Compose stack on a local
+machine at low rates, and every validator passed (TP-X04,
+\nolinkurl{tests/evidence/20261031T161516Z-ec2-stack.log}; the plans are in
+\texttt{docs/workload-profiles.md}):
+\begin{itemize}
+  \item \textbf{Ramp-up} (5, 15 then 30/s) and a \textbf{spike} (3, 40 then 3/s):
+    every request accepted, one order per accepted request.
+  \item \textbf{Overload with recovery} (3, 60 then 3/s against a low gateway
+    limit): 86 requests in the overload stage were refused with 429, every
+    request in the recovery stage was accepted, and the backlog drained.
+  \item \textbf{One hot product} and \textbf{skewed products} (four products at
+    70/15/10/5\,\%): every product got orders, the most popular one the most
+    (46, 10, 7 and 4).
+  \item \textbf{Requests below, equal to and above inventory} (10, 20 and 30
+    requests for 20 units): reservations were exactly 10, 20 and 20, so
+    above-inventory demand sells the stock and no more.
+\end{itemize}
+The overload-with-recovery shape is the one most likely to belong in a later
+comparison. Its recovery phase is not in the official matrix, which measures
+the 400/s overload as a steady load.
+
 \section{Capacity and the 2,000/s target}
 \label{sec:capacity}
 
