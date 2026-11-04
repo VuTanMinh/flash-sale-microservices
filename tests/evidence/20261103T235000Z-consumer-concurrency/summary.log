@@ -5,34 +5,34 @@ Pass A = concurrency 1 (the default). Pass B = RabbitMQ__EventBus__ConsumerDispa
 --- consumer verifiers ---
 [summary-c1.txt]
 started 2026-11-03T15:14:16.5610233Z
-delivery exit=1 fails=1
-delivery-ordering exit=0 fails=0
-processing exit=0 fails=0
-worker exit=0 fails=0
-failures exit=0 fails=0
-reconciliation exit=0 fails=0
-inventory exit=0 fails=0
+verify-delivery exit=1 fails=1
+verify-delivery-ordering exit=0 fails=0
+verify-processing exit=0 fails=0
+verify-worker exit=0 fails=0
+verify-failures exit=0 fails=0
+verify-reconciliation exit=0 fails=0
+verify-inventory exit=0 fails=0
 finished 2026-11-03T15:40:31.3958399Z
 [summary-c4.txt]
 started 2026-11-03T15:40:31.4370608Z
-delivery exit=0 fails=0
-delivery-ordering exit=0 fails=0
-processing exit=0 fails=0
-worker exit=0 fails=0
-failures exit=0 fails=0
-reconciliation exit=0 fails=0
-inventory exit=0 fails=0
+verify-delivery exit=0 fails=0
+verify-delivery-ordering exit=0 fails=0
+verify-processing exit=0 fails=0
+verify-worker exit=0 fails=0
+verify-failures exit=0 fails=0
+verify-reconciliation exit=0 fails=0
+verify-inventory exit=0 fails=0
 finished 2026-11-03T16:08:56.9555459Z
 [summary-rerun.txt]
 started 2026-11-03T16:12:06.2081542Z
-delivery exit=0 fails=0
-delivery exit=0 fails=0
-extract exit=0 fails=0
+verify-delivery exit=0 fails=0
+verify-delivery exit=0 fails=0
+verify-extract exit=0 fails=0
 finished 2026-11-03T16:20:48.6395436Z
 [summary-base2.txt]
 started 2026-11-03T16:27:07.8307996Z
-delivery exit=0 fails=0
-delivery exit=0 fails=0
+verify-delivery exit=0 fails=0
+verify-delivery exit=0 fails=0
 finished 2026-11-03T16:32:36.5741655Z
 
 Pass A verify-delivery failed one check: "Reserve crash: the unacknowledged OrderPlaced is back in its queue" (OrderPlaced=0 after 20 s). The crash is a Process.Kill() before the acknowledgement code runs, and the replay that follows proves the message was not lost.
