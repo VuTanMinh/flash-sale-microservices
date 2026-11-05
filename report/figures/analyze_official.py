@@ -1,6 +1,7 @@
 """Week 14 official runs: per-run metrics, per-cell summaries, LaTeX tables and figures.
 
     python analyze_official.py [<evidence-dir>]
+    python analyze_official.py --runs <dir-of-run-folders> [<out-dir>]   (a reproduction)
 
 <evidence-dir> defaults to tests/evidence/20261105T104832Z-official. The script
 unpacks the copied bundles into a temporary folder and reads, for every run:
@@ -68,6 +69,104 @@ def num(x):
     except (TypeError, ValueError):
         return None
 
+
+def to_epoch(t):
+    return datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp()
+
+
+# ------------------------------------------------------------------ plain run folders
+# python analyze_official.py --runs <dir> [<out-dir>]
+# <dir> holds run folders as run-matrix.ps1 writes them (manifest.json, raw.jtl,
+# samples.csv, validator.log), for example a reproduction on a fresh machine.
+# Writes runs.csv, tab-runs.tex and one fig-<run-id>.png/pdf per run (responses per
+# second, then the Outbox and queue backlog), with the same definitions as above.
+def plain_runs(src, dst):
+    os.makedirs(dst, exist_ok=True)
+    rows = []
+    for rid in sorted(d for d in os.listdir(src) if os.path.isfile(os.path.join(src, d, "manifest.json"))):
+        d = os.path.join(src, rid)
+        m = json.load(open(os.path.join(d, "manifest.json"), encoding="utf-8-sig"))
+        val = open(os.path.join(d, "validator.log"), encoding="utf-8-sig", errors="replace").read() if os.path.exists(os.path.join(d, "validator.log")) else ""
+        ok, codes, per_sec_ok, per_sec_ref = [], defaultdict(int), defaultdict(int), defaultdict(int)
+        with open(os.path.join(d, "raw.jtl"), encoding="utf-8", newline="") as f:
+            for row in csv.DictReader(f):
+                if "submit" not in row["label"]:
+                    continue
+                c = row["responseCode"]
+                codes[c] += 1
+                sec = (int(row["timeStamp"]) + int(row["elapsed"])) // 1000
+                if re.fullmatch(r"2\d\d", c):
+                    ok.append(float(row["elapsed"]))
+                    per_sec_ok[sec] += 1
+                else:
+                    per_sec_ref[sec] += 1
+        n = sum(codes.values())
+        refused = codes.get("429", 0) + codes.get("503", 0)
+        ob, q = defaultdict(float), defaultdict(float)
+        if os.path.exists(os.path.join(d, "samples.csv")):
+            with open(os.path.join(d, "samples.csv"), encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    v = num(row["value"])
+                    if v is None:
+                        continue
+                    if row["name"] == "flashsale_outbox_unpublished":
+                        ob[row["utc_time"]] += v
+                    elif row["name"] in ("messages_ready", "messages_unacknowledged") and row["labels"].startswith("queue="):
+                        qn = row["labels"][6:]
+                        if not qn.endswith(".dlq") and ".retry." not in qn:
+                            q[row["utc_time"]] += v
+        r = dict(run_id=rid, config=m["config"], replicas=m["replicas"], requested_per_s=m["requested_per_s"],
+                 status=m["status"], achieved_per_s=m["load"]["achieved_per_s"], submissions=n, accepted=len(ok),
+                 refused=refused, other=n - len(ok) - refused, api_p50=pct(ok, 50), api_p95=pct(ok, 95), api_p99=pct(ok, 99),
+                 drain_s=m["post"]["drain_seconds"], validator_exit=m["post"]["validator_exit"],
+                 all_checks_hold="RESULT: all checks hold" in val, outbox_peak=max(ob.values()) if ob else None,
+                 queues_peak=max(q.values()) if q else None, commit=m["prepare"].get("commit"))
+        rows.append(r)
+        # one figure per run: responses per second, then the backlog
+        start = min(list(per_sec_ok) + list(per_sec_ref))
+        fig, axes = plt.subplots(2, 1, figsize=(7.5, 5), sharex=True)
+        xs = sorted(set(per_sec_ok) | set(per_sec_ref))
+        axes[0].plot([x - start for x in xs], [per_sec_ok.get(x, 0) for x in xs], color="#2a78d6", linewidth=1.6, label="Accepted (2xx)")
+        axes[0].plot([x - start for x in xs], [per_sec_ref.get(x, 0) for x in xs], color="#eb6834", linewidth=1.6, label="Refused (429/503)")
+        axes[0].set_ylabel("per second")
+        axes[0].set_title(f"{rid}: responses per second")
+        axes[0].legend(frameon=False, loc="upper right")
+        for series_, col, lab in ((q, "#1baf7a", "Messages in main queues"), (ob, "#e87ba4", "Outbox unpublished")):
+            ts = sorted(series_)
+            axes[1].plot([to_epoch(t) - start for t in ts], [series_[t] for t in ts], color=col, linewidth=1.6, label=lab)
+        axes[1].set_xlabel("seconds from the first submission")
+        axes[1].set_ylabel("messages / rows")
+        axes[1].legend(frameon=False, loc="upper right")
+        for ax in axes:
+            ax.grid(axis="y", color=GRID, linewidth=0.8)
+            ax.set_axisbelow(True)
+        fig.savefig(os.path.join(dst, f"fig-{rid}.png"), dpi=200, bbox_inches="tight")
+        fig.savefig(os.path.join(dst, f"fig-{rid}.pdf"), bbox_inches="tight", metadata={"CreationDate": None})
+        plt.close(fig)
+    cols = list(rows[0].keys()) if rows else []
+    with open(os.path.join(dst, "runs.csv"), "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for r in rows:
+            w.writerow([r[c] for c in cols])
+    lines = [r"\begin{tabular}{llrrrrrrl}", r"\toprule",
+             r"Run & Config. & Achieved & Accepted & Refused & p50 & p95 & Drain (s) & Validator \\", r"\midrule"]
+    for r in rows:
+        f0 = lambda v: "n/a" if v is None else f"{v:,.0f}"
+        lines.append(f"\\nolinkurl{{{r['run_id']}}} & {r['config']} & {r['achieved_per_s']} & {r['accepted']:,} & {r['refused']:,} & "
+                     f"{f0(r['api_p50'])} & {f0(r['api_p95'])} & {r['drain_s']} & {'all hold' if r['all_checks_hold'] else 'FAILED'} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    open(os.path.join(dst, "tab-runs.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+    for r in rows:
+        print(f"{r['run_id']}: {r['status']} achieved {r['achieved_per_s']}/s accepted {r['accepted']} refused {r['refused']} "
+              f"p95 {r['api_p95']} ms drain {r['drain_s']} s validator {'all checks hold' if r['all_checks_hold'] else 'FAILED'}")
+    print(f"{len(rows)} run(s) -> {dst}")
+    return rows
+
+
+if len(sys.argv) > 1 and sys.argv[1] == "--runs":
+    rows = plain_runs(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else os.path.join(sys.argv[2], "figures"))
+    sys.exit(0 if rows and all(r["status"] == "PASS" and r["all_checks_hold"] for r in rows) else 1)
 
 # ------------------------------------------------------------------ unpack
 tmp = tempfile.mkdtemp(prefix="w14-analysis-")
@@ -445,14 +544,7 @@ def per_second(jtl):
     return acc, ref
 
 
-
-
-
-def to_epoch(t):
-    return datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp()
-
-
-picks = [("C2", 1, 200), ("C3", 1, 400)]
+picks =[("C2", 1, 200), ("C3", 1, 400)]
 fig, axes = plt.subplots(2, 2, figsize=(11, 6), sharex="col")
 for col_i, key in enumerate(picks):
     r = [x for x in cells[key] if x["rep"] == 1][0]

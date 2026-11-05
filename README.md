@@ -54,6 +54,8 @@ Results, Discussion and Conclusion chapters are built from it.
    (Docker and JMeter): `powershell -File .\scripts\verify-ec2-stack.ps1 -Cases A,G`.
    It runs the same matrix runner as the official runs, with reset, seed,
    warm-up, open-loop load, drain and the correctness validator.
+   Then `python report/figures/analyze_official.py --runs "$env:TEMP\ec2v-matrix" reproduction`
+   draws those runs' own table and figures.
 3. **Repeat the official matrix on EC2** (needs an AWS account): the plan is
    [docs/week14-official-runs.md](docs/week14-official-runs.md) and the account
    steps are [docs/week14-manual-steps.md](docs/week14-manual-steps.md).

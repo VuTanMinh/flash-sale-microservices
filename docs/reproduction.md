@@ -152,6 +152,18 @@ are in `%TEMP%\ec2v-matrix\`: each folder holds `manifest.json` (status
 `PASS`), `raw.jtl`, `samples.csv` and `validator.log` (`RESULT: all checks
 hold`, with checks 0b and 7). The stack is removed again at the end.
 
+Then regenerate those runs' own table and figures with the same definitions as
+the official Results:
+
+```powershell
+python report/figures/analyze_official.py --runs "$env:TEMP\ec2v-matrix" reproduction
+```
+
+It writes `reproduction/runs.csv`, `reproduction/tab-runs.tex` and one
+`fig-<run-id>.png` per run (responses per second, then the Outbox and queue
+backlog), prints one line per run and exits 0 only if every run has status
+`PASS` and `all checks hold`.
+
 ## 9. The official matrix on EC2 (owner only)
 
 The plan is [week14-official-runs.md](week14-official-runs.md) and the owner's
