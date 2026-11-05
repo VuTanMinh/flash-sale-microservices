@@ -82,6 +82,31 @@ function Redis([string[]]$a) {
 # indexing a string returns a CHARACTER ('2'[0] -> [int] 50), not the value.
 function Int1($rows) { $v = @($rows); if ($v.Count -ne 1 -or "$($v[0])" -notmatch '^-?\d+$') { throw "expected one integer, got '$($v -join ',')'" }; return [int]"$($v[0])" }
 
+# Check 7 (Week 14 P1) SQL: one query returns up to 5 orders whose status
+# history is missing or inconsistent, each row "OrderId:rule rule ...".
+# __PID__ is replaced with the product id per iteration.
+$historySqlTemplate = @'
+WITH o AS (SELECT "Id", "State" FROM order_service.orders WHERE "ProductId" = '__PID__'),
+h AS (SELECT "OrderId", "FromState", "ToState",
+             row_number() OVER (PARTITION BY "OrderId" ORDER BY "Seq") AS rn,
+             first_value("FromState") OVER (PARTITION BY "OrderId" ORDER BY "Seq") AS first_from,
+             first_value("ToState") OVER (PARTITION BY "OrderId" ORDER BY "Seq") AS first_to,
+             last_value("ToState") OVER (PARTITION BY "OrderId" ORDER BY "Seq" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_to,
+             lag("ToState") OVER (PARTITION BY "OrderId" ORDER BY "Seq") AS prev_to
+      FROM order_service.order_status_history WHERE "OrderId" IN (SELECT "Id" FROM o)),
+per_order AS (SELECT "OrderId", max(first_from) AS first_from, max(first_to) AS first_to, max(last_to) AS last_to,
+             bool_or(rn > 1 AND "FromState" IS DISTINCT FROM prev_to) AS chain_broken
+      FROM h GROUP BY "OrderId")
+SELECT o."Id" || ':' || CASE WHEN p."OrderId" IS NULL THEN 'no-history'
+       ELSE trim(CASE WHEN p.first_from IS NOT NULL OR p.first_to IS DISTINCT FROM 'PendingStock' THEN 'first-row ' ELSE '' END
+           || CASE WHEN p.chain_broken THEN 'broken-chain ' ELSE '' END
+           || CASE WHEN p.last_to IS DISTINCT FROM o."State" THEN 'last-state ' ELSE '' END) END
+FROM o LEFT JOIN per_order p ON p."OrderId" = o."Id"
+WHERE p."OrderId" IS NULL OR p.first_from IS NOT NULL OR p.first_to IS DISTINCT FROM 'PendingStock'
+   OR p.chain_broken OR p.last_to IS DISTINCT FROM o."State"
+ORDER BY o."Id" LIMIT 5;
+'@
+
 foreach ($prod in $productsToCheck) {
     $ProductId = [string]$prod.Id
     $InitialStock = [int]$prod.Stock
@@ -175,6 +200,16 @@ foreach ($prod in $productsToCheck) {
             Add-Result "5. accepted-order accounting" "INCONCLUSIVE" "$outstanding outstanding order(s): $outRows"
         } else {
             Add-Result "5. accepted-order accounting" "PASS" "terminal $terminal + outstanding $outstanding = accepted $($terminal + $outstanding)"
+        }
+
+        # 7: status history complete (Week 14 P1). Every order's history, read by
+        # Seq, must start with the creation row (FromState NULL -> PendingStock),
+        # keep an unbroken FromState/ToState chain, and end at the order's State.
+        $historyBad = @(Sql ($historySqlTemplate.Replace('__PID__', $ProductId)))
+        if (@($historyBad).Count -eq 0) {
+            Add-Result "7. status history complete" "PASS" "every order's history is a complete, unbroken chain ending at its state"
+        } else {
+            Add-Result "7. status history complete" "FAIL" "$(@($historyBad).Count) order(s) with bad history: $($historyBad -join '; ')"
         }
     }
     }

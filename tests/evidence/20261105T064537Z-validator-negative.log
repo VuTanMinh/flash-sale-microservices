@@ -1,0 +1,23 @@
+TP-X11 negative controls: each control copies the scripts, breaks one rule in validate-correctness.ps1 and runs verify-validator.ps1; the cases for that rule must fail.
+
+== control isolation-check-always-pass: verify-validator exit 1; expected failing case 'run isolation: order 1h before' failed: True
+   FAIL  C2 run isolation: order 1h before -RunStartUtc -> 0b INCONCLUSIVE -- exit 0; '0b.' = 'PASS' (expected INCONCLUSIVE)
+   FAIL  C1 run isolation: row 1h before -RunStartUtc -> 0b INCONCLUSIVE -- exit 0; '0b.' = 'PASS' (expected INCONCLUSIVE)
+== control history-check-always-pass: verify-validator exit 1; expected failing case 'history missing' failed: True
+   FAIL  history missing: an order with no history rows -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+   FAIL  history broken chain: PendingStock jumps to Completed (bridge row missing) -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+   FAIL  history first row is not the creation row (NULL -> PendingStock) -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+   FAIL  history last row differs from the state -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+== control history-chain-rule-removed: verify-validator exit 1; expected failing case 'history broken chain' failed: True
+   FAIL  history broken chain: PendingStock jumps to Completed (bridge row missing) -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+== control history-last-state-rule-removed: verify-validator exit 1; expected failing case 'history last row differs' failed: True
+   FAIL  history last row differs from the state -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+== control history-first-row-rule-removed: verify-validator exit 1; expected failing case 'history first row' failed: True
+   FAIL  history first row is not the creation row (NULL -> PendingStock) -> check 7 FAIL -- exit 0; '7.' = 'PASS' (expected FAIL)
+== control missing-params-reported-green: verify-validator exit 1; expected failing case 'missing parameters' failed: True
+   FAIL  missing parameters: no -ProductId/-InitialStock/-Products -> exit non-zero, no 'all checks hold' -- exit 0
+   FAIL  missing parameters: -ProductId without -InitialStock -> exit non-zero, no 'all checks hold' -- exit 0
+== control bad-run-time-accepted: verify-validator exit 1; expected failing case 'bad -RunStartUtc' failed: True
+   FAIL  bad -RunStartUtc 'not-a-time' -> exit 2 -- exit 1
+
+All 7 controls failed their own cases.

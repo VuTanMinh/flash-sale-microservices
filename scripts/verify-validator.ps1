@@ -22,6 +22,17 @@ function Redis([string[]]$a) { docker exec $redis redis-cli @a *> $null }
 function Order([string]$product, [string]$id, [string]$state) {
     "INSERT INTO order_service.orders (`"Id`",`"IdempotencyKey`",`"ProductId`",`"Quantity`",`"State`",`"RequestAcceptedAt`",`"CorrelationId`") VALUES ('$id','$id','$product',1,'$state',now() at time zone 'utc','verify-validator');"
 }
+# One history row per transition "FromState->ToState"; use "" for a NULL FromState
+# (the creation row). Rows are inserted in order, so Seq matches the call order.
+function StatusHistory([string]$id, [string[]]$transitions) {
+    $q = ""
+    foreach ($t in $transitions) {
+        $cells = $t -split "->"
+        $from = if ($cells[0] -eq "") { "NULL" } else { "'$($cells[0])'" }
+        $q += "INSERT INTO order_service.order_status_history (`"Id`",`"OrderId`",`"FromState`",`"ToState`",`"At`",`"Implied`") VALUES ('$([guid]::NewGuid())','$id',$from,'$($cells[1])',now() at time zone 'utc',false);"
+    }
+    if ($q) { Sql $q }
+}
 function Run([string]$config, [string]$product, [int]$initial, [string]$runStartUtc = "") {
     # Hashtable splatting: an array splat passes "-Config" as a positional value.
     $runArgs = @{ Config = $config; ProductId = $product; InitialStock = $initial; PgContainer = $Container; RedisContainer = $redis }
@@ -47,7 +58,7 @@ try {
     docker rm -f $redis *> $null
     docker run -d --name $redis redis:7 | Out-Null
     Start-Sleep 3
-    Sql "DELETE FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'; DELETE FROM order_service.baseline_orders WHERE product_id LIKE 'val-%'; DELETE FROM order_service.inventory WHERE product_id LIKE 'val-%';"
+    Sql "DELETE FROM order_service.order_status_history WHERE `"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'); DELETE FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'; DELETE FROM order_service.baseline_orders WHERE product_id LIKE 'val-%'; DELETE FROM order_service.inventory WHERE product_id LIKE 'val-%';"
 
     # ---------------- C1 ----------------
     function C1([string]$p, [int]$stock, [int]$confirmed, [int]$rejected) {
@@ -75,7 +86,10 @@ try {
     }
     $g = @(1..3 | ForEach-Object { [guid]::NewGuid().ToString() })
     C2 "val-c2-good" 3 @($g[0], $g[1]) @{ $g[0] = "Completed"; $g[1] = "Completed"; $g[2] = "Rejected" }
-    Expect "C2 correct run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 PASS" (Run C2 "val-c2-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS" }
+    StatusHistory $g[0] @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    StatusHistory $g[1] @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    StatusHistory $g[2] @("->PendingStock","PendingStock->Rejected")
+    Expect "C2 correct run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 and 7 PASS" (Run C2 "val-c2-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS"; "7." = "PASS" }
 
     $o = @(1..6 | ForEach-Object { [guid]::NewGuid().ToString() }); $h = @{}; foreach ($x in $o) { $h[$x] = "Confirmed" }
     C2 "val-c2-oversold" -1 $o $h
@@ -101,7 +115,10 @@ try {
     # be inserted directly and is tested below rather than skipped.
     $c3g = @(1..3 | ForEach-Object { [guid]::NewGuid().ToString() })
     C2 "val-c3-good" 3 @($c3g[0], $c3g[1]) @{ $c3g[0] = "Completed"; $c3g[1] = "Completed"; $c3g[2] = "Rejected" }
-    Expect "C3 settled run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 PASS" (Run C3 "val-c3-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS" }
+    StatusHistory $c3g[0] @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    StatusHistory $c3g[1] @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    StatusHistory $c3g[2] @("->PendingStock","PendingStock->Rejected")
+    Expect "C3 settled run (5 units, 2 reserved/Completed, 1 rejected) -> checks 1-5 and 7 PASS" (Run C3 "val-c3-good" 5) 0 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "PASS"; "7." = "PASS" }
     $c3p = [guid]::NewGuid().ToString()
     C2 "val-c3-outstanding" 4 @($c3p) @{ $c3p = "Processing" }
     $runC3out = Run C3 "val-c3-outstanding" 5
@@ -111,7 +128,7 @@ try {
     C2 "val-c3-invalid" 5 @() @{ $c3x = "Bogus" }
     Expect "C3 order in an unexpected state -> check 5 FAIL and exit 1" (Run C3 "val-c3-invalid" 5) 1 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "FAIL" }
 
-    # ---------------- Week 14 P1: run isolation (0b) ----------------
+    # ---------------- Week 14 P1: run isolation (0b), history (7), parameters ----------------
     $isoNow = (Get-Date).ToUniversalTime()
     $isoNowStr = $isoNow.ToString("o")
     $isoEarlierStr = $isoNow.AddHours(-2).ToString("o")
@@ -121,6 +138,7 @@ try {
     Sql "INSERT INTO order_service.orders (`"Id`",`"IdempotencyKey`",`"ProductId`",`"Quantity`",`"State`",`"RequestAcceptedAt`",`"CorrelationId`") VALUES ('$isoC2','$isoC2','val-c2-iso',1,'Completed',timestamp '$($isoNow.AddHours(-1).ToString('yyyy-MM-dd HH:mm:ss.ffffff'))','verify-validator');"
     Redis @("SET", "inventory:val-c2-iso", "0")
     Redis @("SADD", "processed:val-c2-iso", $isoC2)
+    StatusHistory $isoC2 @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
     Expect "C2 run isolation: order 1h before -RunStartUtc -> 0b INCONCLUSIVE" (Run C2 "val-c2-iso" 1 $isoNowStr) 1 @{ "0b." = "INCONCLUSIVE" }
     Expect "C2 run isolation: -RunStartUtc an hour before that order -> 0b PASS" (Run C2 "val-c2-iso" 1 $isoEarlierStr) 0 @{ "0b." = "PASS" }
 
@@ -129,6 +147,38 @@ try {
     Expect "C1 run isolation: row 1h before -RunStartUtc -> 0b INCONCLUSIVE" (Run C1 "val-c1-iso" 2 $isoNowStr) 1 @{ "0b." = "INCONCLUSIVE" }
     Expect "C1 run isolation: -RunStartUtc an hour before that row -> 0b PASS" (Run C1 "val-c1-iso" 2 $isoEarlierStr) 0 @{ "0b." = "PASS" }
 
+    # History completeness and the three failure shapes.
+    $hg = [guid]::NewGuid().ToString()
+    C2 "val-c2-history" 0 @($hg) @{ $hg = "Completed" }
+    StatusHistory $hg @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    Expect "history complete: settled C2 with a full chain -> check 7 PASS" (Run C2 "val-c2-history" 1) 0 @{ "7." = "PASS" }
+
+    $hm = [guid]::NewGuid().ToString()
+    C2 "val-c2-history-missing" 0 @($hm) @{ $hm = "Completed" }
+    Expect "history missing: an order with no history rows -> check 7 FAIL" (Run C2 "val-c2-history-missing" 1) 1 @{ "7." = "FAIL" }
+
+    $hb = [guid]::NewGuid().ToString()
+    C2 "val-c2-history-broken" 0 @($hb) @{ $hb = "Completed" }
+    StatusHistory $hb @("->PendingStock","Confirmed->Completed")
+    Expect "history broken chain: PendingStock jumps to Completed (bridge row missing) -> check 7 FAIL" (Run C2 "val-c2-history-broken" 1) 1 @{ "7." = "FAIL" }
+
+    $hf = [guid]::NewGuid().ToString()
+    C2 "val-c2-history-first" 0 @($hf) @{ $hf = "Completed" }
+    StatusHistory $hf @("PendingStock->Confirmed","Confirmed->Processing","Processing->Completed")
+    Expect "history first row is not the creation row (NULL -> PendingStock) -> check 7 FAIL" (Run C2 "val-c2-history-first" 1) 1 @{ "7." = "FAIL" }
+
+    $hd = [guid]::NewGuid().ToString()
+    C2 "val-c2-history-last" 0 @($hd) @{ $hd = "Completed" }
+    StatusHistory $hd @("->PendingStock","PendingStock->Confirmed","Confirmed->Processing")
+    Expect "history last row differs from the state -> check 7 FAIL" (Run C2 "val-c2-history-last" 1) 1 @{ "7." = "FAIL" }
+
+    # Missing parameters and a bad run time.
+    $noParams = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
+    $noParamsCode = $LASTEXITCODE
+    Check "missing parameters: no -ProductId/-InitialStock/-Products -> exit non-zero, no 'all checks hold'" ($noParamsCode -ne 0 -and $noParams -notmatch "all checks hold") "exit $noParamsCode"
+    $pidOnly = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -ProductId val-no-stock -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
+    $pidOnlyCode = $LASTEXITCODE
+    Check "missing parameters: -ProductId without -InitialStock -> exit non-zero, no 'all checks hold'" ($pidOnlyCode -ne 0 -and $pidOnly -notmatch "all checks hold") "exit $pidOnlyCode"
     $badTime = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -ProductId val-x -InitialStock 5 -RunStartUtc "not-a-time" -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
     $badTimeCode = $LASTEXITCODE
     Check "bad -RunStartUtc 'not-a-time' -> exit 2" ($badTimeCode -eq 2) "exit $badTimeCode"
@@ -140,7 +190,7 @@ try {
 }
 catch { Check "unexpected error: $($_.Exception.Message)" $false }
 finally {
-    Sql "DELETE FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'; DELETE FROM order_service.baseline_orders WHERE product_id LIKE 'val-%'; DELETE FROM order_service.inventory WHERE product_id LIKE 'val-%';"
+    Sql "DELETE FROM order_service.order_status_history WHERE `"OrderId`" IN (SELECT `"Id`" FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'); DELETE FROM order_service.orders WHERE `"CorrelationId`" = 'verify-validator'; DELETE FROM order_service.baseline_orders WHERE product_id LIKE 'val-%'; DELETE FROM order_service.inventory WHERE product_id LIKE 'val-%';"
     docker rm -f $redis *> $null
 }
 Write-Host ""

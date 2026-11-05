@@ -42,3 +42,20 @@ gives PASS. A value that does not parse as a UTC time exits 2. Without the
 parameter there is no check 0b. `scripts/run-matrix.ps1` passes the
 `started_utc` of every run, taken before the reset, so each official run is
 checked against its own data only (TP-X10).
+
+## Status history (check 7, Week 14)
+
+For C2 to C4, check `7. status history complete` reads
+`order_service.order_status_history` for every order of the product, ordered
+by `Seq`. It is PASS only if every order has at least one row, the first row
+is the creation row (`FromState` NULL, `ToState` `PendingStock`), each later
+row starts where the previous one ended, and the last row ends at the order's
+current `State`. Otherwise it is FAIL and lists up to five order ids with the
+rule each broke (`no-history`, `first-row`, `broken-chain`, `last-state`).
+C1 has no history table and no check 7.
+
+## Missing parameters
+
+With neither `-Products` nor both `-ProductId` and `-InitialStock`, the
+validator exits 2 before reading any data and never prints
+`all checks hold` (TP-X11).
