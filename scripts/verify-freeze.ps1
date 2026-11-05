@@ -7,9 +7,12 @@
 #   powershell -File .\scripts\verify-freeze.ps1
 #   powershell -File .\scripts\verify-freeze.ps1 -Manifest <copy.md>   (negative controls)
 #
-# Check 1 (frozen commit is the parent of the commit that added the manifest) needs the manifest to
-# be committed; before that it reports NOT APPLICABLE, never PASS, and the
-# script exits non-zero.
+# Check 1 (the frozen commit is the parent of the commit that first wrote its
+# SHA into the manifest) needs that manifest change to be committed; before
+# that it reports NOT APPLICABLE, never PASS, and the script exits non-zero.
+# Re-freezing (moving the frozen commit) therefore works the same way as the
+# first freeze: the manifest change that names the new commit must sit
+# directly on top of it.
 # ============================================================
 param([string]$Manifest = "")
 $ErrorActionPreference = "Continue"
@@ -61,13 +64,15 @@ Check "1: frozen commit is a full 40-hex SHA" ($sha -ne "") "cell='$frozen'"
 & git -C $root cat-file -e "$sha^{commit}" 2>$null
 Check "1: frozen commit exists in this repository" ($LASTEXITCODE -eq 0 -and $sha) "sha=$sha"
 $mrel = (Resolve-Path -LiteralPath $Manifest).Path.Substring($root.Length + 1) -replace '\\', '/'
-# The commit that first added the manifest; later fixes to the manifest keep it.
-$parent = (@(git -C $root log --diff-filter=A --format=%P -- $mrel 2>$null) | Select-Object -Last 1 | Out-String).Trim()
+# The commit that first wrote this SHA into the manifest (the oldest commit whose
+# diff adds or removes the string); later fixes to the manifest keep it.
+$parent = ""
+if ($sha) { $parent = (@(git -C $root log -S $sha --format=%P -- $mrel 2>$null) | Select-Object -Last 1 | Out-String).Trim() }
 if (-not $parent) {
     $notApplicable++
-    Write-Output "NOT APPLICABLE  1: frozen commit is the parent of the commit that adds the manifest -- $mrel is not committed yet"
+    Write-Output "NOT APPLICABLE  1: frozen commit is the parent of the commit that names it in the manifest -- no committed $mrel names it yet"
 } else {
-    Check "1: frozen commit is the parent of the commit that added the manifest" (($parent -split ' ')[0] -eq $sha) "parent=$parent frozen=$sha"
+    Check "1: frozen commit is the parent of the commit that first named it in the manifest" (($parent -split ' ')[0] -eq $sha) "parent=$parent frozen=$sha"
 }
 if ($sha) {
     $changed = @(git -C $root diff --name-only $sha HEAD 2>$null | Where-Object { $_ -match '^(src|infra|tests/jmeter|scripts)/' -and $_ -ne 'scripts/verify-freeze.ps1' })

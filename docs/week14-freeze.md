@@ -9,11 +9,32 @@ not valid until one of them is corrected.
 The owner signed off the run values on 4 November 2026, after the EC2
 confirmation (`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`).
 
+**Re-frozen on 5 November 2026 at `9d00bea`; the owner's re-sign is pending.**
+The first freeze was at `9ff2e1a`. Between the two commits only scripts, test
+evidence, documentation and the report changed. Nothing under `src/`, `infra/`
+or `tests/jmeter/` changed, and no Week 14 value in sections 2 to 7 changed
+(every value below is the same as at `9ff2e1a`, and the six Terraform hashes
+are unchanged). The script changes are:
+
+- `validate-correctness.ps1`: check 0b (run isolation: data from before the
+  run start makes the run INCONCLUSIVE) and check 7 (every C2 to C4 order has a
+  complete status history ending at its state); missing product parameters
+  never pass (TP-X10, TP-X11).
+- `run-matrix.ps1`: passes each run's start time to the validator. No default
+  changed.
+- `extract-run-metrics.ps1`: service gauges are summed across C4 replicas,
+  ignoring the collector's `instance=` label. Before, the extractor's drain was
+  "unavailable" whenever Inventory metrics URLs were given, and the recovery
+  backlog read one replica only (TP-X12).
+- The verifiers `verify-validator.ps1`, `verify-extract.ps1` and
+  `verify-freeze.ps1` (check 1 now finds the commit that first names the frozen
+  SHA, so a re-freeze is checked the same way as the first freeze).
+
 ## 1. Source
 
 | Item | Value |
 | --- | --- |
-| Frozen source commit | `9ff2e1a5d8c694d44802f1f783dc1778e515b795` (the parent of the commit that adds this file) |
+| Frozen source commit | `9d00beafdef229418112abce26a48899e4b04ba8` (the parent of the commit that first names it in this file) |
 | Branch | `main-test-bug-fix` |
 
 Only documentation and evidence may change after this commit for the official
@@ -149,4 +170,9 @@ therefore comes from timing on the hosts, not from the plan.
 | Dead letters | Reset-aware increase of `flashsale_consumer_dead_lettered_total` only, so each dead letter counts once | `extract-run-metrics.ps1`, `counters.dead_lettered` |
 | Duplicates | Reset-aware increase of `flashsale_consumer_duplicates_total` | `extract-run-metrics.ps1`, `counters.duplicates` |
 | Reconciliations | Reset-aware increase of `flashsale_reconciliation_retriggers_total` plus `flashsale_reconciliation_given_up_total` | `extract-run-metrics.ps1`, `counters.reconciliation` |
-| Correctness | `validate-correctness.ps1` exit 0, checks 1 to 6 | per run, `validator.log` |
+| Correctness | `validate-correctness.ps1` exit 0: check 0b (run isolation), checks 1 to 6 and check 7 (status history complete, C2 to C4) | per run, `validator.log` |
+
+The extractor values above (`extract-run-metrics.ps1`) sum each service gauge
+across replicas at every sample time, so a C4 run with 2 or 4 Inventory
+consumers is measured as one service. With one replica the value is the same
+as before.
