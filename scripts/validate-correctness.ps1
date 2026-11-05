@@ -12,6 +12,8 @@
 #   exits non-zero if any product fails.
 #   -RabbitMqContainer <rabbit> adds check 6 for C1 and C2: the C3 queue bound must
 #   not be on the broker, or the run was not the configuration it claims to be.
+#   -RunStartUtc <utc> adds check 0b (run isolation) per product: rows written
+#   before the run started make the run INCONCLUSIVE.
 #
 # Statuses: PASS, FAIL, INCONCLUSIVE (run not settled / data missing),
 # NOT APPLICABLE (with the reason; only C1 invariant 4, which has no
@@ -26,7 +28,8 @@ param(
     [hashtable]$Products = $null,
     [string]$PgContainer = "infra-postgres-1",
     [string]$RedisContainer = "infra-redis-1",
-    [string]$RabbitMqContainer = ""
+    [string]$RabbitMqContainer = "",
+    [string]$RunStartUtc = ""
 )
 # Continue: native stderr must not become a terminating error (PS 5.1); every
 # call is checked explicitly instead.
@@ -47,6 +50,22 @@ if ($Products -and $Products.Count -gt 0) {
 }
 foreach ($prod in $productsToCheck) {
     if ("$($prod.Id)" -notmatch '^[A-Za-z0-9_-]+$') { Write-Host "Invalid product id '$($prod.Id)'" -ForegroundColor Red; exit 2 }
+}
+
+# Optional run filter (Week 14 P1): -RunStartUtc marks when this run started, so
+# any row written before it is data from an earlier run and makes the run
+# INCONCLUSIVE (check 0b). Parsed as UTC with AdjustToUniversal+AssumeUniversal
+# (Part E pitfall: [DateTime]::Parse("...Z") alone returns local time).
+$hasRunStart = -not [string]::IsNullOrWhiteSpace($RunStartUtc)
+$runStart = [DateTime]::MinValue
+if ($hasRunStart) {
+    $ok = [DateTime]::TryParse($RunStartUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]'AdjustToUniversal, AssumeUniversal', [ref]$runStart)
+    if (-not $ok) {
+        Write-Host "Invalid -RunStartUtc '$RunStartUtc': expected a UTC time such as 2026-11-05T03:28:50Z." -ForegroundColor Red
+        exit 2
+    }
+    $runStartTs = $runStart.ToString("yyyy-MM-dd HH:mm:ss.fffffff")   # naive UTC, for `timestamp without time zone` columns
+    $runStartTz = $runStart.ToString("o")                              # ISO 8601 with Z, for `timestamptz` columns
 }
 
 function Sql([string]$sql) {
@@ -77,6 +96,11 @@ foreach ($prod in $productsToCheck) {
         $confirmed = Int1 (Sql "SELECT count(*) FROM order_service.baseline_orders WHERE config = 'C1' AND product_id = '$ProductId' AND result = 'Confirmed';")
         $decisions = Int1 (Sql "SELECT count(*) FROM order_service.baseline_orders WHERE config = 'C1' AND product_id = '$ProductId';")
         if ($decisions -eq 0) { Add-Result "0. run has data" "INCONCLUSIVE" "no C1 decisions recorded for '$ProductId'" }
+        if ($hasRunStart) {
+            $before = Int1 (Sql "SELECT count(*) FROM order_service.baseline_orders WHERE config = 'C1' AND product_id = '$ProductId' AND created_at < '$runStartTz'::timestamptz;")
+            if ($before -gt 0) { Add-Result "0b. run isolation" "INCONCLUSIVE" "$before row(s) are data from before this run" }
+            else { Add-Result "0b. run isolation" "PASS" "no data before this run" }
+        }
 
         if ($stock -ge 0) { Add-Result "1. available_inventory >= 0" "PASS" "stock $stock" } else { Add-Result "1. available_inventory >= 0" "FAIL" "stock $stock (oversold)" }
         if ($confirmed -le $InitialStock) { Add-Result "2. successful_reservations <= initial" "PASS" "$confirmed <= $InitialStock" } else { Add-Result "2. successful_reservations <= initial" "FAIL" "$confirmed Confirmed > $InitialStock initial" }
@@ -100,6 +124,11 @@ foreach ($prod in $productsToCheck) {
         $pending = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"State`" = 'PendingStock';")
         $total = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId';")
         if ($total -eq 0) { Add-Result "0. run has data" "INCONCLUSIVE" "no orders for '$ProductId'" }
+        if ($hasRunStart) {
+            $before = Int1 (Sql "SELECT count(*) FROM order_service.orders WHERE `"ProductId`" = '$ProductId' AND `"RequestAcceptedAt`" < '$runStartTs'::timestamp;")
+            if ($before -gt 0) { Add-Result "0b. run isolation" "INCONCLUSIVE" "$before row(s) are data from before this run" }
+            else { Add-Result "0b. run isolation" "PASS" "no data before this run" }
+        }
 
         if ($stock -ge 0) { Add-Result "1. available_inventory >= 0" "PASS" "stock $stock" } else { Add-Result "1. available_inventory >= 0" "FAIL" "stock $stock (oversold)" }
         if ($reservedCount -le $InitialStock -and $success.Count -le $InitialStock) { Add-Result "2. successful_reservations <= initial" "PASS" "Redis reservations $reservedCount, successful orders $($success.Count), initial $InitialStock" }

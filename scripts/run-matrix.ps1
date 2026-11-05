@@ -64,7 +64,8 @@ param(
     [string]$Config = "",
     [int]$ReplicaCount = 1,
     [string]$RunId = "",
-    [string]$RunDir = ""
+    [string]$RunDir = "",
+    [string]$RunStartUtc = ""
 )
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -212,7 +213,7 @@ function Step-Post {
 
     $validatorLog = Join-Path $RunDir "validator.log"
     & (Join-Path $PSScriptRoot "validate-correctness.ps1") -Config $Config -ProductId $Product -InitialStock $Stock `
-        -PgContainer $pg -RedisContainer $redis -RabbitMqContainer $rabbit *>&1 | ForEach-Object { "$_" } | Set-Content -LiteralPath $validatorLog -Encoding UTF8
+        -PgContainer $pg -RedisContainer $redis -RabbitMqContainer $rabbit -RunStartUtc $RunStartUtc *>&1 | ForEach-Object { "$_" } | Set-Content -LiteralPath $validatorLog -Encoding UTF8
     $validatorExit = $LASTEXITCODE
 
     if ($Config -eq "C1") {
@@ -400,7 +401,7 @@ foreach ($cell in $cells) {
             $manifest["jmeter_exit"] = $jmExit
             $manifest["load"] = $stats
             # Always stop the collector, whatever the load did.
-            $post = Invoke-BackendStep "post" @{ Config = $cell.Config; RunDir = $hostDir; Stock = $Stock; DrainTimeoutSeconds = $DrainTimeoutSeconds } ($DrainTimeoutSeconds + 300)
+            $post = Invoke-BackendStep "post" @{ Config = $cell.Config; RunDir = $hostDir; Stock = $Stock; DrainTimeoutSeconds = $DrainTimeoutSeconds; RunStartUtc = $manifest["started_utc"] } ($DrainTimeoutSeconds + 300)
             $manifest["post"] = Json-After $post.Output "POST"
             $sent2xx = $(if ($null -ne $stats) { [int]$stats.submissions_2xx } else { -1 })
             if ($jmExit -ne 0 -or $null -eq $stats -or [int]$stats.submissions -le 0) { $manifest["failed_step"] = "load" }

@@ -31,3 +31,14 @@ So a run that double-deducted stock passed. Demonstrated on a fixture where 3 un
 | SETUP ERROR | database/Redis unreachable, key or row missing, query failed | 1 |
 
 Nothing that was not actually checked is ever reported as PASS.
+
+## Run isolation (check 0b, Week 14)
+
+`-RunStartUtc <utc>` names the moment the run started. For each product the
+validator then counts rows written before it: C1 `baseline_orders.created_at`,
+C2 to C4 `orders."RequestAcceptedAt"`. Any such row is data from an earlier
+run, so check `0b. run isolation` is INCONCLUSIVE and the exit is 1; none
+gives PASS. A value that does not parse as a UTC time exits 2. Without the
+parameter there is no check 0b. `scripts/run-matrix.ps1` passes the
+`started_utc` of every run, taken before the reset, so each official run is
+checked against its own data only (TP-X10).

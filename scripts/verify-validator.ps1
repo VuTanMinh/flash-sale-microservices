@@ -22,8 +22,11 @@ function Redis([string[]]$a) { docker exec $redis redis-cli @a *> $null }
 function Order([string]$product, [string]$id, [string]$state) {
     "INSERT INTO order_service.orders (`"Id`",`"IdempotencyKey`",`"ProductId`",`"Quantity`",`"State`",`"RequestAcceptedAt`",`"CorrelationId`") VALUES ('$id','$id','$product',1,'$state',now() at time zone 'utc','verify-validator');"
 }
-function Run([string]$config, [string]$product, [int]$initial) {
-    $out = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config $config -ProductId $product -InitialStock $initial -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
+function Run([string]$config, [string]$product, [int]$initial, [string]$runStartUtc = "") {
+    # Hashtable splatting: an array splat passes "-Config" as a positional value.
+    $runArgs = @{ Config = $config; ProductId = $product; InitialStock = $initial; PgContainer = $Container; RedisContainer = $redis }
+    if (-not [string]::IsNullOrWhiteSpace($runStartUtc)) { $runArgs["RunStartUtc"] = $runStartUtc }
+    $out = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") @runArgs *>&1 | Out-String
     return [pscustomobject]@{ Code = $LASTEXITCODE; Text = $out }
 }
 # Rows are: Product, Invariant, Status, Detail.
@@ -107,6 +110,28 @@ try {
     $c3x = [guid]::NewGuid().ToString()
     C2 "val-c3-invalid" 5 @() @{ $c3x = "Bogus" }
     Expect "C3 order in an unexpected state -> check 5 FAIL and exit 1" (Run C3 "val-c3-invalid" 5) 1 @{ "1." = "PASS"; "2." = "PASS"; "3." = "PASS"; "4." = "PASS"; "5." = "FAIL" }
+
+    # ---------------- Week 14 P1: run isolation (0b) ----------------
+    $isoNow = (Get-Date).ToUniversalTime()
+    $isoNowStr = $isoNow.ToString("o")
+    $isoEarlierStr = $isoNow.AddHours(-2).ToString("o")
+
+    # C2 run isolation: one order accepted one hour before the run start.
+    $isoC2 = [guid]::NewGuid().ToString()
+    Sql "INSERT INTO order_service.orders (`"Id`",`"IdempotencyKey`",`"ProductId`",`"Quantity`",`"State`",`"RequestAcceptedAt`",`"CorrelationId`") VALUES ('$isoC2','$isoC2','val-c2-iso',1,'Completed',timestamp '$($isoNow.AddHours(-1).ToString('yyyy-MM-dd HH:mm:ss.ffffff'))','verify-validator');"
+    Redis @("SET", "inventory:val-c2-iso", "0")
+    Redis @("SADD", "processed:val-c2-iso", $isoC2)
+    Expect "C2 run isolation: order 1h before -RunStartUtc -> 0b INCONCLUSIVE" (Run C2 "val-c2-iso" 1 $isoNowStr) 1 @{ "0b." = "INCONCLUSIVE" }
+    Expect "C2 run isolation: -RunStartUtc an hour before that order -> 0b PASS" (Run C2 "val-c2-iso" 1 $isoEarlierStr) 0 @{ "0b." = "PASS" }
+
+    # C1 run isolation: one baseline_orders row one hour before the run start.
+    Sql "INSERT INTO order_service.inventory VALUES ('val-c1-iso', 1); INSERT INTO order_service.baseline_orders (config, product_id, result, created_at) VALUES ('C1','val-c1-iso','Confirmed', timestamptz '$($isoNow.AddHours(-1).ToString('o'))');"
+    Expect "C1 run isolation: row 1h before -RunStartUtc -> 0b INCONCLUSIVE" (Run C1 "val-c1-iso" 2 $isoNowStr) 1 @{ "0b." = "INCONCLUSIVE" }
+    Expect "C1 run isolation: -RunStartUtc an hour before that row -> 0b PASS" (Run C1 "val-c1-iso" 2 $isoEarlierStr) 0 @{ "0b." = "PASS" }
+
+    $badTime = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C2 -ProductId val-x -InitialStock 5 -RunStartUtc "not-a-time" -PgContainer $Container -RedisContainer $redis *>&1 | Out-String
+    $badTimeCode = $LASTEXITCODE
+    Check "bad -RunStartUtc 'not-a-time' -> exit 2" ($badTimeCode -eq 2) "exit $badTimeCode"
 
     $saved = $Container; $Container = "no-such-container"
     $r = & (Join-Path $repoRoot "scripts\validate-correctness.ps1") -Config C1 -ProductId val-c1-good -InitialStock 5 -PgContainer "no-such-container" -RedisContainer $redis *>&1 | Out-String

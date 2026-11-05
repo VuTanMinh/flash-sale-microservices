@@ -1,0 +1,9 @@
+TP-X10 negative controls: each control copies the scripts, breaks one rule in validate-correctness.ps1 and runs verify-validator.ps1; the case for that rule must fail.
+
+== control isolation-check-always-pass: verify-validator exit 1; expected failing case 'run isolation: order 1h before' failed: True
+   FAIL  C2 run isolation: order 1h before -RunStartUtc -> 0b INCONCLUSIVE -- exit 0; '0b.' = 'PASS' (expected INCONCLUSIVE)
+   FAIL  C1 run isolation: row 1h before -RunStartUtc -> 0b INCONCLUSIVE -- exit 0; '0b.' = 'PASS' (expected INCONCLUSIVE)
+== control bad-run-time-accepted: verify-validator exit 1; expected failing case 'bad -RunStartUtc' failed: True
+   FAIL  bad -RunStartUtc 'not-a-time' -> exit 2 -- exit 1
+
+Both controls failed their own cases.
