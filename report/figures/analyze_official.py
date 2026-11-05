@@ -181,8 +181,16 @@ for rep in ("rep1", "rep2", "rep3"):
                     ob[t] += v
                 elif row["name"] == "flashsale_process_worker_dead_lettered_total":
                     wdl.append(v)
-                elif row["name"] in ("messages_ready", "messages_unacknowledged") and "queue=OrderPlaced" == row["labels"]:
-                    series["orderplaced"][t] = series["orderplaced"].get(t, 0) + v
+                elif row["name"] in ("messages_ready", "messages_unacknowledged") and row["labels"].startswith("queue="):
+                    q = row["labels"][6:]
+                    if q == "OrderPlaced":
+                        series["orderplaced"][t] = series["orderplaced"].get(t, 0) + v
+                    if not q.endswith(".dlq") and ".retry." not in q:
+                        series["mainqueues"][t] = series["mainqueues"].get(t, 0) + v
+                elif row["name"] == "flashsale_orders_accepted_total":
+                    series["acc"][t] = series["acc"].get(t, 0) + v
+                elif row["name"] == "flashsale_orders_outcome_total" and re.search(r'outcome="?(Completed|Rejected)"?(;|$)', row["labels"]):
+                    series["done"][t] = series["done"].get(t, 0) + v
                 elif row["name"] == "cpu_percent":
                     series["cpu"][t] = v
                     tt = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000
@@ -194,6 +202,29 @@ for rep in ("rep1", "rep2", "rep3"):
         r["worker_dead_lettered"] = (max(wdl) - min(wdl)) if wdl else None
         r["_outbox"] = dict(ob)
         r["_series"] = series
+        # after the load: every sample as seconds since the last submission; unfinished
+        # orders = accepted - (completed + rejected), both counted from the run's first sample
+        end = m["load"]["last_ms"] / 1000.0
+        ts = sorted(set(series["acc"]) & set(series["done"]))
+        rec = []
+        if ts:
+            a0, d0 = series["acc"][ts[0]], series["done"][ts[0]]
+            for t in sorted(set(ts) | set(ob) | set(series["mainqueues"])):
+                x = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() - end
+                unf = (series["acc"][t] - a0) - (series["done"][t] - d0) if t in series["acc"] and t in series["done"] else None
+                rec.append((x, unf, ob.get(t), series["mainqueues"].get(t)))
+        r["_recovery"] = rec
+        at_end = [p for p in rec if p[0] <= 0]
+        last = at_end[-1] if at_end else (None, None, None, None)
+        r["unfinished_at_end"], r["outbox_at_end"], r["queues_at_end"] = last[1], last[2], last[3]
+        after = [p for p in rec if p[0] > 0]
+        r["queues_peak_after"] = max((p[3] for p in after if p[3] is not None), default=None)
+        # seconds after the load until unfinished orders first fall to 1 % of their count at the end
+        r["backlog_1pct_s"] = None
+        if r["unfinished_at_end"]:
+            hit = [p[0] for p in after if p[1] is not None and p[1] <= 0.01 * r["unfinished_at_end"]]
+            r["backlog_1pct_s"] = min(hit) if hit else None
+        r["waited_reconciliation"] = bool((r.get("dead_lettered") or 0) > 0 and r["drain_s"] > 200)
         r["_jtl"] = os.path.join(tmp, rep, "jtl", rid, "raw.jtl")
         runs.append(r)
 
@@ -204,6 +235,7 @@ FIELDS = ["achieved", "accepted", "completed", "completed_per_s", "drain_s", "ap
           "dec_p50", "dec_p95", "dec_p99", "comp_p50", "comp_p95", "comp_p99", "overload_pct", "error_pct",
           "reserved_pct", "stock_rej_pct", "retries", "duplicates", "dead_lettered", "worker_dead_lettered", "reconciliation",
           "outbox_peak", "peak_queue", "oldest_s", "cpu_mean", "cpu_load_mean", "accepted_per_s", "cpu_peak", "mem_mean_gb", "mem_peak_gb",
+          "unfinished_at_end", "outbox_at_end", "queues_at_end", "queues_peak_after", "backlog_1pct_s",
           "db_conn_mean", "db_conn_peak", "redis_ms"] + \
          [f"{st}_{q}" for st in ("accepted_to_published", "published_to_decided", "decided_to_applied", "applied_to_completed", "accepted_to_completed") for q in ("p50", "p95", "p99", "neg")]
 cells = defaultdict(list)
@@ -448,4 +480,48 @@ for col_i, key in enumerate(picks):
     style(ax)
     ax.legend(frameon=False, loc="upper right")
 save(fig, "fig-timeline")
+# 4. recovery after overload: the 200 and 400/s cells of C2 to C4 (every one offers
+#    more than the backend completes, about 50-66 orders/s). Time to stable is the
+#    matrix drain (the freeze's Drain definition). A run whose orders wait for the
+#    300 s reconciliation of Confirmed/Processing orders is marked.
+rec_keys = [k for k in order if k[0] != "C1" and k[2] in (200, 400)]
+lines = [r"\begin{tabular}{llrrrrrl}", r"\toprule",
+         r"Config. & Rate & Unfinished & Outbox & Queues & 99\,\% done (s) & Stable (s) & Reconc. \\", r"\midrule"]
+prev = None
+for k in rec_keys:
+    if prev and (k[0], k[1]) != (prev[0], prev[1]):
+        lines.append(r"\addlinespace[2pt]")
+    c = cellrows[k]
+    w = sum(1 for r in cells[k] if r["waited_reconciliation"])
+    lines.append(f"{cellname(k)} & {fmt(c, 'unfinished_at_end')} & {fmt(c, 'outbox_at_end')} & {fmt(c, 'queues_peak_after')} & {fmt(c, 'backlog_1pct_s')} & {fmt(c, 'drain_s')} & {w}/{len(cells[k])} \\\\")
+    prev = k
+lines += [r"\bottomrule", r"\end{tabular}"]
+open(os.path.join(out, "tab-recovery.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+
+panels = [("unfinished", 1, "Unfinished orders"), ("outbox", 2, "Unpublished Outbox rows"), ("queues", 3, "Messages in main queues")]
+fig, axes = plt.subplots(len(rec_keys), 3, figsize=(7.4, 1.18 * len(rec_keys) + 0.8), sharex=True, sharey="col")
+rep_cols = {1: "#2a78d6", 2: "#eb6834", 3: "#1baf7a"}
+for j, k in enumerate(rec_keys):
+    for r in sorted(cells[k], key=lambda x: x["rep"]):
+        pts = [p for p in r["_recovery"] if -5 <= p[0] <= 360]
+        for i, (_, idx, _) in enumerate(panels):
+            xs = [p[0] for p in pts if p[idx] is not None]
+            ys = [p[idx] for p in pts if p[idx] is not None]
+            axes[j][i].plot(xs, ys, color=rep_cols[r["rep"]], linewidth=1.2,
+                            linestyle="--" if r["waited_reconciliation"] else "-")
+    axes[j][0].set_ylabel(f"{label(k[0], k[1])}\n{k[2]}/s", fontsize=8, rotation=0, ha="right", va="center")
+    for i in range(3):
+        style(axes[j][i])
+        axes[j][i].axvline(300, color="#c3c2b7", linewidth=0.8, linestyle=":")
+        axes[j][i].tick_params(labelsize=7)
+for i, (_, _, nm) in enumerate(panels):
+    axes[0][i].set_title(nm, fontsize=9)
+    axes[-1][i].set_xlabel("seconds after the load", fontsize=8)
+from matplotlib.lines import Line2D
+handles = [Line2D([0], [0], color=rep_cols[n], linewidth=1.6, label=f"repeat {n}") for n in (1, 2, 3)] + \
+          [Line2D([0], [0], color="#5c5b56", linewidth=1.6, linestyle="--", label="waited for the 300 s reconciliation"),
+           Line2D([0], [0], color="#c3c2b7", linewidth=1, linestyle=":", label="300 s after the load")]
+fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.01), fontsize=8)
+fig.tight_layout(rect=(0, 0.045, 1, 1))
+save(fig, "fig-recovery")
 print("runs", len(runs), "cells", len(cellrows), "->", out)

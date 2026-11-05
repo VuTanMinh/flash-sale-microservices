@@ -4106,10 +4106,69 @@ and only then completes. Every accepted order still reached a terminal state
 and every validator passed, so this is a slow path, not a lost order. It is a
 direct cost of combining a bounded queue with bounded retries.
 
-Recovery after an overload phase is not part of this matrix: every run is
-steady load. It was measured with the overload-and-recovery profile in
-Week~12 (TP-L04, Section~\ref{sec:load-shedding}) and on the EC2 stack in
-Week~13 (TP-X04, Section~\ref{sec:profiles}).
+\paragraph{Recovery after overload.} Every run at 200 and 400/s is an
+overload: it offers more than the backend completes (about 50--66 orders a
+second, Table~\ref{tab:results-throughput}). When the 60\,s load ends, the
+backlog it left behind has to be worked off. Table~\ref{tab:results-recovery}
+and Figure~\ref{fig:results-recovery} follow that backlog in the collector's
+samples, which keep running until the drain check passes. Unfinished orders
+are the orders accepted during the run minus those completed or rejected,
+from the Order Service counters.
+
+Without load shedding, C2 at 200/s ends the load with about 9,800 unfinished
+orders and 8,200 unpublished Outbox rows; the Outbox empties within about
+30\,s, the queues fill and drain behind it, and 99\,\% of the orders are done
+after 124\,s. With the C3 limits the system ends the load with only about
+3,000--3,700 unfinished orders, and 99\,\% of them are done after 36--51\,s
+in every C3 and C4 cell. The number of Inventory consumers makes no
+difference to how fast it recovers.
+
+The stable point, where the matrix's drain check passes, is later in most C3
+and C4 runs: about 300--330\,s. The remaining orders are the handful whose
+\texttt{StockReserved} message the Process Worker dead-lettered (3--27 per
+run, Table~\ref{tab:results-reliability}). They are too few to see on the
+figure's scale, and each waits for the reconciliation of
+\texttt{Confirmed} orders after the frozen 300\,s timeout. The last column of
+Table~\ref{tab:results-recovery} counts those runs. So recovery has two
+parts: the bulk of the backlog clears in under a minute with load shedding,
+and a short tail of dead-lettered orders then waits for reconciliation. No
+service restarted in any run, and every run ended with every accepted order
+in a terminal state.
+
+The Week~12 overload-and-recovery profile shows the same behaviour from the
+client's side: refusals during the overload, then full acceptance again and
+a backlog drained without a restart (TP-L04, Figure~\ref{fig:overload-timeline}
+in Section~\ref{sec:load-shedding}).
+
+\begin{table}[tbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\input{figures/official/tab-recovery.tex}
+\caption{Recovery after the overload cells (200 and 400/s). Unfinished, Outbox
+and Queues are the backlog when the load ends: unfinished orders, unpublished
+Outbox rows (Order Service plus every Inventory replica) and the peak of the
+messages summed over the main queues afterwards. 99\,\% done is the seconds
+from the last submission until unfinished orders first fall to 1\,\% of
+their count at the end, at the collector's 5\,s resolution. Stable is the
+matrix's drain time, whose clock starts when its post step begins, a few
+seconds after the last submission. Reconc. counts the runs with dead-lettered
+orders that waited for the 300\,s reconciliation. Cells: median of 3 runs
+(range).}
+\label{tab:results-recovery}
+\end{table}
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/official/fig-recovery.png}
+\caption{The backlog after each overload cell, one line per repeat, against
+seconds since the last submission: unfinished orders (from the Order Service
+counters), unpublished Outbox rows and messages in the main queues (from the
+collector's samples). A dashed line marks a run whose dead-lettered orders
+waited for the 300\,s reconciliation; those few orders do not show at this
+scale.}
+\label{fig:results-recovery}
+\end{figure}
 
 \begin{table}[tbp]
 \centering
