@@ -102,7 +102,7 @@
 % Marks a claim from an earlier manual run whose output was not saved in the
 % repository. Such claims are not evidence until the named test-plan case
 % (docs/test-plan.md) passes with committed evidence.
-\newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \texttt{docs/test-plan.md}.]}}
+\newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \nolinkurl{docs/test-plan.md}.]}}
 
 % fvextra's Verbatim (capital V) replaces every plain \begin{verbatim} in
 % this report -- some of its ~17 raw docker/psql/log excerpts contain single
@@ -140,6 +140,14 @@
 % and configures both (caption with its own styled small/bold/colored label
 % settings); loading either again with different options risks LaTeX's
 % "option clash" error for a package already loaded.
+
+% Long evidence paths in \nolinkurl may break after / - . _ and inside the
+% UTC timestamps (yyyymmddThhmmssZ), so none runs into the margin.
+\makeatletter
+\g@addto@macro{\UrlBreaks}{\do\-\do\.\do\_\do\T\do\Z\do\0\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9}
+\makeatother
+% Generated Results tables are capped at the text width.
+\usepackage{adjustbox}
 
 \hypersetup{
   colorlinks = true,
@@ -219,7 +227,7 @@ asynchronous design using RabbitMQ and an atomic Redis Lua reservation. It evalu
 correctness, request and completion latency, throughput, overload response, and the
 effect of running multiple consumers on one host. The research question, boundaries,
 and experiment controls are recorded in
-\texttt{docs/00-scope-lock.md} and \texttt{docs/experiment-protocol.md}.
+\nolinkurl{docs/00-scope-lock.md} and \nolinkurl{docs/experiment-protocol.md}.
 
 % ============================================================
 \chapter{Problem Statement}
@@ -247,7 +255,7 @@ faster or safer.
 \begin{enumerate}
   \item Compare C0 and C1 with the asynchronous C2 design under equivalent
     conditions; evaluate C3 overload controls and C4 same-host replica counts.
-  \item Check the inventory rules in \texttt{docs/inventory-invariants.md}, including
+  \item Check the inventory rules in \nolinkurl{docs/inventory-invariants.md}, including
     no negative stock, no oversell, one reservation per order, and no duplicate
     side effects on redelivery.
   \item Measure request acceptance and end-to-end completion separately, alongside
@@ -262,7 +270,7 @@ faster or safer.
 \chapter{Scope}
 % ============================================================
 
-See \texttt{docs/00-scope-lock.md} for the research question and scope. The system
+See \nolinkurl{docs/00-scope-lock.md} for the research question and scope. The system
 includes Order Service, Inventory Service, a deterministic Process Worker,
 PostgreSQL schemas owned by each service, Redis Lua stock reservation, RabbitMQ,
 and the Nginx, application and queue load-shedding controls of C3. The backend target
@@ -470,7 +478,7 @@ Command~\cite{aws-run-command}.
 \chapter{System Requirements}
 % ============================================================
 
-Requirements below follow the teacher brief (\texttt{docs/teacher-brief.md},
+Requirements below follow the teacher brief (\nolinkurl{docs/teacher-brief.md},
 §4) item by item. They state what the system must do; whether each is
 implemented and verified is reported in the chapter for the week that builds
 it, not assumed here.
@@ -524,7 +532,7 @@ it, not assumed here.
     inventory never goes negative; successful reservations never exceed the
     initial inventory; an order is reserved at most once; a duplicate message
     causes no duplicate side effect. Checked after each run by the four
-    invariants in \texttt{docs/inventory-invariants.md}; a failed or
+    invariants in \nolinkurl{docs/inventory-invariants.md}; a failed or
     inconclusive run is reported, never counted as a pass.
   \item \textbf{Performance.} Evaluate at several load levels. Every experiment
     records the EC2 configuration, virtual users and request rate, test
@@ -577,7 +585,7 @@ it, not assumed here.
     reservation-level duplicate set. \texttt{scripts/redis/\allowbreak reserve.lua} checks
     idempotency, checks stock, decrements and records the result atomically,
     in one script call, which Redis runs atomically~\cite{redis-lua,redis-eval}.
-    Accessed through \texttt{StackExchange.Redis}.
+    Accessed through \texttt{Stack\allowbreak Exchange.\allowbreak Redis}.
     RedisInsight (bundled with Redis Stack) is for inspection only.
   \item[RabbitMQ vs.\ Kafka] RabbitMQ fits this workload: routed queues per
     consumer, publisher confirms, bounded retry, dead-lettering and bounded
@@ -594,7 +602,7 @@ it, not assumed here.
   \item[Docker Compose] Runs PostgreSQL, Redis, RabbitMQ, Nginx and the
     monitoring stack identically on a developer machine and the EC2 host.
   \item[Terraform and AWS EC2] The brief requires the system under test on one
-    EC2 instance. Terraform (\texttt{infra/terraform/}) creates that host and a
+    EC2 instance. Terraform (\nolinkurl{infra/terraform/}) creates that host and a
     separate JMeter host reproducibly and removes them again
     (Section~\ref{sec:ec2-deployment})~\cite{terraform,aws-m7i}.
   \item[Apache JMeter] Simulates concurrent clients through the order and
@@ -608,12 +616,12 @@ it, not assumed here.
 
 \section{Local infrastructure (Docker Compose)}
 
-\texttt{infra/docker-compose.yml} defines the local data, broker, proxy, and
+\nolinkurl{infra/docker-compose.yml} defines the local data, broker, proxy, and
 monitoring containers. From the repository root, start them with
 \texttt{docker compose -f infra/docker-compose.yml up -d}:
 
 \begin{center}
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}p{2.6cm}p{5.6cm}p{5.2cm}@{}}
 \toprule
 Service & Image & Host ports \\
 \midrule
@@ -630,7 +638,7 @@ Grafana & \texttt{grafana/grafana:latest} & 3000 \\
 The .NET services currently run on the host; Prometheus reaches them through
 \texttt{host.docker.internal}. PostgreSQL's \texttt{flashsale} account is for local
 bootstrap only. Order Service and Inventory Service use separate local roles
-created by \texttt{infra/initdb/01-create-service-roles.sql}. These development
+created by \nolinkurl{infra/initdb/01-create-service-roles.sql}. These development
 passwords are not deployment secrets. Mutable image tags must be pinned before
 official experiments.
 
@@ -677,7 +685,7 @@ temporary databases. A 2026-10-13 audit found that the project's own local
 Compose database had never had the role script applied: it had no service
 accounts, and every table was owned by the admin account. The documented
 existing-database procedure was re-run on a copy (49/49), then applied to the
-real database after a backup. \texttt{scripts/verify-runtime-accounts.ps1}
+real database after a backup. \nolinkurl{scripts/verify-runtime-accounts.ps1}
 then starts all three services with their checked-in settings against the
 local Compose stack and places three orders, which all complete. While the
 services run, every Order Service database session belongs to
@@ -701,8 +709,8 @@ untracked setup checklist.
 \section{Entity-Relationship Diagram}
 The data model below is taken from the EF Core models and migrations, the
 raw baseline SQL and the role/schema initialisation script, not drawn by hand.
-\texttt{docs/erd.md} holds the same diagrams plus a machine-readable manifest,
-and \texttt{scripts/verify-erd.ps1} compares that manifest with a live
+\nolinkurl{docs/erd.md} holds the same diagrams plus a machine-readable manifest,
+and \nolinkurl{scripts/verify-erd.ps1} compares that manifest with a live
 database. On 2026-10-01 a database built from scratch (role initialisation,
 then both services' migrations, then the baseline schema) passed all 29 checks.
 
@@ -723,7 +731,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{figures/erd-order-service.png}
+  \includegraphics[width=0.92\textwidth]{figures/erd-order-service-stacked.png}
   \caption{\texttt{order\_service} schema (Order Service). The Outbox row
   references its order logically through \texttt{OrderId}. The Inbox
   (\texttt{processed\_messages}) is unique per broker \texttt{MessageId}.}
@@ -731,7 +739,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.75\textwidth]{figures/erd-inventory-service.png}
+  \includegraphics[width=0.72\textwidth]{figures/erd-inventory-service-stacked.png}
   \caption{\texttt{inventory\_service} schema (Inventory Service). It has both
   an Outbox, unique per \texttt{OrderId} so one order yields at most one stock
   result event, and an Inbox, unique per \texttt{MessageId}.}
@@ -739,7 +747,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.6\textwidth]{figures/erd-baseline.png}
+  \includegraphics[width=0.72\textwidth]{figures/erd-baseline-stacked.png}
   \caption{C0/C1 baseline tables (raw SQL, not EF-migrated). \texttt{stock}
   deliberately has no non-negative check so that C0 can demonstrate
   overselling.}
@@ -774,7 +782,7 @@ in \texttt{public}. Once Inventory Service connected with its own search path,
 it re-ran its migrations and failed with ``relation already exists''. The
 role script now moves Inventory's history rows into
 \texttt{inventory\_service}. Both the fresh and the existing-database paths
-are checked by \texttt{scripts/verify-environment.ps1}.
+are checked by \nolinkurl{scripts/verify-environment.ps1}.
 
 Since Week 11, the Order Service schema also holds
 \texttt{order\_status\_history}, the per-order transition history required by
@@ -787,8 +795,8 @@ order in which the rows were written, and every read of the history uses it.
 \label{sec:class-diagram}
 The domain and messaging classes below are taken from the source
 (\texttt{Entities/} in Order and Inventory Service and the shared
-\texttt{FlashSale.EventContracts} library; \texttt{docs/class-diagram.md}).
-\texttt{scripts/verify-design-alignment.ps1} checks that every class and
+\texttt{FlashSale.EventContracts} library; \nolinkurl{docs/class-diagram.md}).
+\nolinkurl{scripts/verify-design-alignment.ps1} checks that every class and
 property in the diagrams exists in code with the same type, and that no public
 property is missing. Inventory Service has its own \texttt{OutboxEvent} and
 \texttt{ProcessedMessage} classes in its own schema; the two services share no
@@ -803,7 +811,7 @@ entity classes, only the event contracts.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.85\textwidth]{figures/class-event-contracts.png}
+  \includegraphics[width=0.82\textwidth]{figures/class-event-contracts-stacked.png}
   \caption{Event contracts shared by all services. Every event carries a
   \texttt{MessageId} (Inbox key) and a \texttt{CorrelationId} (trace key).}
 \end{figure}
@@ -814,7 +822,7 @@ event and the \texttt{OrderStatusHistory} entity. All of them are drawn above.
 
 \section{API Contract}
 ABP generates the OpenAPI document from the running controllers; it is
-exported to \texttt{docs/api-contract-v1.json}. Since 2026-10-01 each order
+exported to \nolinkurl{docs/api-contract-v1.json}. Since 2026-10-01 each order
 endpoint declares its outcomes with \texttt{[ProducesResponseType]}, so the
 export lists every status code the code can return. The alignment check
 compares the committed file with the live export of the same build.
@@ -843,19 +851,20 @@ scaffolding (identity, account, permissions, multi-tenancy). The scope lock
 excludes them, and they play no part in the order workflow.
 
 \section{Event Contract}
-Full contract: \texttt{docs/event-contract.md}; the classes live in
-\texttt{FlashSale.EventContracts}. All events go through one direct exchange,
-\texttt{flashsale.order.exchange}, with the event name as routing key.
+The event classes live in the \texttt{FlashSale.\allowbreak EventContracts} project, and the full
+contract is \nolinkurl{docs/event-contract.md}. All events go through one direct
+exchange, \texttt{flashsale.\allowbreak order.\allowbreak exchange}, with the event name as routing key.
 
 \begin{center}
-\begin{tabular}{@{}lllp{4.4cm}@{}}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.8cm}@{}}
 \toprule
 Event & Publisher & Consumer(s) & Transition \\
 \midrule
 \texttt{OrderPlacedEto} & Order Service (Outbox) & Inventory Service & new $\to$ \texttt{PendingStock} \\
 \texttt{StockReservedEto} & Inventory Service (Outbox) & Order Service, Process Worker & \texttt{PendingStock} $\to$ \texttt{Confirmed} \\
 \texttt{StockRejectedEto} & Inventory Service (Outbox) & Order Service & \texttt{PendingStock} $\to$ \texttt{Rejected} \\
-\texttt{OrderProcessingStartedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Processing} \\
+\texttt{OrderProcessing\allowbreak StartedEto} & Process Worker & Order Service & \texttt{Confirmed} $\to$ \texttt{Processing} \\
 \texttt{OrderProcessedEto} & Process Worker & Order Service & \texttt{Processing} $\to$ \texttt{Completed} \\
 \bottomrule
 \end{tabular}
@@ -871,7 +880,7 @@ stock is the only rejection cause in scope.
 
 \section{Order State Machine}
 \label{sec:order-state-machine}
-See \texttt{docs/order-state-machine.md} for the full diagram and
+See \nolinkurl{docs/order-state-machine.md} for the full diagram and
 transition table. The adopted model (decided 2026-10-01) uses the teacher's
 six named states: \texttt{PendingStock}, \texttt{Confirmed},
 \texttt{Rejected}, \texttt{Processing}, \texttt{Completed} and
@@ -898,11 +907,11 @@ described in Section~\ref{sec:week11}.
 \end{figure}
 
 \section{Sequence Diagrams}
-The full diagrams are in \texttt{docs/sequence-diagrams.md}, and the numbered
-steps are described in \texttt{docs/workflow.md}
+The full diagrams are in \nolinkurl{docs/sequence-diagrams.md}, and the numbered
+steps are described in \nolinkurl{docs/workflow.md}
 (Section~\ref{sec:workflow}). The diagrams show the code as built in Week 8,
 and every arrow corresponds to a call in the source; test case TP-W04
-(\texttt{scripts/verify-workflow.ps1}) checks each drawn claim against the
+(\nolinkurl{scripts/verify-workflow.ps1}) checks each drawn claim against the
 code and configuration:
 
 \begin{itemize}
@@ -923,7 +932,7 @@ the six-state model is drawn in a separate diagram. Retry and DLQ branches are l
 Section~\ref{sec:workflow} rather than drawn.
 
 The diagrams are checked against the implementation by test case TP-W04
-(\texttt{scripts/verify-workflow.ps1}), in two ways:
+(\nolinkurl{scripts/verify-workflow.ps1}), in two ways:
 
 \begin{itemize}
   \item 38 static checks compare each arrow with the code and the
@@ -963,8 +972,8 @@ The diagrams are checked against the implementation by test case TP-W04
 \section{Idempotency, Ordering and Ownership}
 \label{sec:design-decisions}
 The full definitions, each tied to the code that implements it, are in
-\texttt{docs/design-decisions.md} and are checked by
-\texttt{scripts/verify-design-decisions.ps1}.
+\nolinkurl{docs/design-decisions.md} and are checked by
+\nolinkurl{scripts/verify-design-decisions.ps1}.
 
 \paragraph{Transport versus business idempotency.} Two \emph{transport} keys
 absorb retries of the same request or message. The client's
@@ -1084,28 +1093,28 @@ Before building the real asynchronous design (Weeks 5--12), two controlled
 baseline configurations were built inside Order Service, with no separate
 Inventory Service involved. Both use one raw-SQL table,
 \texttt{order\_service.inventory}. It is deliberately \emph{not}
-EF Core-migrated (see \texttt{docs/erd.md}), because C0 and C1 are baseline
+EF Core-migrated (see \nolinkurl{docs/erd.md}), because C0 and C1 are baseline
 scaffolding, not the final design. Every result in this section was produced
 on 2026-10-01 from a fresh clone of the repository and a brand-new PostgreSQL
-database built by \texttt{scripts/verify-environment.ps1}, with Order Service
+database built by \nolinkurl{scripts/verify-environment.ps1}, with Order Service
 connecting under its own account (\texttt{order\_service\_user}). The method
-and pass rules are in \texttt{docs/baseline-c0-c1.md}; the raw evidence is in
-\texttt{tests/baseline/results/} and \texttt{tests/jmeter/results/}.
+and pass rules are in \nolinkurl{docs/baseline-c0-c1.md}; the raw evidence is in
+\nolinkurl{tests/baseline/results/} and \nolinkurl{tests/jmeter/results/}.
 
 \subsection{Reset and seed}
 
-\texttt{scripts/reset-and-seed.ps1} applies the baseline schema, empties both
+\nolinkurl{scripts/reset-and-seed.ps1} applies the baseline schema, empties both
 baseline tables and inserts the starting inventory: \texttt{c0-demo-product} = 1,
 \texttt{c1-demo-product} = 1 and \texttt{flash-product-1} = 1000, with no other
-rows and no order rows. \texttt{scripts/verify-reset-seed.ps1} proves the script
+rows and no order rows. \nolinkurl{scripts/verify-reset-seed.ps1} proves the script
 is repeatable. It runs it, then deliberately breaks every table (wrong stock, a
 deleted seed row, an extra product and 25 leftover order rows), then runs it
 twice more. All three snapshots matched the expected state exactly and were
-identical to each other (\texttt{20261001T090034Z-reset-seed.log}).
+identical to each other (\nolinkurl{20261001T090034Z-reset-seed.log}).
 
 \subsection{C0 -- the naive baseline (a controlled failure demonstration)}
 
-C0 (\texttt{src/FlashSale.OrderService/Experiments/C0Naive/C0NaiveDemo.cs})
+C0 (\nolinkurl{src/FlashSale.OrderService/Experiments/C0Naive/C0NaiveDemo.cs})
 implements the textbook race condition. It reads the current stock, checks it
 in application code, then issues a separate, unconditional \texttt{UPDATE}:
 two round trips with no locking between them.
@@ -1122,7 +1131,7 @@ project. Five concurrent attempts were fired at a product seeded with
 \texttt{stock = 1}. All five wait on a shared start gate so they reach the read
 at the same instant, and a 50\,ms pause between read and write widens the race
 window so it reproduces on every run. The captured result
-(\texttt{20261001T085538Z-c0-race.log}):
+(\nolinkurl{20261001T085538Z-c0-race.log}):
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 [C0] Seeded 'c0-demo-product' with stock = 1. Firing 5 concurrent naive requests...
@@ -1144,7 +1153,7 @@ instead of being turned into an unhandled exception.
 
 \subsection{C1 -- the PostgreSQL atomic update}
 
-C1 (\texttt{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs},
+C1 (\nolinkurl{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs},
 \texttt{POST /api/c1/orders}) replaces the two round trips with one
 conditional statement. Its \texttt{WHERE} clause is evaluated by PostgreSQL
 against the row's current value while holding the row lock, not against a
@@ -1166,12 +1175,13 @@ design, so both configurations stay independently reachable for the Week 13--14
 comparison.
 
 \paragraph{Concurrent demand below, equal to and above stock.}
-\texttt{scripts/run-baseline.ps1} seeds \texttt{c1-demo-product} with 100
+\nolinkurl{scripts/run-baseline.ps1} seeds \texttt{c1-demo-product} with 100
 units, starts every request before reading any response, and repeats each
 scenario three times:
 
 \begin{center}
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}lrrrrrl@{}}
 \toprule
 Scenario & Requests & Confirmed & Rejected & Final stock & HTTP 200 & Verdict \\
@@ -1186,7 +1196,7 @@ Above stock & 150 & 100 & 50 & 0 & 150/150 & PASS (3/3 runs) \\
 In all nine runs, Confirmed equalled $\min(\text{demand}, 100)$, stock never
 went negative, final stock equalled 100 minus Confirmed, and
 \texttt{baseline\_orders} held exactly one row per request
-(\texttt{20261001T085538Z-c1-*-run*.json}).
+(\nolinkurl{20261001T085538Z-c1-*-run*.json}).
 
 \paragraph{Connection-pool finding.} The first concurrent prototype never
 oversold, but 3--31 of every 150--300 requests failed with HTTP 500
@@ -1201,7 +1211,7 @@ stack therefore raises \texttt{max\_connections} to 200.
 
 \subsection{Correctness criteria}
 
-The invariants in \texttt{docs/inventory-invariants.md} are applied as
+The invariants in \nolinkurl{docs/inventory-invariants.md} are applied as
 follows. Invariant~1 (\texttt{available\_inventory >= 0}) and Invariant~2
 (\texttt{successful\_reservations <= initial\_inventory}) are checked after
 every run from the database itself: final stock, and Confirmed rows in
@@ -1216,17 +1226,17 @@ invariants are checked on the asynchronous design from Week 7 onward.
 
 \subsection{JMeter smoke test}
 
-The checked-in plan \texttt{tests/jmeter/smoke-test.jmx} runs 10 threads with
+The checked-in plan \nolinkurl{tests/jmeter/smoke-test.jmx} runs 10 threads with
 one \texttt{POST /api/c1/orders} each for \texttt{flash-product-1}. Each sample
 carries two assertions: HTTP status 200, and a body that is a
 \texttt{Confirmed} decision for that product with a \texttt{remainingStock}
 value. The previously committed result file had been recorded against
 \texttt{/api/orders}, the asynchronous endpoint, so it did not match the plan.
-It was removed and replaced. \texttt{scripts/run-jmeter-smoke.ps1} resets and
+It was removed and replaced. \nolinkurl{scripts/run-jmeter-smoke.ps1} resets and
 seeds the database, runs the plan with JMeter 5.6.3, saves a timestamped JTL
 and cross-checks it against the database.
 
-Result (\texttt{tests/jmeter/results/20261001T090632Z-c1-smoke.jtl}): 10 of 10
+Result (\nolinkurl{tests/jmeter/results/20261001T090632Z-c1-smoke.jtl}): 10 of 10
 samples hit \texttt{/api/c1/orders}, all returned 200 and passed both
 assertions, the database recorded exactly 10 Confirmed C1 decisions, and stock
 fell from 1000 to 990. Elapsed time was 28\,ms minimum, 36.5\,ms median and
@@ -1241,8 +1251,8 @@ samples, which shows the assertions can fail.
 Order Service accepts orders, stores them with their \texttt{OrderPlaced}
 Outbox row, answers status polling, and applies the stock and processing
 results that come back as events. The behaviour below is specified in
-\texttt{docs/order-api.md}. Every claim in this section is backed by the
-saved Week 5 evidence (\texttt{tests/evidence/20261001T123816Z-*}),
+\nolinkurl{docs/order-api.md}. Every claim in this section is backed by the
+saved Week 5 evidence (\nolinkurl{tests/evidence/20261001T123816Z-*}),
 produced from a fresh clone on a brand-new database with Order Service running
 under its own database account.
 
@@ -1300,7 +1310,7 @@ order also came back with different timestamps (no \texttt{Z}, different
 precision). On a fresh clone, an unknown order id returned 500 instead of 404,
 because ABP's themed error page needs website files that are not in the
 repository; the error page now applies only outside \texttt{/api}.
-\texttt{scripts/verify-order-api.ps1} fails 10 checks on the old code.
+\nolinkurl{scripts/verify-order-api.ps1} fails 10 checks on the old code.
 
 \paragraph{Result after the fix} (\texttt{20261001T123816Z-order-api.log},
 30 of 30 checks):
@@ -1366,11 +1376,11 @@ TP-A07 & 50 keys $\times$ 4 concurrent requests: exactly 50 orders and Outbox ro
 \end{tabular}
 \end{center}
 
-TP-A01--A05 and TP-A07 are run by \texttt{scripts/verify-order-api.ps1}
+TP-A01--A05 and TP-A07 are run by \nolinkurl{scripts/verify-order-api.ps1}
 against the running service. TP-A06 consists of the unit tests in
 \texttt{OrderStateBehaviourTests}. The whole unit suite passes, 43 of 43, in
-the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx}.
-\texttt{docs/test-plan.md} lists the inputs, expected outcomes and commands.
+the saved run \nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261001T123816Z-unit-tests.trx}.
+\nolinkurl{docs/test-plan.md} lists the inputs, expected outcomes and commands.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Passed!  - Failed: 0, Passed: 43, Skipped: 0, Total: 43
@@ -1422,7 +1432,7 @@ to a single fact instead of two facts that could disagree.
 
 This claim is verified directly, not just argued from the pattern's
 description, in
-\texttt{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs}: a real
+\nolinkurl{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs}: a real
 SQLite in-memory database (not a mock, and not EF Core's InMemory provider,
 which does not enforce relational constraints and so cannot demonstrate a
 rollback at all) is made to reject an outbox insert via a genuine primary-key
@@ -1434,12 +1444,12 @@ Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
 Order_and_outbox_row_both_commit_in_one_SaveChanges_call: PASS
 \end{Verbatim}
 
-Both pass in the saved run \texttt{tests/evidence/}\allowbreak\texttt{20261001T123816Z-unit-tests.trx} (TP-E03).
+Both pass in the saved run \nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261001T123816Z-unit-tests.trx} (TP-E03).
 
 \paragraph{The same guarantee on the real database.} The unit test uses
-SQLite. \texttt{scripts/verify-outbox.ps1} repeats the check on PostgreSQL with
+SQLite. \nolinkurl{scripts/verify-outbox.ps1} repeats the check on PostgreSQL with
 Order Service running under its own account
-(\texttt{tests/evidence/20261001T163530Z-outbox.log}, 11 of 11 checks). A normal
+(\nolinkurl{tests/evidence/20261001T163530Z-outbox.log}, 11 of 11 checks). A normal
 request stores exactly one order and one unpublished \texttt{OrderPlaced} row.
 With the Outbox \texttt{INSERT} privilege revoked for one request, the request
 failed and \emph{no} order row existed afterwards. Once the privilege was
@@ -1462,7 +1472,7 @@ time.
 
 \paragraph{Routed confirmation.} A row is marked published only when the
 broker has confirmed the message \emph{and} delivered it to every queue that
-must receive it (\texttt{docs/outbox.md}). The Week 6 code check found that
+must receive it (\nolinkurl{docs/outbox.md}). The Week 6 code check found that
 this was not true. All three publishers (both Outbox publishers and the Process
 Worker's) used \texttt{mandatory: false}, so a message with no matching
 binding was silently dropped, yet confirmed and marked published. The
@@ -1488,7 +1498,7 @@ creates one.
 
 \paragraph{Failure scenarios.} \texttt{scripts/verify-publication.ps1} runs
 each scenario against a throwaway broker
-(\texttt{tests/evidence/20261001T163055Z-publication.log}, 18 of 18 checks).
+(\nolinkurl{tests/evidence/20261001T163055Z-publication.log}, 18 of 18 checks).
 On the old publishers, 8 of its checks fail: the affected messages were
 marked published but were never delivered.
 
@@ -1529,11 +1539,11 @@ Order Service carries from the default template: the scope lock excludes user
 management, authentication and multi-tenancy, so Inventory Service never adds
 them. It owns only the \texttt{inventory\_service} schema
 (Section~\ref{sec:design-decisions}) and the Redis inventory keys. The
-behaviour below is specified in \texttt{docs/inventory.md}. Every result in
+behaviour below is specified in \nolinkurl{docs/inventory.md}. Every result in
 this section comes from saved runs on a fresh clone with throwaway Redis,
 RabbitMQ and PostgreSQL instances
-(\texttt{tests/evidence/20261002T051418Z-inventory.log} and
-\texttt{20261002T052244Z-cross-store.log}).
+(\nolinkurl{tests/evidence/20261002T051418Z-inventory.log} and
+\nolinkurl{20261002T052244Z-cross-store.log}).
 
 \subsection{Redis key and data design}
 
@@ -1555,7 +1565,7 @@ atomic step as the stock change, without consulting PostgreSQL.
 
 \subsection{Lua reservation logic}
 
-\texttt{scripts/redis/reserve.lua} runs as one atomic \texttt{EVAL}: Redis
+\nolinkurl{scripts/redis/reserve.lua} runs as one atomic \texttt{EVAL}: Redis
 executes a script without interleaving any other command, so the
 check-then-act sequence below cannot race. The C\# side
 (\texttt{InventoryReservationService}) only loads the file and passes keys and
@@ -1585,7 +1595,7 @@ is complete \emph{and confirmed}. The Week 7 code check found no such gate.
 An un-warmed product was answered \texttt{REJECTED} exactly like a sold-out one,
 and nothing recorded whether warm-up had happened.
 
-\texttt{scripts/warm-up.ps1} now handles each product in one atomic Lua step.
+\nolinkurl{scripts/warm-up.ps1} now handles each product in one atomic Lua step.
 It sets the stock, clears the reservation set and sets
 \texttt{sale:open:\{productId\}}. It then confirms the product by reading all
 three back, prints \texttt{CONFIRMED} per product, and exits non-zero if any
@@ -1605,14 +1615,14 @@ produced \texttt{StockReserved}.
 \subsection{Inventory invariants under concurrency}
 
 For every product, after any amount of concurrent traffic
-(\texttt{docs/inventory.md}):
+(\nolinkurl{docs/inventory.md}):
 (1) \texttt{inventory} $\ge 0$;
 (2) reservations $\le$ initial stock;
 (3) \texttt{inventory} + reservations = initial stock (every unit is either
 available or held by exactly one order);
 (4) no order id is reserved twice, and a repeated order id is answered
 \texttt{DUPLICATE} only if that order already holds a unit.
-\texttt{tests/InventoryProbe} drives the real \texttt{reserve.lua} with all
+\nolinkurl{tests/InventoryProbe} drives the real \texttt{reserve.lua} with all
 requests in flight at once and checks these per product:
 
 \begin{center}
@@ -1645,7 +1655,7 @@ dead-lettered (\texttt{OrderPlaced.dlq}), never re-queued in a loop.
 \paragraph{PostgreSQL failure after the Redis reservation.} Redis and
 PostgreSQL cannot share a transaction, so the design makes Redis the decision
 and PostgreSQL the record (Section~\ref{sec:design-decisions}). The Week 7 test
-(\texttt{scripts/verify-cross-store.ps1}) revokes the Outbox \texttt{INSERT}
+(\nolinkurl{scripts/verify-cross-store.ps1}) revokes the Outbox \texttt{INSERT}
 right after \texttt{reserve.lua} has run. On the old code the consumer
 caught \emph{every} database error as ``a duplicate already recorded this''
 and acknowledged the message. The \texttt{StockReserved} result was then lost
@@ -1741,9 +1751,9 @@ three ways:
 \subsection{Automated correctness validation}
 \label{sec:validation}
 
-\texttt{scripts/validate-correctness.ps1} checks the four inventory
+\nolinkurl{scripts/validate-correctness.ps1} checks the four inventory
 invariants for one product after a run, with separate rules for C1 and C2
-(\texttt{docs/validation.md}). It takes the configuration, product id and
+(\nolinkurl{docs/validation.md}). It takes the configuration, product id and
 initial stock as parameters, so Weeks 13--14 can reuse it unmodified.
 
 \paragraph{What the Week 8 code check found.} The earlier validator gave
@@ -1778,17 +1788,17 @@ and the two add up to the orders accepted. An outstanding order makes the
 check \texttt{INCONCLUSIVE} and is listed with its age and re-publish count, so
 no accepted order can go unnoticed. The broken-fixture test now also covers
 check 5 under C3 (16 of 16 checks,
-\texttt{tests/evidence/}\allowbreak\texttt{20261020T030140Z-validator.log}).
+\nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261020T030140Z-validator.log}).
 
 \paragraph{Evidence} (fresh clone; \texttt{tests/evidence/}\allowbreak\texttt{20261002T062442Z-validator.log} and
-\texttt{20261002T062442Z-}\allowbreak\texttt{real-runs.log}).
-\texttt{scripts/verify-validator.ps1} feeds the validator correct C1 and C2
+\nolinkurl{20261002T062442Z-}\allowbreak\texttt{real-runs.log}).
+\nolinkurl{scripts/verify-validator.ps1} feeds the validator correct C1 and C2
 fixtures, which pass, and one broken fixture per failure mode: oversold
 stock, a deduction without a logged decision, a reservation/order mismatch, a
 double deduction, an unsettled run, missing data and an unreachable database.
 Each broken fixture fails the targeted invariant or is reported
 \texttt{INCONCLUSIVE} or \texttt{SETUP ERROR} (12 of 12 checks).
-\texttt{scripts/verify-real-runs.ps1} then validates two real runs.
+\nolinkurl{scripts/verify-real-runs.ps1} then validates two real runs.
 \begin{itemize}
   \item \textbf{C1:} 30 concurrent requests against 20 units. All four
     invariants hold: stock 0, 20 Confirmed.
@@ -1806,7 +1816,7 @@ had been re-seeded into Redis.
 \subsection{The main workflow (Step 8.4)}
 \label{sec:workflow}
 
-\texttt{docs/workflow.md} describes the one business workflow, placing an
+\nolinkurl{docs/workflow.md} describes the one business workflow, placing an
 order, from the Week 8 code. Its steps are the numbered arrows of
 Figure~\ref{fig:seq-happy}. The order is accepted when its row commits, so
 the client receives \texttt{201 Created} with \texttt{PendingStock}. All
@@ -1884,15 +1894,15 @@ delayed retry queue (2, 4, then 8\,s) and applies it once the order is
 \texttt{Confirmed} (TP-M02).
 
 \paragraph{Evidence} (TP-W04; fresh clone;
-\texttt{tests/evidence/}\allowbreak\texttt{20261002T152659Z-workflow.log}).
+\nolinkurl{tests/evidence/20261002T152659Z-workflow.log}).
 The verifier passes its 35 static checks. Each check
 is tied to the code or configuration. For example:
 
 \begin{itemize}
   \item Each event's drawn required queues must equal the
-    \texttt{RequiredSubscriberQueues} setting.
+    \texttt{Required\allowbreak Subscriber\allowbreak Queues} setting.
   \item The drawn processing delay must equal the configured one.
-  \item The diagram files in \texttt{report/figures/} must be identical to
+  \item The diagram files in \nolinkurl{report/figures/} must be identical to
     the diagrams in the document.
 \end{itemize}
 
@@ -1929,7 +1939,7 @@ require a queue that does not exist before publishing \texttt{OrderProcessed}.
 The verifier then failed 6 checks, all on the broken steps. The order stayed
 \texttt{Confirmed}, the completion step and its logs were missing, and the
 message was in \texttt{ProcessWorker.StockReserved.dlq}
-(\texttt{20261002T152659Z-}\allowbreak\texttt{workflow-negative-control.log}).
+(\nolinkurl{20261002T152659Z-}\allowbreak\texttt{workflow-negative-control.log}).
 
 \section{Reliability and Idempotency Layer (Week 9)}
 \label{sec:week9}
@@ -1986,7 +1996,7 @@ Process Worker: \texttt{StockReserved}\allowbreak\texttt{Consumer} & no Inbox (n
 \bottomrule
 \end{tabular}
 \caption{Every consumer, its Inbox, its local transaction and when it
-acknowledges (\texttt{docs/delivery-semantics.md}).}
+acknowledges (\nolinkurl{docs/delivery-semantics.md}).}
 \label{tab:consumers}
 \end{table}
 
@@ -2038,7 +2048,7 @@ the message was retried and then dead-lettered, and a replay applied it once.
 
 \subsection{Acknowledgement strategy, proven with a real crash (Step 9.3)}
 
-Every consumer follows the same rule (\texttt{docs/delivery-semantics.md}):
+Every consumer follows the same rule (\nolinkurl{docs/delivery-semantics.md}):
 
 \begin{enumerate}
   \item Check the Inbox.
@@ -2082,8 +2092,8 @@ no Inbox. Its only effect is publishing \texttt{OrderProcessed} with
 Service's Inbox absorbs the copy.
 
 \paragraph{Evidence} (TP-M01; fresh clone and fresh database; saved as
-\texttt{20261002T183238Z-delivery.log} in \texttt{tests/evidence/}).
-\texttt{scripts/verify-delivery.ps1} passes 34 of 34 checks on the three
+\nolinkurl{20261002T183238Z-delivery.log} in \nolinkurl{tests/evidence/}).
+\nolinkurl{scripts/verify-delivery.ps1} passes 34 of 34 checks on the three
 services, a throwaway RabbitMQ and Redis, and PostgreSQL.
 
 \begin{itemize}
@@ -2141,7 +2151,7 @@ Duplicates are handled at three levels, and each level has its own test.
         is then applied exactly once after \texttt{StockReserved}.
     \end{itemize}
     The suite has 45 tests, and all pass in
-    \texttt{tests/evidence/20261003T181814Z-unit-tests.log}.
+    \nolinkurl{tests/evidence/20261003T181814Z-unit-tests.log}.
   \item \textbf{Crash and redelivery.} A consumer killed after its commit and
     before its ack replays safely (Section above, TP-M01).
   \item \textbf{Concurrent, business-level and out-of-order duplicates.}
@@ -2169,8 +2179,8 @@ consume \texttt{StockReserved} in parallel. So \texttt{OrderProcessed} could
 reach Order Service while the order was still \texttt{PendingStock}. The
 transition to \texttt{Completed} was then illegal, so the message was
 dead-lettered and the completion was lost.
-\texttt{scripts/verify-design-decisions.ps1} still asserted this defective
-behaviour, and \texttt{docs/order-state-machine.md} described a retry that
+\nolinkurl{scripts/verify-design-decisions.ps1} still asserted this defective
+behaviour, and \nolinkurl{docs/order-state-machine.md} described a retry that
 did not exist in the code.
 
 \paragraph{Fix.} \texttt{StockResultProcessor} has a new outcome,
@@ -2179,7 +2189,7 @@ even an Inbox row, so the message can still be applied later.
 \texttt{OrderProcessedConsumer} then:
 \begin{enumerate}
   \item republishes the message onto a delayed retry queue
-    (\texttt{OrderProcessed.retry.1}--\texttt{3}, with TTLs of 2, 4 and
+    (\texttt{OrderProcessed.\allowbreak retry.1}--\texttt{3}, with TTLs of 2, 4 and
     8\,s, each bound to the dead-letter exchange);
   \item uses a channel with publisher confirms for that publish;
   \item acknowledges the original only after the confirm.
@@ -2191,9 +2201,9 @@ The 1, 2, 4\,s in-process retry for database errors is unchanged and kept
 separate.
 
 \paragraph{Evidence} (fresh clone of \texttt{b0b9d51} and fresh database;
-saved as \texttt{20261003T181814Z-delivery-ordering.log} in
-\texttt{tests/evidence/}). The verifier,
-\texttt{verify-delivery-ordering.ps1} in \texttt{scripts/}, passes 44 of 44
+saved as \nolinkurl{20261003T181814Z-delivery-ordering.log} in
+\nolinkurl{tests/evidence/}). The verifier,
+\texttt{verify-delivery-\allowbreak ordering.ps1} in \nolinkurl{scripts/}, passes 44 of 44
 checks:
 \begin{itemize}
   \item \textbf{Concurrent duplicates.} Eight simultaneous deliveries of one
@@ -2252,7 +2262,7 @@ of scope.
 \subsection{Classify, then retry a bounded number of times}
 
 A failure is classified before it is retried
-(\texttt{docs/failure-handling.md}). There are three classes:
+(\nolinkurl{docs/failure-handling.md}). There are three classes:
 \begin{itemize}
   \item \textbf{Transient}, such as a brief database outage or a missing
     queue: retried.
@@ -2348,7 +2358,7 @@ consumers it checks four things:
 \end{itemize}
 
 The fresh-clone run passed all 74 checks
-(\texttt{tests/evidence/20261011T084521Z-failures.log}). A negative control
+(\nolinkurl{tests/evidence/20261011T084521Z-failures.log}). A negative control
 disabled the Inventory empty-\texttt{MessageId} check. Five checks then
 failed and the script exited 1
 (saved alongside it as \texttt{...-failures-negative.log}), which shows the
@@ -2364,7 +2374,7 @@ net for \emph{orders}: it finds an order that is still
 \texttt{PendingStock} long after it should have been answered, and acts in a
 bounded, visible way. It does not replace the Outbox, retry or the DLQ, and
 it never changes an order's state to hide a problem
-(\texttt{docs/failure-handling.md}).
+(\nolinkurl{docs/failure-handling.md}).
 
 \paragraph{Detection and cadence.} \texttt{ReconciliationWorker} (Order
 Service) polls on a configurable interval (30\,s by default). It looks for
@@ -2403,7 +2413,7 @@ Service's Inbox applies the result once, or ignores it if it was already
 applied. A reserved order therefore stays reserved and is never rewritten as
 out of stock.
 
-The operator procedure is in \texttt{docs/failure-handling.md}: inspect the
+The operator procedure is in \nolinkurl{docs/failure-handling.md}: inspect the
 order, its Outbox rows and the DLQs; fix the cause; then replay the dead
 letter unchanged. Stock is never reset and queues are never deleted as a
 ``repair''.
@@ -2438,7 +2448,7 @@ runs all three services with short timeouts (5\,s, a 2\,s poll, a bound of
 \end{itemize}
 
 A fresh-clone run passed all 30 checks
-(\texttt{tests/evidence/20261011T102304Z-reconciliation.log}). A negative control
+(\nolinkurl{tests/evidence/20261011T102304Z-reconciliation.log}). A negative control
 removed the Inventory re-send. Case A then stayed \texttt{PendingStock} with
 its result never re-sent, and the script exited 1.
 
@@ -2447,16 +2457,16 @@ watched \texttt{PendingStock} only, so an order whose Process Worker copy of
 \texttt{StockReserved}, start event or completion was lost stayed
 \texttt{Confirmed} or \texttt{Processing} for ever. It now also selects those
 orders once their confirmation is older than
-\texttt{ProcessingStuckTimeoutSeconds} (300\,s by default, never shorter than
+\texttt{Processing\allowbreak Stuck\allowbreak Timeout\allowbreak Seconds} (300\,s by default, never shorter than
 the \texttt{PendingStock} timeout, because the Worker's queue legitimately
 holds confirmed orders after an overload). The same re-trigger recovers them:
 Inventory re-sends its stored \texttt{StockReserved}, which also reaches the
 Worker. Case G stops the Worker, lets an order be confirmed, purges the
 Worker's copy and restarts the Worker; the order ends \texttt{Completed} with
 one deduction, and all 35 checks pass
-(\texttt{tests/evidence/20261023T142609Z-reconciliation.log}). With the new
+(\nolinkurl{tests/evidence/20261023T142609Z-reconciliation.log}). With the new
 selection removed, case G fails: the order stays \texttt{Confirmed}
-(\texttt{tests/evidence/20261023T143020Z-reconciliation-negative-control.log}).
+(\nolinkurl{tests/evidence/20261023T143020Z-reconciliation-negative-control.log}).
 
 \subsection{Supported and unsupported failure modes}
 
@@ -2470,7 +2480,7 @@ four statuses:
   \item \textbf{Not supported}: a stated gap, not one hidden by wording.
   \item \textbf{Out of scope}: excluded by the teacher brief.
 \end{itemize}
-The same table is kept in \texttt{docs/failure-handling.md}. The check
+The same table is kept in \nolinkurl{docs/failure-handling.md}. The check
 script for this chapter (TP-F03) fails if the two disagree, or if a row
 marked Verified cites a test case that has not passed.
 
@@ -2547,7 +2557,7 @@ Two rules hold for every row:
 Week 11 adds the last component of the pipeline and the instrumentation the
 experiments will read it through. It also closes the oldest open question in
 this project: the \texttt{Confirmed} $\to$ \texttt{Processing} $\to$
-\texttt{Completed} leg that \texttt{docs/order-state-machine.md} had refused
+\texttt{Completed} leg that \nolinkurl{docs/order-state-machine.md} had refused
 to specify since Week 1.
 
 \subsection{The Process Worker, and what it settled about the state machine}
@@ -2556,7 +2566,7 @@ to specify since Week 1.
 \texttt{StockReserved}, waits a deterministic delay, and publishes
 \texttt{OrderProcessed}. Per Proposal §3 it simulates downstream processing
 only -- there is no payment step, no failure injection and no compensation
-logic, all three being excluded by \texttt{docs/00-scope-lock.md}. The delay
+logic, all three being excluded by \nolinkurl{docs/00-scope-lock.md}. The delay
 is deterministic rather than randomised on purpose: with a fixed service
 time, any variance Week 13/14 measure in end-to-end latency comes from
 queueing and contention in the architecture, not from the simulator adding
@@ -2632,7 +2642,7 @@ uses the time it is applied, instead of the year 0001.
   \item the clamped, kept and missing start times;
   \item the \texttt{Seq} order.
 \end{itemize}
-\texttt{scripts/verify-processing.ps1} runs all three services and covers
+\nolinkurl{scripts/verify-processing.ps1} runs all three services and covers
 these cases:
 \begin{itemize}
   \item normal orders by either legal path;
@@ -2647,7 +2657,7 @@ these cases:
   \item a poison start event, which goes to its DLQ.
 \end{itemize}
 The fresh-clone run passed all 41 checks
-(\texttt{tests/evidence/20261013T145229Z-processing.log}). A negative control that writes the implied row
+(\nolinkurl{tests/evidence/20261013T145229Z-processing.log}). A negative control that writes the implied row
 as not implied fails two checks, and the script exits 1.
 
 \paragraph{Idempotency with no database.} The Process Worker is the only
@@ -2678,7 +2688,7 @@ the order. Real failures still take the 1/2/4\,s ladder to the DLQ.
 
 \paragraph{Verification (TP-P01).} \texttt{scripts/verify-worker.ps1} runs
 all three services on a throwaway broker and Redis
-(\texttt{docs/process-worker.md}). It covers seven cases:
+(\nolinkurl{docs/process-worker.md}). It covers seven cases:
 \begin{itemize}
   \item \textbf{Deterministic success.} With a 500\,ms delay, 5 orders
     complete. Each Worker duration is at least 500\,ms; the measured values
@@ -2702,7 +2712,7 @@ all three services on a throwaway broker and Redis
 \end{itemize}
 
 The fresh-clone run passed all 51 checks
-(\texttt{tests/evidence/20261011T160720Z-worker.log}). With the shutdown fix reverted,
+(\nolinkurl{tests/evidence/20261011T160720Z-worker.log}). With the shutdown fix reverted,
 the Worker logged 5 DLQ routings and 5 errors during shutdown, and the
 script exited 1. The dead-letter count alone was not a reliable signal: the
 reverted Worker's rejections sometimes reached the broker after the channel
@@ -2720,7 +2730,7 @@ on before it starts the Worker. It proves delivery from the Worker's own
 ``Application is shutting down'' line, and it reads only the log lines
 written after the Ctrl+C. Started from Git Bash, the fixed script passed all
 51 checks twice, and then again from a fresh clone on a fresh database
-(\texttt{tests/evidence/20261014T090016Z-worker.log}). Without the Ctrl+C fix
+(\nolinkurl{tests/evidence/20261014T090016Z-worker.log}). Without the Ctrl+C fix
 it fails the delivery check, the exit check and the shutdown-line check, and
 exits 1.
 
@@ -2804,13 +2814,13 @@ Three details in this trace are worth explaining:
     \texttt{OrderPlaced} row's \texttt{PublishedAt} came 1.1\,ms after
     Inventory's decision. It now holds the send time
     (Section~\ref{sec:review-fixes}). The script prints such a case as an anomaly
-    and does not count it as a failure (\texttt{docs/metrics.md}).
+    and does not count it as a failure (\nolinkurl{docs/metrics.md}).
 \end{itemize}
 In the fault trace, both of the Worker's events arrived while the order was
 still \texttt{PendingStock}. They were requeued, and the order ended
 \texttt{Completed} with the full four-step history once the grant came back.
 The fresh-clone run passed all 28 checks
-(\texttt{tests/evidence/20261013T163219Z-trace.log}). A negative control that drops the
+(\nolinkurl{tests/evidence/20261013T163219Z-trace.log}). A negative control that drops the
 \texttt{MessageId} from the Worker's \texttt{Received} line fails four checks:
 the missing Worker hop and the broken \texttt{MessageId} link, in both the
 success trace and the fault trace. The script exits 1.
@@ -2818,16 +2828,16 @@ success trace and the fault trace. The script exits 1.
 \subsection{Structured logging and metrics (Step 11.3)}
 
 \paragraph{Logging.} Serilog was already configured in all services with
-\texttt{Enrich.}\allowbreak\texttt{FromLogContext()}; what changed is the file sink's format,
+\texttt{Enrich.}\allowbreak\texttt{FromLog\allowbreak Context()}; what changed is the file sink's format,
 from plain text to one JSON object per line
-(\texttt{CompactJsonFormatter}). Structure is what makes the correlation id
+(\texttt{Compact\allowbreak Json\allowbreak Formatter}). Structure is what makes the correlation id
 above actually \emph{queryable} -- Week 13/14 need to filter thousands of
 lines by a field and read timestamps back as values, not regex them out of a
 rendered string. The console sink deliberately stays human-readable: it is
 watched live by a person, not parsed.
 
 \paragraph{Metrics.} Prometheus and Grafana were added to
-\texttt{infra/docker-compose.yml}, with the Grafana datasource provisioned
+\nolinkurl{infra/docker-compose.yml}, with the Grafana datasource provisioned
 from a file so a fresh \texttt{docker compose up} returns a working stack
 (the same reproducibility reasoning behind \texttt{reset-and-seed.ps1}). All
 three services expose \texttt{/metrics} via \texttt{prometheus-net}. Because
@@ -2838,7 +2848,7 @@ development certificate. The scrape interval is 5s rather than Prometheus's
 15s default: a load run lasting minutes would otherwise produce too few
 points to read a ramp or a recovery from.
 
-\texttt{docs/metrics.md} is the metric dictionary. For every metric in the
+\nolinkurl{docs/metrics.md} is the metric dictionary. For every metric in the
 teacher's brief and in the experiment plan, it gives:
 \begin{itemize}
   \item the definition, with its boundaries and denominator;
@@ -2859,7 +2869,7 @@ summarised by the extraction.
 \caption{Metric definitions: source and status of every metric in the
 brief. Prometheus names omit the \texttt{flashsale\_} prefix. Full
 definitions, denominators and extraction are in
-\texttt{docs/metrics.md}.}
+\nolinkurl{docs/metrics.md}.}
 \label{tab:metric-definitions}
 \begin{tabular}{>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{3.6cm}}
 \toprule
@@ -2899,7 +2909,7 @@ RabbitMQ publish, deliver, ack rates & Management API \texttt{message\_stats}
 \end{table}
 The exported metrics fall into five groups:
 \begin{itemize}
-  \item \textbf{Business results.} \texttt{flashsale\_orders\_accepted\_total}
+  \item \textbf{Business results.} \nolinkurl{flashsale_orders_accepted_total}
     counts orders, and only after the commit, so it can be compared with
     JMeter's request count. \texttt{flashsale\_orders\_outcome\_total\{outcome\}}
     counts state changes that were actually applied, never an idempotent
@@ -2908,21 +2918,21 @@ The exported metrics fall into five groups:
     \texttt{reserved}, \texttt{rejected}, \texttt{not\_open} and
     \texttt{duplicate}. Each counts a business result, never an attempt.
   \item \textbf{Work attempts, kept apart from results.} The Worker's
-    \texttt{flashsale\_orders\_processed\_total} and
-    \texttt{flashsale\_process\_worker\_duration\_seconds} count every
+    \nolinkurl{flashsale_orders_processed_total} and
+    \nolinkurl{flashsale_process_worker_duration_seconds} count every
     processing run, including replays. A replay therefore raises the attempt
     count but not the completion count.
   \item \textbf{Reliability.} All three consumers export
-    \texttt{flashsale\_consumer\_retries\_total} and
-    \texttt{flashsale\_consumer\_dead\_lettered\_total}, both labelled by
+    \nolinkurl{flashsale_consumer_retries_total} and
+    \nolinkurl{flashsale_consumer_dead_lettered_total}, both labelled by
     consumer. The dead-letter counter also has a reason: \texttt{exhausted}, \texttt{invalid} or
     \texttt{conflict}. Order and Inventory add
     \texttt{flashsale\_consumer\_duplicates\_total\{consumer\}}, and Order
     adds \texttt{flashsale\_consumer\_requeued\_early\_total\{consumer\}}.
     The reconciliation metrics come from Week 10.
   \item \textbf{Backlog.} Order and Inventory export
-    \texttt{flashsale\_outbox\_unpublished} and
-    \texttt{flashsale\_outbox\_oldest\_unpublished\_age\_seconds}, refreshed on
+    \nolinkurl{flashsale_outbox_unpublished} and
+    \nolinkurl{flashsale_outbox_oldest_unpublished_age_seconds}, refreshed on
     every publisher poll.
   \item \textbf{Resources.} The \texttt{prometheus-net} defaults give each
     process's CPU seconds and working set.
@@ -2952,7 +2962,7 @@ each case moved the expected series by the expected amount:
 \end{itemize}
 It then checks that each service exports every metric the dictionary lists
 for it (13, 8 and 7), and that no label value is an id. The fresh-clone run
-passed all 17 checks (\texttt{tests/evidence/20261013T163454Z-metrics.log}). A negative control that stops counting
+passed all 17 checks (\nolinkurl{tests/evidence/20261013T163454Z-metrics.log}). A negative control that stops counting
 duplicate stock results fails case C (duplicates $+0$), and the script
 exits 1.
 
@@ -2969,7 +2979,7 @@ recordable and computable before the pilot:
     (5\,s by default). A unit test scans the source, so a future publisher
     cannot forget the stamp. TP-P06 checks all six paths on a live broker.
   \item \textbf{A run-time collector}
-    (\texttt{scripts/collect-run-metrics.ps1}). Every 5\,s it appends the
+    (\nolinkurl{scripts/collect-run-metrics.ps1}). Every 5\,s it appends the
     queue counts and ages, the broker rates, the Redis Lua call totals, the
     connections per service account, every service metric, and host CPU and
     memory to one long-format CSV. A source that fails is recorded as
@@ -2978,7 +2988,7 @@ recordable and computable before the pilot:
     usable interval. TP-P07 checks it with Inventory stopped (the backlog
     grows) and Redis stopped (its rows become \texttt{unavailable}).
   \item \textbf{An extraction script}
-    (\texttt{scripts/extract-run-metrics.ps1}). It turns one run's JTL,
+    (\nolinkurl{scripts/extract-run-metrics.ps1}). It turns one run's JTL,
     database rows and collected samples into the numbers the Results tables
     ask for. Percentiles use the nearest-rank method. Negative and missing
     stage intervals are counted, never hidden. Counter increases survive a
@@ -3000,9 +3010,9 @@ negative control fails as designed. The broker statistic is now recorded as
 test design, not by a separate test. From a fresh clone on a fresh database,
 TP-P06, TP-P07 and TP-P08 passed 40, 15 and 35 checks, and every earlier
 runtime verifier still passed
-(\texttt{tests/evidence/20261014T140055Z-message-timestamps.log},
-\texttt{20261014T140223Z-run-collector.log},
-\texttt{20261014T140415Z-extract.log}).
+(\nolinkurl{tests/evidence/20261014T140055Z-message-timestamps.log},
+\nolinkurl{20261014T140223Z-run-collector.log},
+\nolinkurl{20261014T140415Z-extract.log}).
 
 Latency percentiles are deliberately \emph{not} computed in-process. JMeter
 measures client-observed latency directly, and end-to-end pipeline latency is
@@ -3017,7 +3027,7 @@ and the exact moment it records. The columns are EF Core columns in each
 service's own schema, so their names are PascalCase. All values are UTC, at
 microsecond precision, and come from one host's clock, because the
 experiments run every backend service on one EC2 instance.
-\texttt{docs/metrics.md} is the full version.
+\nolinkurl{docs/metrics.md} is the full version.
 
 \begin{table}[tbp]
 \centering
@@ -3093,7 +3103,7 @@ C3 adds three limits in front of the parts that cost real work, as brief
 bounded queues in RabbitMQ. A new request is refused early with a response code
 that means ``too busy''. Every limit is off by default, so C2 behaves exactly
 as before until a C3 configuration switches the limits on. The design is in
-\texttt{docs/load-shedding.md}; Figure~\ref{fig:load-shedding-layers} shows
+\nolinkurl{docs/load-shedding.md}; Figure~\ref{fig:load-shedding-layers} shows
 where each layer refuses work.
 
 \begin{figure}[tbp]
@@ -3156,7 +3166,7 @@ concurrency gate caps.
 \paragraph{Bounded queues.} A RabbitMQ policy with a
 \texttt{max-length} and the overflow mode \texttt{reject-publish}~\cite{rmq-maxlength} bounds the six main input queues and never
 the retry or dead-letter queues. It is set and removed at run time by
-\texttt{scripts/set-queue-bounds.ps1}, with no change to any queue declaration.
+\nolinkurl{scripts/set-queue-bounds.ps1}, with no change to any queue declaration.
 A publish to a full queue is nacked; the publisher's mandatory publish with
 confirms (Section~\ref{sec:workflow}) leaves the Outbox row unpublished, and it
 is retried until the queue has room. Every consumer takes at most 20
@@ -3173,7 +3183,7 @@ order accepted since) and is only measured while the bound is on, so C2 pays
 nothing. Section~\ref{sec:review-fixes} explains why it was needed.
 
 \paragraph{Verification.} Test case TP-L01
-(\texttt{scripts/verify-load-shedding.ps1}) passed 18 of 18 checks on local
+(\nolinkurl{scripts/verify-load-shedding.ps1}) passed 18 of 18 checks on local
 services:
 \begin{itemize}
   \item \textbf{Gateway}, at 5 requests per second: 40 rapid POSTs gave 4
@@ -3217,7 +3227,7 @@ all 10 orders were accepted and the case fails, as it should.
 
 \paragraph{Scenario.} Test case TP-L04 drives the full C3 stack through Nginx
 with a three-phase JMeter plan
-(\texttt{tests/jmeter/overload-recovery.jmx}): 30\,s at 3 orders/s
+(\nolinkurl{tests/jmeter/overload-recovery.jmx}): 30\,s at 3 orders/s
 (baseline), 60\,s at 60 orders/s (overload), and 60\,s back at 3 orders/s
 (recovery). Every limit is on: Nginx at 20 requests/s with a burst of 1,
 admission at 8 concurrent new orders and an Outbox backlog of 20, and a
@@ -3258,11 +3268,11 @@ back Inventory's result to Order Service, so orders sat in
 database baseline plus 30 (third run), Order Service refuses what the Worker
 cannot finish (Figure~\ref{fig:overload-timeline}): 548 orders were accepted,
 each completed in about 6\,s (p95 6.8\,s), the backlog cleared in 6.9\,s, and
-all 45 checks passed (\texttt{tests/evidence/20261023T144923Z-load-shedding.log},
+all 45 checks passed (\nolinkurl{tests/evidence/20261023T144923Z-load-shedding.log},
 with the run's raw JTL, samples and summary saved beside it). With the
 in-flight check removed from the code, its case fails and the backlog drain is
 105\,s again
-(\texttt{tests/evidence/20261023T145745Z-load-shedding-negative-inflight-off.log}).
+(\nolinkurl{tests/evidence/20261023T145745Z-load-shedding-negative-inflight-off.log}).
 In every run the refusals matched JMeter, the Nginx log and the admission
 metric exactly, no sampled refused key left an order, and every accepted order
 completed with exactly one unit of stock. With every limit switched off, 3,747
@@ -3279,9 +3289,9 @@ test detects missing limits.
   queue (ready + unacknowledged; note the different scales). Before, the
   Worker's queue grew to about 250 and drained only after the load stopped;
   after, it stays below 20 and the run settles within seconds. Data:
-  \texttt{tests/evidence/20261022T152931Z-overload-*} and
-  \texttt{tests/evidence/20261023T144923Z-overload-*}; chart:
-  \texttt{report/figures/plot\_week12.py}.}
+  \nolinkurl{tests/evidence/20261022T152931Z-overload-*} and
+  \nolinkurl{tests/evidence/20261023T144923Z-overload-*}; chart:
+  \nolinkurl{report/figures/plot_week12.py}.}
   \label{fig:overload-timeline}
 \end{figure}
 
@@ -3353,8 +3363,8 @@ only, no 1\,s gap in the window).}
 
 The brief requires the system under test on one EC2 instance with JMeter on a
 separate machine. Figure~\ref{fig:ec2-deployment} shows the deployment that
-Terraform creates (\texttt{infra/terraform/}) and the runbook
-\texttt{docs/deployment.md} drives.
+Terraform creates (\nolinkurl{infra/terraform/}) and the runbook
+\nolinkurl{docs/deployment.md} drives.
 
 \begin{figure}[tbp]
   \centering
@@ -3384,7 +3394,7 @@ the two tagged instances through Systems Manager, and can create, change or
 delete nothing.
 
 \sloppy\paragraph{Evidence (TP-L03, TP-L04).} The offline checker
-\texttt{scripts/verify-deployment.ps1} passes 19 of 19 checks: format and
+\nolinkurl{scripts/verify-deployment.ps1} passes 19 of 19 checks: format and
 validation, no open ingress, no forbidden resources, allowed instance types,
 pinned images, only Nginx published, and the three images build. Three live
 sessions passed and were destroyed the same day, after which no instance,
@@ -3412,8 +3422,8 @@ Section~\ref{sec:review-fixes} has one too.
   \centering
   \includegraphics[width=0.85\textwidth]{figures/verification-overview.png}
   \caption{Checks per runtime verifier in its latest run (no failures), plus
-  98 unit tests. Test-case IDs refer to \texttt{docs/test-plan.md}; each PASS
-  links to a saved log in \texttt{tests/evidence/}.}
+  98 unit tests. Test-case IDs refer to \nolinkurl{docs/test-plan.md}; each PASS
+  links to a saved log in \nolinkurl{tests/evidence/}.}
   \label{fig:verification-overview}
 \end{figure}
 
@@ -3446,7 +3456,7 @@ a test that fails when the fix is removed.
     without refusals and with accepted throughput. Publish times are taken
     when a message is sent, which removed the negative publish-to-decision
     intervals. Negative controls ran the previous extractor on the same
-    inputs (\texttt{tests/evidence/20261023T123738Z-extract-negative-controls.log}).
+    inputs (\nolinkurl{tests/evidence/20261023T123738Z-extract-negative-controls.log}).
   \item \textbf{Throughput limits.} Each Outbox publisher slept 2\,s after
     every batch of 50, capping it below 25 events/s, and opened a channel,
     checked the routing and saved the row once per message. It now starts
@@ -3471,14 +3481,14 @@ a test that fails when the fix is removed.
 \end{itemize}
 
 \paragraph{Second pass.} The same review was then checked again finding by
-finding (\texttt{docs/midterm-review-disposition.md}):
+finding (\nolinkurl{docs/midterm-review-disposition.md}):
 \begin{itemize}
   \item Both Outbox publishers claim their batch with
     \texttt{FOR UPDATE SKIP LOCKED} inside a transaction. Before, every
     Inventory replica read the same oldest rows and published them: with two
     replicas the broker received 800 messages for 400 rows. Now 2 or 4
     replicas publish each row exactly once (TP-L05,
-    \texttt{scripts/verify-replicas.ps1}), so C4 measures scaling rather than
+    \nolinkurl{scripts/verify-replicas.ps1}), so C4 measures scaling rather than
     duplication.
   \item The state race is also tested on PostgreSQL, with two connections
     held at a barrier: both save orders, duplicate starts and conflicting
@@ -3506,7 +3516,7 @@ finding (\texttt{docs/midterm-review-disposition.md}):
 \sloppy\paragraph{First local pilot.} C1 and C2 were offered the same steady load
 on the development PC, one after the other on the same processes, with no
 load-shedding limit and the Worker running 32 orders at a time
-(\texttt{scripts/run-pilot-c1-c2.ps1}; raw data
+(\nolinkurl{scripts/run-pilot-c1-c2.ps1}; raw data
 \nolinkurl{tests/evidence/20261024T112852Z-pilot-c1-c2-50rps-*} and
 \nolinkurl{tests/evidence/20261024T113202Z-pilot-c1-c2-200rps-*}). The
 validator passed all four runs. At 50 requests/s both kept up: C1 answered in
@@ -3537,9 +3547,9 @@ fill the Results chapter.
 The pilot ran on the declared deployment (Section~\ref{sec:ec2-deployment}): one
 \texttt{m7i-flex.large} backend (2 vCPU) and a separate \texttt{c7i-flex.large}
 JMeter host in \texttt{ap-southeast-2}. The driver was
-\texttt{scripts/run-matrix.ps1} over SSM Run Command, with \texttt{workload.jmx}
+\nolinkurl{scripts/run-matrix.ps1} over SSM Run Command, with \texttt{workload.jmx}
 in open-loop mode, 60\,s of steady load on one hot product and 100,000 units of
-stock. Before any number counted, the live check of \texttt{docs/deployment.md} (section 11a) passed: three runs,
+stock. Before any number counted, the live check of \nolinkurl{docs/deployment.md} (section 11a) passed: three runs,
 all five Prometheus targets up, numeric service metrics, and only port 80
 reachable from the JMeter host. Every run in the pilot passed the correctness
 validator, and no container restarted
@@ -3694,9 +3704,9 @@ dead-lettered order finishes only through reconciliation, which now waits
 \label{sec:locked}
 
 The owner signed off these values on 4 November 2026
-(Table~\ref{tab:locked}). They are in \texttt{infra/ec2.env.example} and in
-the defaults of \texttt{scripts/run-matrix.ps1}, and section~5f of
-\texttt{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \texttt{docs/week14-freeze.md}. \texttt{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, \nolinkurl{tests/evidence/20261105T100509Z-freeze.log}; re-frozen on 5~November at the commit that adds check~7 to the validator and sums the extractor's gauges across replicas, with no change to the services, the infrastructure or any value below).
+(Table~\ref{tab:locked}). They are in \nolinkurl{infra/ec2.env.example} and in
+the defaults of \nolinkurl{scripts/run-matrix.ps1}, and section~5f of
+\nolinkurl{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \nolinkurl{docs/week14-freeze.md}. \nolinkurl{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, \nolinkurl{tests/evidence/20261105T100509Z-freeze.log}; re-frozen on 5~November at the commit that adds check~7 to the validator and sums the extractor's gauges across replicas, with no change to the services, the infrastructure or any value below).
 
 \begin{table}[tbp]
 \centering
@@ -3734,7 +3744,7 @@ system handle each shape correctly, but they are not repeated or compared
 across configurations. All of them ran on the EC2 Compose stack on a local
 machine at low rates, and every validator passed (TP-X04,
 \nolinkurl{tests/evidence/20261031T161516Z-ec2-stack.log}; the plans are in
-\texttt{docs/workload-profiles.md}):
+\nolinkurl{docs/workload-profiles.md}):
 \begin{itemize}
   \item \textbf{Ramp-up} (5, 15 then 30/s) and a \textbf{spike} (3, 40 then 3/s):
     every request accepted, one order per accepted request.
@@ -3911,15 +3921,15 @@ The configurations are those of the brief:
     host.
 \end{itemize}
 Every run uses the same JMeter plan, run from a separate machine, and the
-same seeded stock (\texttt{scripts/reset-and-seed.ps1},
-\texttt{scripts/warm-up.ps1}). Rate measurements use the plan's open-loop mode
+same seeded stock (\nolinkurl{scripts/reset-and-seed.ps1},
+\nolinkurl{scripts/warm-up.ps1}). Rate measurements use the plan's open-loop mode
 (\texttt{-Jmode=open}, TP-X05), in which threads only submit: when threads also
 polled each order to completion, the submit rate fell to the Process Worker's
 completion rate (3.7/s at a requested 10/s and 6.5/s at 50/s on local Docker),
 so C1 and C2 would not have received equal load. A closed loop like that
 hides overload~\cite{schroeder-open-closed}. Each table states the rate
 achieved, read from the JTL, not the rate requested. After each run,
-\texttt{scripts/validate-correctness.ps1} gives its correctness verdict. A
+\nolinkurl{scripts/validate-correctness.ps1} gives its correctness verdict. A
 configuration that is fast but over-sells has not won anything, so no
 performance number is reported without that verdict.
 
@@ -3945,9 +3955,9 @@ other workload profiles of the brief were run as coverage (Section~\ref{sec:prof
 
 The official matrix ran on 5~November 2026 on one pair of EC2 hosts
 (backend \texttt{m7i-flex.large}, JMeter \texttt{c7i-flex.large}) with every
-value frozen in \texttt{docs/week14-freeze.md} (frozen commit \texttt{9d00bea};
+value frozen in \nolinkurl{docs/week14-freeze.md} (frozen commit \texttt{9d00bea};
 both hosts ran \texttt{a37f082}, whose service code and settings are
-identical). The plan is \texttt{docs/week14-official-runs.md}. There are 22
+identical). The plan is \nolinkurl{docs/week14-official-runs.md}. There are 22
 cells (C1, C2 and C3 at 50, 100 and 200/s, C3 also at 400/s, and C4 with 1, 2
 and 4 Inventory consumers at 50, 100, 200 and 400/s), each run 3 times: 66
 runs, in repeat-major order (repeat~1 of every cell, then repeat~2, then
@@ -3981,7 +3991,7 @@ race, which it did (TP-B01, Section~\ref{sec:c0-c1}).
 \begin{table}[H]
 \centering
 \small
-\input{figures/official/tab-correctness.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-correctness.tex}}
 \caption{Validator checks per configuration: runs that passed out of runs
 made, over the 66 official runs. ``n/a'' marks a check that does not apply:
 C1 is synchronous, so it has no broker duplicates (4), no asynchronous
@@ -4013,7 +4023,7 @@ offered rate. The JMeter host itself had spare capacity (Section~\ref{sec:pilot}
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-api.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-api.tex}}
 \caption{Client-observed latency (ms) of order submissions (2xx only), from
 the raw JTL, with the rate JMeter achieved (median). The maximum of every run
 is in \nolinkurl{runs.csv}. Cells: median of 3 runs (range).}
@@ -4034,7 +4044,7 @@ and is worked off after the load ends.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
-\input{figures/official/tab-decision.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-decision.tex}}
 \caption{Stock-decision and completion latency (s), from the acceptance of
 the order, per order from the stage timestamps. For C1 the decision is made
 inside the request, so the decision values are its API latency and there is
@@ -4054,7 +4064,7 @@ negative.
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-stages.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-stages.tex}}
 \caption{Time spent in each stage of the C2 pipeline (s), per order from the
 stage timestamps. Negative counts publish-to-decision intervals below zero
 (publication is marked after the broker's confirm); none occurred. Cells:
@@ -4084,7 +4094,7 @@ includes.
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-throughput.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-throughput.tex}}
 \caption{Throughput and rates per cell. Achieved is the submission rate
 JMeter reached (/s). Accepted counts unique orders created (C1: requests
 decided). Completed/s is completed orders divided by 60\,s plus the drain.
@@ -4155,7 +4165,7 @@ in Section~\ref{sec:load-shedding}).
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
-\input{figures/official/tab-recovery.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-recovery.tex}}
 \caption{Recovery after the overload cells (200 and 400/s). Unfinished, Outbox
 and Queues are the backlog when the load ends: unfinished orders, unpublished
 Outbox rows (Order Service plus every Inventory replica) and the peak of the
@@ -4184,7 +4194,7 @@ scale.}
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-overload.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-overload.tex}}
 \caption{Backlog per cell (C2 to C4). Peak queue is the largest depth of the
 \texttt{OrderPlaced} queue (ready plus unacknowledged). Oldest is the age of
 its oldest message (s). Outbox peak is the largest number of unpublished
@@ -4196,7 +4206,7 @@ the matrix's drain time (s). Cells: median of 3 runs (range).}
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-reliability.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-reliability.tex}}
 \caption{What the reliability mechanisms did, as totals per run. Retries and
 duplicates are attempts absorbed by the Inbox, not business effects.
 Dead-lettered messages all came from the Process Worker (its own counter shows
@@ -4231,7 +4241,7 @@ well below the limit of 200.
 \begin{table}[tbp]
 \centering
 \footnotesize
-\input{figures/official/tab-resources.tex}
+\adjustbox{max width=\linewidth}{\input{figures/official/tab-resources.tex}}
 \caption{Backend host during each run. CPU in load is the mean host CPU over
 the 60\,s load window; peak is the highest sample of the run. RAM is the peak
 host memory in use. DB conns is the peak number of PostgreSQL connections.
@@ -4276,7 +4286,7 @@ so this shows contention on that host, not multi-node scaling.}
 % ============================================================
 
 This chapter answers the four questions of the scope
-(\texttt{docs/00-scope-lock.md}) from the official results in
+(\nolinkurl{docs/00-scope-lock.md}) from the official results in
 the Results chapter (Section~\ref{sec:results-official} onwards), and states how far each answer
 goes. Every number below is from the 66 official runs unless another source
 is named.
@@ -4641,10 +4651,10 @@ Systems Design and Implementation (NSDI~'06)}, 2006.
 \label{app:test-plan}
 % ============================================================
 
-The full test plan is \texttt{docs/test-plan.md}. For every case it gives the
+The full test plan is \nolinkurl{docs/test-plan.md}. For every case it gives the
 inputs, the expected result, the command, the status and the saved evidence.
 A case is PASS only when its evidence file is committed and shows the pass;
-\texttt{scripts/verify-test-plan.ps1} enforces that rule. Table~\ref{tab:app-tests}
+\nolinkurl{scripts/verify-test-plan.ps1} enforces that rule. Table~\ref{tab:app-tests}
 counts the cases by area.
 
 \begin{table}[H]
@@ -4679,9 +4689,9 @@ from the README on a fresh machine (TP-X03).}
 \label{app:freeze}
 % ============================================================
 
-The official runs use the values fixed in \texttt{docs/week14-freeze.md},
+The official runs use the values fixed in \nolinkurl{docs/week14-freeze.md},
 which also records the frozen source commit and the SHA-256 hash of each
-Terraform file. \texttt{scripts/verify-freeze.ps1} checks every value against
+Terraform file. \nolinkurl{scripts/verify-freeze.ps1} checks every value against
 its source file (TP-X09). Table~\ref{tab:app-freeze} repeats the values that
 define the experiment; Section~\ref{sec:locked} explains how they were chosen.
 
@@ -4699,7 +4709,7 @@ Terraform, AWS provider & Terraform \(\geq\) 1.9.0; \texttt{hashicorp/aws} 5.100
 .NET & SDK 10.0.300; runtime image \texttt{aspnet:10.0.8} \\
 Infrastructure images & \texttt{postgres:16.14}, \texttt{redis:7.4.7},
   \texttt{rabbitmq:3.13.7-management}, \texttt{nginx:1.31.3} \\
-JMeter & 5.6.3, \texttt{tests/jmeter/workload.jmx} in open-loop mode \\
+JMeter & 5.6.3, \nolinkurl{tests/jmeter/workload.jmx} in open-loop mode \\
 \midrule
 Configurations & C1, C2, C3, C4; C4 at 1, 2 and 4 Inventory replicas \\
 Load levels & 50, 100 and 200/s for all; 400/s for C3 and C4 \\
@@ -4719,7 +4729,7 @@ PostgreSQL connections & 200 \\
 \bottomrule
 \end{tabular}
 \caption{The main frozen values. The complete list, with the source file of
-each value and the metric definitions, is \texttt{docs/week14-freeze.md}.}
+each value and the metric definitions, is \nolinkurl{docs/week14-freeze.md}.}
 \label{tab:app-freeze}
 \end{table}
 
@@ -4729,8 +4739,8 @@ each value and the metric definitions, is \texttt{docs/week14-freeze.md}.}
 % ============================================================
 
 All commands run from the repository root in Windows PowerShell 5.1. The
-prerequisites and the full procedure are in \texttt{docs/reproduction.md}
-(local) and \texttt{docs/deployment.md} (EC2).
+prerequisites and the full procedure are in \nolinkurl{docs/reproduction.md}
+(local) and \nolinkurl{docs/deployment.md} (EC2).
 
 \paragraph{Build and unit tests.}
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
@@ -4761,6 +4771,9 @@ terraform destroy "-var-file=terraform.tfvars"
 \paragraph{The official matrix.} Run from the PC; it drives both hosts over
 AWS Systems Manager Run Command and writes one \texttt{manifest.json} per run.
 The 400/s cells are a second call with \texttt{-Configs C3,C4 -Rates 400}.
+The official runs used one call per run, in repeat-major order, as
+described in \nolinkurl{docs/week14-official-runs.md}; the owner's AWS steps are
+\nolinkurl{docs/week14-manual-steps.md}.
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 powershell -File .\scripts\run-matrix.ps1 -Transport Ssm -BackendInstance <backend-id> -JMeterInstance <jmeter-id> -BackendHost <backend-private-ip> -OutDir <local-folder>
 \end{Verbatim}
@@ -4783,12 +4796,12 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error report.tex
 \label{app:evidence}
 % ============================================================
 
-Every saved result is in \texttt{tests/evidence/}. The Week~3 baseline
-results are in \texttt{tests/baseline/results/} and
-\texttt{tests/jmeter/results/}. File
+Every saved result is in \nolinkurl{tests/evidence/}. The Week~3 baseline
+results are in \nolinkurl{tests/baseline/results/} and
+\nolinkurl{tests/jmeter/results/}. File
 names start with the UTC time of the run, for example
-\texttt{20261104T145044Z-freeze.log}, so a later run never overwrites an
-earlier one. \texttt{docs/evidence-index.md} maps every requirement of the
+\nolinkurl{20261104T145044Z-freeze.log}, so a later run never overwrites an
+earlier one. \nolinkurl{docs/evidence-index.md} maps every requirement of the
 brief to its test cases, their status and their logs. Table~\ref{tab:app-evidence}
 lists the evidence behind the experiment chapters.
 
@@ -4797,21 +4810,27 @@ lists the evidence behind the experiment chapters.
 \footnotesize
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.31\textwidth}l>{\raggedright\arraybackslash}p{0.52\textwidth}@{}}
 \toprule
-Claim & Case & Evidence in \texttt{tests/evidence/} \\
+Claim & Case & Evidence in \nolinkurl{tests/evidence/} \\
 \midrule
-Pilot of C1 to C4 on EC2 & TP-X01 & \texttt{20261101T204940Z-ec2-pilot.log}, \allowbreak\texttt{-ec2-pilot-results.csv} \\
-Slowdown cause & --- & \texttt{20261103T150800Z-slowdown-diagnosis.log} \\
-Consumer concurrency is safe & TP-X08 & \texttt{20261103T235000Z-consumer-concurrency/} \\
-EC2 confirmation of the fix & TP-X07 & \texttt{20261104T132500Z-ec2-confirmation/} \\
-Workload profiles & TP-X04 & \texttt{20261031T161516Z-ec2-stack.log} \\
-Open-loop load mode & TP-X05 & \texttt{20261031T171915Z-ec2-stack.log} \\
-Matrix runner and queue-bound gate & TP-X06 & \texttt{20261101T181846Z-ec2-stack-matrix.log} \\
-Freeze manifest matches the repository & TP-X09 & \texttt{20261104T145044Z-freeze.log}, \allowbreak\texttt{-freeze-negative.log} \\
+Pilot of C1 to C4 on EC2 & TP-X01 & \nolinkurl{20261101T204940Z-ec2-pilot.log}, \allowbreak\texttt{-ec2-pilot-results.csv} \\
+Slowdown cause & --- & \nolinkurl{20261103T150800Z-slowdown-diagnosis.log} \\
+Consumer concurrency is safe & TP-X08 & \nolinkurl{20261103T235000Z-consumer-concurrency/} \\
+EC2 confirmation of the fix & TP-X07 & \nolinkurl{20261104T132500Z-ec2-confirmation/} \\
+Workload profiles & TP-X04 & \nolinkurl{20261031T161516Z-ec2-stack.log} \\
+Open-loop load mode & TP-X05 & \nolinkurl{20261031T171915Z-ec2-stack.log} \\
+Matrix runner and queue-bound gate & TP-X06 & \nolinkurl{20261101T181846Z-ec2-stack-matrix.log} \\
+Freeze manifest matches the repository (first freeze) & TP-X09 & \nolinkurl{20261104T145044Z-freeze.log}, \allowbreak\texttt{-freeze-negative.log} \\
+Re-freeze at 9d00bea & TP-X09 & \nolinkurl{20261105T100509Z-freeze.log}, \nolinkurl{-freeze-negative.log} \\
+Validator run filter (check 0b) & TP-X10 & \nolinkurl{20261105T070413Z-validator-run-filter.log} \\
+Status history (check 7), missing parameters & TP-X11 & \nolinkurl{20261105T064537Z-validator.log}, \nolinkurl{-validator-negative.log} \\
+Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-extract.log}, \nolinkurl{20261105T074539Z-extract-negative.log} \\
+Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{20261105T104832Z-official/} (bundles, manifests, \nolinkurl{summary.log}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The
-official Week~14 runs add one folder per run with its manifest, raw JTL,
-collector samples, validator output and database dump.}
+official runs folder holds every run's manifest, raw JTL, collector samples,
+validator log and extraction; the database dumps stayed on the backend because
+each run was extracted before the next reset.}
 \label{tab:app-evidence}
 \end{table}
 

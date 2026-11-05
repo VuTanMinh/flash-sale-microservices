@@ -1,0 +1,38 @@
+Week 14 box 3: whole-report layout pass over report/report.pdf (129 pages), 5 November 2026.
+
+Method
+- Built with latexmk -pdf (MiKTeX); 0 undefined references or citations.
+- Every page rendered at 45 dpi and tiled 8 per sheet (17 sheets); every sheet looked at.
+- Every diagram and figure page, and every page the log flagged, rendered again at 55-110 dpi and read:
+  pp. 20, 26-30 (ERDs, class diagrams, API and event tables), 33-35 (sequence diagrams), 37 (failure table),
+  41 (C1 table), 84, 89-92, 105-115 (Results tables and figures), 116-129 (Discussion to Appendix D).
+- Overfull lines from report.log before and after.
+
+Overfull lines in report.log
+- before: 35, of which 20 were 10 pt or wider (largest 196 pt: the event table; 102 pt: an evidence path).
+- after: 16, of which 2 are 10 pt or wider; both were read at 70 dpi and do not reach the margin
+  (p. 20 a description-list label box, p. 37 a p-column of the failure table).
+
+Fixed
+- Event table (sec. 10.4): wrapped columns, small type (was 196 pt too wide).
+- Local infrastructure table (sec. 9.1): wrapped columns.
+- C1 below/equal/above table (p. 41, the known overflow): tighter column spacing.
+- 170 file paths, evidence names and metric names moved from \texttt to \nolinkurl, which may now break
+  after / - . _ and inside UTC timestamps; long C# identifiers given break points.
+- Event-contract sentence (p. 29) reordered so FlashSale.EventContracts no longer runs into the margin.
+- Generated Results tables capped at the text width (adjustbox max width).
+- ERD figures 10.1-10.3 and the event-contract diagram 10.5: their text printed at about 3-4 pt. The rendered
+  images were re-packed from one row into two rows (report/figures/stack_wide.py, *-stacked.png; content
+  unchanged, the Mermaid sources untouched) and printed larger, about 1.4 to 2.5 times the earlier text size.
+- Appendix D lists the Week 14 evidence (TP-X02, TP-X09 re-freeze, TP-X10, TP-X11, TP-X12); Appendix C points
+  to the run plan and the owner steps.
+
+Left as they are, by judgement
+- Sequence diagrams 10.7 and 10.8 fill the page height; their text is small but legible when the PDF is zoomed,
+  and the full diagrams are in docs/sequence-diagrams.md.
+- A few pages are part-empty where a float ends a chapter or section; no table or figure is cut or overflows.
+
+Content note for the owners (not a layout item, not changed): sec. 11.5.5, "How it was built", names the
+AI tools used to write and review the code.
+
+Exit code: 0
