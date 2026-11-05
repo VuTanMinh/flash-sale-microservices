@@ -293,6 +293,22 @@ The results have the following limits:
   \item Authentication and authorization are out of scope. The order-status API
     therefore must not be presented as production-secure, and a GUID is not a
     substitute for an authorization check.
+  \item The backend is one \texttt{m7i-flex.large} host with two vCPUs, shared
+    by every service, the broker, Redis and the database. The official runs
+    reached about 200 accepted requests and 50--66 completed orders a second,
+    far below the brief's initial target of about 2,000 reservation attempts a
+    second; the results describe this host, not the design's ceiling
+    (Section~\ref{sec:capacity}).
+  \item The official matrix is steady load on one hot product with more stock
+    than any run can sell. Scarce stock and the other load profiles were
+    tested separately and at lower rates (TP-B02, TP-I02, TP-X04), not
+    compared across configurations.
+  \item Each cell ran three times for 60\,s, all in one session on one pair of
+    hosts. Rare behaviour, such as how often a run dead-letters an order, is
+    shown to occur but not measured as a frequency.
+  \item The load generator keeps one waiting thread per request in flight, so a
+    slow backend lowers the offered rate; the results report the rate
+    achieved. The AMI is resolved at apply time and not pinned.
 \end{itemize}
 
 % ============================================================
@@ -3752,18 +3768,13 @@ rather than scaling the hardware to reach it.
 \chapter{Results}
 % ============================================================
 
-% Built empty in Week 11 (Step 11.4), to be filled with real numbers in
-% Week 14. Deciding now what each table must contain forces the
-% instrumentation to exist before the runs, not after. Every cell is ---
-% (not 0, not TBD): a dash cannot be mistaken for a measured zero.
-
-Section~\ref{sec:results-pilot} is a draft from the Week~13 pilot data. The
-rest of this chapter is a set of empty templates, built in Week~11 and filled in
-Week~14 from the official runs. Each table and figure follows the teacher's
-evaluation plan (§6 of the brief) and the experiment plan: configurations
-C0--C4, the listed metrics, the six correctness checks, and 3--5 runs per
-configuration. Every cell is ``---'' until a run fills it. A dash cannot be
-mistaken for a measured zero.
+Section~\ref{sec:results-pilot} keeps the Week~13 pilot data, labelled as
+such. Sections~\ref{sec:results-official} to the end of the chapter give the
+official results: the 66 runs of Week~14, three repeats of every cell, with
+the values locked in Section~\ref{sec:locked}. Their tables follow the
+teacher's evaluation plan (\S6 of the brief) and the templates fixed in
+Week~11, before any official run, so the measures were chosen before the
+numbers were known.
 
 \section{Pilot results (draft, not final)}
 \label{sec:results-pilot}
@@ -4261,13 +4272,193 @@ so this shows contention on that host, not multi-node scaling.}
 
 % ============================================================
 \chapter{Discussion}
+\label{sec:discussion}
 % ============================================================
-% TODO Week 14.
+
+This chapter answers the four questions of the scope
+(\texttt{docs/00-scope-lock.md}) from the official results in
+the Results chapter (Section~\ref{sec:results-official} onwards), and states how far each answer
+goes. Every number below is from the 66 official runs unless another source
+is named.
+
+\section{Correctness under concurrency}
+
+\emph{Does each valid implementation preserve the inventory invariants under
+concurrent requests?} Yes, in everything that was tested. All 66 official runs
+passed every validator check that applies to them, no unit was over-sold, and
+every accepted order reached a terminal state
+(Table~\ref{tab:results-correctness}). The deliberately unsafe C0 broke the
+same invariants at once (TP-B01), which shows the checks can fail.
+
+The official matrix seeds 100,000 units, more than any run can sell, because
+it measures performance; it never makes the stock scarce. Scarce stock was
+tested separately, and the same rules held there: C1 with 50, 100 and 150
+concurrent requests for 100 units (TP-B02), the Lua reservation with 400
+concurrent requests for 100 units and with skewed demand over four products
+(TP-I02), and requests below, equal to and above the stock on the EC2 stack,
+where reservations always equalled the smaller of requests and stock
+(TP-X04). Duplicate and redelivered messages never caused a second deduction
+(TP-M01, TP-M02), and the official runs absorbed between 38 and 3,269
+duplicates per run (Table~\ref{tab:results-reliability}) with no effect on
+stock. The conclusion is limited to the failure modes those tests cover
+(Table~\ref{tab:failure-modes}).
+
+\section{C1 against C2: what the asynchronous design buys and costs}
+
+\emph{How do C1 and C2 trade request latency, completion latency, throughput
+and complexity?} On this one 2-vCPU host the comparison favours C1 more than
+the usual argument for asynchronous designs would suggest.
+
+\paragraph{Request latency.} C1 acknowledged faster at every rate it was run
+at: p95 30--39\,ms at 50 and 100/s against 199--739\,ms for C2. The
+asynchronous path does not avoid the database: it still writes the order and
+its Outbox row in one transaction before it answers. And it runs four more
+processes (Inventory Service, the Worker, RabbitMQ and Redis) on the same two
+vCPUs, which were 90--99\,\% busy during C2's load
+(Table~\ref{tab:results-resources}). The benefit asynchrony usually brings,
+a short request path because the slow work happens later, is cancelled here by
+CPU contention from that later work on the same machine.
+
+\paragraph{Completion.} C1 finishes the order inside the request. C2 finishes
+it later: p95 4.3\,s at 50/s, about 48\,s at 100/s and 120\,s at 200/s,
+because it accepts faster than it completes and builds a backlog. The C2 stage
+split shows where that backlog sits: in the Outbox, between acceptance and
+publication (Table~\ref{tab:results-stages}). The publisher waits for the
+broker's confirm on each message, and on a saturated CPU that wait limits the
+whole pipeline.
+
+\paragraph{Throughput.} C1 accepted and decided 199 requests a second at
+200/s. C2 accepted 168 a second there, limited by its own latency and the
+plan's thread cap, and completed only about 50--66 orders a second at any rate.
+For the hot product, the conditional \texttt{UPDATE} on one row was not the
+bottleneck at these rates: its p95 rose to 919\,ms at 200/s, the first sign of
+lock contention, but it still kept up. The study therefore found no rate at
+which C2's Redis reservation pays for its extra machinery on this hardware.
+The point at which the row lock would become C1's limit lies above 200/s and
+was not reached.
+
+\paragraph{Complexity.} C1 is one service and one table. C2 adds two more
+services, a broker, Redis, an Outbox and an Inbox in each service, bounded
+retries, dead-letter queues and a reconciliation job; the failure-mode table
+lists 22 cases it has to handle (Table~\ref{tab:failure-modes}). What C2 buys
+for that is decoupling: an order is accepted when Inventory or the Worker is
+slow or down, and the work is done later without being lost, which C1 cannot
+do. The official runs show that guarantee holding under load (every accepted
+order completed), and they also show its price in latency and CPU.
+
+\section{Overload control}
+
+\emph{At overload, do the C3 controls reject excess work predictably and
+recover after the load falls?} Yes. At 200 and 400/s, C3 and C4 refused
+63--65\,\% and 83--84\,\% of requests, every refusal a 429 or a 503 with
+\texttt{Retry-After} and never another error (Table~\ref{tab:results-throughput}).
+Refusal kept the backlog bounded: about 3,000--3,700 unfinished orders at the
+end of the load, against 9,800 for C2 at 200/s, and 99\,\% of them were done
+36--51\,s later, against 124\,s for C2 (Table~\ref{tab:results-recovery}). No
+service restarted.
+
+The controls have a cost that the design did not intend. The queue bound and
+the Worker's bounded publish retries together dead-letter a few messages per
+run when a queue stays full longer than the retries last. Those orders then
+complete only through reconciliation, after its 300\,s timeout for
+\texttt{Confirmed} orders, so most C3 and C4 overload runs reach a fully
+stable state only after about 300--330\,s. Nothing is lost, but the tail is
+much longer than the bulk recovery. Two changes would shorten it, neither
+tested here: a longer retry ladder at the Worker, or a shorter
+\texttt{Confirmed} timeout for reconciliation.
+
+\section{Consumer replicas on one host}
+
+\emph{How do 1, 2 and 4 Inventory consumers on one host affect throughput,
+drain and contention?} They did not improve anything measured. At 100/s the
+accepted rate fell slightly as consumers were added (98 to 90 a second) and
+the p95 completion rose (57 to 64\,s); at 50/s four consumers made completion
+four times slower than one (3.7 to 15\,s at p95). The host's CPU was already
+96--99\,\% busy at 100/s and above, so each replica is one more process
+competing for the same two vCPUs. Inventory was not the stage that limited the
+pipeline (the Outbox and the Worker were), so more Inventory consumers had
+nothing to speed up. This is the shared-resource contention the brief asks C4
+to expose. It says nothing about replicas on separate machines, where the
+same change could behave differently.
+
+\section{The 2,000 attempts per second target}
+
+The brief sets an initial target of about 2,000 reservation attempts a second
+for the chosen hardware. The study reached about 200 requests a second at
+the API and 50--66 completed orders a second, an order of magnitude below
+it, and reports that as a result with its hardware rather than scaling the
+hardware (Section~\ref{sec:capacity}). The measurements point to where the
+limit lies. Redis was never the limit: its commands took 0.04--0.06\,ms on
+average. The limits were the host's two vCPUs, shared by every component,
+and the Outbox publisher's per-message confirm. Reaching the target would need
+some combination of more cores or separate hosts for the database, the broker
+and the services, and batched publishing with confirms per batch. None of
+these was tested, so this is a direction, not a finding.
+
+\section{Threats to validity}
+
+\begin{itemize}
+  \item \textbf{One session, one host pair.} All 66 runs ran on one backend and
+    one JMeter host on one day, so the comparison between configurations is
+    fair, but a different host or AMI could shift every number. A second
+    session was not needed, so no cross-host check exists.
+  \item \textbf{Three repeats, 60\,s each.} The ranges in the tables are
+    narrow for most cells, but three runs cannot show rare events. The drain,
+    in particular, is bimodal: a run either has dead letters or not, and three
+    repeats only show that both outcomes occur, not how often.
+  \item \textbf{The offered rate.} In open mode each of $\max(20, r)$ threads
+    waits for its response, so a slow backend lowers the rate it is offered.
+    C2 at 200/s reached 168/s for this reason. Every table reports the rate
+    achieved, not the rate requested.
+  \item \textbf{One workload in the matrix.} The official matrix is steady
+    load on one hot product. The other profiles of the brief were run as
+    coverage (TP-X04), once each and at low rates, not compared across
+    configurations.
+  \item \textbf{Two clocks for draining.} The matrix's drain clock starts when
+    its post step begins, a few seconds after the last submission, and the
+    collector samples every 5\,s; recovery times are accurate to a few seconds.
+  \item \textbf{The host CPU figure is the whole host.} It includes every
+    container, so it shows contention but cannot assign the load to one
+    component.
+\end{itemize}
 
 % ============================================================
 \chapter{Conclusion}
+\label{sec:conclusion}
 % ============================================================
-% TODO Week 15.
+
+This project built and measured an event-driven flash-sale backend against a
+synchronous PostgreSQL baseline, as the brief asks. The asynchronous design
+uses a Transactional Outbox, an atomic Redis Lua reservation, RabbitMQ with
+publisher confirms, idempotent consumers with an Inbox, bounded retries,
+dead-letter queues, reconciliation and three layers of load shedding. Both
+designs were deployed on AWS EC2 with Terraform and measured with JMeter from
+a separate host, in 66 validated runs of a frozen matrix.
+
+The main findings, each limited to this hardware and workload:
+\begin{enumerate}
+  \item Every configuration kept every inventory invariant, under load and in
+    the separate scarce-stock and duplicate-message tests; no unit was ever
+    over-sold and no accepted order was lost.
+  \item On one 2-vCPU host the synchronous atomic update was faster for the
+    client at every tested rate and kept up to 200 requests a second. The
+    asynchronous design accepted the same load but completed only 50--66 orders
+    a second: its extra processes compete for the same CPU, and its Outbox
+    publisher became the bottleneck.
+  \item Load shedding worked as designed: excess requests were refused early
+    with 429 or 503, the backlog stayed bounded, and 99\,\% of it cleared
+    within a minute after the load. A few dead-lettered orders per overload
+    run then waited about 300\,s for reconciliation, a cost of combining a
+    bounded queue with bounded retries.
+  \item More Inventory consumers on the same host added contention, not
+    capacity.
+\end{enumerate}
+
+The asynchronous design's value here is decoupling and the guarantee that
+accepted work is never lost, not speed. Its speed would need more hardware
+than one small host, batched publishing, and replicas on separate machines.
+Those are the natural next steps; this study measured the single-host case
+the brief defines and reports its limits as found.
 
 % ============================================================
 % \backmatter is a book-class-only command (undefined in the "report" class
