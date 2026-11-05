@@ -45,7 +45,7 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $failures = 0
 $checks = 0
-$expectedChecks = 55     # number of Check calls in the try block (a truncated run must fail)
+$expectedChecks = 57     # number of Check calls in the try block (a truncated run must fail)
 
 # real-run stack (Part 2)
 $mq = "verify-ex-mq"; $amqp = 5700; $mgmt = 15700; $redis = "verify-ex-redis"; $redisPort = 6410
@@ -292,6 +292,30 @@ try {
     Check "collector: peak queue depth OrderPlaced = 5" (Near $sum.collector.peak_queue_depth.per_queue.OrderPlaced 5.0) "got=$($sum.collector.peak_queue_depth.per_queue.OrderPlaced)"
     Check "collector: peak oldest age OrderPlaced = 4" (Near $sum.collector.peak_oldest_age_seconds.per_queue.OrderPlaced 4.0) "got=$($sum.collector.peak_oldest_age_seconds.per_queue.OrderPlaced)"
     Check "collector: drain time = 21.1s (late-completing order delays it past the empty queues)" (Near $sum.collector.drain_time_s.value 21.1 0.01) "got=$($sum.collector.drain_time_s.value)"
+
+    # ---- C4 replicas (Week 14): the collector labels each Inventory row with
+    #      instance=<url>. Same run, but the Inventory Outbox gauge comes from two
+    #      replicas; replica 1 still holds 1 unpublished row at 00:00:23 (listed first, so
+    #      reading only the last replica row also misses it), so the
+    #      SUM is 0 only at 00:00:24 and the drain is 22.1 s. An exact-label
+    #      lookup finds no Inventory gauge at all ("unavailable"); reading one
+    #      replica instead of the sum gives 21.1.
+    $repDir = Join-Path $runDir "replicas"
+    New-Item -ItemType Directory -Force -Path $repDir | Out-Null
+    $repCsv = New-Object System.Collections.Generic.List[string]
+    foreach ($line in $csv) {
+        if ($line -like "*,service,flashsale_outbox_unpublished,service=inventory-service,*") {
+            $tt = $line.Split(',')[0]
+            $v2 = $(if ($tt -eq $t[3]) { "1" } else { "0" })
+            $repCsv.Add("$tt,service,flashsale_outbox_unpublished,service=inventory-service;instance=http://inv-1:8080/metrics,$v2")
+            $repCsv.Add("$tt,service,flashsale_outbox_unpublished,service=inventory-service;instance=http://inv-2:8080/metrics,0")
+        } else { $repCsv.Add($line) }
+    }
+    [IO.File]::WriteAllLines((Join-Path $repDir "samples.csv"), $repCsv.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    & powershell -NoProfile -File $extract -RunId "known-replicas" -RunDir $repDir -JtlPath $jtlPath -From $from -To $to -Container $Container *> $null
+    $repSum = $null
+    try { $repSum = Get-Content -LiteralPath (Join-Path $repDir "summary.json") -Raw | ConvertFrom-Json } catch { }
+    Check "collector (2 Inventory replicas, instance labels): drain time = 22.1s, the replicas' Outbox gauges summed" ($null -ne $repSum -and (Near $repSum.collector.drain_time_s.value 22.1 0.01)) "got=$($repSum.collector.drain_time_s.value)"
     Check "collector: recovery time is unavailable without -StableRange" (IsUnavailable $sum.collector.recovery_time_s.value) "got=$($sum.collector.recovery_time_s.value)"
     Check "collector: counters retries=9 duplicates=2 dead_lettered=0 reconciliation=1 (per-series reset)" (Near $sum.collector.counters.retries 9 -and Near $sum.collector.counters.duplicates 2 -and Near $sum.collector.counters.dead_lettered 0 -and Near $sum.collector.counters.reconciliation 1) "retries=$($sum.collector.counters.retries) dups=$($sum.collector.counters.duplicates) dlq=$($sum.collector.counters.dead_lettered) recon=$($sum.collector.counters.reconciliation)"
     Check "collector: host cpu mean/peak=30/50, memory mean/peak=1200/1400" (Near $sum.collector.host_cpu_percent.mean 30.0 -and Near $sum.collector.host_cpu_percent.peak 50.0 -and Near $sum.collector.host_memory_used_bytes.mean 1200.0 -and Near $sum.collector.host_memory_used_bytes.peak 1400.0) "cpu=$($sum.collector.host_cpu_percent.mean)/$($sum.collector.host_cpu_percent.peak) mem=$($sum.collector.host_memory_used_bytes.mean)/$($sum.collector.host_memory_used_bytes.peak)"
@@ -488,6 +512,25 @@ try {
     Write-RecoveryJtl $goodJtl $goodRows.ToArray()
     $noInvVal = Run-Recovery "noinv" $goodJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0; max_total_backlog = 100 } $noInvCsv
     Check "recovery (e): missing Inventory Outbox series with max_total_backlog is not_recovered" ($noInvVal -is [string] -and $noInvVal -eq "not_recovered") "got=$noInvVal"
+
+    # (g) two Inventory replicas (instance labels), each holding 60 unpublished
+    # rows until 00:00:03: each is under max_total_backlog = 100 but the total
+    # (120) is over, so recovery starts at s=3. Reading one replica gives 0.
+    $repRecCsv = Join-Path $runDir "recovery-replicas-samples.csv"
+    $repRecRows = New-Object System.Collections.Generic.List[string]
+    $repRecRows.Add("utc_time,source,name,labels,value")
+    foreach ($pt in @(@{ t = "2026-01-01T00:00:00.000Z"; v = "60" }, @{ t = "2026-01-01T00:00:03.000Z"; v = "0" })) {
+        $repRecRows.Add("$($pt.t),service,flashsale_outbox_unpublished,service=order-service,0")
+        $repRecRows.Add("$($pt.t),service,flashsale_outbox_unpublished,service=inventory-service;instance=http://inv-1:8080/metrics,$($pt.v)")
+        $repRecRows.Add("$($pt.t),service,flashsale_outbox_unpublished,service=inventory-service;instance=http://inv-2:8080/metrics,$($pt.v)")
+        $repRecRows.Add("$($pt.t),rabbitmq,messages_ready,queue=OrderPlaced,0")
+        $repRecRows.Add("$($pt.t),rabbitmq,messages_unacknowledged,queue=OrderPlaced,0")
+    }
+    [IO.File]::WriteAllLines($repRecCsv, $repRecRows.ToArray(), (New-Object Text.UTF8Encoding($false)))
+    $repRecJtl = Join-Path $runDir "recovery-replicas.jtl"
+    Write-RecoveryJtl $repRecJtl $goodRows.ToArray()
+    $repRecVal = Run-Recovery "replicas" $repRecJtl @{ max_p95_ms = 1000; max_error_pct = 0.0; max_refused_pct = 0.0; min_throughput_per_s = 1.0; max_total_backlog = 100 } $repRecCsv
+    Check "recovery (g): two Inventory replicas' Outbox backlogs are summed (60 + 60 > 100), recovery = 3" (Near $repRecVal 3) "got=$repRecVal"
 
     # ---- fixture (i): a DB query failure AFTER a successful SELECT 1. A
     #      throwaway PostgreSQL container with no order_service schema is

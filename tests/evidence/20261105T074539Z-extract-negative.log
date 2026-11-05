@@ -1,0 +1,12 @@
+TP-X12 negative controls: verify-extract.ps1 (with the two multi-replica cases) run against a copy of extract-run-metrics.ps1 with the fix removed; each must fail both new cases and nothing else.
+
+== control old-extractor: the extractor before the fix (exact-label lookup)
+   FAIL  collector (2 Inventory replicas, instance labels): drain time = 22.1s, the replicas' Outbox gauges summed -- got=unavailable
+   FAIL  recovery (g): two Inventory replicas' Outbox backlogs are summed (60 + 60 > 100), recovery = 3 -- got=0
+   2 check(s) failed.
+== control no-sum: the fix without the summing: the last replica row at a sample time wins
+   FAIL  collector (2 Inventory replicas, instance labels): drain time = 22.1s, the replicas' Outbox gauges summed -- got=21.099999999999998
+   FAIL  recovery (g): two Inventory replicas' Outbox backlogs are summed (60 + 60 > 100), recovery = 3 -- got=0
+   2 check(s) failed.
+
+Both controls failed exactly the two multi-replica cases.

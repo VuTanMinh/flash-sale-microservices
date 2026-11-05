@@ -410,6 +410,12 @@ if (Test-Path -LiteralPath $samplesPath) {
         $readyMap = @{}; $unackMap = @{}
         $ageMap = @{}          # "time|queue" -> numeric oldest age
         $metricMap = @{}       # "name|labels|time" -> raw string value
+        # Service gauges summed across replicas: "name|labels without instance=|time"
+        # -> sum. The collector adds "instance=<url>" to every Inventory row when it
+        # is given Inventory metrics URLs (one per C4 replica), so an exact-label
+        # lookup finds nothing. A non-numeric value makes that sum unavailable.
+        $gaugeSum = @{}
+        $gaugeBad = New-Object System.Collections.Generic.HashSet[string]
         $times = New-Object System.Collections.Generic.List[string]
         $seenTimes = New-Object System.Collections.Generic.HashSet[string]
 
@@ -418,6 +424,14 @@ if (Test-Path -LiteralPath $samplesPath) {
             if (-not $seenTimes.Contains($t)) { $seenTimes.Add($t) | Out-Null; $times.Add($t) }
             $name = [string]$r.name; $labels = [string]$r.labels; $value = [string]$r.value
             $metricMap["$name|$labels|$t"] = $value
+            if ($r.source -eq "service") {
+                $baseLabels = (@($labels -split ';' | Where-Object { $_ -notlike 'instance=*' }) -join ';')
+                $gk = "$name|$baseLabels|$t"
+                $gv = Num $value
+                if ($null -eq $gv) { [void]$gaugeBad.Add($gk) }
+                elseif ($gaugeSum.ContainsKey($gk)) { $gaugeSum[$gk] = $gaugeSum[$gk] + $gv }
+                else { $gaugeSum[$gk] = $gv }
+            }
             if ($r.source -eq "rabbitmq") {
                 $q = LabelValue $labels "queue"
                 if ($q -ne "") { [void]$allQueueNames.Add($q) }
@@ -596,9 +610,11 @@ if (Test-Path -LiteralPath $samplesPath) {
         #      Outbox gauges and the exact pending-order count are 0. Pending is
         #      read from the database (one query for the whole run), not from the
         #      stuck-orders gauge, which only covers orders past the timeout.
+        # Summed across replicas (see $gaugeSum); $labels is the set without instance=.
         function GaugeAt([string]$t, [string]$name, [string]$labels) {
             $key = "$name|$labels|$t"
-            if ($metricMap.ContainsKey($key)) { return Num $metricMap[$key] }
+            if ($gaugeBad.Contains($key)) { return $null }
+            if ($gaugeSum.ContainsKey($key)) { return $gaugeSum[$key] }
             return $null
         }
         $drainSeconds = $null
@@ -710,17 +726,16 @@ if (Test-Path -LiteralPath $samplesPath) {
                 $firstRecovery = @($subSamples | Where-Object { $_.label -match $RecoveryLabelPattern } | Sort-Object t | Select-Object -First 1)
                 if ($firstRecovery.Count -gt 0) { $recoveryFrom = $firstRecovery[0].t }
             }
-            $outboxSeries = @(foreach ($r in $rows) {
-                if ($r.name -eq "flashsale_outbox_unpublished" -and (HasLabel ([string]$r.labels) "service=order-service")) {
-                    $ot = Time ([string]$r.utc_time); $ov = Num ([string]$r.value)
-                    if ($null -ne $ot -and $null -ne $ov) { [pscustomobject]@{ t = $ot; v = $ov } }
-                }
+            # One point per sample time, summed across replicas (GaugeAt), so a
+            # C4 run with several Inventory instances gives the total backlog
+            # rather than whichever replica's row happens to sort last.
+            $outboxSeries = @(foreach ($st in $times) {
+                $ov = GaugeAt $st "flashsale_outbox_unpublished" "service=order-service"; $ot = Time $st
+                if ($null -ne $ot -and $null -ne $ov) { [pscustomobject]@{ t = $ot; v = $ov } }
             }) | Sort-Object t
-            $invOutboxSeries = @(foreach ($r in $rows) {
-                if ($r.name -eq "flashsale_outbox_unpublished" -and (HasLabel ([string]$r.labels) "service=inventory-service")) {
-                    $ot = Time ([string]$r.utc_time); $ov = Num ([string]$r.value)
-                    if ($null -ne $ot -and $null -ne $ov) { [pscustomobject]@{ t = $ot; v = $ov } }
-                }
+            $invOutboxSeries = @(foreach ($st in $times) {
+                $ov = GaugeAt $st "flashsale_outbox_unpublished" "service=inventory-service"; $ot = Time $st
+                if ($null -ne $ot -and $null -ne $ov) { [pscustomobject]@{ t = $ot; v = $ov } }
             }) | Sort-Object t
             $mainQueueNames = @($allQueueNames | Where-Object { $_ -notlike '*.dlq' } | Sort-Object)
             $queueDepthSeries = @{}
