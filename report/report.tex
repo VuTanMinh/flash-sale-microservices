@@ -296,6 +296,161 @@ The results have the following limits:
 \end{itemize}
 
 % ============================================================
+\chapter{Background}
+\label{sec:background}
+% ============================================================
+
+This chapter summarises the established ideas the design builds on and names
+the source of each one. The later chapters describe how this project applies
+them.
+
+\section{Flash-sale contention on one inventory record}
+\label{sec:bg-contention}
+
+In a flash sale most requests target one product, so they all read and write
+the same stock value. If a request reads the stock, checks it in application
+code and then writes a new value, two concurrent requests can both read the
+same remaining unit and both succeed. Kleppmann calls this the \emph{lost
+update} problem and lists the usual remedies: an atomic write operation,
+explicit locking, or detecting the conflict and retrying~\cite{kleppmann-ddia}.
+C0 deliberately reproduces the race (Section~\ref{sec:c0-c1}).
+
+PostgreSQL offers two of those remedies. A conditional \texttt{UPDATE}, which
+subtracts one only \texttt{WHERE stock >= 1}, takes a row-level lock on the
+row it changes, and a second writer to the same row waits until the first
+transaction ends~\cite{pg-locking}. Under the default Read Committed level the
+waiting writer then re-evaluates its \texttt{WHERE} condition against the
+newly committed row version, so it cannot take a unit that is no longer
+there~\cite{pg-isolation}. \texttt{SELECT ... FOR UPDATE} locks the row before
+the check instead~\cite{pg-select}. Both are correct, but every request for the
+hot product queues on the same row lock, so the row becomes a serialisation
+point whose cost grows with contention. This is the C1 baseline, and the
+reason the brief asks for it to be measured rather than assumed slow.
+
+Redis can perform the check and the decrement inside the server. A Lua script
+sent with \texttt{EVAL} (or loaded once and called by its hash) runs
+atomically: while it runs, no other script or command is
+served~\cite{redis-lua,redis-eval}. A script that checks an idempotency key,
+checks the available stock, decrements it and records the result therefore
+has no window in which another request can interleave. The price is that the
+script blocks the server while it runs, so it must stay short. Redis also keeps
+the data in memory, so the durable record of each order still has to live in
+the relational database.
+
+\section{Asynchronous messaging}
+\label{sec:bg-messaging}
+
+Message brokers decouple the service that accepts a request from the services
+that process it. Hohpe and Woolf describe the patterns of this style, including
+channels, routing and error handling~\cite{hohpe-eip}. Richardson applies them
+to microservices, where each service owns its data and services exchange events
+instead of sharing tables~\cite{richardson-patterns}. Accepting work is then
+limited by how fast the first service can store it, not by how fast the slowest
+step can finish it, so the client receives an order id early and polls for the
+outcome.
+
+RabbitMQ gives two delivery guarantees that this design relies on. A consumer
+\emph{acknowledges} a message only after it has processed it, and the broker
+redelivers an unacknowledged message if the consumer's channel closes. With
+\emph{publisher confirms} the broker tells the publisher when it has taken
+responsibility for a message~\cite{rmq-confirms}. Together they give
+at-least-once delivery: a message is not lost, but it can arrive more than
+once. A message that cannot be processed can be \emph{dead-lettered}, for
+example when a consumer rejects it without requeueing, and routed to a separate
+exchange~\cite{rmq-dlx}. This is the Dead Letter Channel
+pattern~\cite{eip-dead-letter}: a poison message is moved aside instead of
+blocking the queue. The .NET client used here exposes these operations
+directly~\cite{rmq-dotnet}.
+
+\section{Transactional Outbox and idempotent consumers}
+\label{sec:bg-outbox}
+
+A service that writes to its database and then publishes to a broker faces a
+dual-write problem: if it fails between the two steps, either the order exists
+without its event or the event refers to an order that was never stored. The
+\emph{Transactional Outbox} pattern removes the second write from the request
+path. The service inserts the event into an outbox table in the same local
+transaction as the business change, and a separate relay publishes the stored
+events to the broker~\cite{richardson-outbox,richardson-patterns}. The event is
+published at least once, provided the relay retries until the broker confirms.
+
+At-least-once delivery means every consumer must tolerate duplicates. An
+\emph{Idempotent Consumer} records the id of each message it has processed and
+ignores a message whose id it has already seen~\cite{richardson-idempotent}.
+Hohpe and Woolf describe the same idea as the Idempotent
+Receiver~\cite{eip-idempotent}. When the record of the message id and the
+business change commit in one transaction, a redelivery after a crash cannot
+apply the change twice. In this project the processed-message table is called
+the Inbox; Sections~\ref{sec:outbox} and~\ref{sec:week9} describe both sides.
+
+\section{Overload control}
+\label{sec:bg-overload}
+
+When requests arrive faster than a system can serve them, queues grow, every
+request waits longer and the system can fail as a whole. The Google SRE book
+argues that a service should refuse excess work, that refusing a request
+should cost far less than serving it, and that clients should limit how often
+they retry a refused request~\cite{sre-overload}. This project
+applies that advice in three layers. Nginx limits the request rate with its
+\texttt{limit\_req} module, which uses the leaky bucket method, allows a
+configurable burst and answers excess requests with a configurable status
+code~\cite{nginx-limit-req}. The application limits how many new orders it
+handles at once. RabbitMQ bounds the length of each main queue, and with the
+\texttt{reject-publish} overflow behaviour a publish to a full queue is refused
+and, with publisher confirms, reported to the publisher instead of growing the
+queue~\cite{rmq-maxlength}.
+
+Overload shows first in the slowest requests, not the average. Dean and Barroso
+show that rare slow responses dominate the user experience of large services,
+and that the tail of the latency distribution needs separate
+attention~\cite{dean-tail}. The results therefore report p50, p95 and p99
+latencies and the variation between runs, as the brief asks.
+
+\section{Generating load: open and closed models}
+\label{sec:bg-load}
+
+A load generator can work in a \emph{closed} loop, where each simulated user
+sends its next request only after the previous one has finished, or an
+\emph{open} loop, where requests arrive at a set rate whatever the system's
+response time. Schroeder, Wierman and Harchol-Balter show that the two models
+can behave very differently under the same load, and that the choice must
+match the system being modelled~\cite{schroeder-open-closed}. A closed loop
+slows down as the system slows down, which hides overload. Flash-sale buyers do
+not wait for each other, so the official runs use JMeter in an open-loop mode
+that targets an arrival rate~\cite{jmeter-components} and report the rate
+actually achieved (Section~\ref{sec:locked}).
+
+\section{The configurations C0 to C4}
+\label{sec:bg-configs}
+
+The brief defines five configurations, each adding one idea from this chapter
+to the previous one:
+\begin{description}
+  \item[C0, naive] Read, check and write in separate statements with no
+    concurrency control. It exists only to show the lost-update race of
+    Section~\ref{sec:bg-contention}; it is not a baseline.
+  \item[C1, PostgreSQL atomic baseline] One synchronous request performs a
+    conditional atomic \texttt{UPDATE}. It must never oversell and is the
+    baseline for every comparison.
+  \item[C2, Redis event-driven] Order Service stores the order and its event
+    through the Outbox, RabbitMQ carries the event, and Inventory Service
+    reserves stock with the atomic Lua script. Consumers are idempotent, with
+    bounded retries and dead-letter queues (Sections~\ref{sec:bg-messaging}
+    and~\ref{sec:bg-outbox}).
+  \item[C3, load shedding] C2 plus the three overload layers of
+    Section~\ref{sec:bg-overload}.
+  \item[C4, consumer replication] C3 with 1, 2 and 4 Inventory Service
+    consumers on the same host. Because all replicas share one machine, C4
+    measures consumer replication and contention for that machine's
+    resources, not multi-node scaling.
+\end{description}
+
+The supporting tools are cited where they are introduced: ABP on
+.NET~10~\cite{abp-docs,dotnet10}, Terraform~\cite{terraform}, the EC2
+M7i-flex instance family~\cite{aws-m7i} and AWS Systems Manager Run
+Command~\cite{aws-run-command}.
+
+% ============================================================
 \chapter{System Requirements}
 % ============================================================
 
