@@ -1,0 +1,85 @@
+TP-X02: mechanical check of every official Week 14 run (docs/week14-official-runs.md), from the copied bundles and the local manifests.
+runs: 66 (expected 66); per repeat: {1: 22, 2: 22, 3: 22}
+manifest status PASS: 66/66
+validator "RESULT: all checks hold": 66/66
+validator "0b. run isolation PASS": 66/66
+validator "7. status history complete PASS" (C2-C4): 57/57
+validator "6. queue bound off PASS" (C1, C2): 18/18
+commits: ['a37f082']; 9d00bea an ancestor: 66/66; clean tree: 66/66
+raw.jtl present in the JMeter bundle: 66/66
+distinct cells: 22 (expected 22); every cell 3 repeats: True
+
+rep run_id status hold 0b 6 7 commit
+1 20261105T104832Z-C1-r1-50rps-rep1 PASS True True True None a37f082
+1 20261105T105056Z-C1-r1-100rps-rep1 PASS True True True None a37f082
+1 20261105T105320Z-C1-r1-200rps-rep1 PASS True True True None a37f082
+1 20261105T105543Z-C2-r1-50rps-rep1 PASS True True True True a37f082
+1 20261105T105807Z-C2-r1-100rps-rep1 PASS True True True True a37f082
+1 20261105T110100Z-C2-r1-200rps-rep1 PASS True True True True a37f082
+1 20261105T110519Z-C3-r1-50rps-rep1 PASS True True None True a37f082
+1 20261105T110747Z-C3-r1-100rps-rep1 PASS True True None True a37f082
+1 20261105T111059Z-C3-r1-200rps-rep1 PASS True True None True a37f082
+1 20261105T111352Z-C3-r1-400rps-rep1 PASS True True None True a37f082
+1 20261105T112130Z-C4-r1-50rps-rep1 PASS True True None True a37f082
+1 20261105T112348Z-C4-r1-100rps-rep1 PASS True True None True a37f082
+1 20261105T113135Z-C4-r1-200rps-rep1 PASS True True None True a37f082
+1 20261105T113905Z-C4-r1-400rps-rep1 PASS True True None True a37f082
+1 20261105T114633Z-C4-r2-50rps-rep1 PASS True True None True a37f082
+1 20261105T114856Z-C4-r2-100rps-rep1 PASS True True None True a37f082
+1 20261105T115205Z-C4-r2-200rps-rep1 PASS True True None True a37f082
+1 20261105T115934Z-C4-r2-400rps-rep1 PASS True True None True a37f082
+1 20261105T120222Z-C4-r4-50rps-rep1 PASS True True None True a37f082
+1 20261105T120454Z-C4-r4-100rps-rep1 PASS True True None True a37f082
+1 20261105T121235Z-C4-r4-200rps-rep1 PASS True True None True a37f082
+1 20261105T122040Z-C4-r4-400rps-rep1 PASS True True None True a37f082
+2 20261105T133727Z-C1-r1-50rps-rep1 PASS True True True None a37f082
+2 20261105T134000Z-C1-r1-100rps-rep1 PASS True True True None a37f082
+2 20261105T134220Z-C1-r1-200rps-rep1 PASS True True True None a37f082
+2 20261105T134442Z-C2-r1-50rps-rep1 PASS True True True True a37f082
+2 20261105T134711Z-C2-r1-100rps-rep1 PASS True True True True a37f082
+2 20261105T135019Z-C2-r1-200rps-rep1 PASS True True True True a37f082
+2 20261105T135458Z-C3-r1-50rps-rep1 PASS True True None True a37f082
+2 20261105T135735Z-C3-r1-100rps-rep1 PASS True True None True a37f082
+2 20261105T140515Z-C3-r1-200rps-rep1 PASS True True None True a37f082
+2 20261105T141316Z-C3-r1-400rps-rep1 PASS True True None True a37f082
+2 20261105T142117Z-C4-r1-50rps-rep1 PASS True True None True a37f082
+2 20261105T142357Z-C4-r1-100rps-rep1 PASS True True None True a37f082
+2 20261105T143148Z-C4-r1-200rps-rep1 PASS True True None True a37f082
+2 20261105T143444Z-C4-r1-400rps-rep1 PASS True True None True a37f082
+2 20261105T144215Z-C4-r2-50rps-rep1 PASS True True None True a37f082
+2 20261105T144449Z-C4-r2-100rps-rep1 PASS True True None True a37f082
+2 20261105T145246Z-C4-r2-200rps-rep1 PASS True True None True a37f082
+2 20261105T150019Z-C4-r2-400rps-rep1 PASS True True None True a37f082
+2 20261105T150317Z-C4-r4-50rps-rep1 PASS True True None True a37f082
+2 20261105T150559Z-C4-r4-100rps-rep1 PASS True True None True a37f082
+2 20261105T150918Z-C4-r4-200rps-rep1 PASS True True None True a37f082
+2 20261105T151721Z-C4-r4-400rps-rep1 PASS True True None True a37f082
+3 20261105T163344Z-C1-r1-50rps-rep1 PASS True True True None a37f082
+3 20261105T163626Z-C1-r1-100rps-rep1 PASS True True True None a37f082
+3 20261105T163901Z-C1-r1-200rps-rep1 PASS True True True None a37f082
+3 20261105T164130Z-C2-r1-50rps-rep1 PASS True True True True a37f082
+3 20261105T164359Z-C2-r1-100rps-rep1 PASS True True True True a37f082
+3 20261105T164706Z-C2-r1-200rps-rep1 PASS True True True True a37f082
+3 20261105T165142Z-C3-r1-50rps-rep1 PASS True True None True a37f082
+3 20261105T165426Z-C3-r1-100rps-rep1 PASS True True None True a37f082
+3 20261105T165742Z-C3-r1-200rps-rep1 PASS True True None True a37f082
+3 20261105T170533Z-C3-r1-400rps-rep1 PASS True True None True a37f082
+3 20261105T171336Z-C4-r1-50rps-rep1 PASS True True None True a37f082
+3 20261105T171616Z-C4-r1-100rps-rep1 PASS True True None True a37f082
+3 20261105T172405Z-C4-r1-200rps-rep1 PASS True True None True a37f082
+3 20261105T173157Z-C4-r1-400rps-rep1 PASS True True None True a37f082
+3 20261105T173458Z-C4-r2-50rps-rep1 PASS True True None True a37f082
+3 20261105T173734Z-C4-r2-100rps-rep1 PASS True True None True a37f082
+3 20261105T174104Z-C4-r2-200rps-rep1 PASS True True None True a37f082
+3 20261105T174416Z-C4-r2-400rps-rep1 PASS True True None True a37f082
+3 20261105T174728Z-C4-r4-50rps-rep1 PASS True True None True a37f082
+3 20261105T175015Z-C4-r4-100rps-rep1 PASS True True None True a37f082
+3 20261105T175811Z-C4-r4-200rps-rep1 PASS True True None True a37f082
+3 20261105T180602Z-C4-r4-400rps-rep1 PASS True True None True a37f082
+
+Negative controls (the checker run on a copy with one rule broken; each must report a failure):
+  frozen commit set to 305d249, which is not an ancestor of a37f082: ancestor 0/66, 'NOT ALL RUNS PASS', exit 1
+  the result line pattern changed so it cannot match: 'all checks hold' 0/66, 'NOT ALL RUNS PASS', exit 1
+
+All 66 runs pass every check.
+Exit code: 0

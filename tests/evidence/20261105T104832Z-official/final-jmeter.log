@@ -1,0 +1,7 @@
+﻿command dcf627d5-7eea-42d9-9be1-2b5a070ac037
+status Success exit 0
+--- stdout (last 24000 chars) ---
+commit a37f082a0feb1e391987611f0ccf29551775d959
+tracked changes: 0
+ 61439 Nov  5 19:26 /tmp/w14-live-jtl.tgz
+

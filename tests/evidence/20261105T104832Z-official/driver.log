@@ -1,0 +1,704 @@
+Week 14 official runs: 22 cells x rounds 1,2,3 ; timer ends 2026-11-05T22:29:35.0000000Z ; cutoff = run 12 min + final copy 45 min + 60 min margin
+== rep1 #1 C1 r1 50/s 17:48:32
+   Matrix 20261105T104832Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T104832Z-C1-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 29%
+   too many clients: 0
+   RESULT rep1 20261105T104832Z-C1-r1-50rps-rep1 PASS ach=50.7 2xx=3036 acc=3036 drain=0s val=0 step=
+== rep1 #2 C1 r1 100/s 17:50:56
+   Matrix 20261105T105056Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T105056Z-C1-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 29%
+   too many clients: 0
+   RESULT rep1 20261105T105056Z-C1-r1-100rps-rep1 PASS ach=101.0 2xx=6049 acc=6049 drain=0s val=0 step=
+== rep1 #3 C1 r1 200/s 17:53:20
+   Matrix 20261105T105320Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T105320Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T105320Z-C1-r1-200rps-rep1 PASS ach=198.8 2xx=11934 acc=11934 drain=0s val=0 step=
+== rep1 #4 C2 r1 50/s 17:55:43
+   Matrix 20261105T105543Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T105543Z-C2-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T105543Z-C2-r1-50rps-rep1 PASS ach=50.7 2xx=3037 acc=3037 drain=0s val=0 step=
+== rep1 #5 C2 r1 100/s 17:58:07
+   Matrix 20261105T105807Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T105807Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T105807Z-C2-r1-100rps-rep1 PASS ach=101.3 2xx=6059 acc=6059 drain=32s val=0 step=
+== rep1 #6 C2 r1 200/s 18:01:00
+   Matrix 20261105T110100Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T110100Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep1 20261105T110100Z-C2-r1-200rps-rep1 PASS ach=168.5 2xx=10136 acc=10136 drain=108s val=0 step=
+== rep1 #7 C3 r1 50/s 18:05:19
+   Matrix 20261105T110519Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T110519Z-C3-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T110519Z-C3-r1-50rps-rep1 PASS ach=50.3 2xx=3012 acc=3012 drain=0s val=0 step=
+== rep1 #8 C3 r1 100/s 18:07:47
+   Matrix 20261105T110747Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T110747Z-C3-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T110747Z-C3-r1-100rps-rep1 PASS ach=100.2 2xx=5804 acc=5804 drain=49s val=0 step=
+== rep1 #9 C3 r1 200/s 18:10:59
+   Matrix 20261105T111059Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T111059Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261105T111059Z-C3-r1-200rps-rep1 PASS ach=189.0 2xx=4034 acc=4034 drain=24s val=0 step=
+== rep1 #10 C3 r1 400/s 18:13:52
+   Matrix 20261105T111352Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T111352Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep1 20261105T111352Z-C3-r1-400rps-rep1 PASS ach=360.2 2xx=3702 acc=3702 drain=317s val=0 step=
+== rep1 #11 C4 r1 50/s 18:21:30
+   Matrix 20261105T112130Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T112130Z-C4-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep1 20261105T112130Z-C4-r1-50rps-rep1 PASS ach=50.6 2xx=3032 acc=3032 drain=0s val=0 step=
+== rep1 #12 C4 r1 100/s 18:23:48
+   Matrix 20261105T112348Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T112348Z-C4-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep1 20261105T112348Z-C4-r1-100rps-rep1 PASS ach=101.0 2xx=5736 acc=5736 drain=317s val=0 step=
+== rep1 #13 C4 r1 200/s 18:31:35
+   Matrix 20261105T113135Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T113135Z-C4-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep1 20261105T113135Z-C4-r1-200rps-rep1 PASS ach=188.0 2xx=4436 acc=4436 drain=306s val=0 step=
+== rep1 #14 C4 r1 400/s 18:39:05
+   Matrix 20261105T113905Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T113905Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep1 20261105T113905Z-C4-r1-400rps-rep1 PASS ach=362.6 2xx=3789 acc=3789 drain=309s val=0 step=
+== rep1 #15 C4 r2 50/s 18:46:33
+   Matrix 20261105T114633Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T114633Z-C4-r2-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep1 20261105T114633Z-C4-r2-50rps-rep1 PASS ach=50.7 2xx=3035 acc=3035 drain=0s val=0 step=
+== rep1 #16 C4 r2 100/s 18:48:56
+   Matrix 20261105T114856Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T114856Z-C4-r2-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep1 20261105T114856Z-C4-r2-100rps-rep1 PASS ach=100.5 2xx=5643 acc=5643 drain=47s val=0 step=
+== rep1 #17 C4 r2 200/s 18:52:05
+   Matrix 20261105T115205Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T115205Z-C4-r2-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep1 20261105T115205Z-C4-r2-200rps-rep1 PASS ach=187.8 2xx=4199 acc=4199 drain=305s val=0 step=
+== rep1 #18 C4 r2 400/s 18:59:34
+   Matrix 20261105T115934Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T115934Z-C4-r2-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep1 20261105T115934Z-C4-r2-400rps-rep1 PASS ach=362.6 2xx=3475 acc=3475 drain=25s val=0 step=
+== rep1 #19 C4 r4 50/s 19:02:22
+   Matrix 20261105T120222Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T120222Z-C4-r4-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep1 20261105T120222Z-C4-r4-50rps-rep1 PASS ach=50.3 2xx=3013 acc=3013 drain=0s val=0 step=
+== rep1 #20 C4 r4 100/s 19:04:54
+   Matrix 20261105T120454Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T120454Z-C4-r4-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep1 20261105T120454Z-C4-r4-100rps-rep1 PASS ach=100.5 2xx=5319 acc=5319 drain=318s val=0 step=
+== rep1 #21 C4 r4 200/s 19:12:35
+   Matrix 20261105T121235Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T121235Z-C4-r4-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep1 20261105T121235Z-C4-r4-200rps-rep1 PASS ach=187.3 2xx=3888 acc=3888 drain=332s val=0 step=
+== rep1 #22 C4 r4 400/s 19:20:40
+   Matrix 20261105T122040Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T122040Z-C4-r4-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep1 20261105T122040Z-C4-r4-400rps-rep1 PASS ach=356.1 2xx=3535 acc=3535 drain=332s val=0 step=
+== copy-back rep1 19:28:41
+command a73d69b6-975f-4f1d-8089-259ae2865597
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 4760404 Nov  5 12:28 /tmp/w14-rep1-backend.tgz
+
+command 2f0c5c63-033e-405c-bed0-8f7fbd544085
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 7414976 Nov  5 12:28 /tmp/w14-rep1-jtl.tgz
+
+   got /tmp/w14-rep1-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep1-backend.tgz (4760404 bytes, sha256 67a3f3ad8700a31803dd82f302010e420bd2633404e4c98b116a19d15d265e8e, 308 chunks)
+   got /tmp/w14-rep1-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep1-jtl.tgz (7414976 bytes, sha256 5a1ae63acb86ff23f928921ad14ffe301e9d0fa6c8238e6e062111411f7d6ad1, 495 chunks)
+== copy-back rep1 done 20:37:26
+== rep2 #1 C1 r1 50/s 20:37:27
+   Matrix 20261105T133727Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T133727Z-C1-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261105T133727Z-C1-r1-50rps-rep1 PASS ach=50.5 2xx=3024 acc=3024 drain=0s val=0 step=
+== rep2 #2 C1 r1 100/s 20:40:00
+   Matrix 20261105T134000Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T134000Z-C1-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261105T134000Z-C1-r1-100rps-rep1 PASS ach=101.3 2xx=6067 acc=6067 drain=0s val=0 step=
+== rep2 #3 C1 r1 200/s 20:42:20
+   Matrix 20261105T134220Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T134220Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261105T134220Z-C1-r1-200rps-rep1 PASS ach=199.8 2xx=12003 acc=12003 drain=0s val=0 step=
+== rep2 #4 C2 r1 50/s 20:44:42
+   Matrix 20261105T134442Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T134442Z-C2-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261105T134442Z-C2-r1-50rps-rep1 PASS ach=50.6 2xx=3029 acc=3029 drain=0s val=0 step=
+== rep2 #5 C2 r1 100/s 20:47:11
+   Matrix 20261105T134711Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T134711Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep2 20261105T134711Z-C2-r1-100rps-rep1 PASS ach=100.6 2xx=6036 acc=6036 drain=38s val=0 step=
+== rep2 #6 C2 r1 200/s 20:50:19
+   Matrix 20261105T135019Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T135019Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep2 20261105T135019Z-C2-r1-200rps-rep1 PASS ach=167.8 2xx=10091 acc=10091 drain=109s val=0 step=
+== rep2 #7 C3 r1 50/s 20:54:58
+   Matrix 20261105T135458Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T135458Z-C3-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261105T135458Z-C3-r1-50rps-rep1 PASS ach=50.2 2xx=3007 acc=3007 drain=0s val=0 step=
+== rep2 #8 C3 r1 100/s 20:57:35
+   Matrix 20261105T135735Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T135735Z-C3-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep2 20261105T135735Z-C3-r1-100rps-rep1 PASS ach=100.8 2xx=5831 acc=5831 drain=302s val=0 step=
+== rep2 #9 C3 r1 200/s 21:05:15
+   Matrix 20261105T140515Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T140515Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep2 20261105T140515Z-C3-r1-200rps-rep1 PASS ach=186.2 2xx=4090 acc=4090 drain=322s val=0 step=
+== rep2 #10 C3 r1 400/s 21:13:16
+   Matrix 20261105T141316Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T141316Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep2 20261105T141316Z-C3-r1-400rps-rep1 PASS ach=358.9 2xx=3439 acc=3439 drain=319s val=0 step=
+== rep2 #11 C4 r1 50/s 21:21:17
+   Matrix 20261105T142117Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T142117Z-C4-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep2 20261105T142117Z-C4-r1-50rps-rep1 PASS ach=50.7 2xx=3034 acc=3034 drain=0s val=0 step=
+== rep2 #12 C4 r1 100/s 21:23:57
+   Matrix 20261105T142357Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T142357Z-C4-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep2 20261105T142357Z-C4-r1-100rps-rep1 PASS ach=101.1 2xx=5933 acc=5933 drain=309s val=0 step=
+== rep2 #13 C4 r1 200/s 21:31:48
+   Matrix 20261105T143148Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T143148Z-C4-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep2 20261105T143148Z-C4-r1-200rps-rep1 PASS ach=191.3 2xx=3814 acc=3814 drain=29s val=0 step=
+== rep2 #14 C4 r1 400/s 21:34:44
+   Matrix 20261105T143444Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T143444Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep2 20261105T143444Z-C4-r1-400rps-rep1 PASS ach=342.9 2xx=3583 acc=3583 drain=303s val=0 step=
+== rep2 #15 C4 r2 50/s 21:42:14
+   Matrix 20261105T144215Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T144215Z-C4-r2-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep2 20261105T144215Z-C4-r2-50rps-rep1 PASS ach=50.8 2xx=3039 acc=3039 drain=0s val=0 step=
+== rep2 #16 C4 r2 100/s 21:44:49
+   Matrix 20261105T144449Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T144449Z-C4-r2-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep2 20261105T144449Z-C4-r2-100rps-rep1 PASS ach=101.2 2xx=5704 acc=5704 drain=328s val=0 step=
+== rep2 #17 C4 r2 200/s 21:52:46
+   Matrix 20261105T145246Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T145246Z-C4-r2-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep2 20261105T145246Z-C4-r2-200rps-rep1 PASS ach=187.5 2xx=4186 acc=4186 drain=305s val=0 step=
+== rep2 #18 C4 r2 400/s 22:00:18
+   Matrix 20261105T150019Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T150019Z-C4-r2-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   RESULT rep2 20261105T150019Z-C4-r2-400rps-rep1 PASS ach=373.5 2xx=3493 acc=3493 drain=24s val=0 step=
+== rep2 #19 C4 r4 50/s 22:03:17
+   Matrix 20261105T150317Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T150317Z-C4-r4-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   RESULT rep2 20261105T150317Z-C4-r4-50rps-rep1 PASS ach=50.7 2xx=3038 acc=3038 drain=0s val=0 step=
+== rep2 #20 C4 r4 100/s 22:05:59
+   Matrix 20261105T150559Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T150559Z-C4-r4-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   RESULT rep2 20261105T150559Z-C4-r4-100rps-rep1 PASS ach=100.7 2xx=5476 acc=5476 drain=50s val=0 step=
+== rep2 #21 C4 r4 200/s 22:09:18
+   Matrix 20261105T150918Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T150918Z-C4-r4-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   RESULT rep2 20261105T150918Z-C4-r4-200rps-rep1 PASS ach=185.1 2xx=4150 acc=4150 drain=328s val=0 step=
+== rep2 #22 C4 r4 400/s 22:17:21
+   Matrix 20261105T151721Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T151721Z-C4-r4-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   RESULT rep2 20261105T151721Z-C4-r4-400rps-rep1 PASS ach=360.4 2xx=3419 acc=3419 drain=327s val=0 step=
+== copy-back rep2 22:25:19
+command 2430f691-3454-4c4e-b26d-8a6b98ff2276
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 4877452 Nov  5 15:25 /tmp/w14-rep2-backend.tgz
+
+command 9ba5053f-b3c3-479d-970d-f7c641cc6d75
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 7400263 Nov  5 15:25 /tmp/w14-rep2-jtl.tgz
+
+   got /tmp/w14-rep2-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep2-backend.tgz (4877452 bytes, sha256 fbd79d0262ace9099f5e83aa052ef6586520b25ecda322dc7d88b8636adf2830, 315 chunks)
+   got /tmp/w14-rep2-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep2-jtl.tgz (7400263 bytes, sha256 91d899eb12866bfebc539d356e3b56c213a7f3d5c03aba4be7ec995d1c373995, 494 chunks)
+== copy-back rep2 done 23:33:44
+== rep3 #1 C1 r1 50/s 23:33:44
+   Matrix 20261105T163344Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T163344Z-C1-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep3 20261105T163344Z-C1-r1-50rps-rep1 PASS ach=50.5 2xx=3025 acc=3025 drain=0s val=0 step=
+== rep3 #2 C1 r1 100/s 23:36:26
+   Matrix 20261105T163626Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T163626Z-C1-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep3 20261105T163626Z-C1-r1-100rps-rep1 PASS ach=101.2 2xx=6068 acc=6068 drain=0s val=0 step=
+== rep3 #3 C1 r1 200/s 23:39:01
+   Matrix 20261105T163901Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T163901Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T163901Z-C1-r1-200rps-rep1 PASS ach=198.4 2xx=11938 acc=11938 drain=0s val=0 step=
+== rep3 #4 C2 r1 50/s 23:41:30
+   Matrix 20261105T164130Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T164130Z-C2-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T164130Z-C2-r1-50rps-rep1 PASS ach=50.6 2xx=3031 acc=3031 drain=0s val=0 step=
+== rep3 #5 C2 r1 100/s 23:43:59
+   Matrix 20261105T164359Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T164359Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T164359Z-C2-r1-100rps-rep1 PASS ach=100.5 2xx=6027 acc=6027 drain=31s val=0 step=
+== rep3 #6 C2 r1 200/s 23:47:06
+   Matrix 20261105T164706Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T164706Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep3 20261105T164706Z-C2-r1-200rps-rep1 PASS ach=165.8 2xx=9971 acc=9971 drain=115s val=0 step=
+== rep3 #7 C3 r1 50/s 23:51:42
+   Matrix 20261105T165142Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T165142Z-C3-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T165142Z-C3-r1-50rps-rep1 PASS ach=50.5 2xx=3020 acc=3020 drain=0s val=0 step=
+== rep3 #8 C3 r1 100/s 23:54:26
+   Matrix 20261105T165426Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T165426Z-C3-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T165426Z-C3-r1-100rps-rep1 PASS ach=100.6 2xx=5421 acc=5421 drain=40s val=0 step=
+== rep3 #9 C3 r1 200/s 23:57:42
+   Matrix 20261105T165742Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T165742Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261105T165742Z-C3-r1-200rps-rep1 PASS ach=189.2 2xx=3926 acc=3926 drain=313s val=0 step=
+== rep3 #10 C3 r1 400/s 00:05:33
+   Matrix 20261105T170533Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T170533Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep3 20261105T170533Z-C3-r1-400rps-rep1 PASS ach=360.1 2xx=3665 acc=3665 drain=318s val=0 step=
+== rep3 #11 C4 r1 50/s 00:13:36
+   Matrix 20261105T171336Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T171336Z-C4-r1-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep3 20261105T171336Z-C4-r1-50rps-rep1 PASS ach=50.7 2xx=3035 acc=3035 drain=0s val=0 step=
+== rep3 #12 C4 r1 100/s 00:16:16
+   Matrix 20261105T171616Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T171616Z-C4-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   RESULT rep3 20261105T171616Z-C4-r1-100rps-rep1 PASS ach=101.0 2xx=5901 acc=5901 drain=306s val=0 step=
+== rep3 #13 C4 r1 200/s 00:24:05
+   Matrix 20261105T172405Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T172405Z-C4-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep3 20261105T172405Z-C4-r1-200rps-rep1 PASS ach=190.4 2xx=4104 acc=4104 drain=313s val=0 step=
+== rep3 #14 C4 r1 400/s 00:31:57
+   Matrix 20261105T173157Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T173157Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep3 20261105T173157Z-C4-r1-400rps-rep1 PASS ach=378.5 2xx=3608 acc=3608 drain=21s val=0 step=
+== rep3 #15 C4 r2 50/s 00:34:58
+   Matrix 20261105T173458Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T173458Z-C4-r2-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep3 20261105T173458Z-C4-r2-50rps-rep1 PASS ach=50.8 2xx=3040 acc=3040 drain=0s val=0 step=
+== rep3 #16 C4 r2 100/s 00:37:34
+   Matrix 20261105T173734Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T173734Z-C4-r2-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep3 20261105T173734Z-C4-r2-100rps-rep1 PASS ach=101.1 2xx=5875 acc=5875 drain=46s val=0 step=
+== rep3 #17 C4 r2 200/s 00:41:04
+   Matrix 20261105T174104Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T174104Z-C4-r2-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   RESULT rep3 20261105T174104Z-C4-r2-200rps-rep1 PASS ach=191.3 2xx=4305 acc=4305 drain=33s val=0 step=
+== rep3 #18 C4 r2 400/s 00:44:16
+   Matrix 20261105T174416Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T174416Z-C4-r2-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 37%
+   too many clients: 0
+   RESULT rep3 20261105T174416Z-C4-r2-400rps-rep1 PASS ach=347.2 2xx=3496 acc=3496 drain=29s val=0 step=
+== rep3 #19 C4 r4 50/s 00:47:28
+   Matrix 20261105T174728Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T174728Z-C4-r4-50rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 37%
+   too many clients: 0
+   RESULT rep3 20261105T174728Z-C4-r4-50rps-rep1 PASS ach=50.5 2xx=3023 acc=3023 drain=0s val=0 step=
+== rep3 #20 C4 r4 100/s 00:50:15
+   Matrix 20261105T175015Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T175015Z-C4-r4-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 37%
+   too many clients: 0
+   RESULT rep3 20261105T175015Z-C4-r4-100rps-rep1 PASS ach=101.1 2xx=5394 acc=5394 drain=306s val=0 step=
+== rep3 #21 C4 r4 200/s 00:58:11
+   Matrix 20261105T175811Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T175811Z-C4-r4-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 38%
+   too many clients: 0
+   RESULT rep3 20261105T175811Z-C4-r4-200rps-rep1 PASS ach=185.5 2xx=4130 acc=4130 drain=313s val=0 step=
+== rep3 #22 C4 r4 400/s 01:06:02
+   Matrix 20261105T180602Z: 1 run(s), 60 s each, transport Ssm
+   == 20261105T180602Z-C4-r4-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 38%
+   too many clients: 0
+   RESULT rep3 20261105T180602Z-C4-r4-400rps-rep1 PASS ach=358.1 2xx=3550 acc=3550 drain=332s val=0 step=
+== copy-back rep3 01:14:09
+command d4f0885f-1651-4137-bb99-93e5ec7ac070
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 4923021 Nov  5 18:14 /tmp/w14-rep3-backend.tgz
+
+command 9b99a085-f988-44f2-8f8a-537bee1af7c4
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 7435612 Nov  5 18:14 /tmp/w14-rep3-jtl.tgz
+
+   got /tmp/w14-rep3-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep3-backend.tgz (4923021 bytes, sha256 e7fd6b6dac5cbbc36c3fd3a74dd6dd03c7dfc47cfc4f37524c5d08bc6f079e55, 320 chunks)
+   got /tmp/w14-rep3-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w14off\session\bundles\w14-rep3-jtl.tgz (7435612 bytes, sha256 44c573797a76a48c4b3c4029e4a41bd78d227455a1d6383e3b3b5b6adafc394d, 496 chunks)
+== copy-back rep3 done 02:25:56
+SESSION DONE 02:25:56

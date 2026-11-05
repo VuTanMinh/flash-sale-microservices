@@ -1,0 +1,23 @@
+﻿command 402f5c31-93ea-4f79-8314-8d6e388e9b0d
+status Success exit 0
+--- stdout (last 24000 chars) ---
+commit a37f082a0feb1e391987611f0ccf29551775d959
+tracked changes: 0
+/infra-nginx-1 restarts=0 started=2026-11-05T18:06:14.481668884Z
+/infra-inventory-service-3 restarts=0 started=2026-11-05T17:47:37.140826508Z
+/infra-inventory-service-4 restarts=0 started=2026-11-05T17:47:37.670670591Z
+/infra-inventory-service-2 restarts=0 started=2026-11-05T17:35:07.81522104Z
+/infra-order-service-1 restarts=0 started=2026-11-05T16:51:55.571154098Z
+/infra-grafana-1 restarts=0 started=2026-11-05T10:33:04.068012789Z
+/infra-prometheus-1 restarts=0 started=2026-11-05T16:51:56.206540821Z
+/infra-inventory-service-1 restarts=0 started=2026-11-05T10:32:58.812863835Z
+/infra-process-worker-1 restarts=0 started=2026-11-05T10:32:58.870138458Z
+/infra-rabbitmq-1 restarts=0 started=2026-11-05T10:32:47.337449697Z
+/infra-redis-1 restarts=0 started=2026-11-05T10:32:47.396424994Z
+/infra-postgres-1 restarts=0 started=2026-11-05T10:32:47.462800653Z
+too many clients (whole session): 0
+/dev/nvme0n1p1   30G   11G   19G  37% /
+75
+ 59096 Nov  5 19:15 /tmp/w14-live-backend.tgz
+Shutdown scheduled for Thu 2026-11-05 22:29:39 UTC, use 'shutdown -c' to cancel.
+
