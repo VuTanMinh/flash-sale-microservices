@@ -3912,10 +3912,10 @@ achieved, read from the JTL, not the rate requested. After each run,
 configuration that is fast but over-sells has not won anything, so no
 performance number is reported without that verdict.
 
-Each configuration runs 3--5 times under the same conditions. For every run,
+Each cell runs 3 times under the same conditions. For every run,
 latency is reported as p50, p95 and p99. A table cell gives the median of
 those values across runs, followed by the spread (range) across runs, for
-example ``412 (398--431)''. The number of runs is given in each caption.
+example ``412 (398--431)''.
 
 Latency comes from two sources that are kept apart. JMeter measures what the
 client sees. The stage timestamps (Section~\ref{sec:week11}) measure the
@@ -3924,277 +3924,279 @@ result to report, not an error to reconcile away. API throughput and
 business throughput are always reported separately, because an accepted
 request is not a completed order.
 
-Each table and figure names the run ids its numbers come from
-(\texttt{experiments/RUN-ID/}). Unless a caption says otherwise, a table
-shows the steady-load, one-hot-product workload. The other workload profiles
-of the brief get the same tables in the appendix.
+Every number below comes from the saved runs in
+\nolinkurl{tests/evidence/20261105T104832Z-official/}, and every table
+shows the steady-load, one-hot-product workload of the official matrix. The
+other workload profiles of the brief were run as coverage (Section~\ref{sec:profiles}).
+
+\section{Official Runs}
+\label{sec:results-official}
+
+The official matrix ran on 5~November 2026 on one pair of EC2 hosts
+(backend \texttt{m7i-flex.large}, JMeter \texttt{c7i-flex.large}) with every
+value frozen in \texttt{docs/week14-freeze.md} (frozen commit \texttt{9d00bea};
+both hosts ran \texttt{a37f082}, whose service code and settings are
+identical). The plan is \texttt{docs/week14-official-runs.md}. There are 22
+cells (C1, C2 and C3 at 50, 100 and 200/s, C3 also at 400/s, and C4 with 1, 2
+and 4 Inventory consumers at 50, 100, 200 and 400/s), each run 3 times: 66
+runs, in repeat-major order (repeat~1 of every cell, then repeat~2, then
+repeat~3). Every run had 60\,s of open-loop load on one hot product with
+100,000 units, after a full reset, seed and warm-up. All raw data, manifests
+and validator logs are in
+\nolinkurl{tests/evidence/20261105T104832Z-official/}; its
+\nolinkurl{summary.log} lists every run (TP-X02). The tables and figures
+below are generated from that folder by
+\nolinkurl{report/figures/analyze_official.py}, which also writes one row per
+run (\nolinkurl{report/figures/official/runs.csv}).
+
+A table cell is the median of the 3 runs, with the range across runs in
+brackets when the runs differ. Percentiles are nearest-rank. Client latency
+comes from the raw JTL (2xx submissions only). Stock-decision and completion
+latency come from the stage timestamps in the database, per order. Drain is
+the matrix's own measurement: the seconds from the end of the load until no
+order is outside \texttt{Completed} or \texttt{Rejected} and both Outboxes are
+empty. The extractor's own drain field does not apply to matrix runs, because
+the collector stops as soon as that drain check passes, so no sample is taken
+after the drain.
 
 \section{Correctness by Configuration}
 
 Table~\ref{tab:results-correctness} comes first, because a performance
-number only counts for a configuration that passed these checks.
+number only counts for a configuration that passed these checks. Every one of
+the 66 runs passed every check that applies to it, and no unit was ever
+over-sold. C0 is not part of the official matrix: it exists only to show the
+race, which it did (TP-B01, Section~\ref{sec:c0-c1}).
 
 \begin{table}[H]
 \centering
 \small
-\caption{The six correctness checks of the brief, per configuration, from
-\texttt{validate-correctness.ps1} after every run. A cell gives the number of
-runs that passed out of the runs made. C0 is expected to fail: it exists to
-show the race. \emph{To be completed in Week~14.}}
+\input{figures/official/tab-correctness.tex}
+\caption{Validator checks per configuration: runs that passed out of runs
+made, over the 66 official runs. ``n/a'' marks a check that does not apply:
+C1 is synchronous, so it has no broker duplicates (4), no asynchronous
+accounting (5) and no status history (7); check 6 is defined for C1 and C2
+only.}
 \label{tab:results-correctness}
-\begin{tabular}{p{6.2cm}ccccc}
-\toprule
-Check & C0 & C1 & C2 & C3 & C4 \\
-\midrule
-Available inventory $\ge 0$                         & --- & --- & --- & --- & --- \\
-Successful reservations $\le$ initial inventory     & --- & --- & --- & --- & --- \\
-At most one successful reservation per order        & --- & --- & --- & --- & --- \\
-One downstream result per order                     & --- & --- & --- & --- & --- \\
-Every accepted order terminal or found by reconciliation & --- & --- & --- & --- & --- \\
-Orders by state add up to accepted requests         & --- & --- & --- & --- & --- \\
-\midrule
-Units over-sold (worst run)                         & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
 \section{Latency by Configuration}
 
-Table~\ref{tab:results-api-latency} gives what the client sees.
-Table~\ref{tab:results-decision-latency} compares C1 and C2--C4 at the same
-boundaries, and Table~\ref{tab:results-stages} splits the C2 pipeline into its
-stages.
+\paragraph{What the client sees.} Table~\ref{tab:results-api-latency} and
+Figure~\ref{fig:results-latency} give the latency of order submissions. At 50
+and 100/s, C1 answers fastest: p50 10--11\,ms and p95 30--39\,ms, against
+p50 35--223\,ms and p95 137--791\,ms for C2 to C4 at 50/s. The asynchronous
+design does not buy a faster acknowledgement on this host. Its request path
+still writes the order and its Outbox row in one PostgreSQL transaction, and
+every service, the broker, Redis and the database share the backend's two
+vCPUs, which run at 85--99\,\% during the load from 50/s on
+(Table~\ref{tab:results-resources}). At 200/s every configuration slows down
+sharply: C1's p95 rises to 919\,ms as requests queue on the hot row, and C2 to
+C4 reach p50 0.8--1.1\,s.
 
-\begin{table}[H]
+At 200/s C2 achieved only 168/s. The plan's open mode keeps 200 threads, and
+each thread waits for its response; at about 1.1\,s per response 200 threads
+can offer only about 180 requests a second. The shortfall is therefore part
+of the result, not a load-generator fault: the backend's latency limited the
+offered rate. The JMeter host itself had spare capacity (Section~\ref{sec:pilot}).
+
+\begin{table}[tbp]
 \centering
-\small
-\caption{Client-observed API latency (ms) of order submissions, from the
-JMeter JTL. Polling requests are reported separately in the appendix. Cells:
-median across runs (range). \emph{To be completed in Week~14.}}
+\footnotesize
+\input{figures/official/tab-api.tex}
+\caption{Client-observed latency (ms) of order submissions (2xx only), from
+the raw JTL, with the rate JMeter achieved (median). The maximum of every run
+is in \nolinkurl{runs.csv}. Cells: median of 3 runs (range).}
 \label{tab:results-api-latency}
-\begin{tabular}{lccccr}
-\toprule
-Configuration & p50 & p95 & p99 & Max & Runs \\
-\midrule
-C1 -- PostgreSQL atomic update       & --- & --- & --- & --- & --- \\
-C2 -- Redis event-driven             & --- & --- & --- & --- & --- \\
-C3 -- C2 + load shedding             & --- & --- & --- & --- & --- \\
-C4 -- C3, 1 Inventory consumer       & --- & --- & --- & --- & --- \\
-C4 -- C3, 2 Inventory consumers      & --- & --- & --- & --- & --- \\
-C4 -- C3, 4 Inventory consumers      & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-\begin{table}[H]
+\paragraph{Inside the system.} Table~\ref{tab:results-decision-latency}
+starts both measures at the moment the order is accepted. For C1 the stock
+decision is made inside the request, so its decision latency is its API
+latency, and it has no completion stage. For C2 to C4 the decision and the
+completion come much later than the acknowledgement. At 50/s the p95 decision
+is 2.0--3.6\,s and the p95 completion 3.7--15\,s; at 100/s and above, orders
+wait tens of seconds, and C2's p95 completion reaches 120\,s at 200/s. The
+backend accepts orders faster than it can complete them, so a backlog forms
+and is worked off after the load ends.
+
+\begin{table}[tbp]
 \centering
-\small
-\caption{Stock-decision latency and end-to-end completion latency (ms). Both
-start at the same request-start origin. The decision is C1's committed
-update, or Inventory's committed result for C2--C4. C1 has no Worker stage,
-so it has no completion latency. Cells: median across runs (range).
-\emph{To be completed in Week~14.}}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\input{figures/official/tab-decision.tex}
+\caption{Stock-decision and completion latency (s), from the acceptance of
+the order, per order from the stage timestamps. For C1 the decision is made
+inside the request, so the decision values are its API latency and there is
+no completion stage. Cells: median of 3 runs (range).}
 \label{tab:results-decision-latency}
-\begin{tabular}{lcccccc}
-\toprule
- & \multicolumn{3}{c}{Stock decision} & \multicolumn{3}{c}{Completion} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-Configuration & p50 & p95 & p99 & p50 & p95 & p99 \\
-\midrule
-C1             & --- & --- & --- & n/a & n/a & n/a \\
-C2             & --- & --- & --- & --- & --- & --- \\
-C3             & --- & --- & --- & --- & --- & --- \\
-C4, 1 consumer & --- & --- & --- & --- & --- & --- \\
-C4, 2 consumers& --- & --- & --- & --- & --- & --- \\
-C4, 4 consumers& --- & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-\begin{table}[H]
+\paragraph{Where the time goes.} Table~\ref{tab:results-stages} splits C2's
+pipeline. At 100 and 200/s the largest share is between acceptance and
+publication: the Outbox publisher, which waits for the broker's confirm, cannot
+keep up, so unpublished rows pile up (peak about 8,200 at 200/s,
+Figure~\ref{fig:results-backlog-time}). After the load ends the backlog moves
+on into the \texttt{OrderPlaced} queue, and the Process Worker's 200\,ms per
+order at concurrency 20 bounds the rest. No publish-to-decision interval was
+negative.
+
+\begin{table}[tbp]
 \centering
-\small
-\caption{Time spent in each stage of the C2 pipeline (ms), from the stage
-timestamps (Section~\ref{sec:week11}). Publication is marked after the
-broker's confirm, so a publish-to-decision interval can be slightly negative.
-Such intervals are counted and reported, never clamped to zero.
-\emph{To be completed in Week~14.}}
+\footnotesize
+\input{figures/official/tab-stages.tex}
+\caption{Time spent in each stage of the C2 pipeline (s), per order from the
+stage timestamps. Negative counts publish-to-decision intervals below zero
+(publication is marked after the broker's confirm); none occurred. Cells:
+median of 3 runs (range).}
 \label{tab:results-stages}
-\begin{tabular}{lcccc}
-\toprule
-Stage & p50 & p95 & p99 & Negative intervals \\
-\midrule
-Accepted $\to$ event published         & --- & --- & --- & --- \\
-Event published $\to$ stock decided    & --- & --- & --- & --- \\
-Stock decided $\to$ decision applied   & --- & --- & --- & --- \\
-Decision applied $\to$ completed       & --- & --- & --- & --- \\
-Accepted $\to$ completed (total)       & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
 \section{Throughput, Rejection and Errors}
 
-Table~\ref{tab:results-throughput} keeps API throughput (accepted) apart from
-business throughput (completed), and stock rejection apart from overload
-rejection.
+Table~\ref{tab:results-throughput} keeps API throughput apart from business
+throughput. C1 and C2 accept every request, because neither sheds load. C3 and
+C4 refuse part of the load early: 2.6--11\,\% at 100/s (the Outbox-backlog
+admission limit), 63--65\,\% at 200/s and 83--84\,\% at 400/s (the gateway's
+200 requests/s and the admission limits). Every refusal is a 429 or a 503
+with \texttt{Retry-After}; no run had a server error or another non-2xx
+response. With 100,000 units the stock never ran out, so every decided order
+was reserved.
 
-\begin{table}[H]
+Completed throughput is the number of completed orders divided by the load
+time plus the drain. For C2 it stays at about 50--66 orders a second
+whatever the offered rate, which is the backend's capacity for the whole
+pipeline. For C3 and C4 it is lower at 200 and 400/s: fewer orders were
+admitted, and in most of those runs the drain waited about 300\,s for
+reconciliation (Section~\ref{sec:results-overload}), which the divisor
+includes.
+
+\begin{table}[tbp]
 \centering
-\small
-\caption{Throughput (orders per second) and rates (\%), per configuration.
-Incoming is what JMeter offered. Accepted counts unique accepted orders, and
-an idempotent retry is not a new order. Completed counts unique orders that
-reached \texttt{Completed}. Reservation success and stock rejection share one
-denominator: unique stock decisions. Overload rejection (429/503) is not
-stock rejection. Cells: median across runs (range). \emph{To be completed in
-Week~14.}}
+\footnotesize
+\input{figures/official/tab-throughput.tex}
+\caption{Throughput and rates per cell. Achieved is the submission rate
+JMeter reached (/s). Accepted counts unique orders created (C1: requests
+decided). Completed/s is completed orders divided by 60\,s plus the drain.
+Overload rejection counts 429 and 503 responses. Not shown because they are
+the same in every run: 100\,\% of stock decisions reserved a unit, and no run
+had any other non-2xx response. Cells: median of 3 runs (range).}
 \label{tab:results-throughput}
-\begin{tabular}{lccccccc}
-\toprule
- & \multicolumn{3}{c}{Throughput (/s)} & \multicolumn{4}{c}{Rate (\%)} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-8}
-Config. & Incoming & Accepted & Completed & Reserved & Stock rej. & Overload rej. & Errors \\
-\midrule
-C1             & --- & --- & n/a & --- & --- & --- & --- \\
-C2             & --- & --- & --- & --- & --- & --- & --- \\
-C3             & --- & --- & --- & --- & --- & --- & --- \\
-C4, 1 cons.    & --- & --- & --- & --- & --- & --- & --- \\
-C4, 2 cons.    & --- & --- & --- & --- & --- & --- & --- \\
-C4, 4 cons.    & --- & --- & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
 \section{Overload, Backlog and Recovery}
+\label{sec:results-overload}
 
-Tables~\ref{tab:results-overload} and~\ref{tab:results-reliability} show
-what happens when input exceeds capacity, and how the reliability mechanisms
-behaved while it did.
+Table~\ref{tab:results-overload} shows the backlog each configuration built.
+Without load shedding, C2 lets the Outbox grow to about 8,200 rows and the
+\texttt{OrderPlaced} queue to about 6,000 messages at 200/s; it drains them in
+about 110\,s after the load. With the C3 limits the Order Service Outbox is held near its 2,000-row
+admission limit: the summed peak is 2,000--3,400 for C3 and for C4 with one
+consumer, and higher with 2 and 4 consumers, whose Inventory Outboxes add to
+the total. The main queue stays at or below its 1,000-message bound.
 
-\begin{table}[H]
+The drain splits into two groups. Every run without a dead letter drained
+within 115\,s. Every drain longer than that came from a run with dead letters:
+24 of the 29 runs with dead letters drained in 300--332\,s, and the other 5 in
+33--50\,s. The dead letters are the Process Worker's: when the
+\texttt{StockReserved} queue it publishes to is full, its bounded publish
+retries (1, 2 and 4\,s) run out and the message is dead-lettered. Such an
+order stays \texttt{Confirmed} until reconciliation picks it up after the
+frozen 300\,s timeout for \texttt{Confirmed} or \texttt{Processing} orders,
+and only then completes. Every accepted order still reached a terminal state
+and every validator passed, so this is a slow path, not a lost order. It is a
+direct cost of combining a bounded queue with bounded retries.
+
+Recovery after an overload phase is not part of this matrix: every run is
+steady load. It was measured with the overload-and-recovery profile in
+Week~12 (TP-L04, Section~\ref{sec:load-shedding}) and on the EC2 stack in
+Week~13 (TP-X04, Section~\ref{sec:profiles}).
+
+\begin{table}[tbp]
 \centering
-\small
-\caption{Behaviour under the sustained-overload profile, followed by its
-recovery period. Queue depth and oldest message age are the peaks over the
-run, for the Inventory input queue. Oldest is the age of the oldest queued
-message. Pending counts orders not yet terminal when the run ends. Drain time runs from the end of
-submissions until every queue, the Outbox and the pending orders are empty.
-Recovery time runs from overload removal until latency, errors and
-throughput are back in the range set by the pilot. A value that could not be
-measured is marked unavailable, never 0. \emph{To be completed in Week~14.}}
+\footnotesize
+\input{figures/official/tab-overload.tex}
+\caption{Backlog per cell (C2 to C4). Peak queue is the largest depth of the
+\texttt{OrderPlaced} queue (ready plus unacknowledged). Oldest is the age of
+its oldest message (s). Outbox peak is the largest number of unpublished
+Outbox rows, summed over Order Service and every Inventory replica. Drain is
+the matrix's drain time (s). Cells: median of 3 runs (range).}
 \label{tab:results-overload}
-\begin{tabular}{lcccccc}
-\toprule
-Config. & Rejected (\%) & Peak queue & Oldest (s) & Drain (s) & Recovery (s) & Pending \\
-\midrule
-C2             & --- & --- & --- & --- & --- & --- \\
-C3             & --- & --- & --- & --- & --- & --- \\
-C4, 1 cons.    & --- & --- & --- & --- & --- & --- \\
-C4, 2 cons.    & --- & --- & --- & --- & --- & --- \\
-C4, 4 cons.    & --- & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-\begin{table}[H]
+\begin{table}[tbp]
 \centering
-\small
-\caption{What the reliability mechanisms did, as totals per run (median
-across runs). Retries and duplicates are attempts, not business effects. A
-high count is a result to report, not a defect to hide. \emph{To be completed
-in Week~14.}}
+\footnotesize
+\input{figures/official/tab-reliability.tex}
+\caption{What the reliability mechanisms did, as totals per run. Retries and
+duplicates are attempts absorbed by the Inbox, not business effects.
+Dead-lettered messages all came from the Process Worker (its own counter shows
+the same numbers). Reconciliation counts re-triggers and give-ups of the
+reconciliation job. Cells: median of 3 runs (range).}
 \label{tab:results-reliability}
-\begin{tabular}{lccccc}
-\toprule
-Config. & Retries & Duplicates & Dead-lettered & Reconciliation & Outbox peak \\
-\midrule
-C2             & --- & --- & --- & --- & --- \\
-C3             & --- & --- & --- & --- & --- \\
-C4, 1 cons.    & --- & --- & --- & --- & --- \\
-C4, 2 cons.    & --- & --- & --- & --- & --- \\
-C4, 4 cons.    & --- & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
 \end{table}
+
+\section{Consumer Replicas on One Host}
+
+Figure~\ref{fig:results-replicas} compares C4 with 1, 2 and 4 Inventory
+consumers. More consumers did not help. At 100/s the accepted rate fell from
+98 to 90 orders a second and the p95 completion rose from 57 to 64\,s; at 50/s
+four consumers raised the p95 completion from 3.7 to 15\,s. The reason is the
+host: its CPU was already at 96--99\,\% during the load at 100/s and above,
+and at 85\,\% with one consumer at 50/s, rising to 99\,\% with four. Each
+extra consumer is another process competing for the same two vCPUs and the
+same database connections (peak 32--70 of 200), so on one host it adds
+contention, not capacity. This is the shared-resource contention the brief
+asks C4 to show; it says nothing about replicas on separate machines.
 
 \section{Resource Use}
 
-Table~\ref{tab:results-resources} shows where each configuration spends the
-host, which is where a bottleneck shows up.
+Table~\ref{tab:results-resources} shows the backend during the load window.
+C1 used 46--57\,\% CPU at 50 and 100/s and 88\,\% at 200/s. Every
+asynchronous configuration used 85--99\,\% already at 50/s, because more
+processes run: two services with Outbox publishers and consumers, the Worker,
+RabbitMQ and Redis. Redis answered in 0.04--0.06\,ms on average, so the Lua
+reservation was never the bottleneck. Database connections peaked at 28--70,
+well below the limit of 200.
 
-\begin{table}[H]
+\begin{table}[tbp]
 \centering
-\small
-\caption{Resource use on the backend EC2 host during the steady-load
-profile: mean (peak). Collection settings are the same for every
-configuration. The broker column gives RabbitMQ's publish, delivery and
-acknowledgement rates in messages per second. \emph{To be completed in
-Week~14.}}
+\footnotesize
+\input{figures/official/tab-resources.tex}
+\caption{Backend host during each run. CPU in load is the mean host CPU over
+the 60\,s load window; peak is the highest sample of the run. RAM is the peak
+host memory in use. DB conns is the peak number of PostgreSQL connections.
+Redis is the mean time per Redis command. Cells: median of 3 runs (range).}
 \label{tab:results-resources}
-\begin{tabular}{lccccc}
-\toprule
-Config. & CPU (\%) & RAM (GB) & DB conns & Redis (ms) & Publish / deliver / ack \\
-\midrule
-C1             & --- & --- & --- & n/a & n/a \\
-C2             & --- & --- & --- & --- & --- / --- / --- \\
-C3             & --- & --- & --- & --- & --- / --- / --- \\
-C4, 1 cons.    & --- & --- & --- & --- & --- / --- / --- \\
-C4, 2 cons.    & --- & --- & --- & --- & --- / --- / --- \\
-C4, 4 cons.    & --- & --- & --- & --- & --- / --- / --- \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-\section{Figures}
-
-The figures show what a table cannot: behaviour over time around the
-overload and the recovery, the spread between runs, and the replica
-comparison.
-
-% Week 14: replace each \fbox placeholder with \includegraphics of the plot
-% generated from the named run ids, and keep the caption.
-\begin{figure}[H]
+\begin{figure}[tbp]
 \centering
-\fbox{\parbox[c][3.2cm][c]{0.85\textwidth}{\centering\emph{Placeholder, to be
-generated in Week~14.}}}
-\caption{Throughput over time for one run of C2 and one run of C3 under the
-ramp, spike, sustained-overload and recovery profile: incoming, accepted and
-completed orders per second. Source: the JMeter JTL, and
-\texttt{rate(flashsale\_orders\_accepted\_total)} and
-\texttt{rate(flashsale\_orders\_outcome\_total\{outcome="Completed"\})}
-scraped every 5\,s.}
-\label{fig:results-throughput-time}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\fbox{\parbox[c][3.2cm][c]{0.85\textwidth}{\centering\emph{Placeholder, to be
-generated in Week~14.}}}
-\caption{Queue depth, Outbox backlog and pending orders over time, for the
-same runs as Figure~\ref{fig:results-throughput-time}. The drain and
-recovery times of Table~\ref{tab:results-overload} are marked on the time
-axis.}
-\label{fig:results-backlog-time}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\fbox{\parbox[c][3.2cm][c]{0.85\textwidth}{\centering\emph{Placeholder, to be
-generated in Week~14.}}}
-\caption{API latency p50, p95 and p99 per configuration. Each run is a point
-and the median across runs is a bar, so the spread between runs stays
-visible.}
+\includegraphics[width=\textwidth]{figures/official/fig-latency.png}
+\caption{API latency p50 and p95 per configuration and requested rate (log
+scale). Each run is a small point and the median of the 3 runs is joined by a
+line, so the spread between runs stays visible.}
 \label{fig:results-latency}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[tbp]
 \centering
-\fbox{\parbox[c][3.2cm][c]{0.85\textwidth}{\centering\emph{Placeholder, to be
-generated in Week~14.}}}
-\caption{C4 with 1, 2 and 4 Inventory consumers on one host: completed
-throughput, drain time and host CPU. All replicas share one machine, so this
-shows contention on that host, not multi-node scaling.}
+\includegraphics[width=\textwidth]{figures/official/fig-timeline.png}
+\caption{One run over time: C2 at 200/s (left) and C3 at 400/s (right),
+repeat~1. Top: accepted and refused responses per second, from the JTL.
+Bottom: the \texttt{OrderPlaced} queue and the unpublished Outbox rows, from
+the collector's 5\,s samples. Without load shedding the Outbox grows through
+the whole load and the queue fills after it; with the C3 limits most requests
+are refused early and both backlogs stay bounded.}
+\label{fig:results-backlog-time}
+\end{figure}
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/official/fig-replicas.png}
+\caption{C4 with 1, 2 and 4 Inventory consumers on one host: accepted orders
+per second, p95 completion latency and mean host CPU during the load. Each
+run is a small point and the median a line. All replicas share one machine,
+so this shows contention on that host, not multi-node scaling.}
 \label{fig:results-replicas}
 \end{figure}
 
