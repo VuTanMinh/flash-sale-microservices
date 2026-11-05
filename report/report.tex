@@ -3680,7 +3680,7 @@ dead-lettered order finishes only through reconciliation, which now waits
 The owner signed off these values on 4 November 2026
 (Table~\ref{tab:locked}). They are in \texttt{infra/ec2.env.example} and in
 the defaults of \texttt{scripts/run-matrix.ps1}, and section~5f of
-\texttt{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \texttt{docs/week14-freeze.md}. \texttt{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, \nolinkurl{tests/evidence/20261104T145044Z-freeze.log}).
+\texttt{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \texttt{docs/week14-freeze.md}. \texttt{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, \nolinkurl{tests/evidence/20261105T100509Z-freeze.log}; re-frozen on 5~November at the commit that adds check~7 to the validator and sums the extractor's gauges across replicas, with no change to the services, the infrastructure or any value below).
 
 \begin{table}[tbp]
 \centering

@@ -1,0 +1,13 @@
+TP-X09 (re-freeze) negative controls: each run uses a copy of docs/week14-freeze.md with one value changed, in the clean clone of 7d7c7e6; every run must exit 1 on the check for that value. frozen-sha-old puts the first frozen commit 9ff2e1a back.
+
+terraform-hash : exit 1, FAIL lines 1: FAIL  2: SHA-256 of infra/terraform/main.tf -- manifest=a915ae3adf4e65fae5208da0053fd6348a2db0e3beda498cb1618dc2ed67b92c
+worker-delay : exit 1, FAIL lines 2: FAIL  6: Worker delay equals appsettings.json -- manifest=250 || FAIL  6: Worker delay equals the ProcessingOptions default
+recon-attempts : exit 1, FAIL lines 1: FAIL  7: reconciliation attempts equal ReconciliationOptions and appsettings.json -- manifest=5
+missing-image : exit 1, FAIL lines 1: FAIL  4: compose image redis:7.4.7 has a digest row
+outbox-limit : exit 1, FAIL lines 1: FAIL  7: Admission, Outbox backlog equals ec2.env.example ADMISSION_MAX_OUTBOX_BACKLOG -- manifest=5000 file=2000
+frozen-sha-unknown : exit 1, FAIL lines 1: FAIL  1: frozen commit exists in this repository -- sha=f4dc737000000000000000000000000000000000
+frozen-sha-old : exit 1, FAIL lines 1: FAIL  1: no frozen path (src, infra, tests/jmeter, scripts) changed after the frozen commit -- changed=scripts/extract-run-metrics
+repeats : exit 1, FAIL lines 1: FAIL  5: -Repeats default equals the manifest (3) -- file=3
+instance-type : exit 1, FAIL lines 1: FAIL  2: backend instance type equals variables.tf -- manifest=m7i.large (2 vCPU)
+
+All 9 controls exited 1 on their own check.
