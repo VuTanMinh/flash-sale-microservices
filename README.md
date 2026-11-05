@@ -37,6 +37,31 @@ documents are in `docs/`.
 | `docs/` | Scope, architecture, correctness, experiment, API, reproduction and evidence documents |
 | `report/` | LaTeX report, figures and the built PDFs (report and progress report) |
 
+## Results and how to reproduce them
+
+The official experiment is 66 validated runs on AWS EC2: C1 to C4 at 50 to
+400 requests a second, C4 with 1, 2 and 4 Inventory consumers, 3 repeats of
+every cell, all with the values frozen in [docs/week14-freeze.md](docs/week14-freeze.md).
+The raw data of every run (manifests, JMeter JTLs, collector samples, validator
+logs) is in `tests/evidence/20261105T104832Z-official/`, and the report's
+Results, Discussion and Conclusion chapters are built from it.
+
+1. **Rebuild every Results table and figure from the saved data** (no Docker,
+   no cloud): `python report/figures/analyze_official.py`, then
+   `latexmk -pdf report.tex` in `report/`. On an unchanged checkout nothing in
+   `report/figures/official/` changes.
+2. **Run a validated experiment yourself** on a local copy of the EC2 stack
+   (Docker and JMeter): `powershell -File .\scripts\verify-ec2-stack.ps1 -Cases A,G`.
+   It runs the same matrix runner as the official runs, with reset, seed,
+   warm-up, open-loop load, drain and the correctness validator.
+3. **Repeat the official matrix on EC2** (needs an AWS account): the plan is
+   [docs/week14-official-runs.md](docs/week14-official-runs.md) and the account
+   steps are [docs/week14-manual-steps.md](docs/week14-manual-steps.md).
+
+The full fresh-machine guide, prerequisites included, is
+[docs/reproduction.md](docs/reproduction.md) (sections 7 to 9 for the
+experiments).
+
 ## Quickstart
 
 For a full reproduction from a clean machine, follow [docs/reproduction.md](docs/reproduction.md). To run the local stack and the three services by hand, follow [Local infrastructure — Running the application on the local stack](docs/infrastructure.md#running-the-application-on-the-local-stack). In short: Compose up, apply the role script on an existing volume, migrate with each service's own account, create the certificate, warm up, then `dotnet run` each service. The own-account runtime is verified by `scripts/verify-runtime-accounts.ps1`. The AWS EC2 deployment required by the brief (one backend host, JMeter on a separate host) is in `infra/terraform/` with `infra/docker-compose.ec2.yml`; its runbook is [docs/deployment.md](docs/deployment.md).

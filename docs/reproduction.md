@@ -1,9 +1,11 @@
-# Reproducing the Week 1–12 results on a fresh machine
+# Reproducing the results on a fresh machine
 
-This guide starts from a clean Windows 11 machine and ends with the same
-verifier and unit-test results that the progress report cites. Every step is
-local: no cloud account is needed. The EC2 part (section 6) is optional and
-only the repository owner can run it, because it creates AWS resources.
+This guide starts from a clean Windows 11 machine. Sections 1 to 5 end with the
+same verifier and unit-test results that the reports cite. Section 7 rebuilds
+every Week 14 Results table and figure from the saved raw data. Section 8 runs
+a validated experiment on a local copy of the EC2 stack. All of that is local:
+no cloud account is needed. The EC2 parts (sections 6 and 9) are optional and
+only the repository owner can run them, because they create AWS resources.
 
 ## 1. Prerequisites
 
@@ -13,9 +15,9 @@ only the repository owner can run it, because it creates AWS resources.
 | Docker Desktop | 4.x, Linux containers | PostgreSQL, Redis, RabbitMQ, Nginx and the throwaway verifier containers |
 | .NET SDK | 10.0.300 or a later 10.0.3xx patch (`global.json`) | the three services and the unit tests |
 | Git | any recent | clone |
-| Apache JMeter + Java | 5.6.3 on Java 17+ (plans use no Groovy/JSR223) | load plans under `tests/jmeter/` (only for TP-L04 and the smoke tests) |
-| Python 3 + matplotlib | 3.14 used here | only to rebuild the report figures |
-| TeX Live / MiKTeX | `pdflatex` | only to rebuild the PDFs |
+| Apache JMeter + Java | 5.6.3 on Java 17+ (plans use no Groovy/JSR223) | load plans under `tests/jmeter/` (TP-L04, the smoke tests and section 8). Unpack it to `D:\tools\apache-jmeter-5.6.3`: `verify-ec2-stack.ps1` and the default of `run-matrix.ps1 -JMeterExe` expect that path |
+| Python 3 + matplotlib | 3.14 and matplotlib 3.10 used here | the Results tables and figures (section 7) |
+| TeX Live / MiKTeX | `latexmk` with `pdflatex` | only to rebuild the PDFs |
 
 If Windows refuses to run the scripts ("running scripts is disabled"), allow
 them for the current PowerShell window only:
@@ -99,16 +101,65 @@ costs money until `terraform destroy`. Nothing in steps 1–5 depends on it.
 Before destroying, copy every raw file back (deployment.md, "Evidence to
 save"); the Week 12 EC2 overload run kept only its console summary.
 
-## 7. Rebuild the report (optional)
+## 7. Rebuild the Week 14 Results from the saved data
+
+The 66 official runs are saved, unedited, in
+`tests/evidence/20261105T104832Z-official/`: per round a backend bundle (each
+run's validator log, extraction summary, stage intervals and collector
+samples) and a JMeter bundle (each run's raw JTL), with every manifest in
+`manifests.tgz`. `summary.log` there is the mechanical check of all 66 runs.
 
 ```powershell
-# plot_week12.py reads one run folder holding raw.jtl and samples.csv; the
-# archived overload run is in tests/evidence:
-New-Item -ItemType Directory -Force run | Out-Null
-Copy-Item tests/evidence/20261023T144923Z-overload-raw.jtl run/raw.jtl
-Copy-Item tests/evidence/20261023T144923Z-overload-samples.csv run/samples.csv
-python report/figures/plot_week12.py run
-python report/figures/latency_split.py
-cd report;          pdflatex report.tex;            pdflatex report.tex
-cd progress;        pdflatex progress-report.tex;   pdflatex progress-report.tex
+python report/figures/analyze_official.py
+git status report/figures/official
 ```
+
+The script unpacks the bundles into a temporary folder and writes
+`report/figures/official/`: `runs.csv` (one row per run), `cells.csv` (median
+and range per cell), the `tab-*.tex` tables the report includes and the
+`fig-*.png/pdf` figures. On an unchanged checkout `git status` should list no
+modified file: the numbers and figures are rebuilt from the raw data, not
+typed in.
+
+Then rebuild the report:
+
+```powershell
+cd report
+latexmk -pdf -interaction=nonstopmode -halt-on-error report.tex
+```
+
+The older figures come from their own scripts: `plot_week12.py` reads one run
+folder holding `raw.jtl` and `samples.csv` (the archived Week 12 overload run is
+`tests/evidence/20261023T144923Z-overload-raw.jtl` and `-samples.csv`), and
+`latency_split.py` draws the latency split. The progress report is
+`report/progress/progress-report.tex`.
+
+## 8. A validated experiment run on a local copy of the EC2 stack
+
+This runs the same matrix runner as the official runs, on the EC2 Compose file
+started under a separate project on this machine. It needs Docker Desktop and
+JMeter (section 1). Build first (section 2).
+
+```powershell
+powershell -File .\scriptserify-ec2-stack.ps1 -Cases A,G
+```
+
+Case A builds the three service images and starts the stack; case G runs
+`scripts/run-matrix.ps1` with a C3 then a C2 run (5/s for 10 s), each with a
+reset, seed and warm-up, the collector, an open-loop JMeter load, the drain,
+the validator and a database dump. It ends with `All checks passed`. The runs
+are in `%TEMP%\ec2v-matrix\`: each folder holds `manifest.json` (status
+`PASS`), `raw.jtl`, `samples.csv` and `validator.log` (`RESULT: all checks
+hold`, with checks 0b and 7). The stack is removed again at the end.
+
+## 9. The official matrix on EC2 (owner only)
+
+The plan is [week14-official-runs.md](week14-official-runs.md) and the owner's
+AWS steps are [week14-manual-steps.md](week14-manual-steps.md). The values
+used are frozen in [week14-freeze.md](week14-freeze.md); check them first:
+
+```powershell
+powershell -File .\scriptserify-freeze.ps1
+```
+
+It must end with `All 100 checks passed`.

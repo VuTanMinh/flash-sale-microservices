@@ -362,7 +362,7 @@ open(os.path.join(out, "tab-correctness.tex"), "w", encoding="utf-8", newline="\
 # ------------------------------------------------------------------ figures
 def save(fig, name):
     fig.savefig(os.path.join(out, name + ".png"), dpi=200, bbox_inches="tight")
-    fig.savefig(os.path.join(out, name + ".pdf"), bbox_inches="tight")
+    fig.savefig(os.path.join(out, name + ".pdf"), bbox_inches="tight", metadata={"CreationDate": None})
     plt.close(fig)
 
 
