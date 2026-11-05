@@ -4384,7 +4384,184 @@ Systems Design and Implementation (NSDI~'06)}, 2006.
 \end{thebibliography}
 
 \appendix
-\chapter{Appendices}
-% TODO -- full API contract JSON, full event contract, additional raw experiment data.
+% ============================================================
+\chapter{Test Plan Summary}
+\label{app:test-plan}
+% ============================================================
+
+The full test plan is \texttt{docs/test-plan.md}. For every case it gives the
+inputs, the expected result, the command, the status and the saved evidence.
+A case is PASS only when its evidence file is committed and shows the pass;
+\texttt{scripts/verify-test-plan.ps1} enforces that rule. Table~\ref{tab:app-tests}
+counts the cases by area.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{0.42\textwidth}lrr@{}}
+\toprule
+Area & Cases & PASS & NOT RUN \\
+\midrule
+Environment and build & TP-E01--E04 & 4 & 0 \\
+Baseline (C0, C1) & TP-B01--B04 & 4 & 0 \\
+Documentation consistency & TP-D01--D04 & 4 & 0 \\
+Order API (Week 5) & TP-A01--A07 & 7 & 0 \\
+Outbox and publication (Week 6) & TP-O01--O02 & 2 & 0 \\
+Inventory reservation (Week 7) & TP-I01--I03 & 3 & 0 \\
+Workflow and correctness (Week 8) & TP-W01--W04 & 4 & 0 \\
+Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
+Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
+Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
+Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X09 & 15 & 2 \\
+\midrule
+Total & 59 & 57 & 2 \\
+\bottomrule
+\end{tabular}
+\caption{Test cases by area. The two cases not yet run are the Week~14
+official runs (TP-X02) and the reproduction from the README on a fresh
+machine (TP-X03).}
+\label{tab:app-tests}
+\end{table}
+
+% ============================================================
+\chapter{Week 14 Freeze Manifest}
+\label{app:freeze}
+% ============================================================
+
+The official runs use the values fixed in \texttt{docs/week14-freeze.md},
+which also records the frozen source commit and the SHA-256 hash of each
+Terraform file. \texttt{scripts/verify-freeze.ps1} checks every value against
+its source file (TP-X09). Table~\ref{tab:app-freeze} repeats the values that
+define the experiment; Section~\ref{sec:locked} explains how they were chosen.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.58\textwidth}@{}}
+\toprule
+Item & Value \\
+\midrule
+Backend host & EC2 \texttt{m7i-flex.large} (2 vCPU), \texttt{ap-southeast-2a} \\
+JMeter host & EC2 \texttt{c7i-flex.large}, same subnet \\
+Operating system & latest Amazon Linux 2023 at apply time (not pinned) \\
+Terraform, AWS provider & Terraform \(\geq\) 1.9.0; \texttt{hashicorp/aws} 5.100.0 \\
+.NET & SDK 10.0.300; runtime image \texttt{aspnet:10.0.8} \\
+Infrastructure images & \texttt{postgres:16.14}, \texttt{redis:7.4.7},
+  \texttt{rabbitmq:3.13.7-management}, \texttt{nginx:1.31.3} \\
+JMeter & 5.6.3, \texttt{tests/jmeter/workload.jmx} in open-loop mode \\
+\midrule
+Configurations & C1, C2, C3, C4; C4 at 1, 2 and 4 Inventory replicas \\
+Load levels & 50, 100 and 200/s for all; 400/s for C3 and C4 \\
+Run length, repeats & 60\,s of load, 3 repeats per cell \\
+Product and stock & one hot product, 100,000 units, reset, seeded and warmed
+  up before every run \\
+Random seeds & none: every key is a fresh UUID, pacing is deterministic \\
+\midrule
+Process Worker & 200\,ms per order, concurrency 20, prefetch 20 \\
+Gateway limit (C3, C4) & 200 requests/s, burst 100 \\
+Admission & 64 concurrent new orders; Outbox backlog 2000 \\
+Queue bound (C3, C4) & 1000 messages, \texttt{reject-publish} \\
+Consumer concurrency & Order Service 4; Inventory Service 1 \\
+Retries & 4 attempts at 1, 2 and 4\,s; delayed requeue 2, 4 and 8\,s \\
+Reconciliation & stuck after 120\,s, polled every 30\,s, 3 attempts \\
+PostgreSQL connections & 200 \\
+\bottomrule
+\end{tabular}
+\caption{The main frozen values. The complete list, with the source file of
+each value and the metric definitions, is \texttt{docs/week14-freeze.md}.}
+\label{tab:app-freeze}
+\end{table}
+
+% ============================================================
+\chapter{Run Commands}
+\label{app:commands}
+% ============================================================
+
+All commands run from the repository root in Windows PowerShell 5.1. The
+prerequisites and the full procedure are in \texttt{docs/reproduction.md}
+(local) and \texttt{docs/deployment.md} (EC2).
+
+\paragraph{Build and unit tests.}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+dotnet build src/FlashSale.OrderService.slnx --no-incremental
+dotnet test tests/FlashSale.OrderService.Tests
+\end{Verbatim}
+
+\paragraph{Verifier database and one verifier.} Each verifier prints
+\texttt{PASS} or \texttt{FAIL} lines and exits 1 on any failure.
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+powershell -File .\scripts\verify-environment.ps1 -Mode Fresh -Keep
+powershell -File .\scripts\verify-delivery.ps1 -Container verify-env-pg -DbPort 55432
+\end{Verbatim}
+
+\paragraph{Freeze check.}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+powershell -File .\scripts\verify-freeze.ps1
+\end{Verbatim}
+
+\paragraph{EC2 hosts (owner only; creates paid resources).}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+cd infra/terraform
+terraform init
+terraform apply "-var-file=terraform.tfvars"
+terraform destroy "-var-file=terraform.tfvars"
+\end{Verbatim}
+
+\paragraph{The official matrix.} Run from the PC; it drives both hosts over
+AWS Systems Manager Run Command and writes one \texttt{manifest.json} per run.
+The 400/s cells are a second call with \texttt{-Configs C3,C4 -Rates 400}.
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+powershell -File .\scripts\run-matrix.ps1 -Transport Ssm -BackendInstance <backend-id> -JMeterInstance <jmeter-id> -BackendHost <backend-private-ip> -OutDir <local-folder>
+\end{Verbatim}
+
+\paragraph{Correctness of one run.} \texttt{run-matrix.ps1} calls this after
+every run. By hand it checks the local Compose stack; the container names
+are parameters.
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+powershell -File .\scripts\validate-correctness.ps1 -Config C2 -ProductId flash-product-1 -InitialStock 100000
+\end{Verbatim}
+
+\paragraph{Report.}
+\begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
+cd report
+latexmk -pdf -interaction=nonstopmode -halt-on-error report.tex
+\end{Verbatim}
+
+% ============================================================
+\chapter{Evidence Index}
+\label{app:evidence}
+% ============================================================
+
+Every saved result is in \texttt{tests/evidence/}. The Week~3 baseline
+results are in \texttt{tests/baseline/results/} and
+\texttt{tests/jmeter/results/}. File
+names start with the UTC time of the run, for example
+\texttt{20261104T145044Z-freeze.log}, so a later run never overwrites an
+earlier one. \texttt{docs/evidence-index.md} maps every requirement of the
+brief to its test cases, their status and their logs. Table~\ref{tab:app-evidence}
+lists the evidence behind the experiment chapters.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.31\textwidth}l>{\raggedright\arraybackslash}p{0.52\textwidth}@{}}
+\toprule
+Claim & Case & Evidence in \texttt{tests/evidence/} \\
+\midrule
+Pilot of C1 to C4 on EC2 & TP-X01 & \texttt{20261101T204940Z-ec2-pilot.log}, \allowbreak\texttt{-ec2-pilot-results.csv} \\
+Slowdown cause & --- & \texttt{20261103T150800Z-slowdown-diagnosis.log} \\
+Consumer concurrency is safe & TP-X08 & \texttt{20261103T235000Z-consumer-concurrency/} \\
+EC2 confirmation of the fix & TP-X07 & \texttt{20261104T132500Z-ec2-confirmation/} \\
+Workload profiles & TP-X04 & \texttt{20261031T161516Z-ec2-stack.log} \\
+Open-loop load mode & TP-X05 & \texttt{20261031T171915Z-ec2-stack.log} \\
+Matrix runner and queue-bound gate & TP-X06 & \texttt{20261101T181846Z-ec2-stack-matrix.log} \\
+Freeze manifest matches the repository & TP-X09 & \texttt{20261104T145044Z-freeze.log}, \allowbreak\texttt{-freeze-negative.log} \\
+\bottomrule
+\end{tabular}
+\caption{Evidence for the Experimental Design and Results chapters. The
+official Week~14 runs add one folder per run with its manifest, raw JTL,
+collector samples, validator output and database dump.}
+\label{tab:app-evidence}
+\end{table}
 
 \end{document}
