@@ -122,8 +122,9 @@ The matrix stops at the first run that fails a gate or the validator. Then:
   checks hold`, with checks 1 to 4 and 6 (queue bound off) for C1, 1 to 7 for
   C2, and 1 to 5 and 7 for C3 and C4.
 - Both hosts ran a commit whose frozen paths (`src/`, `infra/`, `tests/jmeter/`,
-  `scripts/`) equal `9d00bea`, with a clean tree, read back at deploy and at the
-  end.
+  `scripts/`) equal `9d00bea`, apart from `scripts/verify-freeze.ps1`, which the
+  freeze check itself excludes (GitHub's `a37f082` qualifies). The tree must be
+  clean, read back at deploy and at the end.
 - No container restart and no "too many clients" over the session.
 - Bundles copied to this PC with matching SHA-256, then saved under
   `tests/evidence/` with a summary log, before the owner destroys.
