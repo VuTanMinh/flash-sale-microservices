@@ -9,7 +9,7 @@ not valid until one of them is corrected.
 The owner signed off the run values on 4 November 2026, after the EC2
 confirmation (`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`).
 
-**Re-frozen on 5 November 2026 at `9d00bea`; the owner's re-sign is pending.**
+**Re-frozen on 5 November 2026 at `9d00bea`; re-signed by the owner on 5 November 2026 at 10:08 UTC.**
 The first freeze was at `9ff2e1a`. Between the two commits only scripts, test
 evidence, documentation and the report changed. Nothing under `src/`, `infra/`
 or `tests/jmeter/` changed, and no Week 14 value in sections 2 to 7 changed
