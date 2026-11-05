@@ -42,8 +42,8 @@
 %   - configurelistings=false: this document uses \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize] for
 %     log/code excerpts, not lstlisting, so cleanthesis's own listings setup
 %     would configure a package we never invoke.
-%   - configurebiblatex=false: no real bibliography yet (References is still
-%     a manual placeholder, see the backmatter below); report/bib-refs.bib
+%   - configurebiblatex=false: References is a manual thebibliography list
+%     (see the backmatter below); report/bib-refs.bib
 %     is an empty placeholder file only -- cleanthesis's own bibfile-exists
 %     check (its one quirk: it isn't actually gated behind this option,
 %     unlike the rest of the biblatex setup) would otherwise error even with
@@ -389,30 +389,33 @@ it, not assumed here.
 \begin{description}
   \item[ABP Framework 10.6 on .NET 10] Required by the brief. Used for module
     wiring, EF Core integration and hosting, from the \texttt{app-nolayers}
-    template to keep each service's codebase proportional to its size. ABP's
-    own RabbitMQ event bus (\texttt{Volo.Abp.EventBus.RabbitMQ}) is
+    template to keep each service's codebase proportional to its
+    size~\cite{abp-docs,dotnet10}. ABP's
+    own RabbitMQ event bus (\texttt{Volo.Abp.\allowbreak EventBus.\allowbreak RabbitMQ}) is
     \emph{not} used: messaging goes through \texttt{RabbitMQ.Client} 7.1.2
     directly, because the design needs per-message publisher confirms and plain
     (non-enveloped) JSON messages per event, which the implementation chapters
-    explain.
+    explain~\cite{rmq-dotnet}.
   \item[PostgreSQL 16] The durable, transactional side (orders, Outbox,
     Inbox). The Transactional Outbox needs the business write and the event
     write to commit in one ACID transaction, so a relational engine is a
     prerequisite. One instance with a schema and a database account per
     service (schema-per-service, not physical isolation). It also hosts the C1
-    baseline's conditional atomic update.
+    baseline's conditional atomic update~\cite{pg-isolation,pg-locking}.
   \item[Redis Stack with Lua] Holds available inventory and the
-    reservation-level duplicate set. \texttt{scripts/redis/reserve.lua} checks
+    reservation-level duplicate set. \texttt{scripts/redis/\allowbreak reserve.lua} checks
     idempotency, checks stock, decrements and records the result atomically,
-    in one script call. Accessed through \texttt{StackExchange.Redis}.
+    in one script call, which Redis runs atomically~\cite{redis-lua,redis-eval}.
+    Accessed through \texttt{StackExchange.Redis}.
     RedisInsight (bundled with Redis Stack) is for inspection only.
   \item[RabbitMQ vs.\ Kafka] RabbitMQ fits this workload: routed queues per
     consumer, publisher confirms, bounded retry, dead-lettering and bounded
     queues with an overflow policy for load shedding. Historical log replay,
-    Kafka's main advantage, is not part of the research scope.
+    Kafka's main advantage, is not part of the research
+    scope~\cite{rmq-confirms,rmq-dlx,rmq-maxlength}.
   \item[Nginx] Entry point and first load-shedding layer (\texttt{limit\_req}
-    rate limiting). Sufficient for a single-host deployment without a full API
-    gateway.
+    rate limiting~\cite{nginx-limit-req}). Sufficient for a single-host
+    deployment without a full API gateway.
   \item[Serilog, prometheus-net, Prometheus, Grafana] Structured JSON logs
     carrying correlation, order and message IDs (Serilog), service metrics
     exported by \texttt{prometheus-net}, scraped by Prometheus and viewed in
@@ -422,10 +425,10 @@ it, not assumed here.
   \item[Terraform and AWS EC2] The brief requires the system under test on one
     EC2 instance. Terraform (\texttt{infra/terraform/}) creates that host and a
     separate JMeter host reproducibly and removes them again
-    (Section~\ref{sec:ec2-deployment}).
+    (Section~\ref{sec:ec2-deployment})~\cite{terraform,aws-m7i}.
   \item[Apache JMeter] Simulates concurrent clients through the order and
-    status APIs. It runs on a separate machine so it does not compete with the
-    system under test.
+    status APIs~\cite{jmeter-components}. It runs on a separate machine so it
+    does not compete with the system under test.
 \end{description}
 
 % ============================================================
@@ -985,7 +988,7 @@ RETURNING stock;
 
 The update and the outcome row in \texttt{baseline\_orders} commit in one
 transaction, so the log cannot disagree with the stock. A separate
-\texttt{SELECT ... FOR UPDATE} followed by an \texttt{UPDATE} was avoided,
+\texttt{SELECT ... FOR UPDATE}~\cite{pg-select} followed by an \texttt{UPDATE} was avoided,
 because it re-creates C0's two-statement window unless written very carefully.
 C1 lives on its own route; \texttt{/api/orders} belongs to the asynchronous
 design, so both configurations stay independently reachable for the Week 13--14
@@ -997,6 +1000,7 @@ units, starts every request before reading any response, and repeats each
 scenario three times:
 
 \begin{center}
+\small
 \begin{tabular}{@{}lrrrrrl@{}}
 \toprule
 Scenario & Requests & Confirmed & Rejected & Final stock & HTTP 200 & Verdict \\
@@ -1211,7 +1215,8 @@ systems (Postgres and RabbitMQ) that cannot be wrapped in one atomic
 transaction the way two SQL statements against the same database can. Naively
 sequencing them --- write the order, then publish an event --- exposes two
 distinct failure orderings, and a system that only handles one of them is
-still broken:
+still broken. This is the dual-write problem that the Transactional Outbox
+pattern solves~\cite{richardson-outbox,richardson-patterns}:
 
 \begin{enumerate}
   \item \textbf{The database commits but the publish fails.} The order now
@@ -1760,12 +1765,13 @@ message was in \texttt{ProcessWorker.StockReserved.dlq}
 
 \subsection{Message delivery semantics}
 
-RabbitMQ delivers at-least-once. A message is removed from its queue only
-when the consumer acknowledges it. If the consumer dies first, or its
+RabbitMQ delivers at-least-once~\cite{rmq-confirms}. A message is removed
+from its queue only when the consumer acknowledges it. If the consumer dies first, or its
 connection drops, the broker delivers the same message again. Duplicates
 therefore cannot be avoided at the transport. The system's goal is the next
 best thing: every side effect happens effectively once, however many times
-a message arrives.
+a message arrives. This is the Idempotent Consumer
+pattern~\cite{richardson-idempotent,eip-idempotent}.
 
 Two kinds of duplicate have to be absorbed, by two different layers.
 
@@ -2977,7 +2983,7 @@ overshot only by requests that pass the check at the same moment, which the
 concurrency gate caps.
 
 \paragraph{Bounded queues.} A RabbitMQ policy with a
-\texttt{max-length} and the overflow mode \texttt{reject-publish} bounds the six main input queues and never
+\texttt{max-length} and the overflow mode \texttt{reject-publish}~\cite{rmq-maxlength} bounds the six main input queues and never
 the retry or dead-letter queues. It is set and removed at run time by
 \texttt{scripts/set-queue-bounds.ps1}, with no change to any queue declaration.
 A publish to a full queue is nacked; the publisher's mandatory publish with
@@ -3744,7 +3750,8 @@ same seeded stock (\texttt{scripts/reset-and-seed.ps1},
 (\texttt{-Jmode=open}, TP-X05), in which threads only submit: when threads also
 polled each order to completion, the submit rate fell to the Process Worker's
 completion rate (3.7/s at a requested 10/s and 6.5/s at 50/s on local Docker),
-so C1 and C2 would not have received equal load. Each table states the rate
+so C1 and C2 would not have received equal load. A closed loop like that
+hides overload~\cite{schroeder-open-closed}. Each table states the rate
 achieved, read from the JTL, not the rate requested. After each run,
 \texttt{scripts/validate-correctness.ps1} gives its correctness verdict. A
 configuration that is fast but over-sells has not won anything, so no
@@ -4052,9 +4059,174 @@ shows contention on that host, not multi-node scaling.}
 % already gives References an unnumbered chapter, and \addcontentsline
 % already puts it in the TOC, so \backmatter had no effect it wasn't
 % already achieving and was simply a compile-breaking leftover.
-\chapter*{References}
-\addcontentsline{toc}{chapter}{References}
-% TODO -- bibliography (consider biblatex instead of manual list once sources accumulate).
+% Every entry below was opened and checked on its official page on
+% 5 November 2026. Entries whose page could not be read were left out.
+\renewcommand{\bibname}{References}
+\KOMAoptions{bibliography=totoc}
+\begin{thebibliography}{99}
+\raggedright
+
+\bibitem{abp-docs}
+ABP.IO.
+\newblock \emph{ABP Documentation}.
+\newblock \url{https://abp.io/docs/latest}. Accessed 5~November 2026.
+
+\bibitem{aws-m7i}
+Amazon Web Services.
+\newblock \emph{Amazon EC2 M7i and M7i-flex instances}.
+\newblock \url{https://aws.amazon.com/ec2/instance-types/m7i/}. Accessed
+5~November 2026.
+
+\bibitem{aws-run-command}
+Amazon Web Services.
+\newblock \emph{AWS Systems Manager Run Command}. AWS Systems Manager User
+Guide.
+\newblock \url{https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html}.
+Accessed 5~November 2026.
+
+\bibitem{jmeter-components}
+Apache Software Foundation.
+\newblock \emph{Apache JMeter User's Manual: Component Reference}, section
+Constant Throughput Timer.
+\newblock
+\url{https://jmeter.apache.org/usermanual/component_reference.html#Constant_Throughput_Timer}.
+Accessed 5~November 2026.
+
+\bibitem{dean-tail}
+J.~Dean and L.~A. Barroso.
+\newblock The tail at scale.
+\newblock \emph{Communications of the ACM}, 56:74--80, 2013.
+\newblock \url{https://research.google/pubs/the-tail-at-scale/}.
+
+\bibitem{sre-overload}
+A.~Forero~Cuervo.
+\newblock Handling overload.
+\newblock In \emph{Site Reliability Engineering}, chapter~21. Google and
+O'Reilly Media, online edition 2017.
+\newblock \url{https://sre.google/sre-book/handling-overload/}. Accessed
+5~November 2026.
+
+\bibitem{terraform}
+HashiCorp.
+\newblock \emph{Terraform} (source repository).
+\newblock \url{https://github.com/hashicorp/terraform}. Accessed 5~November
+2026.
+
+\bibitem{hohpe-eip}
+G.~Hohpe and B.~Woolf.
+\newblock \emph{Enterprise Integration Patterns: Designing, Building, and
+Deploying Messaging Solutions}.
+\newblock Addison-Wesley, 2003.
+
+\bibitem{eip-dead-letter}
+G.~Hohpe and B.~Woolf.
+\newblock Dead Letter Channel.
+\newblock \url{https://www.enterpriseintegrationpatterns.com/patterns/messaging/DeadLetterChannel.html}.
+Accessed 5~November 2026.
+
+\bibitem{eip-idempotent}
+G.~Hohpe and B.~Woolf.
+\newblock Idempotent Receiver.
+\newblock \url{https://www.enterpriseintegrationpatterns.com/patterns/messaging/IdempotentReceiver.html}.
+Accessed 5~November 2026.
+
+\bibitem{kleppmann-ddia}
+M.~Kleppmann.
+\newblock \emph{Designing Data-Intensive Applications}.
+\newblock O'Reilly Media, 2017.
+\newblock \url{https://dataintensive.net/}.
+
+\bibitem{dotnet10}
+Microsoft.
+\newblock \emph{What's new in .NET 10}. Microsoft Learn, 2025.
+\newblock \url{https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview}.
+Accessed 5~November 2026.
+
+\bibitem{nginx-limit-req}
+nginx.
+\newblock \emph{Module ngx\_http\_limit\_req\_module}.
+\newblock \url{https://nginx.org/en/docs/http/ngx_http_limit_req_module.html}.
+Accessed 5~November 2026.
+
+\bibitem{pg-isolation}
+PostgreSQL Global Development Group.
+\newblock \emph{PostgreSQL 16 Documentation}, section 13.2, Transaction
+Isolation.
+\newblock \url{https://www.postgresql.org/docs/16/transaction-iso.html}.
+Accessed 5~November 2026.
+
+\bibitem{pg-locking}
+PostgreSQL Global Development Group.
+\newblock \emph{PostgreSQL 16 Documentation}, section 13.3, Explicit Locking.
+\newblock \url{https://www.postgresql.org/docs/16/explicit-locking.html}.
+Accessed 5~November 2026.
+
+\bibitem{pg-select}
+PostgreSQL Global Development Group.
+\newblock \emph{PostgreSQL 16 Documentation}, SELECT (the locking clause).
+\newblock \url{https://www.postgresql.org/docs/16/sql-select.html}. Accessed
+5~November 2026.
+
+\bibitem{rmq-confirms}
+RabbitMQ.
+\newblock \emph{Consumer Acknowledgements and Publisher Confirms}.
+\newblock \url{https://www.rabbitmq.com/docs/confirms}. Accessed 5~November
+2026.
+
+\bibitem{rmq-dlx}
+RabbitMQ.
+\newblock \emph{Dead Letter Exchanges}.
+\newblock \url{https://www.rabbitmq.com/docs/dlx}. Accessed 5~November 2026.
+
+\bibitem{rmq-maxlength}
+RabbitMQ.
+\newblock \emph{Queue Length Limit}.
+\newblock \url{https://www.rabbitmq.com/docs/maxlength}. Accessed 5~November
+2026.
+
+\bibitem{rmq-dotnet}
+RabbitMQ.
+\newblock \emph{.NET Client API Guide}.
+\newblock \url{https://www.rabbitmq.com/client-libraries/dotnet-api-guide}.
+Accessed 5~November 2026.
+
+\bibitem{redis-eval}
+Redis.
+\newblock \emph{EVAL} (command reference).
+\newblock \url{https://redis.io/docs/latest/commands/eval/}. Accessed
+5~November 2026.
+
+\bibitem{redis-lua}
+Redis.
+\newblock \emph{Scripting with Lua}.
+\newblock \url{https://redis.io/docs/latest/develop/programmability/eval-intro/}.
+Accessed 5~November 2026.
+
+\bibitem{richardson-patterns}
+C.~Richardson.
+\newblock \emph{Microservices Patterns}.
+\newblock Manning Publications, 2018.
+
+\bibitem{richardson-idempotent}
+C.~Richardson.
+\newblock Pattern: Idempotent Consumer.
+\newblock \url{https://microservices.io/patterns/communication-style/idempotent-consumer.html}.
+Accessed 5~November 2026.
+
+\bibitem{richardson-outbox}
+C.~Richardson.
+\newblock Pattern: Transactional outbox.
+\newblock \url{https://microservices.io/patterns/data/transactional-outbox.html}.
+Accessed 5~November 2026.
+
+\bibitem{schroeder-open-closed}
+B.~Schroeder, A.~Wierman, and M.~Harchol-Balter.
+\newblock Open versus closed: a cautionary tale.
+\newblock In \emph{Proceedings of the 3rd USENIX Symposium on Networked
+Systems Design and Implementation (NSDI~'06)}, 2006.
+\newblock \url{https://www.usenix.org/conference/nsdi-06/open-versus-closed-cautionary-tale}.
+
+\end{thebibliography}
 
 \appendix
 \chapter{Appendices}
