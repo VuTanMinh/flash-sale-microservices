@@ -51,7 +51,8 @@ Results, Discussion and Conclusion chapters are built from it.
    `latexmk -pdf report.tex` in `report/`. On an unchanged checkout nothing in
    `report/figures/official/` changes.
 2. **Run a validated experiment yourself** on a local copy of the EC2 stack
-   (Docker and JMeter): `powershell -File .\scripts\verify-ec2-stack.ps1 -Cases A,G`.
+   (Docker and JMeter):
+   `powershell -ExecutionPolicy Bypass -Command "& .\scripts\verify-ec2-stack.ps1 -Cases A,G"`.
    It runs the same matrix runner as the official runs, with reset, seed,
    warm-up, open-loop load, drain and the correctness validator.
    Then `python report/figures/analyze_official.py --runs "$env:TEMP\ec2v-matrix" reproduction`

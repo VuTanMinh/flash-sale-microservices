@@ -141,8 +141,11 @@ started under a separate project on this machine. It needs Docker Desktop and
 JMeter (section 1). Build first (section 2).
 
 ```powershell
-powershell -File .\scriptserify-ec2-stack.ps1 -Cases A,G
+powershell -ExecutionPolicy Bypass -Command "& .\scripts\verify-ec2-stack.ps1 -Cases A,G"
 ```
+
+Use `-Command` as shown: with `powershell -File` the list `A,G` arrives as one
+string and the script rejects it.
 
 Case A builds the three service images and starts the stack; case G runs
 `scripts/run-matrix.ps1` with a C3 then a C2 run (5/s for 10 s), each with a
@@ -171,7 +174,7 @@ AWS steps are [week14-manual-steps.md](week14-manual-steps.md). The values
 used are frozen in [week14-freeze.md](week14-freeze.md); check them first:
 
 ```powershell
-powershell -File .\scriptserify-freeze.ps1
+powershell -File .\scripts\verify-freeze.ps1
 ```
 
 It must end with `All 100 checks passed`.
