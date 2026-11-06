@@ -1,0 +1,117 @@
+== 1. source
+PASS  1: the tag's tree unpacked -- tag=w14-official
+PASS  1: frozen commit is a full 40-hex SHA -- cell='9d00beafdef229418112abce26a48899e4b04ba8, tagged w14-official (the freeze was closed on 6 November; 6ad3b00, the last re-freeze, differs from it only in report verifiers)'
+PASS  1: frozen commit exists in this repository -- sha=9d00beafdef229418112abce26a48899e4b04ba8
+PASS  1: w14-official is an annotated tag -- type='tag'
+PASS  1: w14-official points to the frozen commit -- tag=9d00beafdef229418112abce26a48899e4b04ba8 frozen=9d00beafdef229418112abce26a48899e4b04ba8
+PASS  1: the manifest lists the run commits -- cell='a37f082 (the 66 official runs), b6a8c04 (the 18 supplementary runs)'
+PASS  1: run commit a37f082 is byte-identical to w14-official on the run paths -- changed=
+PASS  1: run commit b6a8c04 is byte-identical to w14-official on the run paths -- changed=
+PASS  1: every run in 20261105T104832Z-official used a listed run commit -- used=a37f082a0feb1e391987611f0ccf29551775d959 unlisted=
+PASS  1: every run in 20261106T135523Z-supplementary used a listed run commit -- used=b6a8c04c4aa5d727057385326a9ff8d31260815f unlisted=
+== 2. infrastructure
+PASS  2: infra/terraform/main.tf is listed
+PASS  2: infra/terraform/outputs.tf is listed
+PASS  2: infra/terraform/variables.tf is listed
+PASS  2: infra/terraform/versions.tf is listed
+PASS  2: SHA-256 of infra/terraform/main.tf -- manifest=a915ae3adf4e65fae5208da0053fd6348a2db0e3beda498cb1618dc2ed67b92b
+PASS  2: SHA-256 of infra/terraform/versions.tf -- manifest=c6a272ddd0894e21102d4b55b35781f15763e681110e622e3946c57fc19cdc92
+PASS  2: SHA-256 of infra/terraform/.terraform.lock.hcl -- manifest=625bd2cdad3e1bd2c337217630e4c2ddcd3fba8c5ab918dbeb331444820efa26
+PASS  2: SHA-256 of infra/terraform/terraform.tfvars.example -- manifest=1da17adb7148dbd406070651dd98ba339a486ef3cbb78810efa9516e9091b1bf
+PASS  2: SHA-256 of infra/terraform/outputs.tf -- manifest=216f59f77d169d4772bc4cea75ccd93d2e45e9aa8ac4391710fbe643ef6344b2
+PASS  2: SHA-256 of infra/terraform/variables.tf -- manifest=902df52839363f1d937780a64a5e27e4834bd42b9e96e6ad37f445cd84627a83
+PASS  2: region equals variables.tf -- manifest=ap-southeast-2 file=ap-southeast-2
+PASS  2: availability zone equals variables.tf
+PASS  2: backend instance type equals variables.tf -- manifest=m7i-flex.large (2 vCPU)
+PASS  2: JMeter instance type equals variables.tf
+PASS  2: root volume equals variables.tf
+PASS  2: AWS provider version equals versions.tf and the lock file -- manifest=5.100.0
+PASS  2: required Terraform version equals versions.tf -- manifest=>= 1.9.0
+== 3. tools
+PASS  3: .NET SDK equals global.json -- manifest=10.0.300 (rollForward: latestPatch) global.json=10.0.300
+PASS  3: FlashSale.InventoryService Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: FlashSale.OrderService Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: FlashSale.ProcessWorker Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: JMeter version equals main.tf JMETER_VERSION -- manifest=5.6.3
+PASS  3: local JMeter folder exists for that version
+PASS  3: Compose plugin equals main.tf DOCKER_COMPOSE_VERSION -- manifest=v2.29.7
+PASS  3: PowerShell equals main.tf PWSH_VERSION -- manifest=7.4.20
+PASS  3: Java package named in main.tf
+== 4. images
+PASS  4: compose image grafana/grafana:13.2.2 has a digest row
+PASS  4: compose image nginx:1.31.3 has a digest row
+PASS  4: compose image postgres:16.14 has a digest row
+PASS  4: compose image prom/prometheus:v3.14.0 has a digest row
+PASS  4: compose image rabbitmq:3.13.7-management has a digest row
+PASS  4: compose image redis:7.4.7 has a digest row
+PASS  4: mcr.microsoft.com/dotnet/sdk:10.0.300 is a compose image or a Dockerfile base image
+PASS  4: mcr.microsoft.com/dotnet/sdk:10.0.300 digest is sha256 hex -- digest=sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6
+PASS  4: postgres:16.14 is a compose image or a Dockerfile base image
+PASS  4: postgres:16.14 digest is sha256 hex -- digest=sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
+PASS  4: redis:7.4.7 is a compose image or a Dockerfile base image
+PASS  4: redis:7.4.7 digest is sha256 hex -- digest=sha256:976ab0f0939b78c06d802bcd3bea44c5142ea9a756a57b861e08819817f768c8
+PASS  4: grafana/grafana:13.2.2 is a compose image or a Dockerfile base image
+PASS  4: grafana/grafana:13.2.2 digest is sha256 hex -- digest=sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
+PASS  4: mcr.microsoft.com/dotnet/aspnet:10.0.8 is a compose image or a Dockerfile base image
+PASS  4: mcr.microsoft.com/dotnet/aspnet:10.0.8 digest is sha256 hex -- digest=sha256:8c0b6857eab7b2aa57884c839bf4678414606bd7d17370f18a842ac5cf414711
+PASS  4: prom/prometheus:v3.14.0 is a compose image or a Dockerfile base image
+PASS  4: prom/prometheus:v3.14.0 digest is sha256 hex -- digest=sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+PASS  4: nginx:1.31.3 is a compose image or a Dockerfile base image
+PASS  4: nginx:1.31.3 digest is sha256 hex -- digest=sha256:8541484afbc9c8a5a8a99b379568ebbc957f658583ec9448fc43104229c03cf8
+PASS  4: rabbitmq:3.13.7-management is a compose image or a Dockerfile base image
+PASS  4: rabbitmq:3.13.7-management digest is sha256 hex -- digest=sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+== 5. workload
+PASS  5: -Rates default is 50, 100, 200 -- file=50,100,200
+PASS  5: -Configs default is C1 to C4 -- file=C1,C2,C3,C4
+PASS  5: -Replicas default is 1, 2, 4 -- file=1,2,4
+PASS  5: -DurationSeconds default equals the manifest (60 s) -- file=60 manifest=60 s
+PASS  5: -Repeats default equals the manifest (3) -- file=3
+PASS  5: -Product and -Stock defaults equal the manifest -- file="flash-product-1" 100000 manifest=flash-product-1 (tests/jmeter/products.csv), stock 100,000
+PASS  5: open-loop mode is the plan's -Jmode the driver passes
+PASS  5: workload.jmx keys come from __UUID()
+PASS  5: the product CSV is recycled
+PASS  5: pacing is a Constant Throughput Timer
+PASS  5: the plan has no seed property
+== 6. worker
+FAIL  6: Worker delay equals appsettings.json -- manifest=250
+FAIL  6: Worker delay equals the ProcessingOptions default
+PASS  6: Worker concurrency equals ec2.env.example
+PASS  6: Worker prefetch equals ec2.env.example
+== 7. limits
+PASS  7: Worker concurrency equals ec2.env.example PROCESSING_MAX_CONCURRENCY -- manifest=20 file=20
+PASS  7: Worker prefetch equals ec2.env.example WORKER_PREFETCH -- manifest=20 file=20
+PASS  7: Admission, concurrent new orders equals ec2.env.example ADMISSION_MAX_CONCURRENT_NEW_ORDERS -- manifest=64 file=64
+PASS  7: Admission, Outbox backlog equals ec2.env.example ADMISSION_MAX_OUTBOX_BACKLOG -- manifest=2000 file=2000
+PASS  7: Admission, unfinished orders equals ec2.env.example ADMISSION_MAX_IN_FLIGHT_ORDERS -- manifest=0 (off) file=0
+PASS  7: Order Service consumer concurrency equals ec2.env.example ORDER_CONSUMER_CONCURRENCY -- manifest=4 file=4
+PASS  7: Inventory consumer concurrency equals ec2.env.example INVENTORY_CONSUMER_CONCURRENCY -- manifest=1 file=1
+PASS  7: Reconciliation stuck timeout equals ec2.env.example RECONCILIATION_STUCK_TIMEOUT_SECONDS -- manifest=120 s file=120
+PASS  7: PostgreSQL connections equals ec2.env.example PG_MAX_CONNECTIONS -- manifest=200 file=200
+PASS  7: gateway (C3, C4) equals the run-matrix ShedOrderRate/Burst and ec2.env.example -- manifest=200 requests/s, burst 100
+PASS  7: open gateway equals the run-matrix OpenOrderRate/Burst
+PASS  7: queue bound equals the run-matrix QueueMaxLength default
+PASS  7: the bound overflows with reject-publish
+PASS  7: OrderProcessingStartedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OutboxPublisherWorker.cs (outbox) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: StockResultConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderPlacedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderProcessedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OutboxPublisherWorker.cs (outbox) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: StockReservedConsumer.cs (Worker) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderProcessedConsumer.cs delayed requeue is 2/4/8 s -- delays=2/4/8
+PASS  7: OrderProcessingStartedConsumer.cs delayed requeue is 2/4/8 s -- delays=2/4/8
+PASS  7: reconciliation attempts equal ReconciliationOptions and appsettings.json -- manifest=3
+PASS  7: reconciliation poll equals ReconciliationOptions -- manifest=30
+PASS  7: Confirmed/Processing timeout equals appsettings.json -- manifest=300
+PASS  7: src\FlashSale.OrderService\Messaging\RabbitMqOptions.cs PrefetchCount default equals the manifest -- manifest=20
+PASS  7: src\FlashSale.InventoryService\Messaging\RabbitMqOptions.cs PrefetchCount default equals the manifest -- manifest=20
+PASS  7: Outbox publisher batch 50 in both services
+== 8. metrics
+PASS  8: percentiles are nearest-rank (Ceiling) in the extractor and the driver
+PASS  8: dead letters read flashsale_consumer_dead_lettered_total alone
+PASS  8: retries, duplicates and reconciliations read the named metrics
+PASS  8: achieved rate is (count - 1) / span in the driver
+PASS  8: drain waits for orders and both Outboxes
+
+2 of 106 check(s) failed.
+Exit code: 1

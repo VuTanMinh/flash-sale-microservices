@@ -9,6 +9,27 @@ not valid until one of them is corrected.
 The owner signed off the run values on 4 November 2026, after the EC2
 confirmation (`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`).
 
+**Freeze closed on 6 November 2026 at 18:16 UTC (owner's decision "Close freeze,
+tag official code").**
+- **Why:** the post-freeze Process Worker back-pressure fix
+  (`docs/week14-backpressure-fix.md`) changes `src/`, so `main-test-bug-fix`
+  no longer holds the frozen code at its head.
+- **Where the frozen code is:** the code of the official runs is the annotated
+  tag **`w14-official`**, on `9d00bea`.
+  - The 66 official runs ran on hosts at `a37f082`.
+  - The 18 supplementary runs ran on hosts at `b6a8c04`.
+  - Both commits are byte-identical to the tag on every run path: `src/`,
+    `infra/`, `tests/jmeter/` and every script except the report verifiers and
+    `verify-freeze.ps1`.
+- **How to reproduce:** check out `w14-official` to reproduce the official and
+  supplementary results (README).
+- **What the verifier checks now:** `scripts/verify-freeze.ps1` (TP-X09) checks
+  this manifest against the tagged tree, not against the branch head:
+  - the tag points to the frozen commit below;
+  - every run commit is byte-identical to it on the run paths;
+  - every value in sections 2 to 8 holds at the tag.
+- **The record:** the re-freezes below are kept as they happened.
+
 **Re-frozen on 6 November 2026 at `6ad3b00`; re-signed by the owner on 6 November 2026 at 13:07 UTC.**
 The 66 official runs ran on the code frozen at `9d00bea`. Between `9d00bea` and
 `6ad3b00` only report verifiers changed under the frozen paths, after the report
@@ -56,12 +77,13 @@ are unchanged). The script changes are:
 
 | Item | Value |
 | --- | --- |
-| Frozen source commit | `6ad3b005b8b38a7afe214f62786b1d650b9321df` (the parent of the commit that first names it in this file); the official runs ran on `9d00beaf`, byte-identical in everything a run uses |
+| Frozen source commit | `9d00beafdef229418112abce26a48899e4b04ba8`, tagged `w14-official` (the freeze was closed on 6 November; `6ad3b00`, the last re-freeze, differs from it only in report verifiers) |
+| Run commits | `a37f082` (the 66 official runs), `b6a8c04` (the 18 supplementary runs) |
 | Branch | `main-test-bug-fix` |
 
-Only documentation and evidence may change after this commit for the official
-runs. A change to `src/`, `infra/`, `tests/jmeter/` or `scripts/` makes the
-freeze invalid until this manifest is updated and re-verified.
+The values in sections 2 to 8 are those of the tagged tree. Changes on the
+branch after the freeze was closed (the Worker fix) do not change them, and they
+are checked against the tag.
 
 ## 2. Infrastructure
 

@@ -46,18 +46,26 @@ The raw data of every run (manifests, JMeter JTLs, collector samples, validator
 logs) is in `tests/evidence/20261105T104832Z-official/`, and the report's
 Results, Discussion and Conclusion chapters are built from it.
 
+The code those runs used is the annotated tag **`w14-official`** (`9d00bea`). The
+branch has moved on since the freeze was closed, with a post-freeze Process
+Worker fix, so check out the tag to run the official experiment's code:
+`git checkout w14-official`. The saved data and the analysis below live on the
+branch and work from its head.
+
 1. **Rebuild every Results table and figure from the saved data** (no Docker,
    no cloud): `python report/figures/analyze_official.py`, then
    `latexmk -pdf report.tex` in `report/`. On an unchanged checkout nothing in
    `report/figures/official/` changes.
-2. **Run a validated experiment yourself** on a local copy of the EC2 stack
-   (Docker and JMeter):
+2. **Run a validated experiment yourself** with the official runs' code
+   (`git checkout w14-official`) on a local copy of the EC2 stack (Docker and
+   JMeter):
    `powershell -ExecutionPolicy Bypass -Command "& .\scripts\verify-ec2-stack.ps1 -Cases A,G"`.
    It runs the same matrix runner as the official runs, with reset, seed,
    warm-up, open-loop load, drain and the correctness validator.
    Then `python report/figures/analyze_official.py --runs "$env:TEMP\ec2v-matrix" reproduction`
    draws those runs' own table and figures.
-3. **Repeat the official matrix on EC2** (needs an AWS account): the plan is
+3. **Repeat the official matrix on EC2** (needs an AWS account), from the tag
+   `w14-official`: the plan is
    [docs/week14-official-runs.md](docs/week14-official-runs.md) and the account
    steps are [docs/week14-manual-steps.md](docs/week14-manual-steps.md).
 

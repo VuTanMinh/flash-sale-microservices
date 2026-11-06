@@ -3221,7 +3221,8 @@ other workload profiles of the brief were run as coverage (Section~\ref{sec:prof
 
 The official matrix ran on 5~November 2026 on one pair of EC2 hosts
 (backend \texttt{m7i-flex.large}, JMeter \texttt{c7i-flex.large}) with every
-value frozen in \nolinkurl{docs/week14-freeze.md} (frozen commit \texttt{9d00bea};
+value frozen in \nolinkurl{docs/week14-freeze.md} (frozen commit \texttt{9d00bea},
+tagged \texttt{w14-official};
 both hosts ran \texttt{a37f082}, whose service code and settings are
 identical). The plan is \nolinkurl{docs/week14-official-runs.md}. There are 22
 cells (C1, C2 and C3 at 50, 100 and 200/s, C3 also at 400/s, and C4 with 1, 2
@@ -4999,7 +5000,13 @@ Terraform file. \nolinkurl{scripts/verify-freeze.ps1} checks every value against
 its source file (TP-X09, \nolinkurl{tests/evidence/20261105T100509Z-freeze.log}). The
 manifest was frozen again on 5~November at the commit that adds check~7 to the
 validator and sums the extractor's gauges across replicas, with no change to
-the services, the infrastructure or any value below. Table~\ref{tab:app-freeze} repeats the values that
+the services, the infrastructure or any value below. On 6~November the owner
+closed the freeze for a post-freeze Process Worker fix: the official runs' code is
+the annotated tag \texttt{w14-official} (\texttt{9d00bea}), and
+\nolinkurl{scripts/verify-freeze.ps1} now checks the manifest against that tagged
+tree and checks that the official and supplementary runs' commits are
+byte-identical to it on every run path
+(\nolinkurl{tests/evidence/20261106T182128Z-freeze-tag/}). Table~\ref{tab:app-freeze} repeats the values that
 define the experiment; Section~\ref{sec:locked} explains how they were chosen.
 
 \begin{table}[H]
@@ -5128,6 +5135,7 @@ Open-loop load mode & TP-X05 & \nolinkurl{20261031T171915Z-ec2-stack.log} \\
 Matrix runner and queue-bound gate & TP-X06 & \nolinkurl{20261101T181846Z-ec2-stack-matrix.log} \\
 Freeze manifest matches the repository (first freeze) & TP-X09 & \nolinkurl{20261104T145044Z-freeze.log}, \allowbreak\texttt{-freeze-negative.log} \\
 Re-freeze at 9d00bea & TP-X09 & \nolinkurl{20261105T100509Z-freeze.log}, \nolinkurl{-freeze-negative.log} \\
+Freeze closed, official code tagged \texttt{w14-official} & TP-X09 & \nolinkurl{20261106T182128Z-freeze-tag/} \\
 Validator run filter (check 0b) & TP-X10 & \nolinkurl{20261105T070413Z-validator-run-filter.log} \\
 Status history (check 7), missing parameters & TP-X11 & \nolinkurl{20261105T064537Z-validator.log}, \nolinkurl{-validator-negative.log} \\
 Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-extract.log}, \nolinkurl{20261105T074539Z-extract-negative.log} \\

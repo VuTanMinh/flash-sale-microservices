@@ -36,6 +36,18 @@ dotnet build src/FlashSale.OrderService.slnx --no-incremental
 
 The build must end with `0 Error(s)`.
 
+The 66 official runs (and the 18 supplementary runs) used the code tagged
+`w14-official` (`9d00bea`). The branch head carries a later Process Worker fix
+(`week14-backpressure-fix.md`), so for sections 8 and 9, which run the
+experiment's code, check out the tag first:
+
+```powershell
+git checkout w14-official
+```
+
+Sections 3 to 7 (tests, verifiers and rebuilding the Results from the saved
+data) run from the branch head (`git checkout main-test-bug-fix`).
+
 ## 3. Unit tests
 
 ```powershell
@@ -136,8 +148,9 @@ folder holding `raw.jtl` and `samples.csv` (the archived Week 12 overload run is
 
 ## 8. A validated experiment run on a local copy of the EC2 stack
 
-This runs the same matrix runner as the official runs, on the EC2 Compose file
-started under a separate project on this machine. It needs Docker Desktop and
+This runs the same matrix runner as the official runs, from the tag
+`w14-official`, on the EC2 Compose file started under a separate project on this
+machine. It needs Docker Desktop and
 JMeter (section 1). Build first (section 2).
 
 ```powershell
@@ -177,4 +190,6 @@ used are frozen in [week14-freeze.md](week14-freeze.md); check them first:
 powershell -File .\scripts\verify-freeze.ps1
 ```
 
-It must end with `All 100 checks passed`.
+Run it from the branch head (`main-test-bug-fix`). It must end with `All 106 checks
+passed`; it checks the manifest against the tagged tree, so later changes on the
+branch do not affect it.

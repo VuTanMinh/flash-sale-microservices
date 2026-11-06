@@ -7,14 +7,16 @@
 #   powershell -File .\scripts\verify-freeze.ps1
 #   powershell -File .\scripts\verify-freeze.ps1 -Manifest <copy.md>   (negative controls)
 #
-# Check 1 (the frozen commit is the parent of the commit that first wrote its
-# SHA into the manifest) needs that manifest change to be committed; before
-# that it reports NOT APPLICABLE, never PASS, and the script exits non-zero.
-# Re-freezing (moving the frozen commit) therefore works the same way as the
-# first freeze: the manifest change that names the new commit must sit
-# directly on top of it.
+# Since the owner closed the freeze (6 November 2026), the official-runs code is
+# the annotated tag w14-official. Check 1 verifies that the tag points to the
+# manifest's frozen commit and that every commit the runs were made on (the
+# manifest's "Run commits" row, cross-checked against the run manifests in the
+# evidence) is byte-identical to the tag on the run paths. Sections 2 to 8 read
+# every value from the tagged tree (git archive), not from the working tree, so
+# later changes on the branch cannot make the freeze pass or fail.
+#   -Tag <name>   check another tag (negative control: a tag on another commit)
 # ============================================================
-param([string]$Manifest = "")
+param([string]$Manifest = "", [string]$Tag = "w14-official")
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not $Manifest) { $Manifest = Join-Path $root "docs\week14-freeze.md" }
@@ -24,11 +26,20 @@ function Check([string]$name, [bool]$ok, [string]$detail = "") {
     if (-not $ok) { $script:failures++ }
     Write-Output "$(if ($ok) { 'PASS' } else { 'FAIL' })  $name$(if ($detail) { " -- $detail" })"
 }
-function Read([string]$rel) { return (Get-Content -Raw -LiteralPath (Join-Path $root $rel) -Encoding UTF8) }
+# The tagged tree, unpacked once; every value below is read from it.
+$tree = Join-Path ([IO.Path]::GetTempPath()) ("w14-freeze-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force $tree | Out-Null
+$archive = Join-Path $tree "tree.tar"
+# Windows tar.exe by full path: under Git Bash, "tar" can be GNU tar, which reads "C:\..." as a remote host.
+$tarExe = Join-Path $env:SystemRoot "System32\tar.exe"; if (-not (Test-Path $tarExe)) { $tarExe = "tar" }
+& git -C $root archive --format=tar -o $archive "$Tag^{commit}" 2>$null
+$treeOk = ($LASTEXITCODE -eq 0) -and (Test-Path $archive)
+if ($treeOk) { & $tarExe -xf $archive -C $tree 2>$null; $treeOk = ($LASTEXITCODE -eq 0); Remove-Item $archive -Force }
+function Read([string]$rel) { $f = Join-Path $tree $rel; if (-not (Test-Path -LiteralPath $f)) { return "" }; return (Get-Content -Raw -LiteralPath $f -Encoding UTF8) }
 # SHA-256 of the file with LF line endings, as git stores it, so the hash does not
 # depend on how a checkout converts line endings (core.autocrlf).
 function Sha256([string]$rel) {
-    $bytes = [IO.File]::ReadAllBytes((Join-Path $root $rel))
+    $bytes = [IO.File]::ReadAllBytes((Join-Path $tree $rel))
     $lf = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $bytes.Length; $i++) { if (-not ($bytes[$i] -eq 13 -and $i + 1 -lt $bytes.Length -and $bytes[$i + 1] -eq 10)) { $lf.Add($bytes[$i]) } }
     $h = [Security.Cryptography.SHA256]::Create().ComputeHash($lf.ToArray())
@@ -58,32 +69,46 @@ function RmList([string]$name) { $v = RmDefault $name; if ($null -eq $v) { retur
 
 # ---------------------------------------------------------- 1. source
 Write-Output "== 1. source"
+Check "1: the tag's tree unpacked" $treeOk "tag=$Tag"
 $frozen = Cell "Frozen source commit"
 $sha = [regex]::Match("$frozen", '[0-9a-f]{40}').Value
 Check "1: frozen commit is a full 40-hex SHA" ($sha -ne "") "cell='$frozen'"
 & git -C $root cat-file -e "$sha^{commit}" 2>$null
 Check "1: frozen commit exists in this repository" ($LASTEXITCODE -eq 0 -and $sha) "sha=$sha"
-$mrel = (Resolve-Path -LiteralPath $Manifest).Path.Substring($root.Length + 1) -replace '\\', '/'
-# The commit that first wrote this SHA into the manifest (the oldest commit whose
-# diff adds or removes the string); later fixes to the manifest keep it.
-$parent = ""
-if ($sha) { $parent = (@(git -C $root log -S $sha --format=%P -- $mrel 2>$null) | Select-Object -Last 1 | Out-String).Trim() }
-if (-not $parent) {
-    $notApplicable++
-    Write-Output "NOT APPLICABLE  1: frozen commit is the parent of the commit that names it in the manifest -- no committed $mrel names it yet"
-} else {
-    Check "1: frozen commit is the parent of the commit that first named it in the manifest" (($parent -split ' ')[0] -eq $sha) "parent=$parent frozen=$sha"
+$tagType = (& git -C $root cat-file -t "refs/tags/$Tag" 2>$null | Out-String).Trim()
+$tagSha = (& git -C $root rev-parse "$Tag^{commit}" 2>$null | Out-String).Trim()
+Check "1: $Tag is an annotated tag" ($tagType -eq "tag") "type='$tagType'"
+Check "1: $Tag points to the frozen commit" ($tagSha -eq $sha) "tag=$tagSha frozen=$sha"
+# Run paths: everything a run uses. Report verifiers and this script are not run paths.
+function RunPathChanges([string]$a, [string]$b) {
+    return @(git -C $root diff --name-only $a $b -- src infra tests/jmeter scripts 2>$null | Where-Object {
+            $_ -notmatch '^scripts/verify-[a-z-]+-report\.ps1$' -and $_ -ne 'scripts/verify-freeze.ps1' })
 }
-if ($sha) {
-    $changed = @(git -C $root diff --name-only $sha HEAD 2>$null | Where-Object { $_ -match '^(src|infra|tests/jmeter|scripts)/' -and $_ -ne 'scripts/verify-freeze.ps1' })
-    Check "1: no frozen path (src, infra, tests/jmeter, scripts) changed after the frozen commit" ($changed.Count -eq 0) "changed=$($changed -join ',')"
+$runCommits = @([regex]::Matches((Cell "Run commits"), '[0-9a-f]{7,40}') | ForEach-Object { $_.Value })
+Check "1: the manifest lists the run commits" ($runCommits.Count -ge 1) "cell='$(Cell 'Run commits')'"
+foreach ($rc in $runCommits) {
+    $full = (& git -C $root rev-parse "$rc^{commit}" 2>$null | Out-String).Trim()
+    $diff = $(if ($full -and $tagSha) { RunPathChanges $tagSha $full } else { @("unresolved") })
+    Check "1: run commit $rc is byte-identical to $Tag on the run paths" ($full -and $diff.Count -eq 0) "changed=$($diff -join ',')"
+}
+# The commits the run manifests record must be among the listed run commits.
+foreach ($ev in @("tests/evidence/20261105T104832Z-official", "tests/evidence/20261106T135523Z-supplementary")) {
+    $tgz = Join-Path $root ($ev + "/manifests.tgz")
+    if (-not (Test-Path $tgz)) { Check "1: $ev/manifests.tgz exists" $false; continue }
+    $tmp = Join-Path $tree ("m-" + (Split-Path -Leaf $ev))
+    New-Item -ItemType Directory -Force $tmp | Out-Null
+    & $tarExe -xzf $tgz -C $tmp 2>$null
+    $used = @(Get-ChildItem $tmp -Recurse -Filter manifest.json | ForEach-Object { (Get-Content -Raw $_.FullName | ConvertFrom-Json).prepare.commit } | Sort-Object -Unique)
+    $listedFull = @($runCommits | ForEach-Object { (& git -C $root rev-parse "$_^{commit}" 2>$null | Out-String).Trim() })
+    $unlisted = @($used | Where-Object { $listedFull -notcontains $_ })
+    Check "1: every run in $(Split-Path -Leaf $ev) used a listed run commit" ($used.Count -ge 1 -and $unlisted.Count -eq 0) "used=$($used -join ',') unlisted=$($unlisted -join ',')"
 }
 
 # ---------------------------------------------------------- 2. infrastructure
 Write-Output "== 2. infrastructure"
 $listed = @{}
 foreach ($r in $rows) { $f = Strip $r[0]; if ($f -match '^infra/terraform/') { $listed[$f] = (Strip $r[1]) } }
-foreach ($f in @(Get-ChildItem (Join-Path $root "infra\terraform") -Filter *.tf | ForEach-Object { "infra/terraform/$($_.Name)" })) {
+foreach ($f in @(Get-ChildItem (Join-Path $tree "infra\terraform") -Filter *.tf | ForEach-Object { "infra/terraform/$($_.Name)" })) {
     Check "2: $f is listed" ($listed.ContainsKey($f))
 }
 foreach ($f in $listed.Keys) { Check "2: SHA-256 of $f" ((Sha256 ($f -replace '/', '\')) -eq $listed[$f]) "manifest=$($listed[$f])" }
@@ -102,7 +127,7 @@ Write-Output "== 3. tools"
 $gj = (Read "global.json" | ConvertFrom-Json).sdk.version
 Check "3: .NET SDK equals global.json" (((Cell ".NET SDK") -split ' ')[0] -eq $gj) "manifest=$(Cell '.NET SDK') global.json=$gj"
 $rt = Cell ".NET runtime in the images"; $sb = Cell ".NET SDK in the image build"
-foreach ($df in @(Get-ChildItem (Join-Path $root "src") -Recurse -Filter Dockerfile | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })) {
+foreach ($df in @(Get-ChildItem (Join-Path $tree "src") -Recurse -Filter Dockerfile | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })) {
     $d = Get-Content -Raw -LiteralPath $df.FullName
     Check "3: $($df.Directory.Name) Dockerfile uses the listed SDK and runtime images" ($d -match ('FROM\s+' + [regex]::Escape($sb) + '\s') -and $d -match ('FROM\s+' + [regex]::Escape($rt) + '\s')) "sdk=$sb runtime=$rt"
 }
@@ -205,7 +230,8 @@ Check "8: achieved rate is (count - 1) / span in the driver" ($rm -match '\(\$ts
 Check "8: drain waits for orders and both Outboxes" ($rm -match "NOT IN \('Completed','Rejected'\)" -and $rm -match 'order_service\.outbox_events' -and $rm -match 'inventory_service\.outbox_events')
 
 Write-Output ""
+Remove-Item -Recurse -Force -LiteralPath $tree -ErrorAction SilentlyContinue
 if ($failures -gt 0) { Write-Output "$failures of $checks check(s) failed."; exit 1 }
 if ($notApplicable -gt 0) { Write-Output "All $checks checks passed, but $notApplicable check is NOT APPLICABLE: commit the manifest and run again."; exit 2 }
-Write-Output "All $checks checks passed: docs/week14-freeze.md matches the repository."
+Write-Output "All $checks checks passed: docs/week14-freeze.md matches the tagged code ($Tag)."
 exit 0
