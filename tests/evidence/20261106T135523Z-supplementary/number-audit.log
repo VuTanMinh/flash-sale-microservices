@@ -1,0 +1,26 @@
+OK   "All 18 runs passed every validator check" -- 18 runs
+OK   "C1 accepted 194.5--203.8 requests a second" -- 194.5-203.8
+OK   "the API p50 rose to 1.9--2.0\,s" -- 1.883-1.993
+OK   "the p95 to 2.8--3.0\,s" -- 2.799-2.994
+OK   "host CPU 96\,\% busy (Order Service 48--50" -- 95.6-95.9
+OK   "(Order Service 48--50\,\%" -- 48.2-49.7
+OK   "the infrastructure 46--47\,\%)" -- 45.8-47.2
+OK   "sold exactly 2,000 units and ended with stock 0" -- 9 sell-out runs
+OK   "rejected: 10,047--10,103 per run for C1" -- 10047-10103
+OK   "7,716--8,251 for C2" -- 7716-8251
+OK   "403--835 for C3" -- 403-835
+OK   "C3 admitted only 2,403--2,835 orders" -- 2403-2835
+OK   "refused 6,576--7,239 requests per run with 503" -- 6576-7239
+OK   "C2 accepted every request, at 180.2--184.2 a second" -- 180.2-184.2
+OK   "an API p95 of 2.7--2.9\,s" -- 2.737-2.875
+OK   "a p95 of 140--147\,s" -- 140.0-146.7
+OK   "the backlog drained 134--148\,s after the load" -- 134.0-148.0
+OK   "No message was dead-lettered" -- max 0.0
+OK   "re-triggered 190--971 orders per run" -- 190.0-971.0
+OK   "accepted about 183 a second at the same p95" -- median 182.7
+OK   "about 5\,\% lower (95.1 against 100.6 a second)" -- 95.1 vs 100.6
+OK   "nearly twice as long (1.4 against 0.74\,s)" -- 1400.0 vs 739.0
+OK   "14.0 orders a second completed during the load against 23.5" -- 14.04 vs 23.48
+OK   "the completion p95 was 58 against 48\,s, and the drain 46 against 32\,s" -- anchor
+0 claim(s) failed.
+Exit code: 0

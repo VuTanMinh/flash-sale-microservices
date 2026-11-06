@@ -1,0 +1,250 @@
+﻿Week 14 supplementary runs: 6 cells x rounds 1,2,3 ; timer ends 2026-11-06T19:44:00.0000000Z ; cutoff = run 12 min + final copy 45 min + 60 min margin
+== rep1 #1 C1 r1 400/s 20:55:23
+   Matrix 20261106T135523Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T135523Z-C1-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 29%
+   too many clients: 0
+   RESULT rep1 20261106T135523Z-C1-r1-400rps-rep1 PASS ach=203.8 2xx=12364 acc=12364 drain=0s val=0 step=
+== rep1 #2 C1 r1 200/s stock 2000 20:57:44
+powershell : D:\DACNTT\scripts\run-matrix.ps1 : Cannot validate argument on parameter 'Step'. The argument "-Stock" 
+does not belong 
+At line:1 char:302
++ ... tch {} } }; powershell -NoProfile -ExecutionPolicy Bypass -File E:\Ag ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (D:\DACNTT\scrip...oes not belong :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+to the set "matrix,prepare,collect-start,post" specified by the ValidateSet attribute. Supply an argument that is in 
+the set and then try the command again.
+At E:\Agent_Memory\DACNTT\tmp\w14off\official.ps1:65 char:82
++ ... plicas "$n" -Rates $rate -Repeats 1 -OutDir $repDir @stockArg 2>&1 |  ...
++                                                         ~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [run-matrix.ps1], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationError,run-matrix.ps1
+ 
+   NO RUN FOLDER (matrix exit 0): stopping
+Week 14 supplementary runs: 6 cells x rounds 1,2,3 ; timer ends 2026-11-06T19:44:00.0000000Z ; cutoff = run 12 min + final copy 45 min + 60 min margin
+skip rep1 C1 r1 400/s (PASS already)
+== rep1 #2 C1 r1 200/s stock 2000 20:58:10
+   Matrix 20261106T135810Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T135810Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261106T135810Z-C1-r1-200rps-rep1 PASS ach=201.1 2xx=12083 acc=12083 drain=0s val=0 step=
+== rep1 #3 C2 r1 200/s stock 2000 21:00:31
+   Matrix 20261106T140031Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T140031Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep1 20261106T140031Z-C2-r1-200rps-rep1 PASS ach=161.8 2xx=9716 acc=9716 drain=52s val=0 step=
+== rep1 #4 C3 r1 200/s stock 2000 21:03:56
+   Matrix 20261106T140356Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T140356Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261106T140356Z-C3-r1-200rps-rep1 PASS ach=158.6 2xx=2403 acc=2403 drain=17s val=0 step=
+== rep1 #5 C2 r1 100/s 21:06:43
+   Matrix 20261106T140643Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T140643Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep1 20261106T140643Z-C2-r1-100rps-rep1 PASS ach=91.9 2xx=5514 acc=5514 drain=46s val=0 step=
+== rep1 #6 C2 r1 400/s 21:09:58
+   Matrix 20261106T140958Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T140958Z-C2-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep1 20261106T140958Z-C2-r1-400rps-rep1 PASS ach=182.7 2xx=11052 acc=11052 drain=134s val=0 step=
+== copy-back rep1 21:14:48
+command 5ebadbd4-1df7-4fc4-be3c-c7175d6645a3
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1381996 Nov  6 14:14 /tmp/w14-rep1-backend.tgz
+
+command 3e4a36a1-a284-4264-9d38-3e8737bb5e96
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 2168765 Nov  6 14:15 /tmp/w14-rep1-jtl.tgz
+
+   got /tmp/w14-rep1-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep1-backend.tgz (1381996 bytes, sha256 016cec051bc7e434d9c83e944be80805df69324401cc0a345e6a3abc61bbea74, 92 chunks)
+   got /tmp/w14-rep1-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep1-jtl.tgz (2168765 bytes, sha256 40ff0db1de13521309f54db03059e98f530ca809274717b7af6aa54a2f8f6db6, 145 chunks)
+== copy-back rep1 done 21:34:09
+== rep2 #1 C1 r1 400/s 21:34:09
+   Matrix 20261106T143409Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T143409Z-C1-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261106T143409Z-C1-r1-400rps-rep1 PASS ach=194.5 2xx=11755 acc=11755 drain=0s val=0 step=
+== rep2 #2 C1 r1 200/s stock 2000 21:36:30
+   Matrix 20261106T143630Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T143630Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261106T143630Z-C1-r1-200rps-rep1 PASS ach=200.1 2xx=12047 acc=12047 drain=0s val=0 step=
+== rep2 #3 C2 r1 200/s stock 2000 21:38:53
+   Matrix 20261106T143853Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T143853Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep2 20261106T143853Z-C2-r1-200rps-rep1 PASS ach=170.7 2xx=10251 acc=10251 drain=51s val=0 step=
+== rep2 #4 C3 r1 200/s stock 2000 21:42:20
+   Matrix 20261106T144220Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T144220Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   RESULT rep2 20261106T144220Z-C3-r1-200rps-rep1 PASS ach=160.9 2xx=2428 acc=2428 drain=16s val=0 step=
+== rep2 #5 C2 r1 100/s 21:45:14
+   Matrix 20261106T144514Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T144514Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261106T144514Z-C2-r1-100rps-rep1 PASS ach=96.0 2xx=5753 acc=5753 drain=50s val=0 step=
+== rep2 #6 C2 r1 400/s 21:48:31
+   Matrix 20261106T144831Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T144831Z-C2-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep2 20261106T144831Z-C2-r1-400rps-rep1 PASS ach=180.2 2xx=10852 acc=10852 drain=148s val=0 step=
+== copy-back rep2 21:53:39
+command 946ab20e-5af7-4c06-a8f0-e4d0f6dacbd0
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1434693 Nov  6 14:53 /tmp/w14-rep2-backend.tgz
+
+command aa6f8510-7d94-415d-abc2-6a7afcc53b2e
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 2177604 Nov  6 14:53 /tmp/w14-rep2-jtl.tgz
+
+   got /tmp/w14-rep2-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep2-backend.tgz (1434693 bytes, sha256 6b1a149bef8b10ce55e3757d3799c85d2eb36e490209306f518dc574a627ff0e, 95 chunks)
+   got /tmp/w14-rep2-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep2-jtl.tgz (2177604 bytes, sha256 02a6cd8b970a7d1439fa5a67ae109420e80ef4f1ab653d1e4529b45b3e7f7ed1, 146 chunks)
+== copy-back rep2 done 22:13:35
+== rep3 #1 C1 r1 400/s 22:13:35
+   Matrix 20261106T151335Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T151335Z-C1-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep3 20261106T151335Z-C1-r1-400rps-rep1 PASS ach=197.7 2xx=11962 acc=11962 drain=0s val=0 step=
+== rep3 #2 C1 r1 200/s stock 2000 22:16:03
+   Matrix 20261106T151603Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T151603Z-C1-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep3 20261106T151603Z-C1-r1-200rps-rep1 PASS ach=201.2 2xx=12103 acc=12103 drain=0s val=0 step=
+== rep3 #3 C2 r1 200/s stock 2000 22:18:27
+   Matrix 20261106T151827Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T151827Z-C2-r1-200rps-rep1
+Week 14 supplementary runs: 6 cells x rounds 3 ; timer ends 2026-11-06T19:44:00.0000000Z ; cutoff = run 12 min + final copy 45 min + 60 min margin
+skip rep3 C1 r1 400/s (PASS already)
+skip rep3 C1 r1 200/s (PASS already)
+== rep3 #3 C2 r1 200/s stock 2000 22:25:21
+   Matrix 20261106T152521Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T152521Z-C2-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   RESULT rep3 20261106T152521Z-C2-r1-200rps-rep1 PASS ach=166.7 2xx=10011 acc=10011 drain=59s val=0 step=
+== rep3 #4 C3 r1 200/s stock 2000 22:28:55
+   Matrix 20261106T152855Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T152855Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep3 20261106T152855Z-C3-r1-200rps-rep1 PASS ach=156.3 2xx=2835 acc=2835 drain=16s val=0 step=
+== rep3 #5 C2 r1 100/s 22:31:42
+   Matrix 20261106T153142Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T153142Z-C2-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   RESULT rep3 20261106T153142Z-C2-r1-100rps-rep1 PASS ach=95.1 2xx=5698 acc=5698 drain=46s val=0 step=
+== rep3 #6 C2 r1 400/s 22:35:14
+   Matrix 20261106T153514Z: 1 run(s), 60 s each, transport Ssm
+   == 20261106T153514Z-C2-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   RESULT rep3 20261106T153514Z-C2-r1-400rps-rep1 PASS ach=184.2 2xx=11115 acc=11115 drain=144s val=0 step=
+== copy-back rep3 22:40:26
+command 6368b639-fc4f-4c3c-a78e-49df72b19b87
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1471701 Nov  6 15:40 /tmp/w14-rep3-backend.tgz
+
+command 428cc0fb-4755-415d-9e17-035a944be67a
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 2182490 Nov  6 15:40 /tmp/w14-rep3-jtl.tgz
+
+   got /tmp/w14-rep3-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep3-backend.tgz (1471701 bytes, sha256 2f4b5469f48238037b77f56c79112735b947d1d23aefd7ca51f9c2c1e881f1dc, 98 chunks)
+   got /tmp/w14-rep3-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15supp\session\bundles\w14-rep3-jtl.tgz (2182490 bytes, sha256 7babbd6f890adf585170ecd07eb9ae44d8b9081b08adf5d3956081959f9f6384, 146 chunks)
+== copy-back rep3 done 23:02:35
+SESSION DONE 23:02:35

@@ -311,11 +311,13 @@ The results have the following limits:
     (Section~\ref{sec:capacity}).
   \item The official matrix is steady load on one hot product with more stock
     than any run can sell. Scarce stock and the other load profiles were
-    tested separately and at lower rates (TP-B02, TP-I02, TP-X04), not
-    compared across configurations.
+    tested separately and at lower rates (TP-B02, TP-I02, TP-X04), and scarce
+    stock again under load in the supplementary session (2,000 units at
+    200/s, Section~\ref{sec:results-supp}), on another host pair.
   \item Contention level was not varied in the official matrix:
     \texttt{run-matrix.ps1} takes one \texttt{-Product}, so every official run
-    targets one hot product.
+    targets one hot product. The supplementary sell-out does not change this:
+    it also uses one product.
   \item The load-shedding limits were not calibrated to the measured capacity.
     The gateway admits 200 requests/s and the admission control holds the
     Outbox near 2,000 rows, while the pipeline keeps up only at about 50
@@ -3261,7 +3263,7 @@ have only one: it also shows one applied downstream result per order.}
 \section{Latency by Configuration}
 
 \paragraph{What the client sees.} Table~\ref{tab:results-api-latency} and
-Figure~\ref{fig:results-latency} give the latency of order submissions. At 50
+Figure~\ref{fig:results-latency} (Appendix~\ref{app:figures}) give the latency of order submissions. At 50
 and 100/s, C1 answers fastest: p50 10--11\,ms and p95 30--39\,ms, against
 p50 35--223\,ms and p95 137--791\,ms for C2 to C4 at 50/s. The asynchronous
 design does not buy a faster acknowledgement on this host. Its request path
@@ -3314,7 +3316,7 @@ no completion stage. Cells: median of 3 runs (range).}
 pipeline. At 100 and 200/s the largest share is between acceptance and
 publication: the Order Service Outbox publisher cannot keep up, so unpublished
 rows pile up (peak about 8,200 at 200/s,
-Figure~\ref{fig:results-backlog-time}). The publisher already batches: it
+Figure~\ref{fig:results-backlog-time}, Appendix~\ref{app:figures}). The publisher already batches: it
 claims 50 rows, sends them on one channel, waits for all their confirms
 together and claims the next batch at once while batches are full. But it is
 one serial loop per service, and it runs in the Order Service process, whose
@@ -3567,27 +3569,6 @@ Redis is the mean time per Redis command. Cells: median of 3 runs (range).}
 
 \begin{figure}[tbp]
 \centering
-\includegraphics[width=\textwidth]{figures/official/fig-latency.png}
-\caption{API latency p50 and p95 per configuration and requested rate (log
-scale). Each run is a small point and the median of the 3 runs is joined by a
-line, so the spread between runs stays visible.}
-\label{fig:results-latency}
-\end{figure}
-
-\begin{figure}[tbp]
-\centering
-\includegraphics[width=\textwidth]{figures/official/fig-timeline.png}
-\caption{One run over time: C2 at 200/s (left) and C3 at 400/s (right),
-repeat~1. Top: accepted and refused responses per second, from the JTL.
-Bottom: the \texttt{OrderPlaced} queue and the unpublished Outbox rows, from
-the collector's 5\,s samples. Without load shedding the Outbox grows through
-the whole load and the queue fills after it; with the C3 limits most requests
-are refused early and both backlogs stay bounded.}
-\label{fig:results-backlog-time}
-\end{figure}
-
-\begin{figure}[tbp]
-\centering
 \includegraphics[width=\textwidth]{figures/official/fig-replicas.png}
 \caption{C4 with 1, 2 and 4 Inventory consumers on one host: accepted orders
 per second, p95 completion latency and mean host CPU during the load. Each
@@ -3595,6 +3576,61 @@ run is a small point and the median a line. All replicas share one machine,
 so this shows contention on that host, not multi-node scaling.}
 \label{fig:results-replicas}
 \end{figure}
+
+\section{Supplementary Runs}
+\label{sec:results-supp}
+
+After the official matrix, one more session on 6~November ran 18 runs with the
+same frozen code and only command-line values changed
+(\nolinkurl{docs/week14-supplementary-runs.md}): C1 at 400/s; a sell-out of
+2,000 units at 200/s for C1, C2 and C3; the official C2 100/s cell as an anchor;
+and C2 at 400/s. Each ran three times, repeat-major, on a second host pair of the
+same types and AMI. All 18 runs passed every validator check
+(Table~\ref{tab:results-supp}). These runs are labelled supplementary and are
+never pooled with the 66 official runs: the anchor cell shows that the second
+host pair was slower (Appendix~\ref{app:supp-anchor}).
+
+\paragraph{C1's ceiling.} Offered 400/s, C1 accepted 194.5--203.8 requests a
+second, about what it accepted at 200/s. Each client thread waits for its
+answer, so the requests queued instead: the API p50 rose to 1.9--2.0\,s and the
+p95 to 2.8--3.0\,s, with the host CPU 96\,\% busy (Order Service 48--50\,\%, the
+infrastructure 46--47\,\%). On this host C1 stops at about 200 requests/s. The
+data cannot tell whether the row lock or the CPU sets that limit, because both
+saturate at the same point.
+
+\paragraph{Sell-out under load.} With 2,000 units and 200/s for 60\,s, every run
+of C1, C2 and C3 sold exactly 2,000 units and ended with stock 0. The validator
+found one reservation per order and no double deduction. The other accepted
+orders were rejected: 10,047--10,103 per run for C1, inside the request;
+7,716--8,251 for C2 and 403--835 for C3, through the asynchronous stock-rejected
+path, each order ending in \texttt{Rejected} (accepted-order accounting). C3
+admitted only 2,403--2,835 orders, because its admission control refused
+6,576--7,239 requests per run with 503. This is the scarce-stock case the
+official matrix could not show, under load.
+
+\paragraph{C2 at 400/s.} C2 accepted every request, at 180.2--184.2 a second,
+with an API p95 of 2.7--2.9\,s, and completed the orders with a p95 of
+140--147\,s; the backlog drained 134--148\,s after the load. No message was
+dead-lettered. But many orders waited past the 120\,s reconciliation timeout, so
+reconciliation re-triggered 190--971 orders per run, and every one completed.
+At 400/s C2 accepted fewer requests than C1, at about the same p95, so the
+asynchronous design did not overtake C1 at the higher rate either.
+
+\begin{table}[!hb]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\adjustbox{max width=\linewidth}{\input{figures/supplementary/tab-supplementary.tex}}
+\caption{Supplementary runs, 6~November, on a second host pair (not pooled
+with the official tables). Accepted counts the 2xx responses, which equal the
+orders in the database in every run. Sold is the units reserved; Rejected is the
+accepted orders that got no unit; Stock left is the final stock. Completion is
+acceptance to the terminal state, for the asynchronous configurations. Checks
+counts the runs in which every validator check held. Cells: median of 3 runs
+(range); Achieved, Sold and Stock left show the median only. Source: \nolinkurl{tests/evidence/20261106T135523Z-supplementary/}.}
+\label{tab:results-supp}
+\end{table}
+
 
 % ============================================================
 \chapter{Discussion}
@@ -3623,7 +3659,10 @@ concurrent requests for 100 units (TP-B02), the Lua reservation with 400
 concurrent requests for 100 units and with skewed demand over four products
 (TP-I02), and requests below, equal to and above the stock on the EC2 stack,
 where reservations always equalled the smaller of requests and stock
-(TP-X04). Duplicate and redelivered messages never caused a second deduction
+(TP-X04). The supplementary
+sell-out repeated this under load: at 200/s against 2,000 units, every run of C1,
+C2 and C3 sold exactly 2,000 and ended with stock 0, and C2 and C3 rejected the
+rest through the asynchronous path (Section~\ref{sec:results-supp}). Duplicate and redelivered messages never caused a second deduction
 (TP-M01, TP-M02), and the official runs absorbed between 38 and 3,269
 duplicates per run (Table~\ref{tab:results-reliability}) with no effect on
 stock. The conclusion is limited to the failure modes those tests cover
@@ -3663,8 +3702,12 @@ For the hot product, the conditional \texttt{UPDATE} on one row was not the
 bottleneck at these rates: its p95 rose to 919\,ms at 200/s, the first sign of
 lock contention, but it still kept up. The study therefore found no rate at
 which C2's Redis reservation pays for its extra machinery on this hardware.
-The point at which the row lock would become C1's limit lies above 200/s and
-was not reached.
+The supplementary runs found that limit on a second, somewhat slower host
+(Section~\ref{sec:results-supp}). Offered 400/s, C1 still accepted about 200
+requests a second, at a p50 of about 2\,s, with the host CPU 96\,\% busy. The
+row lock and the CPU cannot be told apart as the cause there. C2, offered the
+same 400/s on that host, accepted about 183 a second at the same p95, so a
+higher rate did not turn the comparison either.
 
 \paragraph{Complexity.} C1 is one service and one table. C2 adds two more
 services, a broker, Redis, an Outbox and an Inbox in each service, bounded
@@ -3709,8 +3752,9 @@ was present in this study, so these are expectations, not findings:
   \item \textbf{Contention beyond the row lock.} C1's p95 rose to 919\,ms at
     200/s, the first sign of queueing on the hot row. Above the rate at which
     that lock serialises requests, C1's latency grows with every request,
-    while the Redis reservation stays at about 0.05\,ms. That rate was not
-    reached here.
+    while the Redis reservation stays at about 0.05\,ms. On this hardware the
+    host's CPU saturates at about the same rate as the lock
+    (Section~\ref{sec:results-supp}), so this case did not arise.
   \item \textbf{A slow or unavailable downstream.} C2 keeps accepting while
     Inventory or the Worker is slow or down, and finishes the work later
     (Table~\ref{tab:failure-modes}); C1 cannot.
@@ -3789,8 +3833,11 @@ a finding.
 \begin{itemize}
   \item \textbf{One session, one host pair.} All 66 runs ran on one backend and
     one JMeter host on one day, so the comparison between configurations is
-    fair, but a different host or AMI could shift every number. A second
-    session was not needed, so no cross-host check exists.
+    fair, but a different host or AMI could shift every number. The
+    supplementary session on another pair of the same type and AMI found the
+    same cell about 5\,\% slower in achieved rate and up to twice as slow in
+    latency (Appendix~\ref{app:supp-anchor}), so absolute numbers depend on
+    the host. That is why the supplementary runs are not pooled.
   \item \textbf{Three repeats, 60\,s each.} The ranges in the tables are
     narrow for most cells, but three runs cannot show rare events. The drain,
     in particular, is bimodal: a run either has dead letters or not, and three
@@ -3828,10 +3875,12 @@ a separate host, in 66 validated runs of a frozen matrix.
 The main findings, each limited to this hardware and workload:
 \begin{enumerate}
   \item Every configuration kept every inventory invariant, under load and in
-    the separate scarce-stock and duplicate-message tests; no unit was ever
-    over-sold and no accepted order was lost.
+    the separate scarce-stock and duplicate-message tests, including a sell-out
+    of 2,000 units at 200/s; no unit was ever over-sold and no accepted order
+    was lost.
   \item On one 2-vCPU host the synchronous atomic update was faster for the
-    client at every tested rate and kept up to 200 requests a second. The
+    client at every tested rate and kept up to 200 requests a second, which is
+    also where it stopped when offered 400. The
     asynchronous design accepted the same load but completed only 50--66 orders
     a second: it spent about twice C1's CPU per order, and once the host was
     saturated its Outbox publisher, sharing the Order Service process with the
@@ -4057,13 +4106,13 @@ Workflow and correctness (Week 8) & TP-W01--W04 & 4 & 0 \\
 Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
 Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
 Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
-Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X12 & 20 & 0 \\
+Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X13 & 21 & 0 \\
 \midrule
-Total & 62 & 62 & 0 \\
+Total & 63 & 63 & 0 \\
 \bottomrule
 \end{tabular}
 \caption{Test cases by area. Every case has passed with committed evidence;
-the last, the README reproduction (TP-X03), ran on 6~November 2026.}
+the last, the supplementary EC2 session (TP-X13), ran on 6~November 2026.}
 \label{tab:app-tests}
 \end{table}
 
@@ -4771,6 +4820,36 @@ to none and duplicates by 75--99\,\%. These are still pilot numbers; the
 official comparison of C1 to C4 at the locked values follows below.
 
 
+\section{Supplementary runs: host comparison}
+\label{app:supp-anchor}
+
+The supplementary session (Section~\ref{sec:results-supp}) repeated one
+official cell, C2 at 100/s with 100,000 units, to compare the two host pairs
+(Table~\ref{tab:supp-anchor}). On the second pair:
+
+\begin{itemize}
+  \item the achieved rate was about 5\,\% lower (95.1 against 100.6 a second);
+  \item the API p95 was nearly twice as long (1.4 against 0.74\,s);
+  \item 14.0 orders a second completed during the load against 23.5;
+  \item the completion p95 was 58 against 48\,s, and the drain 46 against 32\,s.
+\end{itemize}
+
+The host CPU was saturated on both days. Every difference is larger than the
+run-to-run range of either day, so the second pair was slower. Its numbers are
+therefore reported on their own and never combined with the official cells,
+and the comparisons in Section~\ref{sec:results-supp} are made within the
+supplementary runs only.
+
+\begin{table}[H]
+\centering
+\small
+\input{figures/supplementary/tab-supp-anchor.tex}
+\caption{The same cell (C2, 100/s, 100,000 units, three runs each) on the
+official host pair (5~November) and the supplementary one (6~November). Cells:
+median of 3 runs (range).}
+\label{tab:supp-anchor}
+\end{table}
+
 \chapter{External Review}
 \label{sec:review-fixes}
 
@@ -4876,6 +4955,30 @@ must measure.\par\fussy
 Still open: every limit is a pre-pilot value that the Week~13 pilot fixes,
 and each overload number is a single run. The 22 October EC2 run's raw data
 remains lost; the 24 October run on the reviewed code replaces it.
+
+\chapter{Additional Result Figures}
+\label{app:figures}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/official/fig-timeline.png}
+\caption{One run over time: C2 at 200/s (left) and C3 at 400/s (right),
+repeat~1. Top: accepted and refused responses per second, from the JTL.
+Bottom: the \texttt{OrderPlaced} queue and the unpublished Outbox rows, from
+the collector's 5\,s samples. Without load shedding the Outbox grows through
+the whole load and the queue fills after it; with the C3 limits most requests
+are refused early and both backlogs stay bounded.}
+\label{fig:results-backlog-time}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/official/fig-latency.png}
+\caption{API latency p50 and p95 per configuration and requested rate (log
+scale). Each run is a small point and the median of the 3 runs is joined by a
+line, so the spread between runs stays visible.}
+\label{fig:results-latency}
+\end{figure}
 
 % ============================================================
 \chapter{Freeze Manifest}
@@ -5022,6 +5125,7 @@ Status history (check 7), missing parameters & TP-X11 & \nolinkurl{20261105T0645
 Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-extract.log}, \nolinkurl{20261105T074539Z-extract-negative.log} \\
 Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{20261105T104832Z-official/} (bundles, manifests, \nolinkurl{summary.log}) \\
 README reproduction from a GitHub clone & TP-X03 & \nolinkurl{20261106T074827Z-reproduction/} (\nolinkurl{summary.log}) \\
+Supplementary EC2 runs (not pooled) & TP-X13 & \nolinkurl{20261106T135523Z-supplementary/} (\nolinkurl{summary.log}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The

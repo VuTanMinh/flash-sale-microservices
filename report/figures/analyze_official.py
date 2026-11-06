@@ -39,8 +39,16 @@ import matplotlib.pyplot as plt
 
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.abspath(os.path.join(here, "..", ".."))
-ev = sys.argv[1] if len(sys.argv) > 1 else os.path.join(repo, "tests", "evidence", "20261105T104832Z-official")
-out = os.path.join(here, "official")
+# --supplementary <evidence-dir>: the 18 supplementary runs of 6 November
+# (docs/week14-supplementary-runs.md), same layout as the official evidence;
+# outputs go to report/figures/supplementary/ and are never pooled with the official cells.
+SUPP = len(sys.argv) > 2 and sys.argv[1] == "--supplementary"
+if SUPP:
+    ev = sys.argv[2]
+    out = os.path.join(here, "supplementary")
+else:
+    ev = sys.argv[1] if len(sys.argv) > 1 else os.path.join(repo, "tests", "evidence", "20261105T104832Z-official")
+    out = os.path.join(here, "official")
 os.makedirs(out, exist_ok=True)
 
 plt.rcParams.update({"font.size": 11, "axes.titlesize": 12, "axes.labelsize": 11,
@@ -226,6 +234,9 @@ for rep in ("rep1", "rep2", "rep3"):
         if mm:
             sold = int(mm.group(2) or mm.group(3))
         r["sold"] = sold
+        mm = re.search(r"1\. available_inventory >= 0\s+PASS\s+stock (-?\d+)", val)
+        r["final_stock"] = int(mm.group(1)) if mm else None
+        r["stock"] = int(m.get("stock") or 100000)
         db = s.get("database") if isinstance(s.get("database"), dict) else {}
         col = s.get("collector", {})
         if r["config"] == "C1":
@@ -358,7 +369,7 @@ for rep in ("rep1", "rep2", "rep3"):
         r["_jtl"] = os.path.join(tmp, rep, "jtl", rid, "raw.jtl")
         runs.append(r)
 
-assert len(runs) == 66, len(runs)
+assert len(runs) == (18 if SUPP else 66), len(runs)
 
 # ------------------------------------------------------------------ per cell
 FIELDS = ["achieved", "accepted", "completed", "completed_per_s", "drain_s", "api_p50", "api_p95", "api_p99", "api_max",
@@ -383,6 +394,8 @@ for key, rs in cells.items():
 order = [(cfg, n, rate) for cfg, n, _, _, _ in SERIES for rate in (50, 100, 200, 400) if (cfg, n, rate) in cells]
 with open(os.path.join(out, "runs.csv"), "w", encoding="utf-8", newline="") as f:
     cols = ["rep", "run_id", "config", "replicas", "rate", "status", "validator_exit", "all_hold", "sold", "submissions", "jtl_2xx", "n429", "n503", "other"] + FIELDS
+    if SUPP:
+        cols += ["stock", "final_stock", "jtl_submissions"]
     w = csv.writer(f)
     w.writerow(cols)
     for r in sorted(runs, key=lambda x: (order.index((x["config"], x["replicas"], x["rate"])), x["rep"])):
@@ -426,6 +439,57 @@ def write_table(name, header, colspec, rowfn, keys=order):
 def cellname(key):
     return f"{label(key[0], key[1])} & {key[2]}"
 
+
+if SUPP:
+    # One table for the 18 supplementary runs, one comparing the anchor cell with the
+    # official C2 100/s cell, and a small CSV of the numbers the report states.
+    def rmed(rs, f):
+        v = [x[f] for x in rs if x.get(f) is not None]
+        return (statistics.median(v), min(v), max(v)) if v else None
+
+    for r in runs:
+        # accepted = 2xx submissions, which equals run-matrix's database count (db_accepted)
+        # in every run; the extractor's accepted_count is limited to the load window
+        r["accepted_all"] = r["jtl_2xx"]
+        r["rejected_orders"] = (r["accepted_all"] - r["sold"]) if r.get("sold") is not None else None
+        r["comp_p95_s"] = r["comp_p95"] / 1000.0 if r.get("comp_p95") is not None else None
+    supp_order = [("C1", 1, 400), ("C1", 1, 200), ("C2", 1, 200), ("C3", 1, 200), ("C2", 1, 100), ("C2", 1, 400)]
+    lines = [r"\begin{tabular}{llrrrrrrrrr}", r"\toprule",
+             r"Config. & Rate & Stock & Achieved & Accepted & API p95 (ms) & Sold & Rejected & Stock left & Completion p95 (s) & Checks \\",
+             r"\midrule"]
+    for k in supp_order:
+        rs = cells[k]
+        c = {f: rmed(rs, f) for f in ("achieved", "accepted_all", "api_p95", "sold", "rejected_orders", "final_stock", "comp_p95_s")}
+        stock = rs[0]["stock"]
+        held = sum(1 for r in rs if r["all_hold"] and r["status"] == "PASS")
+        comp = fmt(c, "comp_p95_s", 1) if k[0] != "C1" else "n/a"
+        # ranges are kept for the columns the text quotes; the rest show the median only
+        lines.append(f"{k[0]} & {k[2]} & {stock:,} & {fmt(c, 'achieved', 1, False)} & {fmt(c, 'accepted_all')} & {fmt(c, 'api_p95')} & "
+                     f"{fmt(c, 'sold', 0, False)} & {fmt(c, 'rejected_orders')} & {fmt(c, 'final_stock', 0, False)} & {comp} & {held}/{len(rs)} \\\\")
+        if k == ("C3", 1, 200):
+            lines.append(r"\addlinespace[2pt]")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    open(os.path.join(out, "tab-supplementary.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+    # anchor: the same cell (C2, 100/s, stock 100,000) on 5 and 6 November
+    off = {(c["config"], int(c["replicas"]), int(c["rate"])): c for c in csv.DictReader(open(os.path.join(here, "official", "cells.csv"), encoding="utf-8"))}
+    oc = off[("C2", 1, 100)]
+    sc = cellrows[("C2", 1, 100)]
+
+    def ofmt(f, dec=0, scale=1.0):
+        med, lo, hi = (float(oc[f + s]) / scale for s in ("_median", "_min", "_max"))
+        s = f"{med:,.{dec}f}"
+        return s + (f" ({lo:,.{dec}f}--{hi:,.{dec}f})" if round(lo, dec) != round(hi, dec) else "")
+
+    rows = [("Achieved rate (/s)", "achieved", 1, 1.0), ("Done/s in load", "done_load_per_s", 1, 1.0),
+            ("API p95 (ms)", "api_p95", 0, 1.0), ("Completion p95 (s)", "comp_p95", 1, 1000.0),
+            ("Drain (s)", "drain_s", 0, 1.0), ("Host CPU in load (\\%)", "cpu_load_mean", 0, 1.0)]
+    lines = [r"\begin{tabular}{lrr}", r"\toprule", r"C2 at 100/s & 5 November (official) & 6 November (supplementary) \\", r"\midrule"]
+    for nm, f, dec, sc_ in rows:
+        lines.append(f"{nm} & {ofmt(f, dec, sc_)} & {fmt(sc, f, dec, True, sc_)} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    open(os.path.join(out, "tab-supp-anchor.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+    print("supplementary tables ->", out)
+    sys.exit(0)
 
 write_table("tab-api.tex", r"Config. & Rate & Achieved (/s) & p50 & p95 & p99", "llrrrr",
             lambda k, c: f"{cellname(k)} & {fmt(c, 'achieved', 1, False)} & {fmt(c, 'api_p50')} & {fmt(c, 'api_p95')} & {fmt(c, 'api_p99')}")

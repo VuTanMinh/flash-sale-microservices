@@ -1,0 +1,60 @@
+Week 14 supplementary EC2 session, 6 November 2026 (docs/week14-supplementary-runs.md).
+These runs are kept apart from the 66 official runs and are never pooled with them.
+
+Hosts
+  backend i-0847b8a2a4bc70d5d (m7i-flex.large, 172.31.12.174)
+  JMeter  i-0a6c280317b4bc42b (c7i-flex.large)
+  Both: ap-southeast-2a, ami-062900c135ab91582, Amazon Linux 2023.12.20261102,
+  kernel 6.18.56. Same AMI, type and zone as 5 November, but a different host pair.
+  Safety timer: shutdown scheduled for 19:44 UTC on both hosts (auto_terminate_minutes=360).
+  Code: the backend cloned GitHub main-test-bug-fix at b6a8c04. Its src/, infra/,
+  tests/jmeter/ and scripts/ equal the frozen 9d00bea (the frozen 6ad3b00 differs only in
+  report verifiers), apart from scripts/verify-freeze.ps1 (deploy-backend.log).
+  Env: frozen values (PROCESSING_MAX_CONCURRENCY=20, ORDER_CONSUMER_CONCURRENCY=4,
+  RECONCILIATION_STUCK_TIMEOUT_SECONDS=120, gateway 200r/s burst 100).
+
+Live check (live-check.log)
+  C3, C2 and C1 at 5/s for 20 s with stock 1,000: MATRIX PASS, 3 runs.
+  - Prometheus: all 5 targets up.
+  - Collector samples: numeric service rows, none "unavailable".
+  - From the JMeter host only port 80 is reachable on the backend.
+
+Runs: 18 of 18 PASS, validator exit 0 and "all checks hold" in every run (runs.csv, driver.log)
+  Repeat-major, 3 rounds, one run-matrix call per run. Every run uses the frozen defaults
+  except -Rates, and -Stock 2000 for the sell-out cells.
+  Per round: C1 400/s; C1, C2 and C3 at 200/s with stock 2,000; C2 100/s; C2 400/s.
+
+Interruption (interrupted/)
+  The operator PC's session dropped at about 15:19 UTC, during round 3 cell 3 (C2, 200/s,
+  stock 2,000, run 20261106T151827Z).
+  - The JMeter host had no result for it, and its collector was left running.
+  - The collector was stopped, and the partial folder (collector.json, samples.csv) was
+    renamed interrupted-... and kept in interrupted/supp-interrupted.tgz. It is not used.
+  - The cell was rerun from a full reset as 20261106T152521Z, then the rest of round 3 ran.
+  Earlier, run 2 of round 1 never started (a driver argument error, rejected before any
+  reset or load). The driver was fixed and the round continued; no data exists for that
+  attempt.
+
+Copy-back
+  Each round's backend and JTL bundles were copied to the PC.
+  sha256 computed on the hosts = sha256 of the local copies:
+    w14-rep1-backend.tgz 016cec051bc7e434d9c83e944be80805df69324401cc0a345e6a3abc61bbea74
+    w14-rep1-jtl.tgz     40ff0db1de13521309f54db03059e98f530ca809274717b7af6aa54a2f8f6db6
+    w14-rep2-backend.tgz 6b1a149bef8b10ce55e3757d3799c85d2eb36e490209306f518dc574a627ff0e
+    w14-rep2-jtl.tgz     02a6cd8b970a7d1439fa5a67ae109420e80ef4f1ab653d1e4529b45b3e7f7ed1
+    w14-rep3-backend.tgz 2f4b5469f48238037b77f56c79112735b947d1d23aefd7ca51f9c2c1e881f1dc
+    w14-rep3-jtl.tgz     7babbd6f890adf585170ecd07eb9ae44d8b9081b08adf5d3956081959f9f6384
+    interrupted/supp-interrupted.tgz 83e87e567aabf07bedd19a8501a6e81e335d3b18d156848b84eaacb3307841fe
+  manifests.tgz holds each run's manifest.json, official.json (kind "supplementary") and
+  host-post.log, from the PC.
+
+Teardown
+  The owner destroyed both hosts at about 16:20 UTC. Afterwards, describe-instances
+  (pending/running/stopping/stopped), describe-volumes and describe-addresses in
+  ap-southeast-2 all returned [].
+
+Analysis
+  python report/figures/analyze_official.py --supplementary tests/evidence/20261106T135523Z-supplementary
+  writes report/figures/supplementary/ (runs.csv, cells.csv, tab-supplementary.tex,
+  tab-supp-anchor.tex).
+Exit code: 0
