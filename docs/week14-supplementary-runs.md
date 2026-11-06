@@ -78,15 +78,24 @@ The estimate comes from the official session's own timings (per-run gaps in its
 | **Servers up in total** | **about 3 hours** |
 
 The two servers (`m7i-flex.large` and `c7i-flex.large`) cost about USD 0.25 an
-hour together, so the session costs well under USD 1 of credits. The safety
-timer (`auto_terminate_minutes=720`) stays as before.
+hour together, so the session costs well under USD 1 of credits.
+
+The safety timer for this session is **360 minutes**
+(`-var=auto_terminate_minutes=360`), twice the expected time. The driver starts
+no run less than 117 minutes before the timer ends: 12 minutes for the run,
+45 for the final copy-back and 60 of margin. The run window therefore closes
+about 243 minutes after the servers are created. The plan needs about
+150 minutes to start its last run: 30 minutes of deploy, about 60 of runs and
+two 20-minute copy-backs. The cutoff only matters if the session runs over by
+more than an hour and a half.
 
 ## What the owner does
 
 The same steps as [week14-manual-steps.md](week14-manual-steps.md):
 
 - steps 2 to 8 (credits check, keep awake, Terraform folder, log in, check no
-  servers, create with `auto_terminate_minutes=720`, send the details);
+  servers, create with `-var=auto_terminate_minutes=360` instead of 720, send the
+  details);
 - then, when told the session is done, steps 9 and 10 (destroy, check nothing is
   left).
 
