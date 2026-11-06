@@ -9,6 +9,28 @@ not valid until one of them is corrected.
 The owner signed off the run values on 4 November 2026, after the EC2
 confirmation (`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`).
 
+**Re-frozen on 6 November 2026 at `6ad3b00`, pending the owner's re-sign.**
+The 66 official runs ran on the code frozen at `9d00bea`. Between `9d00bea` and
+`6ad3b00` only report verifiers changed under the frozen paths, after the report
+was restructured (headings without week labels, Results filled in); none of
+them is used by a run:
+
+- `scripts/verify-delivery-report.ps1`, `scripts/verify-failure-report.ps1`,
+  `scripts/verify-inventory-report.ps1`: their section-heading anchors follow
+  the renamed headings; what they check is unchanged.
+- `scripts/verify-observability-report.ps1`: reads the Results chapter with its
+  generated tables inlined, and retires the three checks that the Week 11
+  templates were still empty (TP-P05, `docs/test-plan.md`).
+- `scripts/verify-freeze.ps1` itself changed at `7d7c7e6` (the 5 November
+  re-freeze below); check 1 excludes it.
+
+Every file under `src/`, `infra/` and `tests/jmeter/`, and every other script,
+including `run-matrix.ps1`, `collect-run-metrics.ps1`,
+`validate-correctness.ps1`, `extract-run-metrics.ps1`, `set-queue-bounds.ps1`
+and `reset-and-seed.ps1`, is byte-identical to `9d00bea`: 278 files compared,
+0 different (`tests/evidence/20261106T125303Z-refreeze/frozen-paths-diff.log`).
+No value in sections 2 to 8 changed.
+
 **Re-frozen on 5 November 2026 at `9d00bea`; re-signed by the owner on 5 November 2026 at 10:08 UTC.**
 The first freeze was at `9ff2e1a`. Between the two commits only scripts, test
 evidence, documentation and the report changed. Nothing under `src/`, `infra/`
@@ -34,7 +56,7 @@ are unchanged). The script changes are:
 
 | Item | Value |
 | --- | --- |
-| Frozen source commit | `9d00beafdef229418112abce26a48899e4b04ba8` (the parent of the commit that first names it in this file) |
+| Frozen source commit | `6ad3b005b8b38a7afe214f62786b1d650b9321df` (the parent of the commit that first names it in this file); the official runs ran on `9d00beaf`, byte-identical in everything a run uses |
 | Branch | `main-test-bug-fix` |
 
 Only documentation and evidence may change after this commit for the official

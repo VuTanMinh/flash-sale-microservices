@@ -1,0 +1,21 @@
+Re-freeze at 6ad3b00 (pending the owner's re-sign). Old frozen commit: 9d00bea (ran the 66 official runs).
+
+$ git diff --name-only 9d00bea 6ad3b00 -- src infra tests/jmeter scripts
+scripts/verify-delivery-report.ps1
+scripts/verify-failure-report.ps1
+scripts/verify-freeze.ps1
+scripts/verify-inventory-report.ps1
+scripts/verify-observability-report.ps1
+
+$ git diff --stat 9d00bea 6ad3b00 -- src infra tests/jmeter   (empty = byte-identical)
+
+Per-file blob comparison over src/, infra/, tests/jmeter/ and every script except the five report verifiers above:
+files compared: 278, different: 0
+  scripts/run-matrix.ps1 9d00bea=96f1ba2771fcc65848989fc2dc00c44d9c53ffb4 6ad3b00=96f1ba2771fcc65848989fc2dc00c44d9c53ffb4
+  scripts/collect-run-metrics.ps1 9d00bea=013dbbacdb95924ea180a07de03107d07af504bf 6ad3b00=013dbbacdb95924ea180a07de03107d07af504bf
+  scripts/validate-correctness.ps1 9d00bea=244c9c5ad4b0044ba9f5bef19e3bfb8fcabc5ba9 6ad3b00=244c9c5ad4b0044ba9f5bef19e3bfb8fcabc5ba9
+  scripts/extract-run-metrics.ps1 9d00bea=a3370ec03b285ab828a4bb379d64fdd7b27eaa37 6ad3b00=a3370ec03b285ab828a4bb379d64fdd7b27eaa37
+  scripts/set-queue-bounds.ps1 9d00bea=7d51693b1857bf03fea40cd442c98ef7a09c7679 6ad3b00=7d51693b1857bf03fea40cd442c98ef7a09c7679
+  scripts/reset-and-seed.ps1 9d00bea=061f5377f0e3f1fb746639ab18e261ea41a4de7c 6ad3b00=061f5377f0e3f1fb746639ab18e261ea41a4de7c
+  tests/jmeter/workload.jmx 9d00bea=83d5b516da69343871ce5f6b64af63a9f7c8d63b 6ad3b00=83d5b516da69343871ce5f6b64af63a9f7c8d63b
+Exit code: 0
