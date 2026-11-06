@@ -1,0 +1,24 @@
+Official Results "Accepted" corrected to the 2xx count (commit d501812).
+
+Cause
+  analyze_official.py took Accepted for C2 to C4 from the extractor's accepted_count. That
+  counts orders whose RequestAcceptedAt falls between the first and the last submission, so
+  it missed orders accepted just after the last send: up to 0.70 % of a run's orders in the
+  official runs and 0.98 % in the supplementary runs.
+  The 2xx count equals run-matrix's database count (db_accepted) in all 66 official and
+  18 supplementary runs; the script now asserts this.
+
+Changed
+  Only the throughput table (tab-throughput.diff) and the replica figure's accepted panel.
+  No number quoted in the text changed. The largest change is C3 at 100/s:
+  Accepted 5,764 -> 5,804 (+40, 0.7 %).
+  Correction to the commit message: the C4 with 4 consumers range ends moved by +4 to +12,
+  not +4 to +15.
+
+Checks on HEAD d501812 (verifiers.log)
+  verify-freeze 100/100, verify-test-plan and all nine report verifiers exit 0.
+  Audits: Week 14 45/45 (w14-traceability-audit.log), review numbers 16/16
+  (review-number-audit.log), supplementary 25/25
+  (../20261106T135523Z-supplementary/number-audit.log).
+  Both analysis modes rerun with no file changed.
+Exit code: 0
