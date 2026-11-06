@@ -9,7 +9,7 @@ not valid until one of them is corrected.
 The owner signed off the run values on 4 November 2026, after the EC2
 confirmation (`tests/evidence/20261104T132500Z-ec2-confirmation/summary.log`).
 
-**Re-frozen on 6 November 2026 at `6ad3b00`, pending the owner's re-sign.**
+**Re-frozen on 6 November 2026 at `6ad3b00`; re-signed by the owner on 6 November 2026 at 13:07 UTC.**
 The 66 official runs ran on the code frozen at `9d00bea`. Between `9d00bea` and
 `6ad3b00` only report verifiers changed under the frozen paths, after the report
 was restructured (headings without week labels, Results filled in); none of
