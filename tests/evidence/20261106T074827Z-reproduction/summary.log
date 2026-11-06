@@ -1,0 +1,80 @@
+TP-X03: README reproduction on a fresh clone from GitHub, 6 November 2026.
+
+Environment and limitation: the same PC that built the project (Windows 11, Docker Desktop 29.8.1, .NET SDK 10.0.300, JMeter 5.6.3 at D:\tools\apache-jmeter-5.6.3, Python 3.14), not a different machine. What was new: a fresh clone from GitHub in a new folder (E:\Agent_Memory\DACNTT\scratch\repro-gh-20261106t074827z), every pinned third-party image pulled again, the three service images rebuilt with --no-cache --pull just before the run, new compose volumes, and run folders cleared beforehand. The verifier's compose project name (flashsale-ec2v) is fixed in the frozen script.
+
+Driver log (the README steps; PowerShell's native-command banners removed):
+
+== clone 07:48:27Z
+source https://github.com/VuTanMinh/flash-sale-microservices
+commit 6a805117244510069f0bf449eed16da8b432bd35
+tracked files changed: 0
+== tools 07:48:36Z
+dotnet 10.0.300
+docker 29.8.1
+compose 5.5.1
+jmeter present at D:\tools\apache-jmeter-5.6.3: True
+python Python 3.14.2
+== path 1: rebuild the Results from the saved runs (README step 1) 07:48:37Z
+runs 66 cells 22 -> E:\Agent_Memory\DACNTT\scratch\repro-gh-20261106t074827z\report\figures\official
+analyze exit 0
+files changed under report/figures/official: 0
+latexmk exit 0
+== fresh images: pull the pinned images, rebuild the services with no cache 07:49:16Z
+Image grafana/grafana:13.2.2 Pulled 
+ Image prom/prometheus:v3.14.0 Pulled 
+ Image postgres:16.14 Pulled 
+pull exit 0
+ Image flashsale-order-service:10.0 Built 
+ Image flashsale-process-worker:10.0 Built 
+ Image flashsale-inventory-service:10.0 Built 
+build exit 0
+flashsale-order-service:10.0 555b5b0bada8 6 seconds ago
+flashsale-inventory-service:10.0 4092eb4bf1ad 9 seconds ago
+flashsale-process-worker:10.0 797cfead1532 15 seconds ago
+== build the services for the verifier 07:50:06Z
+    0 Warning(s)
+    0 Error(s)
+dotnet build exit 0
+== path 2: a validated matrix run on a local copy of the EC2 stack (README step 2) 07:50:14Z
+old run folders present: False
+verify-ec2-stack exit 0
+   PASS  A: all services healthy/running -- containers=flashsale-ec2v-nginx-1,flashsale-ec2v-order-service-1,flashsale-ec2v-inventory-service-1,flashsale-ec2v-process-worker-1,flashsale-ec2v-prometheus-1,flashsale-ec2v-grafana-1
+   PASS  A: Prometheus reports order/inventory/process-worker/rabbitmq/prometheus up -- up=inventory-service,order-service,process-worker,prometheus,rabbitmq
+   PASS  A: every running container logs json-file capped at 50m
+   == G. run-matrix.ps1 and the queue-bound gate
+   PASS  G: gate passes with no policy on the broker -- exit=0
+   PASS  G: gate fails for C1/C2 while the policy is on the broker -- exit=1
+   PASS  G: gate passes for the bound that is set -- exit=0
+   PASS  G: validator check 6 fails for C2 while the policy is on the broker -- exit=1
+      Matrix 20261106T075127Z: 2 run(s), 10 s each, transport Local
+      MATRIX PASS: 2 run(s).
+   PASS  G: the C3 then C2 matrix exits 0 -- exit=0
+   PASS  G: one PASS manifest for each config, with a commit and image ids -- runs=2 c3=PASS/ c2=PASS/
+   PASS  G: C3 ran with its bound, admission on and the shedding gateway -- gate='Bound as expected: max-length 50 (0 = no policy).' admission=true gateway=200r/s
+   PASS  G: C2 ran after C3 with the bound gone, admission off and the open gateway -- gate='Bound as expected: max-length 0 (0 = no policy).' admission=false gateway=10000r/s
+   PASS  G: both runs open-loop: submissions and no poll rows -- c3=55/0 c2=56/0
+   PASS  G: both runs drained, validated, accounted and dumped -- c3_accepted=55 c2_accepted=56
+   PASS  G: the C2 validator log shows check 6 PASS -- log=E:\Agent_Memory\DACNTT\tmp\ec2v-matrix\20261106T075127Z-C2-r1-5rps-rep1
+   PASS  G: no queue on the broker carries the policy after the matrix -- queues_with_policy=0
+   PASS  G: run-matrix refuses the local infra project -- exit=2
+   All checks passed: the EC2 stack builds, the C1 route and C4 replicas hold, RabbitMQ rates come from Prometheus, every workload profile runs clean, open-loop mode reaches its requested rate, and the matrix leaves no queue bound behind.
+== path 2: the reproduced runs' own table and figures (README step 2) 07:54:56Z
+20261106T075127Z-C2-r1-5rps-rep1: PASS achieved 5.7/s accepted 56 refused 0 p95 454.0 ms drain 5 s validator all checks hold
+20261106T075127Z-C3-r1-5rps-rep1: PASS achieved 5.7/s accepted 55 refused 0 p95 570.0 ms drain 6 s validator all checks hold
+2 run(s) -> reproduction
+analyze --runs exit 0
+   fig-20261106T075127Z-C2-r1-5rps-rep1.pdf 17551
+   fig-20261106T075127Z-C2-r1-5rps-rep1.png 117094
+   fig-20261106T075127Z-C3-r1-5rps-rep1.pdf 17326
+   fig-20261106T075127Z-C3-r1-5rps-rep1.png 106679
+   runs.csv 456
+   tab-runs.tex 344
+   20261106T075127Z-C2-r1-5rps-rep1: status PASS, commit 6a805117244510069f0bf449eed16da8b432bd35, validator exit 0
+   20261106T075127Z-C3-r1-5rps-rep1: status PASS, commit 6a805117244510069f0bf449eed16da8b432bd35, validator exit 0
+every run is from this clone (6a805117244510069f0bf449eed16da8b432bd35) and PASS: True
+== done 07:54:58Z
+REPRODUCTION PASS
+
+Files here: verify-ec2-stack.log (the verifier's full output), runs.tgz (both run folders: manifest.json, raw.jtl, samples.csv, validator.log, collector and JMeter logs; db.dump left out), runs.csv and tab-runs.tex and fig-*.png (the reproduced runs' own table and figures from analyze_official.py --runs).
+
+Exit code: 0

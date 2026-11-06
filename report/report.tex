@@ -317,6 +317,11 @@ The results have the following limits:
   \item The load generator keeps one waiting thread per request in flight, so a
     slow backend lowers the offered rate; the results report the rate
     achieved. The AMI is resolved at apply time and not pinned.
+  \item The README reproduction (TP-X03) ran on the same PC that built the
+    project, from a fresh clone of the published repository in a new folder, with
+    every image pulled again, the service images rebuilt without cache and new
+    volumes. It shows the instructions and the published code are complete; it
+    does not show that they work on a different machine or operating system.
 \end{itemize}
 
 % ============================================================
@@ -4665,13 +4670,13 @@ Workflow and correctness (Week 8) & TP-W01--W04 & 4 & 0 \\
 Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
 Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
 Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
-Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X12 & 19 & 1 \\
+Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X12 & 20 & 0 \\
 \midrule
-Total & 62 & 61 & 1 \\
+Total & 62 & 62 & 0 \\
 \bottomrule
 \end{tabular}
-\caption{Test cases by area. The one case not yet run is the reproduction
-from the README on a fresh machine (TP-X03).}
+\caption{Test cases by area. Every case has passed with committed evidence;
+the last, the README reproduction (TP-X03), ran on 6~November 2026.}
 \label{tab:app-tests}
 \end{table}
 
@@ -4816,6 +4821,7 @@ Validator run filter (check 0b) & TP-X10 & \nolinkurl{20261105T070413Z-validator
 Status history (check 7), missing parameters & TP-X11 & \nolinkurl{20261105T064537Z-validator.log}, \nolinkurl{-validator-negative.log} \\
 Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-extract.log}, \nolinkurl{20261105T074539Z-extract-negative.log} \\
 Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{20261105T104832Z-official/} (bundles, manifests, \nolinkurl{summary.log}) \\
+README reproduction from a GitHub clone & TP-X03 & \nolinkurl{20261106T074827Z-reproduction/} (\nolinkurl{summary.log}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The

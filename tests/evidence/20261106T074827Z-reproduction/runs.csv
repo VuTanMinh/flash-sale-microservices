@@ -1,0 +1,3 @@
+run_id,config,replicas,requested_per_s,status,achieved_per_s,submissions,accepted,refused,other,api_p50,api_p95,api_p99,drain_s,validator_exit,all_checks_hold,outbox_peak,queues_peak,commit
+20261106T075127Z-C2-r1-5rps-rep1,C2,1,5,PASS,5.7,56,56,0,0,26.0,454.0,454.0,5,0,True,,14.0,6a805117244510069f0bf449eed16da8b432bd35
+20261106T075127Z-C3-r1-5rps-rep1,C3,1,5,PASS,5.7,55,55,0,0,35.0,570.0,577.0,6,0,True,,6.0,6a805117244510069f0bf449eed16da8b432bd35
