@@ -1,0 +1,31 @@
+Re-freeze at 6ad3b00 on 6 November 2026, pending the owner's re-sign. Checked on the committed HEAD.
+
+Correction to tests/evidence/20261106T102457Z-review-fixes/ (commit 9583b03)
+  Its verifiers.log shows verify-freeze passing 100/100. That run happened before the commit,
+  and check 1 compares committed history only. After the commit, check 1 failed, because the
+  three report-verifier edits sit under scripts/. This re-freeze resolves it.
+
+Commits
+  6ad3b00  Report body without week labels, and verify-observability-report checks the official
+           Results chapter. This is the new frozen commit.
+  0b9663a  docs/week14-freeze.md names 6ad3b00 and lists the five report verifiers that changed
+           since 9d00bea (verify-freeze.ps1 changed at 7d7c7e6 and is excluded from check 1).
+
+Evidence
+  frozen-paths-diff.log
+    Against 9d00bea, which ran the 66 official runs: src/, infra/ and tests/jmeter/ are unchanged,
+    and every other script is byte-identical (278 files compared, 0 different). The run-matrix,
+    collector, validator, extractor, queue-bound, reset scripts and workload.jmx are listed by blob.
+  verify-freeze.log
+    100/100 on HEAD 0b9663a. Check 1: the frozen commit is the parent of the commit that names it,
+    and no frozen path changed after it.
+  report-verifiers.log
+    All ten report verifiers and verify-test-plan exit 0 on HEAD.
+  w14-traceability-audit.log
+    The Week 14 milestone audit: 45 of 45 claims OK against the committed data.
+  review-number-audit.log
+    The 16 numbers added by the review fixes: 0 failed.
+
+Pending
+  The owner's re-sign of the freeze at 6ad3b00.
+Exit code: 0
