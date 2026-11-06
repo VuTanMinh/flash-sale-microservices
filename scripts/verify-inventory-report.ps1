@@ -16,7 +16,7 @@ function Check([string]$name, [bool]$ok) {
 }
 $tex = Get-Content (Join-Path $root "report\report.tex") -Raw -Encoding UTF8
 $s = $tex.IndexOf("\label{sec:inventory}")
-$e = $tex.IndexOf("\section{Closing the Loop", $s)
+$e = $tex.IndexOf("\section{Stock Results and Order State}", $s)
 Check "Inventory Service section found" ($s -gt 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
 

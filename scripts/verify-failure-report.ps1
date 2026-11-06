@@ -57,7 +57,7 @@ function Expand-TpIds([string]$text) {
 # --- report text -------------------------------------------------------
 $report = if ($ReportPath -match '^[A-Za-z]:[\\/]|^[\\/]') { $ReportPath } else { Join-Path $root $ReportPath }
 $tex = Get-Content $report -Raw -Encoding UTF8
-$s = $tex.IndexOf('\section{Failure Handling and Recovery (Week 10)}')
+$s = $tex.IndexOf('\section{Failure Handling and Recovery}')
 $e = $tex.IndexOf('\section{', $s + 1)
 Check "Week 10 chapter found" ($s -ge 0 -and $e -gt $s)
 $sec = ""

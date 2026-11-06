@@ -1,0 +1,782 @@
+=== verify-delivery-report -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z
+PASS  Week 9 chapter found
+PASS  subsection title present: Message delivery semantics
+PASS  subsection title present: Idempotent consumer
+PASS  subsection title present: Acknowledgement strategy, proven with a real crash
+PASS  subsection title present: Duplicate handling
+PASS  chapter mentions: at-least-once
+PASS  chapter mentions: effectively once
+PASS  chapter mentions: unique violation
+PASS  chapter mentions: NotYetApplicable
+PASS  chapter mentions: no Inbox
+PASS  chapter names the consumer class OrderPlacedConsumer
+PASS  chapter names the consumer class StockResultConsumer
+PASS  chapter names the consumer class OrderProcessedConsumer
+PASS  chapter names the consumer class StockReservedConsumer
+PASS  delivery log is committed (tests/evidence/20261002T183238Z-delivery.log)
+PASS  ordering log is committed (tests/evidence/20261003T181814Z-delivery-ordering.log)
+PASS  ordering negative-control log is committed (tests/evidence/20261003T181814Z-delivery-ordering-negative-early-completion.log)
+PASS  exactly two delivery negative-control logs are committed
+PASS  delivery log: exit 0, 34 PASS, 0 FAIL
+PASS  report states 34 of 34 checks for TP-M01 and cites the delivery log
+PASS  ordering log: exit 0, 44 PASS, 0 FAIL
+PASS  report states 44 of 44 checks for TP-M02 and cites the ordering log
+PASS  ack negative log: 24 FAIL, exit 1
+PASS  report states the ack negative failed 24 of 34 checks
+PASS  inbox negative log: 1 FAIL, exit 1
+PASS  report states the inbox negative failed exactly one check
+PASS  ordering negative log: 16 FAIL, exit 1
+PASS  report states the ordering negative failed 16 checks
+PASS  unit-tests log: 0 failed, Total = 45
+PASS  report states the unit-test total 45
+PASS  TP-M01 is cited in the chapter
+PASS  TP-M02 is cited in the chapter
+PASS  TP-M01 is PASS in the test plan
+PASS  TP-M02 is PASS in the test plan
+PASS  no stale text: 'Both consumers' actual correctness logic'
+PASS  no stale text: 'confirmed directly:'
+PASS  no stale text: 'currently has 43 tests'
+PASS  no \unverified in the chapter
+SKIP  PDF build (pass -Compile to enable)
+Week 9 chapter matches the delivery evidence.
+Exit code: 0
+=== verify-inventory-report -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z
+PASS  Inventory Service section found
+PASS  Lua statement in both script and report: SISMEMBER', KEYS[2], ARGV[1]) == 1
+PASS  Lua statement in both script and report: EXISTS', KEYS[3]) == 0
+PASS  Lua statement in both script and report: 'NOT_OPEN'
+PASS  Lua statement in both script and report: redis.call('DECR', KEYS[1])
+PASS  Lua statement in both script and report: redis.call('SADD', KEYS[2], ARGV[1])
+PASS  Lua statement in both script and report: return 'RESERVED'
+PASS  inventory log: exit 0 and no FAIL
+PASS  inventory log has two bursts
+PASS  report table row for the 400-request burst matches the log (& 400 & 100 & 52 & 248)
+PASS  report table row for the 330-request burst matches the log (& 330 & 100 & 45 & 185)
+PASS  report states warm-up confirmed all six products
+PASS  inventory log shows the end-to-end readiness results
+PASS  cross-store log: exit 0, 11 PASS
+PASS  report states 11 of 11 cross-store checks and the old code failing 5
+PASS  report cites both evidence logs
+PASS  report covers: Redis key and data design
+PASS  report covers: Lua reservation logic
+PASS  report covers: Inventory warm-up and readiness
+PASS  report covers: Inventory invariants under concurrency
+PASS  report covers: OrderPlaced handling and the Redis/PostgreSQL boundary
+PASS  no stale text: 'a failure nacks with requeue'
+PASS  no stale text: 'already treats as'
+PASS  no stale text: 'drained all three'
+PASS  no stale text: '29 of 30'
+PASS  no stale text: '\unverified{TP-I02}'
+PASS  TP-I01 is PASS in the test plan
+PASS  TP-I02 is PASS in the test plan
+PASS  TP-I03 is PASS in the test plan
+Inventory Service report section matches the Week 7 evidence.
+Exit code: 0
+=== verify-failure-report -FailuresStamp 20261011T084521Z -ReconciliationStamp 20261011T102304Z
+PASS  Week 10 chapter found
+PASS  subsection title present: Classify, then retry a bounded number of times
+PASS  subsection title present: A dead-letter queue per service, and replay
+PASS  subsection title present: Reconciliation: stuck orders, a bound and an alert
+PASS  subsection title present: Supported and unsupported failure modes
+PASS  evidence log exists: tests/evidence/20261011T084521Z-failures.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-failures.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-failures-negative.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-failures-negative.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-delivery.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-delivery.log
+PASS  evidence log exists: tests/evidence/20261011T084521Z-ordering.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T084521Z-ordering.log
+PASS  evidence log exists: tests/evidence/20261011T102304Z-reconciliation.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T102304Z-reconciliation.log
+PASS  evidence log exists: tests/evidence/20261011T102304Z-reconciliation-negative.log
+PASS  evidence log is git-tracked: tests/evidence/20261011T102304Z-reconciliation-negative.log
+PASS  failures log has 74 PASS and 0 FAIL
+PASS  chapter states all 74 checks for TP-F01
+PASS  failures negative log has 5 FAIL and the chapter says 'Five checks'
+PASS  chapter states TP-M01 34/34
+PASS  chapter states TP-M02 44/44
+PASS  reconciliation log has 30 PASS and 0 FAIL
+PASS  chapter states all 30 checks for TP-F02
+PASS  reconciliation negative log has a FAIL mentioning 'A. lost result'
+PASS  chapter cites the failures log
+PASS  chapter cites the reconciliation log
+PASS  chapter \texttt{MaxAttempts} equals appsettings (3)
+PASS  consumer OrderPlacedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer StockResultConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer OrderProcessedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  consumer StockReservedConsumer.cs has RetryDelays 1/2/4 s and MaxAttempts 4
+PASS  chapter states four attempts
+PASS  chapter states the 1\,s, 2\,s and 4\,s ladder
+PASS  doc table has 22 rows (F1..F22)
+PASS  failure-mode row F1 matches the doc
+PASS  failure-mode row F2 matches the doc
+PASS  failure-mode row F3 matches the doc
+PASS  failure-mode row F4 matches the doc
+PASS  failure-mode row F5 matches the doc
+PASS  failure-mode row F6 matches the doc
+PASS  failure-mode row F7 matches the doc
+PASS  failure-mode row F8 matches the doc
+PASS  failure-mode row F9 matches the doc
+PASS  failure-mode row F10 matches the doc
+PASS  failure-mode row F11 matches the doc
+PASS  failure-mode row F12 matches the doc
+PASS  failure-mode row F13 matches the doc
+PASS  failure-mode row F14 matches the doc
+PASS  failure-mode row F15 matches the doc
+PASS  failure-mode row F16 matches the doc
+PASS  failure-mode row F17 matches the doc
+PASS  failure-mode row F18 matches the doc
+PASS  failure-mode row F19 matches the doc
+PASS  failure-mode row F20 matches the doc
+PASS  failure-mode row F21 matches the doc
+PASS  failure-mode row F22 matches the doc
+PASS  F1 cites TP-A03, TP-A04, TP-A05, TP-A07 all PASS in the test plan
+PASS  F1 chapter cites the same test ids
+PASS  F2 cites TP-O01 all PASS in the test plan
+PASS  F2 chapter cites the same test ids
+PASS  F3 cites TP-O02 all PASS in the test plan
+PASS  F3 chapter cites the same test ids
+PASS  F4 cites TP-I03, TP-F01 all PASS in the test plan
+PASS  F4 chapter cites the same test ids
+PASS  F5 cites TP-W03, TP-F01 all PASS in the test plan
+PASS  F5 chapter cites the same test ids
+PASS  F6 cites TP-M01 all PASS in the test plan
+PASS  F6 chapter cites the same test ids
+PASS  F7 cites TP-M02 all PASS in the test plan
+PASS  F7 chapter cites the same test ids
+PASS  F8 cites TP-M02 all PASS in the test plan
+PASS  F8 chapter cites the same test ids
+PASS  F9 cites TP-F01 all PASS in the test plan
+PASS  F9 chapter cites the same test ids
+PASS  F10 cites TP-F01 all PASS in the test plan
+PASS  F10 chapter cites the same test ids
+PASS  F11 cites TP-F01 all PASS in the test plan
+PASS  F11 chapter cites the same test ids
+PASS  F12 cites TP-F02 all PASS in the test plan
+PASS  F12 chapter cites the same test ids
+PASS  F13 cites TP-F02 all PASS in the test plan
+PASS  F13 chapter cites the same test ids
+PASS  F14 cites TP-F02 all PASS in the test plan
+PASS  F14 chapter cites the same test ids
+PASS  F15 cites TP-F02 all PASS in the test plan
+PASS  F15 chapter cites the same test ids
+PASS  F19 cites TP-L01, TP-L02, TP-L04 all PASS in the test plan
+PASS  F19 chapter cites the same test ids
+PASS  no Verified chapter row lacks a TP id
+PASS  chapter names out-of-scope item: Redis Cluster
+PASS  chapter names out-of-scope item: RabbitMQ Cluster
+PASS  chapter names out-of-scope item: PostgreSQL replication
+PASS  chapter names out-of-scope item: multi-region
+PASS  chapter names out-of-scope item: payment
+PASS  chapter names out-of-scope item: compensation
+PASS  chapter names out-of-scope item: Redis data loss
+PASS  chapter names out-of-scope item: ProcessingFailed
+PASS  no stale text: '\unverified'
+PASS  no stale text: 'to be re-verified'
+PASS  no stale text: 'not saved as'
+PASS  no stale text: 'Step 10.'
+PASS  no stale text: 'Proposal 5'
+SKIP  PDF build (pass -BuildPdf to enable)
+Week 10 chapter matches the failure evidence.
+Exit code: 0
+=== verify-test-plan 
+PASS  test plan has cases (62)
+PASS  case IDs are unique
+PASS  TP-E01 has all eight fields
+PASS  TP-E01 status is PASS, FAIL or NOT RUN
+PASS  TP-E01 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-environment-fresh.log)
+PASS  TP-E01 command script exists (scripts/verify-environment.ps1)
+PASS  TP-E02 has all eight fields
+PASS  TP-E02 status is PASS, FAIL or NOT RUN
+PASS  TP-E02 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-environment-existing.log)
+PASS  TP-E02 command script exists (scripts/verify-environment.ps1)
+PASS  TP-E03 has all eight fields
+PASS  TP-E03 status is PASS, FAIL or NOT RUN
+PASS  TP-E03 PASS has committed evidence that shows a pass (tests/evidence/20261024T084347Z-unit-tests.log)
+PASS  TP-E04 has all eight fields
+PASS  TP-E04 status is PASS, FAIL or NOT RUN
+PASS  TP-E04 PASS has committed evidence that shows a pass (tests/evidence/20261023T173539Z-runtime-accounts.log)
+PASS  TP-E04 command script exists (scripts/verify-runtime-accounts.ps1)
+PASS  TP-B01 has all eight fields
+PASS  TP-B01 status is PASS, FAIL or NOT RUN
+PASS  TP-B01 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T112439Z-c0-race.json)
+PASS  TP-B01 command script exists (scripts/run-baseline.ps1)
+PASS  TP-B02 has all eight fields
+PASS  TP-B02 status is PASS, FAIL or NOT RUN
+PASS  TP-B02 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T112439Z-summary.md)
+PASS  TP-B02 command script exists (scripts/run-baseline.ps1)
+PASS  TP-B03 has all eight fields
+PASS  TP-B03 status is PASS, FAIL or NOT RUN
+PASS  TP-B03 PASS has committed evidence that shows a pass (tests/baseline/results/20261001T090034Z-reset-seed.log)
+PASS  TP-B03 command script exists (scripts/verify-reset-seed.ps1)
+PASS  TP-B04 has all eight fields
+PASS  TP-B04 status is PASS, FAIL or NOT RUN
+PASS  TP-B04 PASS has committed evidence that shows a pass (tests/jmeter/results/20261001T112429Z-c1-smoke-summary.md)
+PASS  TP-B04 command script exists (scripts/run-jmeter-smoke.ps1)
+PASS  TP-D01 has all eight fields
+PASS  TP-D01 status is PASS, FAIL or NOT RUN
+PASS  TP-D01 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-requirements-trace.log)
+PASS  TP-D01 command script exists (scripts/verify-requirements-trace.ps1)
+PASS  TP-D02 has all eight fields
+PASS  TP-D02 status is PASS, FAIL or NOT RUN
+PASS  TP-D02 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-baseline-report.log)
+PASS  TP-D02 command script exists (scripts/verify-baseline-report.ps1)
+PASS  TP-D03 has all eight fields
+PASS  TP-D03 status is PASS, FAIL or NOT RUN
+PASS  TP-D03 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-design-alignment.log)
+PASS  TP-D03 command script exists (scripts/verify-design-alignment.ps1)
+PASS  TP-D04 has all eight fields
+PASS  TP-D04 status is PASS, FAIL or NOT RUN
+PASS  TP-D04 PASS has committed evidence that shows a pass (tests/evidence/20261001T114318Z-design-decisions.log)
+PASS  TP-D04 command script exists (scripts/verify-design-decisions.ps1)
+PASS  TP-A01 has all eight fields
+PASS  TP-A01 status is PASS, FAIL or NOT RUN
+PASS  TP-A01 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A01 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A02 has all eight fields
+PASS  TP-A02 status is PASS, FAIL or NOT RUN
+PASS  TP-A02 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A02 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A03 has all eight fields
+PASS  TP-A03 status is PASS, FAIL or NOT RUN
+PASS  TP-A03 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A03 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A04 has all eight fields
+PASS  TP-A04 status is PASS, FAIL or NOT RUN
+PASS  TP-A04 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A04 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A05 has all eight fields
+PASS  TP-A05 status is PASS, FAIL or NOT RUN
+PASS  TP-A05 PASS has committed evidence that shows a pass (tests/evidence/20261001T123317Z-order-api.log)
+PASS  TP-A05 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-A06 has all eight fields
+PASS  TP-A06 status is PASS, FAIL or NOT RUN
+PASS  TP-A06 PASS has committed evidence that shows a pass (tests/evidence/20261001T123816Z-unit-tests.trx)
+PASS  TP-A07 has all eight fields
+PASS  TP-A07 status is PASS, FAIL or NOT RUN
+PASS  TP-A07 PASS has committed evidence that shows a pass (tests/evidence/20261001T123816Z-order-api.log)
+PASS  TP-A07 command script exists (scripts/verify-order-api.ps1)
+PASS  TP-O01 has all eight fields
+PASS  TP-O01 status is PASS, FAIL or NOT RUN
+PASS  TP-O01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083744Z-outbox.log)
+PASS  TP-O01 command script exists (scripts/verify-outbox.ps1)
+PASS  TP-O02 has all eight fields
+PASS  TP-O02 status is PASS, FAIL or NOT RUN
+PASS  TP-O02 PASS has committed evidence that shows a pass (tests/evidence/20261001T163055Z-publication.log)
+PASS  TP-O02 command script exists (scripts/verify-publication.ps1)
+PASS  TP-I01 has all eight fields
+PASS  TP-I01 status is PASS, FAIL or NOT RUN
+PASS  TP-I01 PASS has committed evidence that shows a pass (tests/evidence/20261002T051418Z-inventory.log)
+PASS  TP-I01 command script exists (scripts/verify-inventory.ps1)
+PASS  TP-I02 has all eight fields
+PASS  TP-I02 status is PASS, FAIL or NOT RUN
+PASS  TP-I02 PASS has committed evidence that shows a pass (tests/evidence/20261002T051418Z-inventory.log)
+PASS  TP-I02 command script exists (scripts/verify-inventory.ps1)
+PASS  TP-I03 has all eight fields
+PASS  TP-I03 status is PASS, FAIL or NOT RUN
+PASS  TP-I03 PASS has committed evidence that shows a pass (tests/evidence/20261002T052244Z-cross-store.log)
+PASS  TP-I03 command script exists (scripts/verify-cross-store.ps1)
+PASS  TP-W01 has all eight fields
+PASS  TP-W01 status is PASS, FAIL or NOT RUN
+PASS  TP-W01 PASS has committed evidence that shows a pass (tests/evidence/20261002T061249Z-stock-results.log)
+PASS  TP-W01 command script exists (scripts/verify-stock-results.ps1)
+PASS  TP-W02 has all eight fields
+PASS  TP-W02 status is PASS, FAIL or NOT RUN
+PASS  TP-W02 PASS has committed evidence that shows a pass (tests/evidence/20261002T062442Z-validator.log)
+PASS  TP-W02 command script exists (scripts/verify-validator.ps1)
+PASS  TP-W03 has all eight fields
+PASS  TP-W03 status is PASS, FAIL or NOT RUN
+PASS  TP-W03 PASS has committed evidence that shows a pass (tests/evidence/20261002T063611Z-db-exceptions.log)
+PASS  TP-W03 command script exists (scripts/verify-db-exceptions.ps1)
+PASS  TP-W04 has all eight fields
+PASS  TP-W04 status is PASS, FAIL or NOT RUN
+PASS  TP-W04 PASS has committed evidence that shows a pass (tests/evidence/20261002T152659Z-workflow.log)
+PASS  TP-W04 command script exists (scripts/verify-workflow.ps1)
+PASS  TP-M01 has all eight fields
+PASS  TP-M01 status is PASS, FAIL or NOT RUN
+PASS  TP-M01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083445Z-delivery.log)
+PASS  TP-M01 command script exists (scripts/verify-delivery.ps1)
+PASS  TP-M02 has all eight fields
+PASS  TP-M02 status is PASS, FAIL or NOT RUN
+PASS  TP-M02 PASS has committed evidence that shows a pass (tests/evidence/20261003T181814Z-delivery-ordering.log)
+PASS  TP-M02 command script exists (scripts/verify-delivery-ordering.ps1)
+PASS  TP-M03 has all eight fields
+PASS  TP-M03 status is PASS, FAIL or NOT RUN
+PASS  TP-M03 PASS has committed evidence that shows a pass (tests/evidence/20261005T155419Z-delivery-report.log)
+PASS  TP-M03 command script exists (scripts/verify-delivery-report.ps1)
+PASS  TP-F01 has all eight fields
+PASS  TP-F01 status is PASS, FAIL or NOT RUN
+PASS  TP-F01 PASS has committed evidence that shows a pass (tests/evidence/20261011T122332Z-failures.log)
+PASS  TP-F01 command script exists (scripts/verify-failures.ps1)
+PASS  TP-F02 has all eight fields
+PASS  TP-F02 status is PASS, FAIL or NOT RUN
+PASS  TP-F02 PASS has committed evidence that shows a pass (tests/evidence/20261023T160450Z-reconciliation.log)
+PASS  TP-F02 command script exists (scripts/verify-reconciliation.ps1)
+PASS  TP-F03 has all eight fields
+PASS  TP-F03 status is PASS, FAIL or NOT RUN
+PASS  TP-F03 PASS has committed evidence that shows a pass (tests/evidence/20261011T122332Z-failure-report.log)
+PASS  TP-F03 command script exists (scripts/verify-failure-report.ps1)
+PASS  TP-P01 has all eight fields
+PASS  TP-P01 status is PASS, FAIL or NOT RUN
+PASS  TP-P01 PASS has committed evidence that shows a pass (tests/evidence/20261024T083825Z-worker.log)
+PASS  TP-P01 command script exists (scripts/verify-worker.ps1)
+PASS  TP-P02 has all eight fields
+PASS  TP-P02 status is PASS, FAIL or NOT RUN
+PASS  TP-P02 PASS has committed evidence that shows a pass (tests/evidence/20261013T145229Z-processing.log)
+PASS  TP-P02 command script exists (scripts/verify-processing.ps1)
+PASS  TP-P03 has all eight fields
+PASS  TP-P03 status is PASS, FAIL or NOT RUN
+PASS  TP-P03 PASS has committed evidence that shows a pass (tests/evidence/20261013T163219Z-trace.log)
+PASS  TP-P03 command script exists (scripts/trace-order.ps1)
+PASS  TP-P04 has all eight fields
+PASS  TP-P04 status is PASS, FAIL or NOT RUN
+PASS  TP-P04 PASS has committed evidence that shows a pass (tests/evidence/20261013T163454Z-metrics.log)
+PASS  TP-P04 command script exists (scripts/verify-metrics.ps1)
+PASS  TP-P05 has all eight fields
+PASS  TP-P05 status is PASS, FAIL or NOT RUN
+PASS  TP-P05 PASS has committed evidence that shows a pass (tests/evidence/20261014T094153Z-observability-report.log)
+PASS  TP-P05 command script exists (scripts/verify-observability-report.ps1)
+PASS  TP-P06 has all eight fields
+PASS  TP-P06 status is PASS, FAIL or NOT RUN
+PASS  TP-P06 PASS has committed evidence that shows a pass (tests/evidence/20261014T140055Z-message-timestamps.log)
+PASS  TP-P06 command script exists (scripts/verify-message-timestamps.ps1)
+PASS  TP-P07 has all eight fields
+PASS  TP-P07 status is PASS, FAIL or NOT RUN
+PASS  TP-P07 PASS has committed evidence that shows a pass (tests/evidence/20261024T074956Z-run-collector.log)
+PASS  TP-P07 command script exists (scripts/verify-run-collector.ps1)
+PASS  TP-P08 has all eight fields
+PASS  TP-P08 status is PASS, FAIL or NOT RUN
+PASS  TP-P08 PASS has committed evidence that shows a pass (tests/evidence/20261024T073819Z-extract.log)
+PASS  TP-P08 command script exists (scripts/verify-extract.ps1)
+PASS  TP-L01 has all eight fields
+PASS  TP-L01 status is PASS, FAIL or NOT RUN
+PASS  TP-L01 PASS has committed evidence that shows a pass (tests/evidence/20261019T161529Z-load-shedding.log)
+PASS  TP-L01 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L02 has all eight fields
+PASS  TP-L02 status is PASS, FAIL or NOT RUN
+PASS  TP-L02 PASS has committed evidence that shows a pass (tests/evidence/20261020T030050Z-load-shedding.log)
+PASS  TP-L02 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L03 has all eight fields
+PASS  TP-L03 status is PASS, FAIL or NOT RUN
+PASS  TP-L03 PASS has committed evidence that shows a pass (tests/evidence/20261024T084414Z-deployment-offline.log)
+PASS  TP-L03 command script exists (scripts/verify-deployment.ps1)
+PASS  TP-L04 has all eight fields
+PASS  TP-L04 status is PASS, FAIL or NOT RUN
+PASS  TP-L04 PASS has committed evidence that shows a pass (tests/evidence/20261024T080008Z-load-shedding.log)
+PASS  TP-L04 command script exists (scripts/verify-load-shedding.ps1)
+PASS  TP-L05 has all eight fields
+PASS  TP-L05 status is PASS, FAIL or NOT RUN
+PASS  TP-L05 PASS has committed evidence that shows a pass (tests/evidence/20261024T115610Z-replicas-2.log)
+PASS  TP-L05 command script exists (scripts/verify-replicas.ps1)
+PASS  TP-L06 has all eight fields
+PASS  TP-L06 status is PASS, FAIL or NOT RUN
+PASS  TP-L06 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L06 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-L07 has all eight fields
+PASS  TP-L07 status is PASS, FAIL or NOT RUN
+PASS  TP-L07 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L07 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-L08 has all eight fields
+PASS  TP-L08 status is PASS, FAIL or NOT RUN
+PASS  TP-L08 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-L08 command script exists (scripts/verify-run-collector.ps1)
+PASS  TP-X04 has all eight fields
+PASS  TP-X04 status is PASS, FAIL or NOT RUN
+PASS  TP-X04 PASS has committed evidence that shows a pass (tests/evidence/20261031T161516Z-ec2-stack.log)
+PASS  TP-X04 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X05 has all eight fields
+PASS  TP-X05 status is PASS, FAIL or NOT RUN
+PASS  TP-X05 PASS has committed evidence that shows a pass (tests/evidence/20261031T171915Z-ec2-stack.log)
+PASS  TP-X05 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X06 has all eight fields
+PASS  TP-X06 status is PASS, FAIL or NOT RUN
+PASS  TP-X06 PASS has committed evidence that shows a pass (tests/evidence/20261101T181846Z-ec2-stack-matrix.log)
+PASS  TP-X06 command script exists (scripts/verify-ec2-stack.ps1)
+PASS  TP-X07 has all eight fields
+PASS  TP-X07 status is PASS, FAIL or NOT RUN
+PASS  TP-X07 PASS has committed evidence that shows a pass (tests/evidence/20261104T132500Z-ec2-confirmation/summary.log)
+PASS  TP-X07 command script exists (scripts/run-matrix.ps1)
+PASS  TP-X08 has all eight fields
+PASS  TP-X08 status is PASS, FAIL or NOT RUN
+PASS  TP-X08 PASS has committed evidence that shows a pass (tests/evidence/20261103T235000Z-consumer-concurrency/summary.log)
+PASS  TP-X08 command script exists (scripts/verify-delivery.ps1)
+PASS  TP-X09 has all eight fields
+PASS  TP-X09 status is PASS, FAIL or NOT RUN
+PASS  TP-X09 PASS has committed evidence that shows a pass (tests/evidence/20261105T100509Z-freeze.log)
+PASS  TP-X09 command script exists (scripts/verify-freeze.ps1)
+PASS  TP-X10 has all eight fields
+PASS  TP-X10 status is PASS, FAIL or NOT RUN
+PASS  TP-X10 PASS has committed evidence that shows a pass (tests/evidence/20261105T070413Z-validator-run-filter.log)
+PASS  TP-X10 command script exists (scripts/verify-validator.ps1)
+PASS  TP-X11 has all eight fields
+PASS  TP-X11 status is PASS, FAIL or NOT RUN
+PASS  TP-X11 PASS has committed evidence that shows a pass (tests/evidence/20261105T064537Z-validator.log)
+PASS  TP-X11 command script exists (scripts/verify-validator.ps1)
+PASS  TP-X12 has all eight fields
+PASS  TP-X12 status is PASS, FAIL or NOT RUN
+PASS  TP-X12 PASS has committed evidence that shows a pass (tests/evidence/20261105T095414Z-extract.log)
+PASS  TP-X12 command script exists (scripts/verify-extract.ps1)
+PASS  TP-X01 has all eight fields
+PASS  TP-X01 status is PASS, FAIL or NOT RUN
+PASS  TP-X01 PASS has committed evidence that shows a pass (tests/evidence/20261101T204940Z-ec2-pilot.log)
+PASS  TP-X01 command script exists (scripts/run-matrix.ps1)
+PASS  TP-X02 has all eight fields
+PASS  TP-X02 status is PASS, FAIL or NOT RUN
+PASS  TP-X02 PASS has committed evidence that shows a pass (tests/evidence/20261105T104832Z-official/summary.log)
+PASS  TP-X02 command script exists (scripts/run-matrix.ps1)
+PASS  TP-X03 has all eight fields
+PASS  TP-X03 status is PASS, FAIL or NOT RUN
+PASS  TP-X03 PASS has committed evidence that shows a pass (tests/evidence/20261106T074827Z-reproduction/summary.log)
+PASS  roadmap W02 has at least one case
+PASS  roadmap W03 has at least one case
+PASS  roadmap W04 has at least one case
+PASS  roadmap W05 has at least one case
+PASS  roadmap W06 has at least one case
+PASS  roadmap W07 has at least one case
+PASS  roadmap W08 has at least one case
+PASS  roadmap W09 has at least one case
+PASS  roadmap W10 has at least one case
+PASS  roadmap W11 has at least one case
+PASS  roadmap W12 has at least one case
+PASS  roadmap W13 has at least one case
+PASS  roadmap W14 has at least one case
+PASS  report no longer claims 'Passed: 14, Skipped: 0, Total: 14'
+PASS  report no longer claims 'Full suite: 19/19 passing'
+PASS  report no longer claims 'each verified live above or in an earlier week'
+PASS  report no longer claims '14 unit tests'
+PASS  report keeps the \unverified macro for unsupported claims (labels in use: 0)
+PASS  sequence diagrams: 'Verified live' claims carry a not-re-verified note
+PASS  sequence diagrams header no longer says 'verified live'
+Test plan is complete and every PASS is backed by committed evidence.
+Exit code: 0
+=== verify-baseline-report -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z
+PASS  C0 evidence verdict is RACE CAPTURED
+PASS  report states C0 5 of 5 Confirmed
+PASS  report states C0 final stock -4
+PASS  report cites the C0 log file
+PASS  C1 below has 3 runs, all PASS
+PASS  C1 below runs agree with each other
+PASS  report table row for C1 below matches evidence (& 50 & 50 & 0 & 50 & 50/50 & PASS (3/3 runs))
+PASS  C1 equal has 3 runs, all PASS
+PASS  C1 equal runs agree with each other
+PASS  report table row for C1 equal matches evidence (& 100 & 100 & 0 & 0 & 100/100 & PASS (3/3 runs))
+PASS  C1 above has 3 runs, all PASS
+PASS  C1 above runs agree with each other
+PASS  report table row for C1 above matches evidence (& 150 & 100 & 50 & 0 & 150/150 & PASS (3/3 runs))
+PASS  report cites the C1 evidence files
+PASS  JTL: 10 samples, all success, all /api/c1/orders
+PASS  report states min/median/max 28/36.5/162 ms
+PASS  report cites the smoke JTL
+PASS  no stale 'exactly 1 request Confirmed, 4 Rejected' claim
+PASS  no reference to the removed smoke-test-result.jtl
+Report C0/C1 section matches the saved evidence.
+Exit code: 0
+=== verify-order-report -Stamp 20261001T123816Z
+PASS  Order Service section found
+PASS  TRX: 43 of 43 passed, 0 failed
+PASS  report states 43 of 43 unit tests
+PASS  report cites the TRX file
+PASS  TRX contains OrderStateBehaviourTests (TP-A06)
+PASS  API log: exit 0, 30 PASS, 0 FAIL
+PASS  report states 30 of 30 API checks
+PASS  API log shows three concurrent rounds each with one 201 and nineteen 200s
+PASS  report states the concurrency result
+PASS  API log shows the 50-key mixed-load result
+PASS  report states the 50-key result
+PASS  TP-A01 is PASS in both the test plan and the report table
+PASS  TP-A02 is PASS in both the test plan and the report table
+PASS  TP-A03 is PASS in both the test plan and the report table
+PASS  TP-A04 is PASS in both the test plan and the report table
+PASS  TP-A05 is PASS in both the test plan and the report table
+PASS  TP-A06 is PASS in both the test plan and the report table
+PASS  TP-A07 is PASS in both the test plan and the report table
+PASS  no stale claim: 'there is no event publication yet'
+PASS  no stale claim: 'currently has no legal outgoing transition'
+PASS  no stale claim: 'Verified manually against the running service'
+PASS  no stale claim: 'Passed: 17'
+PASS  early OrderProcessed: the Week 9 fix (TP-M02) is stated
+Order Service report section matches the Week 5 evidence.
+Exit code: 0
+=== verify-publication-report -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z
+PASS  Event Publication Reliability section found
+PASS  outbox log: exit 0, 11 PASS, 0 FAIL
+PASS  report states 11 of 11 checks for outbox and cites the log
+PASS  publication log: exit 0, 18 PASS, 0 FAIL
+PASS  report states 18 of 18 checks for publication and cites the log
+PASS  evidence contains a passing case 'A valid route'
+PASS  evidence contains a passing case 'B queue missing'
+PASS  evidence contains a passing case 'C binding removed'
+PASS  evidence contains a passing case 'D broker'
+PASS  evidence contains a passing case 'E nack'
+PASS  evidence contains a passing case 'F return'
+PASS  evidence contains a passing case 'G both queues present'
+PASS  evidence contains a passing case 'H OrderProcessed queue missing'
+PASS  report states the old code fails 8 checks
+PASS  report covers: Outbox workflow
+PASS  report covers: Routed confirmation
+PASS  report covers: Failure scenarios
+PASS  report covers: The same guarantee on the real database
+PASS  dual-write explanation present
+PASS  report states mandatory: true and RequiredSubscriberQueues
+PASS  no stale text: 'Since Inventory Service does not exist until Week 7'
+PASS  no stale text: 'verification scaffolding'
+PASS  no stale text: 'this was verified against a real outage, not simulated'
+PASS  no stale text: '20261001T114318Z-unit-tests.trx'
+PASS  TP-O01 and TP-O02 are PASS in the test plan
+Event Publication Reliability section matches the Week 6 evidence.
+Exit code: 0
+=== verify-observability-report 
+PASS  timestamp schema table found
+INFO  timestamp table columns: RequestAcceptedAt, PublishedAt, CreatedAt, ConfirmedOrRejectedAt, At, CompletedAt
+PASS  timestamp table names exactly the six code columns -- missing: ; extra: 
+INFO  Order.cs found: src\FlashSale.OrderService\Entities\Order.cs
+INFO  OutboxEvent.cs found: src\FlashSale.InventoryService\Entities\OutboxEvent.cs, src\FlashSale.OrderService\Entities\OutboxEvent.cs
+INFO  OrderStatusHistory.cs found: src\FlashSale.OrderService\Entities\OrderStatusHistory.cs
+PASS  RequestAcceptedAt is a property of Order.cs -- files=1
+PASS  ConfirmedOrRejectedAt is a property of Order.cs -- files=1
+PASS  CompletedAt is a property of Order.cs -- files=1
+PASS  PublishedAt is a property of both Outbox entities -- files=2
+PASS  CreatedAt is a property of both Outbox entities -- files=2
+PASS  At is a property of the status-history entity -- files=1
+PASS  no stale column name 'request\_accepted\_at'
+PASS  no stale column name 'confirmed\_or\_rejected\_at'
+PASS  no stale column name 'completed\_at'
+PASS  no stale column name 'published\_at'
+PASS  metric definitions table found
+PASS  metric table has 17 rows (one per brief metric) -- found 17
+PASS  metric table covers all 17 brief metrics by keyword -- missing: 
+INFO  flashsale metric names cited in the metric table: orders_accepted_total, orders_outcome_total, stock_decisions_total, consumer_retries_total, consumer_duplicates_total, consumer_dead_lettered_total
+INFO  allowed non-flashsale identifiers skipped: elapsed, CreatedAt, CompletedAt, process_*, pg_stat_activity, INFO commandstats, message_stats
+PASS  every Prometheus name in the metric table exists as flashsale_<name> in src and docs/metrics.md
+PASS  no stale text 'dead-lettered it loudly'
+PASS  Replays-after-completion paragraph cites TP-P04 and TP-M02
+PASS  Results chapter found
+FAIL  Results cover C0 (correctness only), C1, C2, C3 and C4 with 1/2/4 consumers -- C0-in-correctness=False C1=True C2=False C3=False C4-consumers=1,2,4
+FAIL  correctness table has the six brief checks -- missing: inventory $\ge 0$, initial inventory, one successful reservation, one downstream result, terminal, add up
+PASS  every Results data cell is ---, n/a or --- / --- / ---
+FAIL  exactly 4 figure environments, each with a \fbox placeholder -- figures=4
+FAIL  every Results table caption says 'To be completed in Week~14' -- tables=10 missing=\begin{table}[H]
+\centering
+\small
+\adju | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\scriptsiz | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\scriptsiz | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\footnotes | \begin{table}[tbp]
+\centering
+\footnotes
+PASS  no leftover \unverified{TP-P03}
+4 check(s) failed.
+Exit code: 1
+=== verify-design-chapter 
+PASS  section: Entity-Relationship Diagram
+PASS  section: Class Diagram
+PASS  section: API Contract
+PASS  section: Event Contract
+PASS  section: Order State Machine
+PASS  section: Sequence Diagrams
+PASS  section: Idempotency, Ordering and Ownership
+PASS  section: Design Rationale
+PASS  section: Supported Failure Model
+PASS  figure exists and is committed: figures/erd-order-service-stacked.png
+PASS  figure exists and is committed: figures/erd-inventory-service-stacked.png
+PASS  figure exists and is committed: figures/erd-baseline-stacked.png
+PASS  figure exists and is committed: figures/class-order-service.png
+PASS  figure exists and is committed: figures/class-event-contracts-stacked.png
+PASS  figure exists and is committed: figures/state-machine.png
+PASS  figure exists and is committed: figures/seq-happy-path.png
+PASS  figure exists and is committed: figures/seq-rejection.png
+PASS  figure exists and is committed: figures/seq-planned-processing.png
+PASS  API table POST /api/orders codes (200,201,400,409) = contract (200,201,400,409)
+PASS  API table GET /api/orders/{id} codes (200,404) = contract (200,404)
+PASS  API table POST /api/c1/orders codes (200) = contract (200)
+PASS  failure model references test cases (13)
+PASS  failure model case TP-A03 exists in the test plan
+PASS  failure model case TP-E03 exists in the test plan
+PASS  failure model case TP-M01 exists in the test plan
+PASS  failure model case TP-M02 exists in the test plan
+PASS  failure model case TP-O01 exists in the test plan
+PASS  failure model case TP-O02 exists in the test plan
+PASS  failure model case TP-I03 exists in the test plan
+PASS  failure model case TP-F01 exists in the test plan
+PASS  failure model case TP-F02 exists in the test plan
+PASS  failure model case TP-L01 exists in the test plan
+PASS  failure model case TP-L02 exists in the test plan
+PASS  failure model case TP-L04 exists in the test plan
+PASS  failure model case TP-W03 exists in the test plan
+PASS  failure model lists the known gaps
+PASS  failure model lists what is not supported
+PASS  sequence section cites its alignment check (TP-W04) and draws no unexercised Nginx hop
+PASS  names all six teacher states
+PASS  ProcessingFailed success-only interpretation stated
+PASS  schema-per-service stated as not physical isolation
+PASS  replicas limited to one host (no multi-node claim)
+PASS  Process Worker uses order id as idempotency key
+System Analysis and Design chapter is complete and consistent.
+Exit code: 0
+=== verify-requirements-trace 
+PASS  Tiep nhan va luu order / tra order ID
+PASS  Tra cuu trang thai qua polling API
+PASS  Reserve inventory atomically
+PASS  Cap nhat order status theo ket qua reservation
+PASS  Mo phong downstream processing (Process Worker)
+PASS  Publish/consume event qua RabbitMQ
+PASS  Transactional Outbox tai producer
+PASS  Inbox / processed-message table tai consumer
+PASS  Retry + Dead-Letter Queue
+PASS  Reconciliation job (safety net)
+PASS  Inventory warm-up truoc khi mo ban
+PASS  Timestamp va trang thai tung stage
+PASS  Duplicate/invalid event khong lap transition
+PASS  Load shedding: reject truoc khi tao order
+PASS  Consistency: inventory khong am
+PASS  Consistency: reservation <= initial inventory
+PASS  Consistency: mot order khong reserve nhieu lan
+PASS  Consistency: duplicate message khong side effect
+PASS  Performance: cau hinh EC2 / VU / duration / ...
+PASS  Performance: payload size + PG/Redis/RabbitMQ
+PASS  Performance: ~2.000 attempts/s target
+PASS  API vs completion throughput rieng
+PASS  Resilience: reject co kiem soat
+PASS  Resilience: drain backlog, khong restart
+PASS  Observability: correlation/order/message ID
+PASS  Observability: state transition history
+PASS  Observability: 4 timestamps
+PASS  Replica tren cung host, khong multi-node
+PASS  3-5 lan, percentile/median/variation
+PASS  tech: ABP Framework, .NET/C#
+PASS  tech: RabbitMQ
+PASS  tech: Redis Stack, Lua
+PASS  tech: PostgreSQL schema-per-service
+PASS  tech: Nginx
+PASS  tech: Structured logging, metrics
+PASS  tech: Docker Compose
+PASS  tech: Terraform
+PASS  tech: AWS EC2
+PASS  tech: Apache JMeter
+PASS  tech chapter matches the RabbitMQ.Client implementation
+All brief requirements are traced in the report.
+Exit code: 0
+=== verify-freeze 
+== 1. source
+PASS  1: frozen commit is a full 40-hex SHA -- cell='9d00beafdef229418112abce26a48899e4b04ba8 (the parent of the commit that first names it in this file)'
+PASS  1: frozen commit exists in this repository -- sha=9d00beafdef229418112abce26a48899e4b04ba8
+PASS  1: frozen commit is the parent of the commit that first named it in the manifest -- parent=9d00beafdef229418112abce26a48899e4b04ba8 frozen=9d00beafdef229418112abce26a48899e4b04ba8
+PASS  1: no frozen path (src, infra, tests/jmeter, scripts) changed after the frozen commit -- changed=
+== 2. infrastructure
+PASS  2: infra/terraform/main.tf is listed
+PASS  2: infra/terraform/outputs.tf is listed
+PASS  2: infra/terraform/variables.tf is listed
+PASS  2: infra/terraform/versions.tf is listed
+PASS  2: SHA-256 of infra/terraform/main.tf -- manifest=a915ae3adf4e65fae5208da0053fd6348a2db0e3beda498cb1618dc2ed67b92b
+PASS  2: SHA-256 of infra/terraform/versions.tf -- manifest=c6a272ddd0894e21102d4b55b35781f15763e681110e622e3946c57fc19cdc92
+PASS  2: SHA-256 of infra/terraform/.terraform.lock.hcl -- manifest=625bd2cdad3e1bd2c337217630e4c2ddcd3fba8c5ab918dbeb331444820efa26
+PASS  2: SHA-256 of infra/terraform/terraform.tfvars.example -- manifest=1da17adb7148dbd406070651dd98ba339a486ef3cbb78810efa9516e9091b1bf
+PASS  2: SHA-256 of infra/terraform/outputs.tf -- manifest=216f59f77d169d4772bc4cea75ccd93d2e45e9aa8ac4391710fbe643ef6344b2
+PASS  2: SHA-256 of infra/terraform/variables.tf -- manifest=902df52839363f1d937780a64a5e27e4834bd42b9e96e6ad37f445cd84627a83
+PASS  2: region equals variables.tf -- manifest=ap-southeast-2 file=ap-southeast-2
+PASS  2: availability zone equals variables.tf
+PASS  2: backend instance type equals variables.tf -- manifest=m7i-flex.large (2 vCPU)
+PASS  2: JMeter instance type equals variables.tf
+PASS  2: root volume equals variables.tf
+PASS  2: AWS provider version equals versions.tf and the lock file -- manifest=5.100.0
+PASS  2: required Terraform version equals versions.tf -- manifest=>= 1.9.0
+== 3. tools
+PASS  3: .NET SDK equals global.json -- manifest=10.0.300 (rollForward: latestPatch) global.json=10.0.300
+PASS  3: FlashSale.InventoryService Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: FlashSale.OrderService Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: FlashSale.ProcessWorker Dockerfile uses the listed SDK and runtime images -- sdk=mcr.microsoft.com/dotnet/sdk:10.0.300 runtime=mcr.microsoft.com/dotnet/aspnet:10.0.8
+PASS  3: JMeter version equals main.tf JMETER_VERSION -- manifest=5.6.3
+PASS  3: local JMeter folder exists for that version
+PASS  3: Compose plugin equals main.tf DOCKER_COMPOSE_VERSION -- manifest=v2.29.7
+PASS  3: PowerShell equals main.tf PWSH_VERSION -- manifest=7.4.20
+PASS  3: Java package named in main.tf
+== 4. images
+PASS  4: compose image grafana/grafana:13.2.2 has a digest row
+PASS  4: compose image nginx:1.31.3 has a digest row
+PASS  4: compose image postgres:16.14 has a digest row
+PASS  4: compose image prom/prometheus:v3.14.0 has a digest row
+PASS  4: compose image rabbitmq:3.13.7-management has a digest row
+PASS  4: compose image redis:7.4.7 has a digest row
+PASS  4: mcr.microsoft.com/dotnet/sdk:10.0.300 is a compose image or a Dockerfile base image
+PASS  4: mcr.microsoft.com/dotnet/sdk:10.0.300 digest is sha256 hex -- digest=sha256:c0790639332692a0d56cdd81ed581cfd24d040d9839764c138994866df89a3b6
+PASS  4: postgres:16.14 is a compose image or a Dockerfile base image
+PASS  4: postgres:16.14 digest is sha256 hex -- digest=sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
+PASS  4: redis:7.4.7 is a compose image or a Dockerfile base image
+PASS  4: redis:7.4.7 digest is sha256 hex -- digest=sha256:976ab0f0939b78c06d802bcd3bea44c5142ea9a756a57b861e08819817f768c8
+PASS  4: grafana/grafana:13.2.2 is a compose image or a Dockerfile base image
+PASS  4: grafana/grafana:13.2.2 digest is sha256 hex -- digest=sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
+PASS  4: mcr.microsoft.com/dotnet/aspnet:10.0.8 is a compose image or a Dockerfile base image
+PASS  4: mcr.microsoft.com/dotnet/aspnet:10.0.8 digest is sha256 hex -- digest=sha256:8c0b6857eab7b2aa57884c839bf4678414606bd7d17370f18a842ac5cf414711
+PASS  4: prom/prometheus:v3.14.0 is a compose image or a Dockerfile base image
+PASS  4: prom/prometheus:v3.14.0 digest is sha256 hex -- digest=sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+PASS  4: nginx:1.31.3 is a compose image or a Dockerfile base image
+PASS  4: nginx:1.31.3 digest is sha256 hex -- digest=sha256:8541484afbc9c8a5a8a99b379568ebbc957f658583ec9448fc43104229c03cf8
+PASS  4: rabbitmq:3.13.7-management is a compose image or a Dockerfile base image
+PASS  4: rabbitmq:3.13.7-management digest is sha256 hex -- digest=sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+== 5. workload
+PASS  5: -Rates default is 50, 100, 200 -- file=50,100,200
+PASS  5: -Configs default is C1 to C4 -- file=C1,C2,C3,C4
+PASS  5: -Replicas default is 1, 2, 4 -- file=1,2,4
+PASS  5: -DurationSeconds default equals the manifest (60 s) -- file=60 manifest=60 s
+PASS  5: -Repeats default equals the manifest (3) -- file=3
+PASS  5: -Product and -Stock defaults equal the manifest -- file="flash-product-1" 100000 manifest=flash-product-1 (tests/jmeter/products.csv), stock 100,000
+PASS  5: open-loop mode is the plan's -Jmode the driver passes
+PASS  5: workload.jmx keys come from __UUID()
+PASS  5: the product CSV is recycled
+PASS  5: pacing is a Constant Throughput Timer
+PASS  5: the plan has no seed property
+== 6. worker
+PASS  6: Worker delay equals appsettings.json -- manifest=200
+PASS  6: Worker delay equals the ProcessingOptions default
+PASS  6: Worker concurrency equals ec2.env.example
+PASS  6: Worker prefetch equals ec2.env.example
+== 7. limits
+PASS  7: Worker concurrency equals ec2.env.example PROCESSING_MAX_CONCURRENCY -- manifest=20 file=20
+PASS  7: Worker prefetch equals ec2.env.example WORKER_PREFETCH -- manifest=20 file=20
+PASS  7: Admission, concurrent new orders equals ec2.env.example ADMISSION_MAX_CONCURRENT_NEW_ORDERS -- manifest=64 file=64
+PASS  7: Admission, Outbox backlog equals ec2.env.example ADMISSION_MAX_OUTBOX_BACKLOG -- manifest=2000 file=2000
+PASS  7: Admission, unfinished orders equals ec2.env.example ADMISSION_MAX_IN_FLIGHT_ORDERS -- manifest=0 (off) file=0
+PASS  7: Order Service consumer concurrency equals ec2.env.example ORDER_CONSUMER_CONCURRENCY -- manifest=4 file=4
+PASS  7: Inventory consumer concurrency equals ec2.env.example INVENTORY_CONSUMER_CONCURRENCY -- manifest=1 file=1
+PASS  7: Reconciliation stuck timeout equals ec2.env.example RECONCILIATION_STUCK_TIMEOUT_SECONDS -- manifest=120 s file=120
+PASS  7: PostgreSQL connections equals ec2.env.example PG_MAX_CONNECTIONS -- manifest=200 file=200
+PASS  7: gateway (C3, C4) equals the run-matrix ShedOrderRate/Burst and ec2.env.example -- manifest=200 requests/s, burst 100
+PASS  7: open gateway equals the run-matrix OpenOrderRate/Burst
+PASS  7: queue bound equals the run-matrix QueueMaxLength default
+PASS  7: the bound overflows with reject-publish
+PASS  7: OrderProcessingStartedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OutboxPublisherWorker.cs (outbox) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: StockResultConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderPlacedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderProcessedConsumer.cs (handler) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OutboxPublisherWorker.cs (outbox) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: StockReservedConsumer.cs (Worker) retries 1/2/4 s with 4 attempts -- delays=1/2/4
+PASS  7: OrderProcessedConsumer.cs delayed requeue is 2/4/8 s -- delays=2/4/8
+PASS  7: OrderProcessingStartedConsumer.cs delayed requeue is 2/4/8 s -- delays=2/4/8
+PASS  7: reconciliation attempts equal ReconciliationOptions and appsettings.json -- manifest=3
+PASS  7: reconciliation poll equals ReconciliationOptions -- manifest=30
+PASS  7: Confirmed/Processing timeout equals appsettings.json -- manifest=300
+PASS  7: src\FlashSale.OrderService\Messaging\RabbitMqOptions.cs PrefetchCount default equals the manifest -- manifest=20
+PASS  7: src\FlashSale.InventoryService\Messaging\RabbitMqOptions.cs PrefetchCount default equals the manifest -- manifest=20
+PASS  7: Outbox publisher batch 50 in both services
+== 8. metrics
+PASS  8: percentiles are nearest-rank (Ceiling) in the extractor and the driver
+PASS  8: dead letters read flashsale_consumer_dead_lettered_total alone
+PASS  8: retries, duplicates and reconciliations read the named metrics
+PASS  8: achieved rate is (count - 1) / span in the driver
+PASS  8: drain waits for orders and both Outboxes
+All 100 checks passed: docs/week14-freeze.md matches the repository.
+Exit code: 0

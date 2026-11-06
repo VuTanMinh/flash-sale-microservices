@@ -33,14 +33,14 @@ function ReadLog([string]$rel) {
 if ($ReportPath) { $report = (Resolve-Path $ReportPath).Path }
 else { $report = Join-Path $root "report\report.tex" }
 $tex = Get-Content $report -Raw -Encoding UTF8
-$s = $tex.IndexOf('\section{Reliability and Idempotency Layer (Week 9)}')
+$s = $tex.IndexOf('\section{Reliability and Idempotency}')
 $e = $tex.IndexOf('\section{', $s + 1)
 Check "Week 9 chapter found" ($s -ge 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
 
 # --- 1. the four required subsection titles ----------------------------
 foreach ($t in 'Message delivery semantics', 'Idempotent consumer',
-    'Acknowledgement strategy, proven with a real crash (Step 9.3)',
+    'Acknowledgement strategy, proven with a real crash',
     'Duplicate handling') {
     Check "subsection title present: $t" ($sec.Contains("\subsection{$t}"))
 }

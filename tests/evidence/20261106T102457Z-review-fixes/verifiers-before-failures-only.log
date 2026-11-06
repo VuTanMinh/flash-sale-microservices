@@ -1,0 +1,16 @@
+=== verify-baseline-report
+=== verify-inventory-report
+=== verify-order-report
+=== verify-publication-report
+=== verify-delivery-report
+=== verify-failure-report
+FAIL  failure-mode row F19 matches the doc -- chapter status 'Verified' != doc 'Not supported yet'
+=== verify-observability-report
+FAIL  Results cover C0 (correctness only), C1, C2, C3 and C4 with 1/2/4 consumers -- C0-in-correctness=False C1=True C2=True C3=True C4-consumers=1,2,4
+FAIL  correctness table has the six brief checks -- missing: inventory $\ge 0$, initial inventory, one successful reservation, one downstream result, terminal, add up
+FAIL  every Results data cell is ---, n/a or --- / --- / --- -- 3, 3 of 3, 28,287, 0, 0
+FAIL  exactly 4 figure environments, each with a \fbox placeholder -- figures=4
+FAIL  every Results table caption says 'To be completed in Week~14' -- tables=12 missing=\begin{table}[tbp]
+=== verify-design-chapter
+=== verify-requirements-trace
+=== verify-test-plan

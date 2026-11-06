@@ -1,0 +1,57 @@
+Review fixes (6 November 2026): report and analysis only, no new runs, no service code changed.
+
+1. CPU split per service
+   analyze_official.py adds cpu_order, cpu_inventory, cpu_worker, cpu_services and cpu_infra.
+   Each is the process_cpu_seconds_total increase over the load window, as a share of the
+   2-vCPU host. Infrastructure is the host CPU minus the three services. These feed the new
+   table tab-cpu.tex (Results, Resource Use, tab:results-cpu).
+2. Publisher wording
+   The Results and Discussion no longer say "per-message confirm". The publisher claims 50 rows,
+   pipelines their confirms on one channel and loops at once while batches are full. The stated
+   limit is now one serial loop per service, running in the API's process.
+3. Rates
+   New done_load_per_s: orders reaching Completed or Rejected per second during the load
+   (C1: requests decided). The throughput table adds it and the 99 % done time. Completed/s is
+   footnoted as including the reconciliation wait.
+4. Worker dead letters
+   These are now presented as a defect the experiment found. The fix (back-pressure, a longer
+   ladder or a shorter Confirmed timeout) is stated as not implemented because of the freeze.
+5. Discussion
+   New section sec:dis-c1-wins: why C1 wins on this host, and when the asynchronous design would.
+6. Limitations
+   Four additions: contention not varied; shedding limits not calibrated; REJECTED not recorded
+   in Redis; processed:{product} unbounded.
+7. Restructure
+   - Introduction, Problem Statement and Objectives are now one chapter; Scope and Limitations
+     are now one chapter.
+   - Week and step labels are removed from headings.
+   - Moved to appendices: the pilot, the slowdown diagnosis and the EC2 confirmation
+     (Appendix C); the pilot results (C); the external review (D); the verification summary,
+     the workflow evidence, the Worker/observability verification and the preliminary overload
+     run (B).
+   - The re-freeze detail moved into the Freeze Manifest appendix.
+   - The failure-model table no longer overflows (it was 13 pt wide).
+   - Main text is pages 7-105 (99 pages); the PDF has 133 pages. See build.log.
+
+Checks
+- number-audit.log: every number added above, recomputed from report/figures/official/cells.csv
+  (16 claims, 0 failed).
+- verifiers.log: all report verifiers, verify-test-plan and verify-freeze.
+  - Delivery, inventory and failure now PASS.
+  - Their heading anchors were changed to the renamed headings; what they check did not change:
+    - verify-delivery-report.ps1:
+      '\section{Reliability and Idempotency Layer (Week 9)}' -> '\section{Reliability and Idempotency}'
+      'Acknowledgement strategy, proven with a real crash (Step 9.3)' -> 'Acknowledgement strategy, proven with a real crash'
+    - verify-failure-report.ps1:
+      '\section{Failure Handling and Recovery (Week 10)}' -> '\section{Failure Handling and Recovery}'
+    - verify-inventory-report.ps1:
+      '\section{Closing the Loop' -> '\section{Stock Results and Order State}'
+  - verify-failure-report also failed F19 on the committed report, because docs/failure-handling.md
+    still said "Not supported yet" from before the load-shedding work. That row now matches the
+    report and the test plan (Verified, TP-L01, TP-L02, TP-L04).
+  - verify-observability-report fails 4 checks that test the empty Week 11 Results templates
+    ("To be completed in Week~14", \fbox placeholders). They failed on the committed report too
+    (5 checks, verifiers-before-failures-only.log), because the official results replaced the
+    templates. They are obsolete, not new failures.
+- analyze_official.py run twice gives identical outputs.
+Exit code: 0

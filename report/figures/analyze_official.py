@@ -54,6 +54,7 @@ SERIES = [("C1", 1, "C1", "#2a78d6", "o"), ("C2", 1, "C2", "#eb6834", "s"), ("C3
           ("C4", 1, "C4, 1 cons.", "#eda100", "D"), ("C4", 2, "C4, 2 cons.", "#e87ba4", "v"),
           ("C4", 4, "C4, 4 cons.", "#008300", "P")]
 GRID = "#e6e5e0"
+HOST_VCPUS = 2  # m7i-flex.large, the backend of every official run
 
 
 def pct(vals, p):
@@ -269,6 +270,7 @@ for rep in ("rep1", "rep2", "rep3"):
         ob = defaultdict(float)
         wdl = []
         load_cpu = []
+        proc_cpu = defaultdict(list)
         series = defaultdict(dict)
         with open(os.path.join(b, "samples.csv"), encoding="utf-8-sig", newline="") as f:
             for row in csv.DictReader(f):
@@ -290,6 +292,10 @@ for rep in ("rep1", "rep2", "rep3"):
                     series["acc"][t] = series["acc"].get(t, 0) + v
                 elif row["name"] == "flashsale_orders_outcome_total" and re.search(r'outcome="?(Completed|Rejected)"?(;|$)', row["labels"]):
                     series["done"][t] = series["done"].get(t, 0) + v
+                elif row["name"] == "process_cpu_seconds_total":
+                    # one counter per .NET process; Inventory replicas differ by their instance label
+                    svc = row["labels"].split(";")[0].replace("service=", "")
+                    proc_cpu[(svc, row["labels"])].append((to_epoch(t) * 1000, v))
                 elif row["name"] == "cpu_percent":
                     series["cpu"][t] = v
                     tt = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000
@@ -297,6 +303,31 @@ for rep in ("rep1", "rep2", "rep3"):
                         load_cpu.append(v)
         r["outbox_peak"] = max(ob.values()) if ob else None
         r["cpu_load_mean"] = statistics.mean(load_cpu) if load_cpu else None
+        # where the CPU goes during the load window: each process's CPU-seconds counter
+        # between its first and last sample inside the window, as a share of the whole
+        # host (HOST_VCPUS cores = 100 %), the same scale as the host CPU column.
+        # "Infrastructure" is host CPU minus the three services: PostgreSQL, RabbitMQ,
+        # Redis, Nginx, the collector and the OS.
+        lo_ms, hi_ms = m["load"]["first_ms"], m["load"]["last_ms"]
+        share = defaultdict(float)
+        for (svc, _), pts in proc_cpu.items():
+            win = sorted(p for p in pts if lo_ms <= p[0] <= hi_ms)
+            if len(win) >= 2 and win[-1][0] > win[0][0]:
+                cores = (win[-1][1] - win[0][1]) / ((win[-1][0] - win[0][0]) / 1000.0)
+                share[svc] += cores / HOST_VCPUS * 100.0
+        for svc, f in (("order-service", "cpu_order"), ("inventory-service", "cpu_inventory"), ("process-worker", "cpu_worker")):
+            r[f] = share.get(svc)
+        svc_sum = sum(share.values()) if share else None
+        r["cpu_services"] = svc_sum
+        r["cpu_infra"] = (r["cpu_load_mean"] - svc_sum) if (svc_sum is not None and r["cpu_load_mean"] is not None) else None
+        # orders decided (Completed or Rejected) per second inside the load window,
+        # unlike completed_per_s, whose divisor includes the drain
+        dwin = sorted((to_epoch(t) * 1000, v) for t, v in series["done"].items() if lo_ms <= to_epoch(t) * 1000 <= hi_ms)
+        r["done_load_per_s"] = ((dwin[-1][1] - dwin[0][1]) / ((dwin[-1][0] - dwin[0][0]) / 1000.0)
+                                if len(dwin) >= 2 and dwin[-1][0] > dwin[0][0] else None)
+        if m["config"] == "C1":
+            # C1 decides each order inside its request and exports no outcome counter
+            r["done_load_per_s"] = r["accepted"] / r["duration_s"] if r.get("accepted") else None
         r["accepted_per_s"] = (r["accepted"] / r["duration_s"]) if r.get("accepted") else None
         r["worker_dead_lettered"] = (max(wdl) - min(wdl)) if wdl else None
         r["_outbox"] = dict(ob)
@@ -335,7 +366,8 @@ FIELDS = ["achieved", "accepted", "completed", "completed_per_s", "drain_s", "ap
           "reserved_pct", "stock_rej_pct", "retries", "duplicates", "dead_lettered", "worker_dead_lettered", "reconciliation",
           "outbox_peak", "peak_queue", "oldest_s", "cpu_mean", "cpu_load_mean", "accepted_per_s", "cpu_peak", "mem_mean_gb", "mem_peak_gb",
           "unfinished_at_end", "outbox_at_end", "queues_at_end", "queues_peak_after", "backlog_1pct_s",
-          "db_conn_mean", "db_conn_peak", "redis_ms"] + \
+          "db_conn_mean", "db_conn_peak", "redis_ms",
+          "cpu_order", "cpu_inventory", "cpu_worker", "cpu_services", "cpu_infra", "done_load_per_s"] + \
          [f"{st}_{q}" for st in ("accepted_to_published", "published_to_decided", "decided_to_applied", "applied_to_completed", "accepted_to_completed") for q in ("p50", "p95", "p99", "neg")]
 cells = defaultdict(list)
 for r in runs:
@@ -399,8 +431,9 @@ write_table("tab-api.tex", r"Config. & Rate & Achieved (/s) & p50 & p95 & p99", 
             lambda k, c: f"{cellname(k)} & {fmt(c, 'achieved', 1, False)} & {fmt(c, 'api_p50')} & {fmt(c, 'api_p95')} & {fmt(c, 'api_p99')}")
 write_table("tab-decision.tex", r"Config. & Rate & \multicolumn{2}{c}{Stock decision} & \multicolumn{2}{c}{Completion} \\ \cmidrule(lr){3-4}\cmidrule(lr){5-6}" + "\n" + r" & & p50 & p95 & p50 & p95", "llrrrr",
             lambda k, c: f"{cellname(k)} & {fmt(c, 'dec_p50', 3 if k[0] == 'C1' else 1, True, 1000)} & {fmt(c, 'dec_p95', 3 if k[0] == 'C1' else 1, True, 1000)} & {fmt(c, 'comp_p50', 1, True, 1000)} & {fmt(c, 'comp_p95', 1, True, 1000)}")
-write_table("tab-throughput.tex", r"Config. & Rate & Achieved & Accepted & Completed/s & Overload rej. \%", "llrrrr",
-            lambda k, c: f"{cellname(k)} & {fmt(c, 'achieved', 1, False)} & {fmt(c, 'accepted')} & {fmt(c, 'completed_per_s', 1)} & {fmt(c, 'overload_pct', 1)}")
+write_table("tab-throughput.tex", r"Config. & Rate & Achieved & Accepted & Done/s in load & 99\,\% done (s) & Completed/s$^{*}$ & Overload rej. \%", "llrrrrrr",
+            lambda k, c: f"{cellname(k)} & {fmt(c, 'achieved', 1, False)} & {fmt(c, 'accepted')} & {fmt(c, 'done_load_per_s', 1)} & "
+                         f"{fmt(c, 'backlog_1pct_s') if k[0] != 'C1' else '0'} & {fmt(c, 'completed_per_s', 1) if k[0] != 'C1' else 'n/a'} & {fmt(c, 'overload_pct', 1)}")
 # the two columns dropped from the table must stay constant, or the caption would be wrong
 assert all(r.get("reserved_pct") == 100.0 for r in runs), "reserved share is no longer 100 % in every run"
 assert all(r.get("error_pct") == 0.0 for r in runs), "some run had errors"
@@ -412,6 +445,8 @@ write_table("tab-reliability.tex", r"Config. & Rate & Retries & Duplicates & Dea
             keys=[k for k in order if k[0] != "C1"])
 write_table("tab-resources.tex", r"Config. & Rate & CPU in load \% & CPU peak \% & RAM (GB) & DB conns & Redis (ms)", "llrrrrr",
             lambda k, c: f"{cellname(k)} & {fmt(c, 'cpu_load_mean')} & {fmt(c, 'cpu_peak', 0, False)} & {fmt(c, 'mem_peak_gb', 1, False)} & {fmt(c, 'db_conn_peak', 0, False)} & {fmt(c, 'redis_ms', 2, False) if k[0] != 'C1' else 'n/a'}")
+write_table("tab-cpu.tex", r"Config. & Rate & Host & Order Svc. & Inventory & Worker & Infrastructure", "llrrrrr",
+            lambda k, c: f"{cellname(k)} & {fmt(c, 'cpu_load_mean')} & {fmt(c, 'cpu_order')} & {fmt(c, 'cpu_inventory')} & {fmt(c, 'cpu_worker')} & {fmt(c, 'cpu_infra')}")
 stage_keys = [k for k in order if k[0] == "C2"]
 lines = [r"\begin{tabular}{lrrrr}", r"\toprule", r"Stage & Rate & p50 & p95 & Negative \\", r"\midrule"]
 names = [("accepted_to_published", r"Accepted $\to$ published"), ("published_to_decided", r"Published $\to$ decided"),

@@ -1,0 +1,25 @@
+latexmk -pdf report.tex: exit 0
+Output written on report.pdf (133 pages, 3743385 bytes).
+undefined references: 0
+overfull boxes > 10pt: 0
+chapter start pages:
+  p7 1 Introduction
+  p9 2 Scope and Limitations
+  p11 3 Background
+  p15 4 System Requirements
+  p18 5 Technology Selection
+  p20 6 Development Environment
+  p23 7 System Analysis and Design
+  p38 8 Implementation
+  p82 9 Experimental Design
+  p85 10 Results
+  p99 11 Discussion
+  p105 12 Conclusion
+  p106 References
+  p109 A Test Plan Summary
+  p110 B Implementation Verification Detail
+  p121 C Pilot and Calibration on EC2
+  p127 D External Review
+  p130 E Freeze Manifest
+  p131 F Run Commands
+  p133 G Evidence Index

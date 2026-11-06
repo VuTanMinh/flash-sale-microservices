@@ -308,7 +308,7 @@ system handles one failure and how strongly that is backed:
 | F16 | Crash after the broker confirm, before the Outbox row is marked published | The row is published again with the same `MessageId`, and the consumer's Inbox absorbs it. Absorbing a same-`MessageId` copy is verified (TP-M01, TP-M02); the crash at this exact point was not injected | Designed | — |
 | F17 | PostgreSQL server outage | Same path as F4/F5. The tests inject the failure by revoking privileges; stopping the PostgreSQL server itself was not tested | Designed | — |
 | F18 | Redis data loss or restart | Not handled automatically. Warm-up must be re-run before sales reopen; Redis persistence is not verified (`docs/design-decisions.md`) | Not supported | — |
-| F19 | Overload: more requests than capacity | Nginx, application and queue limits are Week 12 work | Not supported yet | TP-L01, TP-L02 (planned) |
+| F19 | Overload: more requests than capacity | Nginx 429, admission 503 (concurrency and Outbox backlog) and bounded queues; the backlog drains and the system recovers without a restart | Verified | TP-L01, TP-L02, TP-L04 |
 | F20 | Downstream processing fails (`ProcessingFailed`) | The Process Worker is success-only, so no event reaches `ProcessingFailed` | Out of scope | Teacher brief |
 | F21 | Payment failure and compensation | Not part of the system | Out of scope | Teacher brief |
 | F22 | Redis Cluster, RabbitMQ Cluster, PostgreSQL replication, multi-region | Single instances on one host | Out of scope | Teacher brief |
