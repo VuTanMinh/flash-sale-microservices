@@ -5,3 +5,5 @@
 # with the line endings the script writes, so a rerun on a fresh clone changes no file.
 report/figures/official/*.tex text eol=lf
 report/figures/official/*.csv text eol=crlf
+report/figures/supplementary/*.tex text eol=lf
+report/figures/supplementary/*.csv text eol=crlf
