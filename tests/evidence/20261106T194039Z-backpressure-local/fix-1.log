@@ -1,0 +1,21 @@
+﻿== fix clone 01:28:10
+commit dfb0cd52c9fb7cdadabe412fed537710997dc7b3; worker files differing from HEAD: 8
+override:
+services:
+  rabbitmq:
+    ports:
+      - "15792:15692"
+  order-service:
+    cpus: 0.5
+== build + up 01:28:17
+ Image flashsale-order-service:10.0 Built 
+ Container flashsale-bp-grafana-1 Started 
+== C3 at 200/s, queue bound 20 01:29:52
+   Matrix 20261106T182952Z: 1 run(s), 60 s each, transport Local
+   == 20261106T182952Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+RUN fix C3 200/s status=PASS accepted=829 drain=314s validator=0 worker_dead_letters=0 backpressure_waits=245 reconciliation_retriggers=3
+== down 01:37:41
+ Volume flashsale-bp_grafanadata Removed 
+Exit code: 0

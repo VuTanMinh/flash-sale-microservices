@@ -1,0 +1,11 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\scratch\bp-test\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\scratch\bp-test\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.ProcessWorker.Tests -> E:\Agent_Memory\DACNTT\scratch\bp-test\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll
+Test run for E:\Agent_Memory\DACNTT\scratch\bp-test\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 57 ms - FlashSale.ProcessWorker.Tests.dll (net10.0)
+
+Exit code: 0

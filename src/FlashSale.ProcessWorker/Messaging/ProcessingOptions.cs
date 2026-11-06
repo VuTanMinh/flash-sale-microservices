@@ -31,4 +31,11 @@ public class ProcessingOptions
     /// messages the consumer holds.
     /// </summary>
     public ushort MaxConcurrency { get; set; } = 1;
+
+    /// <summary>
+    /// The longest a single publish waits while the broker nacks it because the target
+    /// queue is full (see PublishBackPressure). Past this the message takes the normal
+    /// failure path to the dead-letter queue. Default 600 s.
+    /// </summary>
+    public int BackPressureMaxWaitSeconds { get; set; } = 600;
 }

@@ -1,0 +1,45 @@
+Process Worker back-pressure fix: local before/after (post-freeze, 6 November 2026).
+
+Setup (bp.ps1 in this folder)
+  Scratch Compose project flashsale-bp, new volumes, removed after each run.
+  - Env: the EC2 values (Worker concurrency 20, prefetch 20, Order consumers 4,
+    reconciliation 120 s for PendingStock and 300 s for Confirmed/Processing).
+  - Version frozen: a clone at 9d00bea (tag w14-official).
+  - Version fix: a clone of dfb0cd5 with the working tree's Process Worker
+    (PublishBackPressure).
+  - To make the Order Service queues fill on this PC, as they do on the 2-vCPU EC2 host:
+    queue bound 20 (-QueueMaxLength 20), Order Service limited to 0.5 CPU, C3 at 200/s
+    for 60 s.
+  This is a deliberately starved setup, far harsher than EC2 (bound 1000), so its absolute
+  times are not EC2 numbers.
+  Worker dead letters are the peak depth of ProcessWorker.StockReserved.dlq (local runs
+  export no service metrics to the collector). Back-pressure waits are read from the
+  Worker's /metrics; re-triggers from the OrderPlaced Outbox rows; stuck states from
+  Order Service's log.
+
+Results (frozen-1.log, frozen-2.log, fix-1.log, fix-2.log)
+  run        accepted  worker dead letters  back-pressure waits  re-triggers (state)                     drain   validator
+  frozen 1   608       1                    (not exported)       (not measured; harness not yet updated)  304 s   PASS
+  frozen 2   645       3                    (not exported)       7 (Processing 6, Confirmed 1)            333 s   PASS
+  fix 1      829       0                    245                  3 (state not recorded)                   314 s   PASS
+  fix 2      641       0                    236                  3 (Processing 2, Confirmed 1)            306 s   PASS
+
+Reading
+  The defect reproduces on the frozen code: the Worker dead-letters StockReserved when an
+  Order Service queue is full, and those orders complete only through reconciliation.
+  The fix removes the dead letters in both runs, and the Worker waits instead (236-245
+  waits), with every validator check holding.
+  On this starved stack a few held orders still wait longer than the 300 s
+  Confirmed/Processing timeout, so reconciliation still re-triggers them (3 against 7)
+  and the drain stays near 300 s. The fix removes the defect but not, here, the tail; the
+  reconciliation timeout was not changed. Whether the tail goes on EC2 (bound 1000, no
+  CPU limit) is what docs/week14-backpressure-fix.md measures.
+Exit code: 0
+
+Regression checks on the fix (a clone of dfb0cd5 with the fixed Process Worker, built on E:)
+  unit-tests.log        7 of 7: nack -> back-pressure; return or any other error -> ladder;
+                        waits do not use attempts; the wait cap rethrows; cancellation stops waiting
+  verify-worker.log     TP-P01, 56 of 56 PASS (deterministic work, one completion per order under
+                        replay, restart and reordering, no DLQ)
+  verify-failures.log   TP-F01, 74 of 74 PASS (bounded retries; poison and exhausted messages,
+                        Worker included, still reach the right DLQ)

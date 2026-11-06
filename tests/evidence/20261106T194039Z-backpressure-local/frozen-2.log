@@ -1,0 +1,22 @@
+﻿== frozen clone 01:38:20
+commit 9d00beafdef229418112abce26a48899e4b04ba8; worker files differing from HEAD: 0
+override:
+services:
+  rabbitmq:
+    ports:
+      - "15792:15692"
+  order-service:
+    cpus: 0.5
+== build + up 01:38:29
+ Image flashsale-process-worker:10.0 Built 
+ Container flashsale-bp-grafana-1 Started 
+== C3 at 200/s, queue bound 20 01:39:10
+   Matrix 20261106T183910Z: 1 run(s), 60 s each, transport Local
+   == 20261106T183910Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   reconciliation by state: Processing=6,Confirmed=1
+RUN frozen C3 200/s status=PASS accepted=645 drain=333s validator=0 worker_dead_letters=3 backpressure_waits=not exported reconciliation_retriggers=7
+== down 01:47:43
+ Volume flashsale-bp_pgdata Removed 
+Exit code: 0

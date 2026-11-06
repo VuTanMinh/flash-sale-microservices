@@ -261,6 +261,36 @@ public class StockReservedConsumer : BackgroundService
         }
     }
 
+    /// <summary>
+    /// One publish under back-pressure: while the broker nacks it (target queue full),
+    /// wait and retry with PublishBackPressure's backoff, keeping this StockReserved
+    /// unacknowledged. The first wait for a message is logged at Warning, later ones at
+    /// Debug; every wait is counted.
+    /// </summary>
+    private Task<int> PublishWithBackPressureAsync(Func<CancellationToken, Task> publish, string eventType, Guid orderId)
+    {
+        return PublishBackPressure.PublishAsync(
+            publish,
+            TimeSpan.FromSeconds(Math.Max(0, _processingOptions.BackPressureMaxWaitSeconds)),
+            (wait, delay) =>
+            {
+                ConsumerMetrics.BackPressureWaits.WithLabels("ProcessWorker.StockReserved").Inc();
+                if (wait == 1)
+                {
+                    _logger.LogWarning(
+                        "Broker refused {EventType} for order {OrderId} (queue full); holding the message and retrying in {Delay}",
+                        eventType, orderId, delay);
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Broker still refusing {EventType} for order {OrderId}; wait {Wait}, retrying in {Delay}",
+                        eventType, orderId, wait, delay);
+                }
+            },
+            _stoppingToken);
+    }
+
     private async Task ProcessWithRetryAsync(StockReservedEto stockReserved)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -280,15 +310,17 @@ public class StockReservedConsumer : BackgroundService
                 // MessageId is derived from the order id (never the OrderId
                 // itself, which the completion uses), so a redelivered
                 // StockReserved regenerates the identical start message.
-                await _startPublisher.PublishAsync(
-                    new OrderProcessingStartedEto
-                    {
-                        OrderId = stockReserved.OrderId,
-                        MessageId = OrderProcessingStartedEto.DeriveMessageId(stockReserved.OrderId),
-                        CorrelationId = stockReserved.CorrelationId,
-                        StartedAt = startedAt,
-                    },
-                    _stoppingToken);
+                // A full target queue (broker nack) is waited out here, not
+                // counted as an attempt: see PublishBackPressure.
+                var startEvent = new OrderProcessingStartedEto
+                {
+                    OrderId = stockReserved.OrderId,
+                    MessageId = OrderProcessingStartedEto.DeriveMessageId(stockReserved.OrderId),
+                    CorrelationId = stockReserved.CorrelationId,
+                    StartedAt = startedAt,
+                };
+                await PublishWithBackPressureAsync(
+                    ct => _startPublisher.PublishAsync(startEvent, ct), "OrderProcessingStarted", stockReserved.OrderId);
 
                 // The simulated downstream work. Deterministic by design
                 // (ProcessingOptions explains why), and deliberately INSIDE
@@ -297,16 +329,16 @@ public class StockReservedConsumer : BackgroundService
                 // ran to completion the first time.
                 await Task.Delay(_processingOptions.DelayMilliseconds, _stoppingToken);
 
-                await _publisher.PublishAsync(
-                    new OrderProcessedEto
-                    {
-                        OrderId = stockReserved.OrderId,
-                        // Not a fresh Guid: see OrderProcessedEto.MessageId.
-                        MessageId = stockReserved.OrderId,
-                        CorrelationId = stockReserved.CorrelationId,
-                        ProcessingStartedAt = startedAt,
-                    },
-                    _stoppingToken);
+                var completion = new OrderProcessedEto
+                {
+                    OrderId = stockReserved.OrderId,
+                    // Not a fresh Guid: see OrderProcessedEto.MessageId.
+                    MessageId = stockReserved.OrderId,
+                    CorrelationId = stockReserved.CorrelationId,
+                    ProcessingStartedAt = startedAt,
+                };
+                await PublishWithBackPressureAsync(
+                    ct => _publisher.PublishAsync(completion, ct), "OrderProcessed", stockReserved.OrderId);
 
                 stopwatch.Stop();
                 ProcessedTotal.Inc();

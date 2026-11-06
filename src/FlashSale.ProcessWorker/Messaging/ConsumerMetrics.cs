@@ -28,9 +28,15 @@ public static class ConsumerMetrics
     /// series is exported from the first scrape (prometheus-net only exports a
     /// labelled child after it is created) and rate() works without gaps.
     /// </summary>
+    public static readonly Counter BackPressureWaits = Metrics.CreateCounter(
+        "flashsale_consumer_backpressure_waits_total",
+        "Waits taken because the broker refused a publish to a full queue (not counted as retries).",
+        new CounterConfiguration { LabelNames = ["consumer"] });
+
     public static void Initialize(string consumer)
     {
         Retries.WithLabels(consumer);
+        BackPressureWaits.WithLabels(consumer);
         foreach (var reason in new[] { "exhausted", "invalid", "conflict" })
         {
             DeadLettered.WithLabels(consumer, reason);
