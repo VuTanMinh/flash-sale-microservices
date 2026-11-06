@@ -1,0 +1,70 @@
+﻿{
+    "run_id":  "20261106T132159Z-C1-r1-400rps-rep1",
+    "matrix_id":  "20261106T132159Z",
+    "config":  "C1",
+    "replicas":  1,
+    "requested_per_s":  400,
+    "repeat":  1,
+    "duration_s":  20,
+    "threads":  400,
+    "product":  "flash-product-1",
+    "stock":  100000,
+    "transport":  "Local",
+    "host_dir":  "E:\\Agent_Memory\\DACNTT\\tmp\\w15supp\\out\\rate400\\20261106T132159Z-C1-r1-400rps-rep1",
+    "jmeter_plan":  "tests/jmeter/workload.jmx",
+    "jmeter_mode":  "open",
+    "jmeter_args":  "-n -t tests/jmeter/workload.jmx -Jhost=localhost -Jport=18080 -Jpath=/api/c1/orders -JproductsFile=products.csv -Jmode=open -Jthreads1=400 -Jrate1=400 -Jduration1=20 -Jsample_variables=idempotencyKey -Jthreads2=0 -Jduration2=0 -Jthreads3=0 -Jduration3=0 -Jthreads4=0 -Jduration4=0 -Jthreads5=0 -Jduration5=0",
+    "started_utc":  "2026-11-06T13:21:59.8163012Z",
+    "status":  "PASS",
+    "failed_step":  "",
+    "prepare":  {
+                    "commit":  "fb6a89ba857d335eb1088d6e2cbd1afe5e55310b",
+                    "commit_dirty":  false,
+                    "images":  {
+                                   "flashsale-ec2v-order-service-1":  "sha256:b7d071735f9b8d425f7af2f8312f4f3484d3a60bd9f5b5a6768795844115bbb2",
+                                   "flashsale-ec2v-process-worker-1":  "sha256:ba366cc1c53e3e2b8109fa99b4503a184a4fdfd12b7922044adbc63c81b23f9c",
+                                   "flashsale-ec2v-inventory-service-1":  "sha256:5b17048eae0b586524b8fe0fe47707a62feaf48cb060be460cdf99595faa7a8b"
+                               },
+                    "queue_bound_expected":  0,
+                    "queue_bound_gate":  "Bound as expected: max-length 0 (0 = no policy).",
+                    "admission_enabled":  "false",
+                    "gateway_rate":  "10000r/s",
+                    "replicas":  1,
+                    "gates":  {
+                                  "reset_seed_warm":  true,
+                                  "api_up":  true,
+                                  "consumers_up":  true,
+                                  "queue_bound":  true,
+                                  "admission":  true,
+                                  "gateway":  true,
+                                  "replicas":  true
+                              }
+                },
+    "worker_concurrency":  "1",
+    "jmeter_exit":  0,
+    "load":  {
+                 "submissions":  3196,
+                 "submissions_2xx":  3196,
+                 "polls":  0,
+                 "achieved_per_s":  161.5,
+                 "codes":  {
+                               "200":  3196
+                           },
+                 "http_ms":  {
+                                 "p50":  2342,
+                                 "p95":  3978,
+                                 "p99":  4655
+                             },
+                 "first_ms":  1793971369892,
+                 "last_ms":  1793971389672
+             },
+    "post":  {
+                 "drained":  true,
+                 "drain_seconds":  0,
+                 "collector_stopped":  true,
+                 "validator_exit":  0,
+                 "db_accepted":  3196,
+                 "db_dump":  true
+             },
+    "ended_utc":  "2026-11-06T13:23:19.8731311Z"
+}

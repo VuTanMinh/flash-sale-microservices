@@ -31,11 +31,17 @@ Nothing here has been applied yet.
 | # | Config | Rate (/s) | Stock | Question |
 | --- | --- | --- | --- | --- |
 | 1 | C1 | 400 | 100,000 | C1's ceiling: does the row lock start to limit it above 200/s? |
-| 2 | C2 | 400 | 100,000 | The same rate for the asynchronous design without shedding |
-| 3 | C1 | 200 | 2,000 | Sell-out under load: no oversell, `Rejected` once stock is gone |
-| 4 | C2 | 200 | 2,000 | The same through Redis and the full pipeline |
-| 5 | C3 | 200 | 2,000 | The same with load shedding on |
-| 6 | C2 | 100 | 100,000 | Anchor: the same cell as the official runs, to compare the hosts with 5 November |
+| 2 | C1 | 200 | 2,000 | Sell-out under load: no oversell, `Rejected` once stock is gone |
+| 3 | C2 | 200 | 2,000 | The same through Redis and the full pipeline |
+| 4 | C3 | 200 | 2,000 | The same with load shedding on |
+| 5 | C2 | 100 | 100,000 | Anchor: the same cell as the official runs, to compare the hosts with 5 November |
+| 6 | C2 | 400 | 100,000 | The same rate as cell 1 for the asynchronous design without shedding |
+
+C2 at 400/s runs last in each round. It builds the largest backlog of any cell,
+and the matrix stops at the first failed run, so a drain failure there cannot
+block the other cells. If it fails in round 1, rounds 2 and 3 run without it.
+Its round-1 evidence is then reported as a result, not counted as a pass. The
+drain limit stays at the frozen 900 s.
 
 At 200/s for 60 s about 12,000 requests compete for 2,000 units, so stock runs
 out after about 10 s. The validator then proves the sell-out invariants on every
@@ -110,5 +116,12 @@ from a fresh clone of the committed HEAD:
 - C1 and C2 at 400/s.
 
 The script is `E:\Agent_Memory\DACNTT\tmp\w15supp\dry.ps1`, a scratch harness
-like the README's case G. Its result is recorded under
-`tests/evidence/<stamp>-supplementary-dry-run/` before the session.
+like the README's case G. Its result is in
+`tests/evidence/20261106T134454Z-supplementary-dry-run/`:
+
+- **Four of five runs passed every validator check**: the three sell-outs and
+  C1 at 400/s.
+- **C2 at 400/s was INCONCLUSIVE.** Its 7,411 accepted orders kept every stock
+  invariant, but 2,124 were still unfinished when the 900 s drain limit ran out.
+  The local verification env runs the Process Worker at concurrency 1, about
+  5 orders/s at 200 ms each. The EC2 env file sets 20, about 100 orders/s.

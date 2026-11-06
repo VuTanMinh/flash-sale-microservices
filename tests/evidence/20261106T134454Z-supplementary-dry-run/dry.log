@@ -1,0 +1,38 @@
+﻿== clone 20:10:16
+certificate present: True
+commit fb6a89ba857d335eb1088d6e2cbd1afe5e55310b
+== build + up 20:10:21
+ Image flashsale-process-worker:10.0 Built 
+ Image flashsale-inventory-service:10.0 Built 
+ Container flashsale-ec2v-grafana-1 Starting 
+ Container flashsale-ec2v-grafana-1 Started 
+== sell-out: C1, C2, C3 at 100/s with -Stock 1000 20:10:53
+   Matrix 20261106T131053Z: 3 run(s), 20 s each, transport Local
+   == 20261106T131053Z-C1-r1-100rps-rep1
+      PASS
+   == 20261106T131053Z-C2-r1-100rps-rep1
+      PASS
+   == 20261106T131053Z-C3-r1-100rps-rep1
+      PASS
+   MATRIX PASS: 3 run(s).
+== C1 and C2 at 400/s (stock default) 20:21:59
+   Matrix 20261106T132159Z: 2 run(s), 20 s each, transport Local
+   == 20261106T132159Z-C1-r1-400rps-rep1
+      PASS
+   == 20261106T132159Z-C2-r1-400rps-rep1
+      FAIL at post
+   MATRIX FAILED: stopped after 2 of 2 run(s).
+matrix exits: sellout=0 rate400=1
+RUN C1 400/s stock=100000 status=PASS achieved=161.5 2xx=3196 accepted=3196 drain=0s validator=0
+   
+RUN C2 400/s stock=100000 status=FAIL achieved=371.5 2xx=7411 accepted=7411 drain=1176s validator=1
+   
+RUN C1 100/s stock=1000 status=PASS achieved=100.7 2xx=1985 accepted=1985 drain=0s validator=0
+   
+RUN C2 100/s stock=1000 status=PASS achieved=101.5 2xx=2014 accepted=2014 drain=211s validator=0
+   
+RUN C3 100/s stock=1000 status=PASS achieved=101.5 2xx=2008 accepted=2008 drain=209s validator=0
+   
+== down 20:44:19
+ Volume flashsale-ec2v_promdata Removed 
+Exit code: 1

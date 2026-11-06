@@ -1,0 +1,37 @@
+Local dry run for the supplementary EC2 session (docs/week14-supplementary-runs.md).
+
+Setup
+  A fresh clone of main-test-bug-fix at fb6a89b on E:. A scratch Compose project,
+  flashsale-ec2v, with new volumes on port 18080, removed at the end. The local infra
+  stack and database were not touched.
+  run-matrix.ps1 took command-line values only (dry.ps1 in this folder).
+  The env file is the verification env from verify-ec2-stack.ps1. It runs the Process
+  Worker at concurrency 1 (PROCESSING_MAX_CONCURRENCY=1); infra/ec2.env.example, used
+  on EC2, sets 20.
+
+Results (dry.log and the run folders here, each with manifest.json and validator.log)
+  C1 100/s 20 s, -Stock 1000   PASS. 1,985 accepted, 1,000 Confirmed, stock 0; every
+                               check passes.
+  C2 100/s 20 s, -Stock 1000   PASS. 2,014 accepted, Redis reservations 1,000 = successful
+                               orders, stock 0, all 2,014 terminal, history complete;
+                               drain 211 s.
+  C3 100/s 20 s, -Stock 1000   PASS. 2,008 accepted, 1,000 reserved, stock 0, all terminal;
+                               drain 209 s.
+  C1 400/s 20 s                PASS. 3,196 accepted at 161.5/s. The rate is limited by
+                               this PC's JMeter, not by C1.
+  C2 400/s 20 s                FAIL at post. 7,411 accepted at 371.5/s.
+                               - Checks 0b, 1, 2, 3, 4, 6 and 7: PASS. No oversell, one
+                                 reservation per order, no double deduction, complete
+                                 history.
+                               - Check 5: INCONCLUSIVE. 2,124 orders were still in progress
+                                 when the 900 s drain limit ran out, some of them already
+                                 re-triggered by reconciliation.
+
+Cause of the C2 400/s result
+  At concurrency 1 and 200 ms per order, the local Worker completes about 5 orders/s, so
+  7,411 orders need about 25 minutes, longer than the 900 s drain. It is a property of this
+  local setup, not of the EC2 configuration. On EC2 the official C2 at 200/s drained
+  10,066 orders in about 110 s.
+  The plan therefore runs C2 at 400/s last in each round. A failure there is reported as a
+  result and cannot block the other cells; the 900 s drain limit is unchanged.
+Exit code: 1
