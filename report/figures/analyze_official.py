@@ -18,12 +18,14 @@ Definitions (fixed before the analysis, see docs/week14-freeze.md section 8):
   runs: the collector stops when the drain check passes, so no drained sample exists);
   completed throughput = completed orders / (60 s load + drain).
 """
+import atexit
 import csv
 import io
 import json
 import math
 import os
 import re
+import shutil
 import statistics
 import sys
 import tarfile
@@ -179,6 +181,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "--runs":
 
 # ------------------------------------------------------------------ unpack
 tmp = tempfile.mkdtemp(prefix="w14-analysis-")
+# the unpacked bundles (about 150 MB) are removed on every exit, normal, sys.exit or error
+atexit.register(shutil.rmtree, tmp, True)
 for name in os.listdir(ev):
     if name.startswith("w14-rep") and name.endswith(".tgz"):
         sub = os.path.join(tmp, name.split("-")[1], "jtl" if name.endswith("-jtl.tgz") else "backend")
