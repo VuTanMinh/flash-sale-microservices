@@ -1,8 +1,13 @@
 # ============================================================
 # TP-P05 -- verifies that report.tex's Week 11 observability text (the metric
 # definitions table, the stage timestamp schema, and the "Replays after
-# completion" paragraph) and the Results-chapter templates match the source
-# code and the teacher brief (docs/teacher-brief.md section 6 "Metrics").
+# completion" paragraph) and the Results chapter match the source code and the
+# teacher brief (docs/teacher-brief.md section 6 "Metrics").
+# Since the official results replaced the empty Week 11 templates, section 5
+# reads the Results with each \input{...} table inlined, checks coverage and the
+# six brief correctness checks in the official correctness section, and no
+# longer runs the three "template still empty" checks (retired in
+# docs/test-plan.md, TP-P05).
 # No Docker, no services: it reads source files and the report only.
 #
 #   powershell -NoProfile -File .\scripts\verify-observability-report.ps1
@@ -19,7 +24,7 @@ $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $checks = 0
 $failures = 0
-$expectedChecks = 25   # number of Check calls in the run (a truncated run must fail)
+$expectedChecks = 22   # number of Check calls in the run (a truncated run must fail)
 
 function Check([string]$name, [bool]$ok, [string]$detail = "") {
     # Count BEFORE any output, and write to the output stream (not the host),
@@ -163,23 +168,35 @@ if ($replayStart -ge 0) {
 }
 Check "Replays-after-completion paragraph cites TP-P04 and TP-M02" ($replay.Contains('TP-P04') -and $replay.Contains('TP-M02'))
 
-# ------------------------------------------------------------------ 5. Results templates
+# ------------------------------------------------------------------ 5. Results chapter
 $rStart = $tex.IndexOf('\chapter{Results}')
 $rEnd = $tex.IndexOf('\chapter{Discussion}', $rStart + 1)
 $resultsFound = ($rStart -ge 0 -and $rEnd -gt $rStart)
 Check "Results chapter found" $resultsFound
 $results = ""
 if ($resultsFound) { $results = $tex.Substring($rStart, $rEnd - $rStart) }
+# The official tables are generated files pulled in with \input{...}: inline them.
+$reportDir = Split-Path -Parent (Join-Path $root $ReportPath)
+$results = [regex]::Replace($results, '\\input\{([^}]+)\}', {
+    param($m)
+    $f = Join-Path $reportDir $m.Groups[1].Value
+    if (-not $f.EndsWith('.tex')) { $f += '.tex' }
+    if (Test-Path -LiteralPath $f) { return (Get-Content -LiteralPath $f -Raw -Encoding UTF8) }
+    return $m.Value
+})
 
-# Configurations: C0 only in the correctness table; C1/C2/C3 as config rows;
-# C4 with 1, 2 and 4 Inventory consumers.
+# Configurations: C0 only in the correctness section (with its evidence,
+# TP-B01); C1/C2/C3 as table rows; C4 with 1, 2 and 4 Inventory consumers.
+# The correctness section runs from its heading to the next section and holds
+# the official correctness table (tab:results-correctness).
 $correctness = ""
-$cTab = $results.IndexOf('\label{tab:results-correctness}')
-if ($cTab -ge 0) {
-    $cEnd = $results.IndexOf('\end{table}', $cTab)
-    if ($cEnd -gt $cTab) { $correctness = $results.Substring($cTab, $cEnd - $cTab) }
+$cSec = $results.IndexOf('\section{Correctness by Configuration}')
+if ($cSec -ge 0 -and $results.IndexOf('\label{tab:results-correctness}', $cSec) -gt $cSec) {
+    $cEnd = $results.IndexOf('\section{', $cSec + 1)
+    if ($cEnd -lt 0) { $cEnd = $results.Length }
+    $correctness = $results.Substring($cSec, $cEnd - $cSec)
 }
-$c0InCorrectness = $correctness.Contains('C0')
+$c0InCorrectness = $correctness.Contains('C0') -and $correctness.Contains('TP-B01')
 $hasC1 = [regex]::IsMatch($results, '(?m)^\s*C1\b')
 $hasC2 = [regex]::IsMatch($results, '(?m)^\s*C2\b')
 $hasC3 = [regex]::IsMatch($results, '(?m)^\s*C3\b')
@@ -192,57 +209,12 @@ $correctnessLower = $correctness.ToLowerInvariant()
 $missingSix = @($sixChecks | Where-Object { $correctnessLower.IndexOf($_.ToLowerInvariant()) -lt 0 })
 Check "correctness table has the six brief checks" ($missingSix.Count -eq 0) "missing: $($missingSix -join ', ')"
 
-# Every data cell (the columns after the row label) must be ---, n/a or
-# --- / --- / ---: no number may leak in before Week 14.
-$cellBad = @()
-$tabScan = 0
-while (($t1 = $results.IndexOf('\begin{tabular}', $tabScan)) -ge 0) {
-    $t2 = $results.IndexOf('\end{tabular}', $t1)
-    if ($t2 -lt 0) { break }
-    $tab = $results.Substring($t1, $t2 - $t1)
-    $tabScan = $t2 + 1
-    $midIdx = $tab.IndexOf('\midrule')
-    $botIdx = $tab.IndexOf('\bottomrule', $midIdx + 1)
-    if ($midIdx -lt 0 -or $botIdx -lt 0) { continue }
-    $data = $tab.Substring($midIdx + '\midrule'.Length, $botIdx - $midIdx - '\midrule'.Length)
-    $data = $data.Replace('\midrule', '')   # a second \midrule can sit inside the data block
-    foreach ($row in ($data -split '\\\\')) {
-        $row = $row.Trim()
-        if ($row -eq '') { continue }
-        $cells = @($row -split '&' | ForEach-Object { $_.Trim() })
-        for ($i = 1; $i -lt $cells.Count; $i++) {
-            $v = $cells[$i]
-            if ($v -ne '---' -and $v -ne 'n/a' -and $v -ne '--- / --- / ---') { $cellBad += $v }
-        }
-    }
-}
-Check "every Results data cell is ---, n/a or --- / --- / ---" ($resultsFound -and $cellBad.Count -eq 0) ((@($cellBad | Select-Object -First 5)) -join ', ')
-
-# Exactly 4 figure environments, each still a \fbox placeholder.
-$figOk = $true; $figCount = 0; $figScan = 0
-while (($f1 = $results.IndexOf('\begin{figure}', $figScan)) -ge 0) {
-    $f2 = $results.IndexOf('\end{figure}', $f1)
-    if ($f2 -lt 0) { $figOk = $false; break }
-    $figCount++
-    if (-not $results.Substring($f1, $f2 - $f1).Contains('\fbox')) { $figOk = $false }
-    $figScan = $f2 + 1
-}
-Check "exactly 4 figure environments, each with a \fbox placeholder" ($figCount -eq 4 -and $figOk) "figures=$figCount"
-
-# Every Results table caption says "To be completed in Week~14".
-$tables = @(); $tblScan = 0
-while (($tb1 = $results.IndexOf('\begin{table}', $tblScan)) -ge 0) {
-    $tb2 = $results.IndexOf('\end{table}', $tb1)
-    if ($tb2 -lt 0) { break }
-    $tables += $results.Substring($tb1, $tb2 - $tb1)
-    $tblScan = $tb2 + 1
-}
-$badCaps = @()
-foreach ($tb in $tables) {
-    $tbNorm = [regex]::Replace($tb, '\s+', ' ')
-    if (-not $tbNorm.Contains('To be completed in Week~14')) { $badCaps += $tb.Substring(0, [Math]::Min(40, $tb.Length)) }
-}
-Check "every Results table caption says 'To be completed in Week~14'" ($tables.Count -gt 0 -and $badCaps.Count -eq 0) "tables=$($tables.Count) missing=$($badCaps -join ' | ')"
+# Retired (TP-P05, docs/test-plan.md): "every Results data cell is ---",
+# "exactly 4 figure environments, each with a box placeholder" and "every
+# Results table caption says 'To be completed in Week~14'". They asserted that
+# the Week 11 templates were still empty; the official results filled them, so
+# they have no successor. The numbers are checked by the Week 14 traceability
+# audit and analyze_official.py instead.
 
 # ------------------------------------------------------------------ 6. no leftover label
 Check "no leftover \unverified{TP-P03}" (-not $tex.Contains('\unverified{TP-P03}'))
@@ -250,5 +222,5 @@ Check "no leftover \unverified{TP-P03}" (-not $tex.Contains('\unverified{TP-P03}
 # ------------------------------------------------------------------ summary
 if ($checks -ne $expectedChecks) { Write-Output "FAIL  only $checks of $expectedChecks checks ran"; exit 1 }
 if ($failures -gt 0) { Write-Output "$failures check(s) failed."; exit 1 }
-Write-Output "All checks passed: the observability text and Results templates match the code and the brief."
+Write-Output "All checks passed: the observability text and the Results chapter match the code and the brief."
 exit 0

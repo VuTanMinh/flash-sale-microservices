@@ -462,9 +462,9 @@ lines += [r"\bottomrule", r"\end{tabular}"]
 open(os.path.join(out, "tab-stages.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
 # correctness: runs that passed each validator check, per configuration
 ck = [("0b", "0b. Run isolation (no data from before the run)"), ("1", "1. Available inventory $\\ge 0$"),
-      ("2", "2. Successful reservations $\\le$ initial inventory"), ("3", "3. One reservation per order"),
-      ("4", "4. A duplicate message never deducts twice"), ("5", "5. Accepted orders terminal (accounting)"),
-      ("6", "6. Queue bound off (C1, C2 only)"), ("7", "7. Status history complete")]
+      ("2", "2. Successful reservations $\\le$ initial inventory"), ("3", "3. One reservation per order (at most one successful reservation)"),
+      ("4", "4. A duplicate message never deducts twice"), ("5", "5. Accepted orders terminal; the states add up to the accepted orders"),
+      ("6", "6. Queue bound off (C1, C2 only)"), ("7", "7. Status history complete (one downstream result applied per order)")]
 groups = [("C1", lambda r: r["config"] == "C1"), ("C2", lambda r: r["config"] == "C2"), ("C3", lambda r: r["config"] == "C3"),
           ("C4", lambda r: r["config"] == "C4")]
 lines = [r"\begin{tabular}{p{6.6cm}cccc}", r"\toprule", r"Check & C1 & C2 & C3 & C4 \\", r"\midrule"]

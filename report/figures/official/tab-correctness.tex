@@ -5,11 +5,11 @@ Check & C1 & C2 & C3 & C4 \\
 0b. Run isolation (no data from before the run) & 9/9 & 9/9 & 12/12 & 36/36 \\
 1. Available inventory $\ge 0$ & 9/9 & 9/9 & 12/12 & 36/36 \\
 2. Successful reservations $\le$ initial inventory & 9/9 & 9/9 & 12/12 & 36/36 \\
-3. One reservation per order & 9/9 & 9/9 & 12/12 & 36/36 \\
+3. One reservation per order (at most one successful reservation) & 9/9 & 9/9 & 12/12 & 36/36 \\
 4. A duplicate message never deducts twice & n/a & 9/9 & 12/12 & 36/36 \\
-5. Accepted orders terminal (accounting) & n/a & 9/9 & 12/12 & 36/36 \\
+5. Accepted orders terminal; the states add up to the accepted orders & n/a & 9/9 & 12/12 & 36/36 \\
 6. Queue bound off (C1, C2 only) & 9/9 & 9/9 & n/a & n/a \\
-7. Status history complete & n/a & 9/9 & 12/12 & 36/36 \\
+7. Status history complete (one downstream result applied per order) & n/a & 9/9 & 12/12 & 36/36 \\
 \midrule
 All checks hold (validator exit 0) & 9/9 & 9/9 & 12/12 & 36/36 \\
 Units over-sold (worst run) & 0 & 0 & 0 & 0 \\
