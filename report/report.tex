@@ -3203,6 +3203,14 @@ result to report, not an error to reconcile away. API throughput and
 business throughput are always reported separately, because an accepted
 request is not a completed order.
 
+An order counts as accepted when its submission got a 2xx response; in every
+run that count equals the orders the database holds after the run
+(\texttt{db\_accepted} in each manifest). Stage intervals and completion
+percentiles come from the stage timestamps of the orders accepted between the
+first and the last submission, which leaves out the few accepted just after
+the last send (at most 0.7\,\% of a run's orders in the official runs and
+1.0\,\% in the supplementary ones).
+
 Every number below comes from the saved runs in
 \nolinkurl{tests/evidence/20261105T104832Z-official/}, and every table
 shows the steady-load, one-hot-product workload of the official matrix. The
@@ -3372,7 +3380,7 @@ ones to read.
 \footnotesize
 \adjustbox{max width=\linewidth}{\input{figures/official/tab-throughput.tex}}
 \caption{Throughput and rates per cell. Achieved is the submission rate
-JMeter reached (/s). Accepted counts unique orders created (C1: requests
+JMeter reached (/s). Accepted counts the 2xx responses, equal to the orders in the database (C1: requests
 decided). Done/s in load is the orders that reached \texttt{Completed} or
 \texttt{Rejected} per second during the 60\,s load (C1: requests decided).
 99\,\% done is the seconds after the last submission until unfinished orders

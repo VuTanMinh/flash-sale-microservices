@@ -22,5 +22,6 @@ OK   "about 5\,\% lower (95.1 against 100.6 a second)" -- 95.1 vs 100.6
 OK   "nearly twice as long (1.4 against 0.74\,s)" -- 1400.0 vs 739.0
 OK   "14.0 orders a second completed during the load against 23.5" -- 14.04 vs 23.48
 OK   "the completion p95 was 58 against 48\,s, and the drain 46 against 32\,s" -- anchor
+OK   "(at most 0.7\,\% of a run's orders in the official runs and 1.0\,\% in the supplementary ones)" -- 0.70 / 0.98; accepted = 2xx in every async run
 0 claim(s) failed.
 Exit code: 0

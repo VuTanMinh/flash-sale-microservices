@@ -247,6 +247,22 @@ for rep in ("rep1", "rep2", "rep3"):
             sr = db.get("stock_rates_pct", {})
             r.update(accepted=db.get("accepted_count"), completed=db.get("completed_count"), pending=db.get("pending_count"),
                      reserved_pct=sr.get("reserved"), stock_rej_pct=sr.get("rejected"))
+            # The extractor counts the orders accepted inside the load window (first to
+            # last submission), which misses orders accepted just after the last send.
+            # Accepted is the 2xx submissions instead, equal to run-matrix's database
+            # count (db_accepted) in every run. When every check holds, every order is
+            # terminal, so the orders outside the window add to Completed one for one
+            # (the window's own Completed already excludes rejections).
+            r["accepted_window"] = r["accepted"]
+            if r["accepted"] is not None:
+                if r["all_hold"] and r.get("completed") is not None:
+                    outside = n2xx - r["accepted"]
+                    rej_outside = 0
+                    if m.get("stock") and int(m["stock"]) < n2xx:
+                        rej_outside = None  # sell-out: rejections outside the window are not known here
+                    r["completed"] = r["completed"] + outside if rej_outside == 0 else r["completed"]
+                r["accepted"] = n2xx
+            assert n2xx == int(m["post"]["db_accepted"]), (rid, n2xx, m["post"]["db_accepted"])
             dec, comp = [], []
             with open(os.path.join(b, "stage-intervals.csv"), encoding="utf-8-sig", newline="") as f:
                 for row in csv.DictReader(f):
@@ -394,6 +410,7 @@ for key, rs in cells.items():
 order = [(cfg, n, rate) for cfg, n, _, _, _ in SERIES for rate in (50, 100, 200, 400) if (cfg, n, rate) in cells]
 with open(os.path.join(out, "runs.csv"), "w", encoding="utf-8", newline="") as f:
     cols = ["rep", "run_id", "config", "replicas", "rate", "status", "validator_exit", "all_hold", "sold", "submissions", "jtl_2xx", "n429", "n503", "other"] + FIELDS
+    cols += ["accepted_window"]
     if SUPP:
         cols += ["stock", "final_stock", "jtl_submissions"]
     w = csv.writer(f)

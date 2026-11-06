@@ -1,0 +1,51 @@
+W14 milestone audit: every Week 14 number in the report chapters 13-15 recomputed from the committed data.
+
+id | verdict | claim | source | recomputed
+13.3a | OK | 22 cells, 3 runs each, 66 runs | runs.csv | 22 cells, 66 runs, counts [3]
+13.3b | OK | 60 s open-loop load, stock 100,000, hosts ran a37f082 | manifests.tgz | durations [60], stock [100000], mode ['open'], commits ['a37f082']
+13.3c | OK | run dates 5 November 2026 | manifests.tgz | ['2026-11-05']
+13.4 | OK | every run passed every applicable check; nothing over-sold | runs.csv all_hold, sold | all hold 66/66, max sold 12003 of 100000
+13.5a | OK | C1 at 50 and 100/s: p50 10-11 ms, p95 30-39 ms | cells.csv api_p50/p95 | p50 [11.0, 10.0], p95 [30.0, 39.0]
+13.5b | OK | C2-C4 at 50/s: p50 35-223 ms, p95 137-791 ms | cells.csv | p50 [51.0, 223.0, 35.0, 106.0, 213.0], p95 [199.0, 504.0, 137.0, 382.0, 791.0]
+13.5c | OK | two vCPUs at 85-99 % during the load from 50/s (C2-C4) | cells.csv cpu_load_mean | (85.4666672313912, 99.07069866562878)
+13.5d | OK | C1's p95 at 200/s 919 ms | cells.csv | 919.0
+13.5e | OK | C2-C4 at 200/s: p50 0.8-1.1 s | cells.csv | [1115.0, 838.0, 822.0, 886.0, 973.0]
+13.5f | OK | C2 at 200/s achieved 168/s | cells.csv achieved | 167.8
+13.5g | OK | 200 threads; about 1.1 s per response gives about 180/s | manifests threads, cells api_p50 | threads [200], 200/1.115 s = 179/s
+13.5h | OK | at 50/s p95 decision 2.0-3.6 s, p95 completion 3.7-15 s | cells.csv dec_p95, comp_p95 | dec [2103.016, 2580.033, 2018.086, 2338.733, 3589.699], comp [4286.803, 10251.652, 3666.708, 5110.205, 14994.664]
+13.5i | OK | C2's p95 completion reaches 120 s at 200/s | cells.csv | 119941.595
+13.5j | OK | C2 at 200/s: unpublished Outbox peak about 8,200 | cells.csv outbox_peak | 8188.0
+13.5k | OK | at 100 and 200/s the largest share is acceptance to publication | cells.csv stage p50 | acc->pub [15188.123, 45388.728], pub->dec [857.288, 33350.608]
+13.6a | OK | C1 and C2 accept every request | runs.csv jtl_2xx vs submissions | 18/18 runs all 2xx
+13.6b-100 | OK | C3/C4 refuse 2.6-11 % at 100/s | cells.csv overload_pct | [3.5, 2.6, 6.0, 11.0]
+13.6b-200 | OK | C3/C4 refuse 63-65 % at 200/s | cells.csv overload_pct | [64.5, 64.2, 62.8, 63.0]
+13.6b-400 | OK | C3/C4 refuse 83-84 % at 400/s | cells.csv overload_pct | [83.3, 82.8, 84.3, 83.8]
+13.6c | OK | no run had any other non-2xx response; every decided order reserved | runs.csv other, reserved_pct | other ['0'], reserved ['100.0']
+13.6d | OK | C2 completed throughput about 50-66 orders/s | cells.csv completed_per_s | [50.5, 65.9, 59.7]
+13.7a | OK | C2 200/s: OrderPlaced queue about 6,000; drains in about 110 s | cells.csv peak_queue, drain_s | queue 5956.0, drain 109.0
+13.7b | OK | at 100/s and above: Outbox summed peak 2,000-3,400 for C3 and C4 one consumer, up to about 4,000 with 2 and 9,400 with 4 | cells.csv outbox_peak | C3,C4r1 at 100-400/s [3060, 2356, 2046, 3364, 2440, 2156]; C4r2,r4 [4025, 3206, 2028, 9379, 6500, 4640]; at 50/s C3 174.0
+13.7c | OK | ready messages at the 1,000 bound; measured depth (ready + unacknowledged) peaked at 1,032 | runs.csv peak_queue | max per run 1032.0
+13.7d | OK | no dead letter: drain within 115 s; 24 of 29 runs with dead letters 302-332 s, 5 in 33-50 s | runs.csv drain_s, dead_lettered | no-DL max 115.0; DL runs 29, long 24 (302.0, 332.0), short (33.0, 50.0)
+13.7e | OK | dead letters per run 2-27 | runs.csv dead_lettered | (2.0, 27.0)
+13.7f | OK | C2 200/s ends with about 9,800 unfinished; 99 % done after 124 s | cells.csv unfinished_at_end, backlog_1pct_s | 9810.0, 124.11650002002716
+13.7g | OK | C3/C4 end with about 3,000-3,700 unfinished; 99 % done after 36-51 s | cells.csv | unfinished [3448, 3205, 3629, 3324, 3709, 3027, 3690, 3155], 99% [43, 36, 45, 38, 49, 36, 51, 46]
+13.7h | OK | stable point in most C3/C4 overload runs about 300-330 s | cells.csv drain_s | [313, 318, 306, 303, 305, 25, 328, 332]
+13.8a | OK | C4 at 100/s: accepted 98 to 90/s, p95 completion 57 to 64 s; at 50/s 3.7 to 15 s | cells.csv | [98.3, 89.9], [57.5, 63.9], [3.7, 15.0]
+13.8b | OK | C4 host CPU 96-99 % at 100/s and above; 85 % with one consumer at 50/s, 99 % with four | cells.csv cpu_load_mean | [98, 96, 98, 98, 98, 99, 99, 98, 99], 50/s r1 85, r4 99
+13.8c | OK | C4 database connections peak 32-70 of 200 | cells.csv db_conn_peak | (32.0, 70.0)
+13.9a | OK | C1 CPU 46-57 % at 50 and 100/s, 88 % at 200/s | cells.csv | [46, 57], 88
+13.9b | OK | every asynchronous configuration 85-99 % already at 50/s | cells.csv | [90, 97, 85, 91, 99]
+13.9c | OK | Redis 0.04-0.06 ms on average | cells.csv redis_ms | (0.03786350817822899, 0.0618336646785951)
+13.9d | OK | database connections peaked at 28-70, limit 200 | cells.csv db_conn_peak | (28.0, 70.0)
+14.1 | OK | between 38 and 3,269 duplicates per run | runs.csv duplicates | (38.0, 3269.0)
+14.2a | OK | C1 p95 30-39 ms against 199-739 ms for C2 (50 and 100/s) | cells.csv | [199.0, 739.0]
+14.2b | OK | C2 load: CPU 90-99 % | cells.csv | [90, 99, 98]
+14.2c | OK | C2 p95 completion 4.3 s, about 48 s, 120 s | cells.csv | [4.3, 47.9, 119.9]
+14.2d | OK | C1 accepted 199/s at 200/s; C2 168/s | cells.csv achieved/accepted_per_s | C1 198.8, C2 accepted/s 168.2
+14.3 | OK | refusals 63-65 % and 83-84 %; 3,000-3,700 unfinished vs 9,800; 99 % done 36-51 s vs 124 s | same as 13.6b, 13.7f, 13.7g | see those rows
+14.4 | OK | replicas: 98 to 90/s, 57 to 64 s, 3.7 to 15 s ("four times"), CPU 96-99 % | same as 13.8a, 13.8b | ratio 4.1x
+14.5 | OK | about 200 requests/s at the API; 50-66 completed orders/s; Redis 0.04-0.06 ms | C1 achieved 198.8; 13.6d; 13.9c | 198.8
+15 | OK | conclusion figures (66 runs, 200/s, 50-66/s, 99 % within a minute, about 300 s) | same as above | see rows above
+
+45 claims: 45 OK, 0 FIX
+Exit code: 0

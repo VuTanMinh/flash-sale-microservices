@@ -62,6 +62,14 @@ claim('about 5¤,¤% lower (95.1 against 100.6 a second)', round(sm('achieved'),
 claim('nearly twice as long (1.4 against 0.74¤,s)', round(sm('api_p95', 1000), 1) == 1.4 and round(float(o['api_p95_median']) / 1000, 2) == 0.74, f"{sm('api_p95')} vs {o['api_p95_median']}")
 claim('14.0 orders a second completed during the load against 23.5', round(sm('done_load_per_s'), 1) == 14.0 and round(float(o['done_load_per_s_median']), 1) == 23.5, f"{sm('done_load_per_s'):.2f} vs {float(o['done_load_per_s_median']):.2f}")
 claim('the completion p95 was 58 against 48¤,s, and the drain 46 against 32¤,s', round(sm('comp_p95', 1000)) == 58 and round(float(o['comp_p95_median']) / 1000) == 48 and sm('drain_s') == 46 and float(o['drain_s_median']) == 32, 'anchor')
+gaps = {}
+for n in ('official', 'supplementary'):
+    rs = list(csv.DictReader(open(repo + rf'\report\figures\{n}\runs.csv', encoding='utf8')))
+    gaps[n] = max((float(r['jtl_2xx']) - float(r['accepted_window'])) / float(r['jtl_2xx']) * 100
+                  for r in rs if r['accepted_window'] not in ('', 'None'))
+    assert all(r['accepted'] == r['jtl_2xx'] for r in rs if r['config'] != 'C1'), n
+claim("(at most 0.7¤,¤% of a run's orders in the official runs and 1.0¤,¤% in the supplementary ones)",
+      round(gaps['official'], 1) == 0.7 and round(gaps['supplementary'], 1) == 1.0, f"{gaps['official']:.2f} / {gaps['supplementary']:.2f}; accepted = 2xx in every async run")
 print(f'{fails} claim(s) failed.')
 print(f'Exit code: {1 if fails else 0}')
 sys.exit(1 if fails else 0)
