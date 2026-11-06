@@ -4074,8 +4074,8 @@ Table~\ref{tab:results-throughput} keeps API throughput apart from business
 throughput. C1 and C2 accept every request, because neither sheds load. C3 and
 C4 refuse part of the load early: 2.6--11\,\% at 100/s (the Outbox-backlog
 admission limit), 63--65\,\% at 200/s and 83--84\,\% at 400/s (the gateway's
-200 requests/s and the admission limits). Every refusal is a 429 or a 503
-with \texttt{Retry-After}; no run had a server error or another non-2xx
+200 requests/s and the admission limits). Every refusal is a 429 from the
+gateway or a 503 with \texttt{Retry-After} from the admission control; no run had a server error or another non-2xx
 response. With 100,000 units the stock never ran out, so every decided order
 was reserved.
 
@@ -4106,14 +4106,16 @@ had any other non-2xx response. Cells: median of 3 runs (range).}
 Table~\ref{tab:results-overload} shows the backlog each configuration built.
 Without load shedding, C2 lets the Outbox grow to about 8,200 rows and the
 \texttt{OrderPlaced} queue to about 6,000 messages at 200/s; it drains them in
-about 110\,s after the load. With the C3 limits the Order Service Outbox is held near its 2,000-row
-admission limit: the summed peak is 2,000--3,400 for C3 and for C4 with one
-consumer, and higher with 2 and 4 consumers, whose Inventory Outboxes add to
-the total. The main queue stays at or below its 1,000-message bound.
+about 110\,s after the load. With the C3 limits, at 100/s and above, the Order Service Outbox is held near
+its 2,000-row admission limit: the summed peak is 2,000--3,400 for C3 and for
+C4 with one consumer, and up to about 4,000 with 2 consumers and 9,400 with 4,
+whose Inventory Outboxes add to the total. The ready messages of the main
+queue stay at its 1,000-message bound; with the messages its consumers hold
+unacknowledged, the measured depth peaked at 1,032.
 
 The drain splits into two groups. Every run without a dead letter drained
 within 115\,s. Every drain longer than that came from a run with dead letters:
-24 of the 29 runs with dead letters drained in 300--332\,s, and the other 5 in
+24 of the 29 runs with dead letters drained in 302--332\,s, and the other 5 in
 33--50\,s. The dead letters are the Process Worker's: when the
 \texttt{StockReserved} queue it publishes to is full, its bounded publish
 retries (1, 2 and 4\,s) run out and the message is dead-lettered. Such an
@@ -4142,7 +4144,7 @@ difference to how fast it recovers.
 
 The stable point, where the matrix's drain check passes, is later in most C3
 and C4 runs: about 300--330\,s. The remaining orders are the handful whose
-\texttt{StockReserved} message the Process Worker dead-lettered (3--27 per
+\texttt{StockReserved} message the Process Worker dead-lettered (2--27 per
 run, Table~\ref{tab:results-reliability}). They are too few to see on the
 figure's scale, and each waits for the reconciliation of
 \texttt{Confirmed} orders after the frozen 300\,s timeout. The last column of
@@ -4355,9 +4357,10 @@ order completed), and they also show its price in latency and CPU.
 \section{Overload control}
 
 \emph{At overload, do the C3 controls reject excess work predictably and
-recover after the load falls?} Yes. At 200 and 400/s, C3 and C4 refused
-63--65\,\% and 83--84\,\% of requests, every refusal a 429 or a 503 with
-\texttt{Retry-After} and never another error (Table~\ref{tab:results-throughput}).
+recover after the load falls?} Yes, at the tested rates on this host. At 200
+and 400/s, C3 and C4 refused 63--65\,\% and 83--84\,\% of requests, every
+refusal a 429 from the gateway or a 503 with \texttt{Retry-After}, and never
+another error (Table~\ref{tab:results-throughput}).
 Refusal kept the backlog bounded: about 3,000--3,700 unfinished orders at the
 end of the load, against 9,800 for C2 at 200/s, and 99\,\% of them were done
 36--51\,s later, against 124\,s for C2 (Table~\ref{tab:results-recovery}). No
