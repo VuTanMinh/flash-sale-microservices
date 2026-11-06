@@ -2237,15 +2237,6 @@ run repeated on a fresh database. 16 checks failed: the retry queues did not
 exist, the early completion was dead-lettered, and that order never reached
 \texttt{Completed}.
 
-\paragraph{How it was built.} DeepSeek Harness wrote the code, the documents
-and the verifier. Claude reviewed and re-ran every result, over three review
-rounds. The reviews found and returned:
-\begin{itemize}
-  \item an unbound retry queue that silently lost the requeued message;
-  \item several verifier defects;
-  \item two hand-off claims that were false.
-\end{itemize}
-
 \section{Failure Handling and Recovery (Week 10)}
 \label{sec:week10}
 
@@ -3388,10 +3379,10 @@ tests ran on. The database passwords on EC2 are generated on the host and
 never leave it.
 
 \paragraph{Who does what.} The owner runs \texttt{terraform apply} and
-\texttt{terraform destroy}. The assistant only reads the account, using a
-read-only identity for \texttt{terraform plan} and checks. It runs commands on
-the two tagged instances through Systems Manager, and can create, change or
-delete nothing.
+\texttt{terraform destroy}. Everything else uses a read-only
+identity: \texttt{terraform plan}, checks, and commands on the two tagged
+instances through Systems Manager. That identity can create, change or delete
+nothing.
 
 \sloppy\paragraph{Evidence (TP-L03, TP-L04).} The offline checker
 \nolinkurl{scripts/verify-deployment.ps1} passes 19 of 19 checks: format and
