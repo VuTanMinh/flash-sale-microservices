@@ -1,0 +1,1323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flash Sale Shop</title>
+<meta name="description" content="Flash-sale demo storefront for the flash-sale microservices project: buy one unit through the real Order API, or run the in-browser simulation when the API is offline.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%227%22 fill=%22%23f97316%22/%3E%3Cpath d=%22M13 3 5 14h6l-1 7 8-11h-6z%22 fill=%22white%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abel&family=Assistant:wght@400;500;600;700;800&family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap">
+<style>
+/* Tokens. Light is the default look of the reference screens: navy blocks, white cards, orange accents. */
+:root {
+  --page: #f5f6f8;
+  --card: #ffffff;
+  --card-2: #f0f2f5;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --navy: #0f172a;
+  --navy-2: #1e293b;
+  --navy-3: #273449;
+  --on-navy: #f8fafc;
+  --on-navy-muted: #a5b1c4;
+  --amber: #f59e0b;
+  --orange: #f97316;
+  --orange-ink: #ffffff;
+  --amber-text: #b45309;
+  --green: #16a34a;
+  --green-soft: #dcfce7;
+  --red: #dc2626;
+  --red-soft: #fee2e2;
+  --blue: #2563eb;
+  --blue-soft: #dbeafe;
+  --pink: #fce7ef;
+  --butter: #fef3c7;
+  --lilac: #ede9fe;
+  --sky: #e0f2fe;
+  --peach: #ffe4d1;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 10px 30px -12px rgba(15, 23, 42, .18);
+  --shadow-lg: 0 2px 4px rgba(15, 23, 42, .06), 0 30px 60px -24px rgba(15, 23, 42, .35);
+  --r-lg: 24px;
+  --r-md: 16px;
+  --f-body: "Assistant", "Lato", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-ui: "Lato", "Assistant", "Segoe UI", system-ui, sans-serif;
+  --f-special: "Abel", "Lato", "Segoe UI", system-ui, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #0b1120; --card: #111a2c; --card-2: #18233a; --ink: #e8edf5; --ink-2: #c4cddb; --muted: #94a3b8; --line: #23304a;
+  --navy: #060b16; --navy-2: #111a2c; --navy-3: #1b2740; --amber-text: #fbbf24;
+  --green: #4ade80; --green-soft: #12301f; --red: #f87171; --red-soft: #3a1717; --blue: #93b4ff; --blue-soft: #18264a;
+  --pink: #3a2030; --butter: #3a311a; --lilac: #2a2545; --sky: #16314a; --peach: #3b2a1f;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -12px rgba(0,0,0,.6); --shadow-lg: 0 30px 60px -24px rgba(0,0,0,.7);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --page: #0b1120; --card: #111a2c; --card-2: #18233a; --ink: #e8edf5; --ink-2: #c4cddb; --muted: #94a3b8; --line: #23304a;
+  --navy: #060b16; --navy-2: #111a2c; --navy-3: #1b2740; --amber-text: #fbbf24;
+  --green: #4ade80; --green-soft: #12301f; --red: #f87171; --red-soft: #3a1717; --blue: #93b4ff; --blue-soft: #18264a;
+  --pink: #3a2030; --butter: #3a311a; --lilac: #2a2545; --sky: #16314a; --peach: #3b2a1f;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -12px rgba(0,0,0,.6); --shadow-lg: 0 30px 60px -24px rgba(0,0,0,.7);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+h1, h2, h3, h4 { font-family: var(--f-ui); margin: 0; line-height: 1.1; text-wrap: balance; }
+p { margin: 0; }
+a { color: inherit; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { width: min(1200px, 100% - 32px); margin-inline: auto; }
+.special { font-family: var(--f-special); letter-spacing: .02em; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---------- top promo ticker */
+.ticker { background: var(--orange); color: #fff; font-family: var(--f-special); font-size: 14px; letter-spacing: .14em; text-transform: uppercase; overflow: hidden; white-space: nowrap; }
+.ticker .run { display: inline-flex; gap: 36px; padding: 7px 0; animation: marquee 38s linear infinite; }
+.ticker .run span::after { content: "✦"; margin-left: 36px; opacity: .8; }
+
+/* ---------- nav */
+.nav { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--navy) 92%, transparent); backdrop-filter: saturate(1.4) blur(12px); color: var(--on-navy); border-bottom: 1px solid rgba(255,255,255,.06); }
+.nav .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--f-ui); font-weight: 900; font-size: 20px; letter-spacing: -.01em; }
+.brand-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, var(--amber), var(--orange)); color: #fff; box-shadow: 0 6px 18px -6px var(--orange); }
+.brand-mark svg { width: 20px; height: 20px; }
+.brand small { font-family: var(--f-special); font-weight: 400; font-size: 13px; color: var(--on-navy-muted); letter-spacing: .08em; margin-left: 2px; }
+.nav-links { display: flex; gap: 4px; margin-left: auto; }
+.nav-links a { text-decoration: none; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--on-navy-muted); padding: 8px 12px; border-radius: 999px; }
+.nav-links a:hover { color: var(--on-navy); background: rgba(255,255,255,.06); }
+.mode { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: var(--on-navy); border-radius: 999px; padding: 6px 12px 6px 10px; font-family: var(--f-ui); font-weight: 700; font-size: 13px; }
+.mode .led { width: 8px; height: 8px; border-radius: 50%; background: var(--on-navy-muted); }
+.mode.live .led { background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.18); }
+.mode.sim .led { background: var(--amber); }
+.mode.probe .led { animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.theme-btn { border: 0; background: transparent; color: var(--on-navy-muted); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
+.theme-btn:hover { background: rgba(255,255,255,.08); color: var(--on-navy); }
+.theme-btn svg { width: 18px; height: 18px; }
+@media (max-width: 860px) { .nav-links { display: none; } .mode { margin-left: auto; } }
+
+/* ---------- hero carousel */
+.hero { background: var(--navy); color: var(--on-navy); position: relative; overflow: hidden; padding-bottom: 28px; }
+.hero::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(600px 300px at 85% 10%, rgba(249,115,22,.22), transparent 70%),
+  radial-gradient(500px 320px at 5% 90%, rgba(37,99,235,.18), transparent 70%); pointer-events: none; }
+.carousel { position: relative; padding-top: 28px; }
+.viewport { overflow: hidden; border-radius: var(--r-lg); }
+.track { display: flex; transition: transform .7s cubic-bezier(.65, 0, .25, 1); }
+.slide { flex: 0 0 100%; min-height: 380px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: center; gap: 24px; padding: 40px 48px; border-radius: var(--r-lg); position: relative; overflow: hidden; }
+.slide.s-peach { background: linear-gradient(120deg, #1e293b 0%, #1e293b 46%, #fdba74 46%, #fed7aa 100%); }
+.slide.s-navy { background: linear-gradient(140deg, #1e293b, #0f172a 70%); border: 1px solid rgba(255,255,255,.06); }
+.slide.s-amber { background: linear-gradient(120deg, #1e293b 0%, #1e293b 50%, #fcd34d 50%, #fbbf24 100%); }
+.slide.s-sky { background: linear-gradient(120deg, #1e293b 0%, #1e293b 50%, #bae6fd 50%, #93c5fd 100%); }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--f-special); font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
+.eyebrow::before { content: ""; width: 22px; height: 2px; background: currentColor; }
+.slide h2 { font-size: clamp(30px, 4.2vw, 52px); font-weight: 900; letter-spacing: -.02em; margin: 12px 0 14px; }
+.slide p.lead { color: var(--on-navy-muted); font-size: 18px; max-width: 46ch; }
+.slide .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.comic { display: inline-block; font-family: "Lato", var(--f-ui); font-weight: 900; text-transform: uppercase; line-height: .86; letter-spacing: -.01em;
+  font-size: clamp(54px, 8.4vw, 116px); color: #fff; transform: rotate(-6deg); transform-origin: left center;
+  -webkit-text-stroke: 3px var(--navy); paint-order: stroke fill;
+  text-shadow: 5px 5px 0 var(--orange), 10px 10px 0 #0b1222; margin: 18px 0 22px 4px; }
+.comic .alt { color: var(--amber); }
+.comic.sm { font-size: clamp(44px, 6.4vw, 88px); }
+.slide-art { position: relative; display: grid; place-items: center; min-height: 280px; }
+.slide-art svg.art { width: min(100%, 380px); height: auto; filter: drop-shadow(0 30px 40px rgba(15,23,42,.35)); }
+.sticker { position: absolute; font-family: var(--f-ui); font-weight: 900; color: #fff; background: var(--orange); border-radius: 999px; padding: 10px 16px; transform: rotate(8deg); box-shadow: 0 10px 24px -8px rgba(249,115,22,.7); font-size: 18px; line-height: 1; text-align: center; }
+.sticker small { display: block; font-family: var(--f-special); font-weight: 400; font-size: 12px; letter-spacing: .12em; opacity: .95; }
+.c-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.dots { display: flex; gap: 8px; }
+.dots button { width: 10px; height: 10px; border-radius: 999px; border: 0; background: rgba(255,255,255,.25); padding: 0; transition: width .3s, background .3s; }
+.dots button[aria-current="true"] { width: 34px; background: var(--amber); }
+.c-btns { display: flex; gap: 8px; }
+.round { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04); color: var(--on-navy); display: grid; place-items: center; }
+.round:hover { background: rgba(255,255,255,.1); }
+.round svg { width: 18px; height: 18px; }
+@media (max-width: 860px) {
+  .slide { grid-template-columns: 1fr; padding: 28px 22px 24px; min-height: 0; gap: 8px; }
+  .slide.s-peach, .slide.s-amber, .slide.s-sky { background: linear-gradient(180deg, #1e293b 0%, #1e293b 64%, var(--bandc, #fdba74) 64%); }
+  .slide.s-peach { --bandc: #fdba74; } .slide.s-amber { --bandc: #fcd34d; } .slide.s-sky { --bandc: #93c5fd; }
+  .slide-art { min-height: 200px; } .slide-art svg.art { width: min(78%, 280px); }
+  .slide p.lead { font-size: 16px; }
+}
+
+/* ---------- wallet-like status strip inside the navy block */
+.strip { margin-top: 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--navy-2); border: 1px solid rgba(255,255,255,.07); border-radius: var(--r-md); overflow: hidden; }
+.strip > div { padding: 14px 18px; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.strip > div + div { border-left: 1px solid rgba(255,255,255,.07); }
+.strip .ic { width: 38px; height: 38px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--navy-3); color: var(--amber); }
+.strip .ic svg { width: 20px; height: 20px; }
+.strip .k { font-size: 13px; color: var(--on-navy-muted); }
+.strip .v { font-family: var(--f-ui); font-weight: 900; font-size: 20px; color: var(--on-navy); line-height: 1.1; }
+@media (max-width: 760px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .strip > div:nth-child(3) { border-left: 0; } .strip > div:nth-child(n+3) { border-top: 1px solid rgba(255,255,255,.07); } }
+
+/* ---------- section headers */
+section.block { padding: 64px 0 8px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 24px; margin-bottom: 22px; }
+.sec-head h2 { font-size: clamp(28px, 3.4vw, 42px); font-weight: 900; letter-spacing: -.02em; }
+.sec-head p { color: var(--muted); max-width: 60ch; margin-top: 6px; }
+.kicker { font-family: var(--f-special); text-transform: uppercase; letter-spacing: .18em; font-size: 14px; color: var(--orange); display: block; margin-bottom: 8px; }
+
+/* ---------- flash sale screen */
+.fs-top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.fs-title { display: flex; align-items: center; gap: 12px; }
+.fs-title h2 { font-size: clamp(30px, 3.6vw, 44px); }
+.bolt-badge { width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, var(--amber), var(--orange)); color: #fff; box-shadow: 0 8px 20px -8px var(--orange); display: grid; place-items: center; transform: rotate(-8deg); }
+.bolt-badge svg { width: 24px; height: 24px; }
+.clock { display: inline-flex; align-items: center; gap: 8px; background: var(--navy); color: var(--amber); border-radius: 999px; padding: 8px 14px 8px 10px; font-family: var(--f-ui); font-weight: 900; font-size: 17px; letter-spacing: .04em; }
+.clock svg { width: 18px; height: 18px; }
+.clock small { font-family: var(--f-special); font-weight: 400; font-size: 13px; letter-spacing: .1em; color: var(--on-navy-muted); text-transform: uppercase; margin-right: 2px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 22px; }
+.pill-btn { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 16px; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--ink-2); transition: border-color .2s, background .2s, color .2s; }
+.pill-btn:hover { border-color: var(--ink-2); }
+.pill-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--page); }
+.pill-btn:disabled { opacity: .45; cursor: not-allowed; }
+.scenario-note { color: var(--muted); font-size: 15px; margin: -10px 0 22px; max-width: 80ch; }
+
+.fs-grid { display: grid; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 980px) { .fs-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.card { background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow); border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.product { overflow: hidden; }
+.p-media { position: relative; background: var(--peach); aspect-ratio: 5 / 4; display: grid; place-items: center; overflow: hidden; }
+.p-media::after { content: ""; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.45); z-index: 0; }
+:root[data-theme="dark"] .p-media::after { background: rgba(255,255,255,.07); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .p-media::after { background: rgba(255,255,255,.07); } }
+.p-media svg.art { width: 62%; position: relative; z-index: 1; filter: drop-shadow(0 22px 26px rgba(15,23,42,.22)); }
+.badge { position: absolute; top: 16px; left: 16px; z-index: 2; background: var(--orange); color: var(--orange-ink); font-family: var(--f-ui); font-weight: 900; border-radius: 10px; padding: 6px 10px; font-size: 15px; box-shadow: 0 6px 16px -6px rgba(249,115,22,.8); }
+.heart { position: absolute; top: 14px; right: 14px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card); color: var(--ink-2); display: grid; place-items: center; box-shadow: var(--shadow); }
+.heart svg { width: 20px; height: 20px; }
+.heart[aria-pressed="true"] { color: #e11d48; }
+.heart[aria-pressed="true"] svg path { fill: currentColor; }
+.state-tag { position: absolute; bottom: 16px; left: 16px; z-index: 2; font-family: var(--f-special); text-transform: uppercase; letter-spacing: .14em; font-size: 13px; background: var(--navy); color: #fff; border-radius: 999px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 8px; }
+.state-tag .led { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+.state-tag.live .led { background: #22c55e; animation: blink 1.2s infinite; }
+.state-tag.soldout { background: #475569; }
+.p-body { padding: 22px 24px 24px; display: grid; gap: 16px; }
+.p-name { font-family: var(--f-ui); font-weight: 900; font-size: 24px; letter-spacing: -.01em; }
+.p-sku { font-family: var(--f-special); color: var(--muted); font-size: 14px; letter-spacing: .06em; }
+.price-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.price-now { font-family: var(--f-ui); font-weight: 900; font-size: 32px; color: var(--orange); }
+.price-was { color: var(--muted); text-decoration: line-through; font-size: 17px; }
+.sold-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 15px; }
+.sold-row b { font-family: var(--f-ui); color: var(--amber-text); }
+.meter { height: 10px; border-radius: 999px; background: var(--card-2); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 999px; background: var(--navy); transition: width .45s ease; position: relative; }
+:root[data-theme="dark"] .meter > span { background: var(--amber); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .meter > span { background: var(--amber); } }
+.buy { width: 100%; border: 0; border-radius: 18px; padding: 17px 20px; background: var(--navy); color: #fff; font-family: var(--f-ui); font-weight: 900; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(15,23,42,.7); transition: transform .08s ease, background .2s; position: relative; overflow: hidden; }
+:root[data-theme="dark"] .buy { background: var(--orange); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .buy { background: var(--orange); } }
+.buy svg { width: 20px; height: 20px; }
+.buy:hover:not(:disabled) { background: #1e293b; }
+.buy:active:not(:disabled) { transform: scale(.985); }
+.buy:disabled, :root .buy:disabled, :root:not([data-theme="light"]) .buy:disabled { cursor: not-allowed; background: var(--card-2); color: var(--muted); box-shadow: none; }
+.buy.busy::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); transform: translateX(-100%); animation: shimmer 1.3s infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
+.fine { font-size: 13px; color: var(--muted); }
+
+.note { border-radius: 14px; padding: 12px 14px; font-size: 15px; display: grid; gap: 6px; }
+.note b { font-family: var(--f-ui); }
+.note.warn { background: var(--butter); color: var(--amber-text); }
+.note.bad { background: var(--red-soft); color: var(--red); }
+.note.ok { background: var(--green-soft); color: var(--green); }
+.note.info { background: var(--blue-soft); color: var(--blue); }
+.backoff { height: 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 22%, transparent); overflow: hidden; }
+.backoff > span { display: block; height: 100%; background: currentColor; }
+
+/* order tracking card, styled like a transaction list */
+.track-card { padding: 20px 22px; display: grid; gap: 14px; }
+.track-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.track-head h3 { font-size: 18px; font-weight: 900; }
+.status { font-family: var(--f-ui); font-weight: 900; font-size: 14px; }
+.status.pending { color: var(--amber-text); } .status.done { color: var(--green); } .status.bad { color: var(--red); } .status.info { color: var(--blue); }
+.tx { list-style: none; margin: 0; padding: 0; display: grid; }
+.tx li { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; }
+.tx li + li { border-top: 1px dashed var(--line); }
+.tx .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
+.tx .ic svg { width: 20px; height: 20px; }
+.tx li.done .ic { background: var(--green-soft); color: var(--green); }
+.tx li.now .ic { background: var(--butter); color: var(--amber-text); animation: ring 1.4s infinite; }
+.tx li.fail .ic { background: var(--red-soft); color: var(--red); }
+@keyframes ring { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 22%, transparent); } }
+.tx .t { font-family: var(--f-ui); font-weight: 700; font-size: 15px; }
+.tx .s { font-size: 13px; color: var(--muted); }
+.tx .r { text-align: right; font-size: 13px; }
+.tx .r b { display: block; font-family: var(--f-ui); font-size: 13px; }
+.tx li.done .r b { color: var(--green); } .tx li.now .r b { color: var(--amber-text); } .tx li.fail .r b { color: var(--red); } .tx li.todo .r b { color: var(--muted); font-weight: 400; }
+.ids { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: grid; gap: 2px; word-break: break-all; background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.ghost { border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 9px 14px; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--ink-2); }
+.ghost:hover { border-color: var(--ink-2); }
+.ghost:disabled { opacity: .5; cursor: not-allowed; }
+.cta { border: 0; border-radius: 16px; padding: 14px 22px; font-family: var(--f-ui); font-weight: 900; font-size: 16px; background: var(--orange); color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(249,115,22,.9); }
+.cta:hover { background: #ea580c; }
+.cta.dark { background: #fff; color: var(--navy); box-shadow: none; }
+.cta.dark:hover { background: #e2e8f0; }
+.cta svg { width: 18px; height: 18px; }
+
+/* pipeline side */
+.sys { padding: 22px; display: grid; gap: 18px; min-width: 0; }
+.sys-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sys-head h3 { font-size: 20px; font-weight: 900; }
+.chip { font-family: var(--f-special); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; border-radius: 999px; padding: 4px 10px; background: var(--card-2); color: var(--muted); }
+.chip.live { background: var(--green-soft); color: var(--green); }
+.chip.sim { background: var(--butter); color: var(--amber-text); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
+@media (max-width: 600px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+.kpi { border-radius: 16px; padding: 12px 14px; background: var(--card-2); }
+.kpi:nth-child(1) { background: var(--sky); } .kpi:nth-child(2) { background: var(--pink); } .kpi:nth-child(3) { background: var(--butter); } .kpi:nth-child(4) { background: var(--lilac); } .kpi:nth-child(5) { background: var(--green-soft); }
+.kpi .k { font-size: 13px; color: var(--ink-2); }
+.kpi .v { font-family: var(--f-ui); font-weight: 900; font-size: 26px; line-height: 1.15; }
+.kpi .v small { font-family: var(--f-body); font-size: 13px; font-weight: 600; color: var(--muted); }
+.pipe { display: grid; gap: 0; }
+.stage { display: grid; grid-template-columns: 46px minmax(0, 1fr) minmax(0, 210px); gap: 14px; align-items: center; padding: 12px 14px; border-radius: 16px; border: 1.5px solid var(--line); position: relative; transition: border-color .25s, background .25s, box-shadow .25s; }
+.stage.here { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 7%, var(--card)); box-shadow: 0 10px 26px -16px rgba(249,115,22,.7); }
+.stage .logo { width: 46px; height: 46px; border-radius: 14px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; position: relative; }
+.stage .logo svg { width: 26px; height: 26px; }
+.stage .logo .sub { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; border-radius: 8px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; }
+.stage .logo .sub svg { width: 15px; height: 15px; }
+.stage h4 { font-size: 15px; font-weight: 900; }
+.stage .what { font-size: 13px; color: var(--muted); line-height: 1.4; }
+.stage .nums { font-family: var(--f-mono); font-size: 12px; display: grid; gap: 3px; font-variant-numeric: tabular-nums; }
+.stage .nums .bad { color: var(--red); } .stage .nums .ok { color: var(--green); }
+.you { position: absolute; top: -11px; right: 12px; background: var(--orange); color: #fff; font-family: var(--f-special); letter-spacing: .1em; text-transform: uppercase; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+.link { height: 22px; margin-left: 36px; border-left: 2px dashed var(--line); display: flex; align-items: center; padding-left: 26px; font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.qbar { height: 6px; background: var(--card-2); border-radius: 4px; overflow: hidden; }
+.qbar > span { display: block; height: 100%; background: var(--orange); transition: width .25s; }
+@media (max-width: 600px) { .stage { grid-template-columns: 46px minmax(0, 1fr); } .stage .nums { grid-column: 1 / -1; } .link { margin-left: 22px; } }
+.log { background: var(--navy); color: #cbd5e1; border-radius: 16px; padding: 12px 14px; font-family: var(--f-mono); font-size: 12px; max-height: 220px; overflow: auto; display: grid; gap: 3px; }
+.log div { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; }
+.log time { color: #64748b; }
+.log .src { color: var(--amber); }
+.log .e-bad { color: #fca5a5; } .log .e-ok { color: #86efac; }
+.offline { display: grid; gap: 8px; }
+
+/* more in this drop */
+.drop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
+@media (max-width: 980px) { .drop { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { overflow: hidden; }
+.tile .p-media { aspect-ratio: 1; }
+.tile .p-media svg.art { width: 58%; }
+.tile .badge { font-size: 13px; padding: 4px 8px; top: 12px; left: 12px; }
+.tile .heart { width: 34px; height: 34px; top: 10px; right: 10px; }
+.tile .heart svg { width: 17px; height: 17px; }
+.tile .body { padding: 14px 16px 16px; display: grid; gap: 6px; }
+.tile .nm { font-family: var(--f-ui); font-weight: 700; font-size: 16px; }
+.tile .pr { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.tile .pr b { font-family: var(--f-ui); font-weight: 900; color: var(--orange); font-size: 18px; }
+.tile .pr s { color: var(--muted); font-size: 13px; }
+.tile .soon { font-family: var(--f-special); letter-spacing: .1em; text-transform: uppercase; font-size: 12px; color: var(--muted); }
+
+/* stack marquee */
+.stack { background: var(--navy); color: var(--on-navy); margin-top: 72px; padding: 56px 0 60px; overflow: hidden; position: relative; }
+.stack .sec-head p { color: var(--on-navy-muted); }
+.stack .sec-head h2 { color: #fff; }
+.marquee { position: relative; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.marquee + .marquee { margin-top: 14px; }
+.m-run { display: flex; gap: 14px; width: max-content; animation: marquee 46s linear infinite; }
+.marquee.rev .m-run { animation-direction: reverse; animation-duration: 52s; }
+.marquee:hover .m-run, .marquee:focus-within .m-run { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+.tech { display: flex; align-items: center; gap: 12px; background: #fff; color: var(--navy); border-radius: 18px; padding: 12px 18px 12px 12px; min-width: 210px; }
+.tech .lg { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: #f1f5f9; flex: none; }
+.tech .lg svg { width: 26px; height: 26px; }
+.tech .lg .abp { font-family: var(--f-ui); font-weight: 900; font-size: 13px; color: #fff; background: #e1251b; border-radius: 7px; padding: 4px 5px; letter-spacing: .02em; }
+.tech b { font-family: var(--f-ui); font-weight: 900; font-size: 15px; display: block; line-height: 1.2; }
+.tech span { font-size: 13px; color: #475569; }
+.stack-pause { margin-top: 18px; border: 1px solid rgba(255,255,255,.16); background: transparent; color: var(--on-navy-muted); border-radius: 999px; padding: 6px 14px; font-family: var(--f-ui); font-weight: 700; font-size: 13px; }
+.stack.paused .m-run { animation-play-state: paused; }
+
+/* how it works + measured */
+.steps3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 860px) { .steps3 { grid-template-columns: minmax(0, 1fr); } }
+.step { padding: 24px; display: grid; gap: 10px; align-content: start; }
+.step .num { font-family: var(--f-special); font-size: 15px; letter-spacing: .14em; color: var(--orange); }
+.step h3 { font-size: 21px; font-weight: 900; }
+.step p { color: var(--muted); font-size: 15px; }
+.step .logos { display: flex; gap: 8px; margin-top: 4px; }
+.step .logos span { width: 36px; height: 36px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; }
+.step .logos svg { width: 20px; height: 20px; }
+.measured { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 980px) { .measured { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .measured { grid-template-columns: minmax(0, 1fr); } }
+.stat { padding: 22px; display: grid; gap: 6px; align-content: start; }
+.stat .big { font-family: var(--f-ui); font-weight: 900; font-size: clamp(34px, 3.6vw, 46px); letter-spacing: -.02em; line-height: 1; }
+.stat .big .arrow { color: var(--orange); }
+.stat .lbl { font-family: var(--f-ui); font-weight: 700; }
+.stat p { color: var(--muted); font-size: 14px; }
+.stat:nth-child(1) { background: var(--sky); } .stat:nth-child(2) { background: var(--butter); } .stat:nth-child(3) { background: var(--pink); } .stat:nth-child(4) { background: var(--lilac); }
+.src-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+/* footer + mobile tab bar */
+footer { margin-top: 72px; padding: 30px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.tabbar { display: none; }
+@media (max-width: 720px) {
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .tabbar { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 40; background: var(--navy); border-radius: 22px; padding: 8px; box-shadow: var(--shadow-lg); }
+  .tabbar a { display: grid; justify-items: center; gap: 2px; text-decoration: none; color: var(--on-navy-muted); font-family: var(--f-ui); font-weight: 700; font-size: 11px; padding: 6px 0; border-radius: 14px; }
+  .tabbar a svg { width: 22px; height: 22px; }
+  .tabbar a.on { color: #fff; background: rgba(255,255,255,.08); }
+  .tabbar a.on svg { color: var(--amber); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .m-run { flex-wrap: wrap; width: auto; justify-content: center; }
+  .m-run [data-dup] { display: none; }
+  .marquee { -webkit-mask-image: none; mask-image: none; }
+  .ticker .run { white-space: normal; padding-inline: 16px; }
+  .ticker .run [data-dup] { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<noscript><p style="padding:24px">This page needs JavaScript.</p></noscript>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/x-tsx" id="app-src">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* Simple Icons (CC0), version 13.21.0, inlined so the page needs no icon CDN. */
+const ICONS: Record<string, { slug: string; title: string; hex: string; d: string }> = Object.fromEntries(([{"slug":"dotnet","title":".NET","hex":"512BD4","d":"M24 8.77h-2.468v7.565h-1.425V8.77h-2.462V7.53H24zm-6.852 7.565h-4.821V7.53h4.63v1.24h-3.205v2.494h2.953v1.234h-2.953v2.604h3.396zm-6.708 0H8.882L4.78 9.863a2.896 2.896 0 0 1-.258-.51h-.036c.032.189.048.592.048 1.21v5.772H3.157V7.53h1.659l3.965 6.32c.167.261.275.442.323.54h.024c-.04-.233-.06-.629-.06-1.185V7.529h1.372zm-8.703-.693a.868.829 0 0 1-.869.829.868.829 0 0 1-.868-.83.868.829 0 0 1 .868-.828.868.829 0 0 1 .869.829Z"},{"slug":"postgresql","title":"PostgreSQL","hex":"4169E1","d":"M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"},{"slug":"redis","title":"Redis","hex":"FF4438","d":"M22.71 13.145c-1.66 2.092-3.452 4.483-7.038 4.483-3.203 0-4.397-2.825-4.48-5.12.701 1.484 2.073 2.685 4.214 2.63 4.117-.133 6.94-3.852 6.94-7.239 0-4.05-3.022-6.972-8.268-6.972-3.752 0-8.4 1.428-11.455 3.685C2.59 6.937 3.885 9.958 4.35 9.626c2.648-1.904 4.748-3.13 6.784-3.744C8.12 9.244.886 17.05 0 18.425c.1 1.261 1.66 4.648 2.424 4.648.232 0 .431-.133.664-.365a100.49 100.49 0 0 0 5.54-6.765c.222 3.104 1.748 6.898 6.014 6.898 3.819 0 7.604-2.756 9.33-8.965.2-.764-.73-1.361-1.261-.73zm-4.349-5.013c0 1.959-1.926 2.922-3.685 2.922-.941 0-1.664-.247-2.235-.568 1.051-1.592 2.092-3.225 3.21-4.973 1.972.334 2.71 1.43 2.71 2.619z"},{"slug":"rabbitmq","title":"RabbitMQ","hex":"FF6600","d":"M23.035 9.601h-7.677a.956.956 0 01-.962-.962V.962a.956.956 0 00-.962-.956H10.56a.956.956 0 00-.962.956V8.64a.956.956 0 01-.962.962H5.762a.956.956 0 01-.961-.962V.962A.956.956 0 003.839 0H.959a.956.956 0 00-.956.962v22.076A.956.956 0 00.965 24h22.07a.956.956 0 00.962-.962V10.58a.956.956 0 00-.962-.98zm-3.86 8.152a1.437 1.437 0 01-1.437 1.443h-1.924a1.437 1.437 0 01-1.436-1.443v-1.917a1.437 1.437 0 011.436-1.443h1.924a1.437 1.437 0 011.437 1.443z"},{"slug":"nginx","title":"NGINX","hex":"009639","d":"M12 0L1.605 6v12L12 24l10.395-6V6L12 0zm6 16.59c0 .705-.646 1.29-1.529 1.29-.631 0-1.351-.255-1.801-.81l-6-7.141v6.66c0 .721-.57 1.29-1.274 1.29H7.32c-.721 0-1.29-.6-1.29-1.29V7.41c0-.705.63-1.29 1.5-1.29.646 0 1.38.255 1.83.81l5.97 7.141V7.41c0-.721.6-1.29 1.29-1.29h.075c.72 0 1.29.6 1.29 1.29v9.18H18z"},{"slug":"docker","title":"Docker","hex":"2496ED","d":"M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"},{"slug":"apachejmeter","title":"Apache JMeter","hex":"D22128","d":"M4.35 7.79s-.247-.4-.537-.228c-.14.084-.374.318-.653.658l.257.484a6.28 6.28 0 0 1 .517-.653c-.079.09-.246.298-.484.662.334-.023.666-.064.996-.123.099-.549-.096-.8-.096-.8zm-.386.228.022-.024zM.91 14.02a45.295 45.295 0 0 0-.774 2.33.198.198 0 0 1-.136.132c.23-.76.458-1.476.687-2.124-.143-.033-.346.007-.594.11.17-.13.339-.242.5-.252-.051-.011-.183-.057-.36-.22.169.063.316.094.422.072-.022-.282-.174-.57-.374-.86-.001-.002.28.161.383.33l.002-.023c.017-.22.048-.438.093-.654v-.002c.034-.174.076-.348.127-.522l.066-.223c.028-.087.06-.176.093-.27.11-.301.235-.596.375-.884l.036-.072c.128-.257.264-.511.408-.76.076-.133.154-.262.231-.39.007-.007.011-.017.017-.026L2.11 9.71l.008-.013c.236-.38.488-.75.754-1.108a8.36 8.36 0 0 1 .229-.296l.058-.072.256.482a10.46 10.46 0 0 0-.268.404c-.172.276-.335.559-.487.846l-.217.414-.222-.439.22.44-.007.015c-.044.09-.09.18-.133.27a6.9 6.9 0 0 0-.077.16l-.206.444a42.824 42.824 0 0 0-.57 1.344l-.18.457a6.523 6.523 0 0 1-.04.103c-.044.121-.091.239-.134.357v.004l-.033.088-.141.381-.01.029zm3.235-4.623a4.98 4.98 0 0 1-.334.562c-.106.149-.216.25-.457.363l.022-.004c.002-.002.003-.002.006-.002.125-.023.28-.074.37-.127a.184.184 0 0 0 .036-.024.846.846 0 0 1-.02.089c-.006.025-.016.054-.026.085l-.012.033-.036.092a2.985 2.985 0 0 1-.102.226c-.008.019-.018.038-.028.057l-.024.039a.85.85 0 0 1-.084.116l-.04.044a1.2 1.2 0 0 1-.113.101 1.231 1.231 0 0 1-.27.151l.017-.002.064-.011c.129-.031.251-.085.361-.16-.138.275-.326.497-.628.612l.052-.007.05-.011a.998.998 0 0 0 .254-.087 6.74 6.74 0 0 1-.18.492c-.071.174-.145.33-.225.47a2.577 2.577 0 0 1-.35.487c-.276.298-.705.54-1.027.58l.016.003c.366.076.745-.047.996-.324a2.685 2.685 0 0 1-.106.187c-.148.24-.318.386-.654.537.23.013.35-.041.448-.165a1.414 1.414 0 0 1-.052.1c-.215.356-.634.478-1.117.456a.54.54 0 0 1 .174.37c-.074-.134-.152-.251-.251-.297l.116-.334a.523.523 0 0 1 .02-.054v-.006l.132-.37a.837.837 0 0 0 .026-.07l.003-.01.17-.454.007-.022.168-.435c.061-.159.124-.312.184-.46.123-.301.25-.6.382-.897.052-.116.101-.228.152-.336l.05-.108.097-.205c.028-.063.059-.122.088-.183l.027-.058c.002-.002.003-.006.002-.011l.006-.001c.074-.15.143-.291.213-.423.15-.29.309-.576.474-.857l.013-.023c.088-.148.171-.28.246-.396.333-.023.665-.064.995-.12-.011.052-.022.107-.038.165a2.966 2.966 0 0 1-.075.225 4.142 4.142 0 0 1-.187.413h-.001zm2.351.674v4.596c0 .28-.041.527-.125.732a1.337 1.337 0 0 1-.35.512 1.37 1.37 0 0 1-.531.3c-.203.063-.43.095-.674.095a2.728 2.728 0 0 1-.659-.074.063.063 0 0 1-.046-.06v-.842a.063.063 0 0 1 .076-.062c.077.018.162.033.25.045.162.024.376.03.54-.01a.48.48 0 0 0 .332-.29.826.826 0 0 0 .052-.313v-4.63c0-.035.027-.063.062-.063h1.01c.036 0 .063.028.063.063zm8.588 1.44a1.352 1.352 0 0 0-.518-.334 1.887 1.887 0 0 0-.675-.114c-.254 0-.49.041-.702.125-.208.082-.395.21-.545.377a1.75 1.75 0 0 0-.35.619 2.704 2.704 0 0 0-.123.859c0 .32.044.606.135.848.092.24.222.443.386.603.164.157.364.276.59.355a2.3 2.3 0 0 0 .742.118c.143 0 .267-.005.377-.015a2.33 2.33 0 0 0 .61-.13c.095-.033.187-.074.273-.12a.06.06 0 0 0 .033-.055v-.77a.063.063 0 0 0-.09-.055 2.505 2.505 0 0 1-.827.265c-.102.01-.204.015-.307.014a.907.907 0 0 1-.332-.055.703.703 0 0 1-.243-.162.797.797 0 0 1-.155-.263 1.168 1.168 0 0 1-.058-.295h2.157a.063.063 0 0 0 .063-.062v-.483a2.126 2.126 0 0 0-.114-.725 1.462 1.462 0 0 0-.327-.544zm-1.758 1.029c.022-.216.081-.377.176-.478a.518.518 0 0 1 .395-.167.55.55 0 0 1 .246.052c.07.033.13.083.176.144a.647.647 0 0 1 .105.22c.02.071.033.148.038.229h-1.136zm10.673-1.387v.934a.062.062 0 0 1-.077.06.727.727 0 0 0-.254-.027l-.08-.004c-.121 0-.233.016-.337.047a.636.636 0 0 0-.253.145.672.672 0 0 0-.163.264c-.039.11-.059.248-.059.411v1.856a.063.063 0 0 1-.063.063h-.994a.063.063 0 0 1-.063-.063v-3.645c0-.035.028-.063.063-.063h.753c.028 0 .053.02.06.046l.124.462c.04-.067.085-.13.133-.191a.932.932 0 0 1 .487-.338 1.14 1.14 0 0 1 .434-.044c.033 0 .065 0 .096.006a.76.76 0 0 1 .084.011.279.279 0 0 1 .066.011.061.061 0 0 1 .044.059h-.001zm-5.956 2.794a.06.06 0 0 1 .027.05v.741a.06.06 0 0 1-.033.055 1.524 1.524 0 0 1-.364.125c-.304.068-.62.066-.924-.008a.91.91 0 0 1-.381-.207 1.036 1.036 0 0 1-.256-.397 1.819 1.819 0 0 1-.088-.608V12h-.414a.063.063 0 0 1-.062-.062v-.42a.06.06 0 0 1 .03-.053l.529-.323.28-.75a.062.062 0 0 1 .058-.04h.636c.035 0 .062.028.062.063v.714h.825c.034 0 .063.028.063.062v.747a.063.063 0 0 1-.063.063h-.825v1.695c0 .124.029.214.085.268a.315.315 0 0 0 .231.084c.094 0 .181-.011.263-.03.089-.022.177-.05.264-.08a.062.062 0 0 1 .057.007v.001zm-6.105-3.876v4.77a.063.063 0 0 1-.062.061h-.943a.063.063 0 0 1-.063-.063v-2.45l.014-.473.01-.242.008-.187-1.018 3.37a.062.062 0 0 1-.06.044h-.93a.063.063 0 0 1-.06-.044l-.929-3.32a24.947 24.947 0 0 1 .033.88c.003.074.005.142.005.204v2.218a.063.063 0 0 1-.063.063h-.903a.063.063 0 0 1-.063-.063V10.07c0-.034.027-.063.062-.063h1.376c.03 0 .053.02.061.047l.981 3.473 1.046-3.474a.063.063 0 0 1 .06-.044h1.376c.034 0 .062.027.062.061zm9.135 1.44a1.351 1.351 0 0 0-.517-.334 1.886 1.886 0 0 0-.676-.114c-.253 0-.49.041-.701.125-.208.082-.395.21-.545.377a1.75 1.75 0 0 0-.35.619c-.087.278-.13.568-.124.859 0 .32.046.606.135.848.093.24.223.443.387.603.164.157.364.276.59.355a2.3 2.3 0 0 0 .742.118c.143 0 .266-.005.376-.015a2.306 2.306 0 0 0 .884-.25.06.06 0 0 0 .033-.055v-.77a.063.063 0 0 0-.09-.055 2.5 2.5 0 0 1-.828.265c-.101.01-.204.015-.306.014a.905.905 0 0 1-.332-.055.7.7 0 0 1-.242-.162.799.799 0 0 1-.157-.263 1.165 1.165 0 0 1-.057-.295h2.157a.063.063 0 0 0 .063-.062v-.483a2.126 2.126 0 0 0-.114-.725 1.464 1.464 0 0 0-.328-.544zm-.765.58a.65.65 0 0 1 .106.22c.02.071.033.148.038.229h-1.137c.022-.216.082-.377.177-.478a.518.518 0 0 1 .395-.167.55.55 0 0 1 .246.052.48.48 0 0 1 .175.144zM6.26 7.63h-.137L5.41 9.336h.179l.218-.534h.769l.22.534h.18l-.714-1.708H6.26zm-.419 1.04.352-.844.341.844h-.693zm1.483.035h.555c.292 0 .489-.262.489-.54 0-.265-.211-.536-.503-.536h-.708v1.708h.166v-.632zm0-.926h.532c.187 0 .346.172.346.386 0 .207-.13.392-.332.392h-.546v-.778zm1.129 1.558.218-.534h.767l.22.534h.184l-.714-1.708H8.99l-.715 1.708h.177zm.606-1.51.342.843H8.71l.352-.844H9.06zm.778.643c0-.41.297-.85.81-.85a.672.672 0 0 1 .631.372l-.135.081a.538.538 0 0 0-.504-.303c-.408 0-.632.365-.632.709 0 .376.276.718.639.718a.58.58 0 0 0 .526-.318l.14.073c-.111.256-.414.397-.676.397-.468 0-.799-.447-.799-.88zm1.875.867h-.165V7.629h.165v.76h1.011v-.76h.169v1.708h-.169v-.799h-1.01v.799zm2.71 0h-1.145V7.629h1.124v.15h-.959v.616h.836v.142h-.837v.65h.982v.15z"},{"slug":"terraform","title":"Terraform","hex":"844FBA","d":"M1.44 0v7.575l6.561 3.79V3.787zm21.12 4.227l-6.561 3.791v7.574l6.56-3.787zM8.72 4.23v7.575l6.561 3.787V8.018zm0 8.405v7.575L15.28 24v-7.578z"},{"slug":"amazonec2","title":"Amazon EC2","hex":"FF9900","d":"M6.429 17.571h10.714V6.857H6.429v10.714ZM18 6.857h1.714v.857H18V9.43h1.714v.857H18v1.285h1.714v.858H18v1.714h1.714V15H18v1.714h1.714v.857H18v.059a.8.8 0 0 1-.799.799h-.058v1.714h-.857v-1.714H14.57v1.714h-.857v-1.714H12.43v1.714h-.858v-1.714H9.857v1.714H9v-1.714H7.286v1.714h-.857v-1.714H6.37a.8.8 0 0 1-.799-.8v-.058H4.286v-.857H5.57V15H4.286v-.857H5.57v-1.714H4.286v-.858H5.57v-1.285H4.286v-.857H5.57V7.714H4.286v-.857H5.57V6.8a.8.8 0 0 1 .8-.799h.058V4.286h.857V6H9V4.286h.857V6h1.714V4.286h.858V6h1.285V4.286h.857V6h1.715V4.286h.857V6h.058a.8.8 0 0 1 .799.799v.058ZM12.429 23.09a.054.054 0 0 1-.054.053H.91a.053.053 0 0 1-.053-.053V11.625c0-.03.024-.054.053-.054h2.52v-.857H.91a.911.911 0 0 0-.91.91V23.09c0 .502.408.91.91.91h11.465a.91.91 0 0 0 .91-.91V21h-.856ZM24 .91v11.465a.91.91 0 0 1-.91.91h-2.52v-.856h2.519a.054.054 0 0 0 .053-.054V.91a.053.053 0 0 0-.053-.053H11.625a.053.053 0 0 0-.054.053v2.52h-.857V.91c0-.502.409-.91.91-.91H23.09a.91.91 0 0 1 .91.91Z"},{"slug":"grafana","title":"Grafana","hex":"F46800","d":"M23.02 10.59a8.578 8.578 0 0 0-.862-3.034 8.911 8.911 0 0 0-1.789-2.445c.337-1.342-.413-2.505-.413-2.505-1.292-.08-2.113.4-2.416.62-.052-.02-.102-.044-.154-.064-.22-.089-.446-.172-.677-.247-.231-.073-.47-.14-.711-.197a9.867 9.867 0 0 0-.875-.161C14.557.753 12.94 0 12.94 0c-1.804 1.145-2.147 2.744-2.147 2.744l-.018.093c-.098.029-.2.057-.298.088-.138.042-.275.094-.413.143-.138.055-.275.107-.41.166a8.869 8.869 0 0 0-1.557.87l-.063-.029c-2.497-.955-4.716.195-4.716.195-.203 2.658.996 4.33 1.235 4.636a11.608 11.608 0 0 0-.607 2.635C1.636 12.677.953 15.014.953 15.014c1.926 2.214 4.171 2.351 4.171 2.351.003-.002.006-.002.006-.005.285.509.615.994.986 1.446.156.19.32.371.488.548-.704 2.009.099 3.68.099 3.68 2.144.08 3.553-.937 3.849-1.173a9.784 9.784 0 0 0 3.164.501h.08l.055-.003.107-.002.103-.005.003.002c1.01 1.44 2.788 1.646 2.788 1.646 1.264-1.332 1.337-2.653 1.337-2.94v-.058c0-.02-.003-.039-.003-.06.265-.187.52-.387.758-.6a7.875 7.875 0 0 0 1.415-1.7c1.43.083 2.437-.885 2.437-.885-.236-1.49-1.085-2.216-1.264-2.354l-.018-.013-.016-.013a.217.217 0 0 1-.031-.02c.008-.092.016-.18.02-.27.011-.162.016-.323.016-.48v-.253l-.005-.098-.008-.135a1.891 1.891 0 0 0-.01-.13c-.003-.042-.008-.083-.013-.125l-.016-.124-.018-.122a6.215 6.215 0 0 0-2.032-3.73 6.015 6.015 0 0 0-3.222-1.46 6.292 6.292 0 0 0-.85-.048l-.107.002h-.063l-.044.003-.104.008a4.777 4.777 0 0 0-3.335 1.695c-.332.4-.592.84-.768 1.297a4.594 4.594 0 0 0-.312 1.817l.003.091c.005.055.007.11.013.164a3.615 3.615 0 0 0 .698 1.82 3.53 3.53 0 0 0 1.827 1.282c.33.098.66.14.971.137.039 0 .078 0 .114-.002l.063-.003c.02 0 .041-.003.062-.003.034-.002.065-.007.099-.01.007 0 .018-.003.028-.003l.031-.005.06-.008a1.18 1.18 0 0 0 .112-.02c.036-.008.072-.013.109-.024a2.634 2.634 0 0 0 .914-.415c.028-.02.056-.041.085-.065a.248.248 0 0 0 .039-.35.244.244 0 0 0-.309-.06l-.078.042c-.09.044-.184.083-.283.116a2.476 2.476 0 0 1-.475.096c-.028.003-.054.006-.083.006l-.083.002c-.026 0-.054 0-.08-.002l-.102-.006h-.012l-.024.006c-.016-.003-.031-.003-.044-.006-.031-.002-.06-.007-.091-.01a2.59 2.59 0 0 1-.724-.213 2.557 2.557 0 0 1-.667-.438 2.52 2.52 0 0 1-.805-1.475 2.306 2.306 0 0 1-.029-.444l.006-.122v-.023l.002-.031c.003-.021.003-.04.005-.06a3.163 3.163 0 0 1 1.352-2.29 3.12 3.12 0 0 1 .937-.43 2.946 2.946 0 0 1 .776-.101h.06l.07.002.045.003h.026l.07.005a4.041 4.041 0 0 1 1.635.49 3.94 3.94 0 0 1 1.602 1.662 3.77 3.77 0 0 1 .397 1.414l.005.076.003.075c.002.026.002.05.002.075 0 .024.003.052 0 .07v.065l-.002.073-.008.174a6.195 6.195 0 0 1-.08.639 5.1 5.1 0 0 1-.267.927 5.31 5.31 0 0 1-.624 1.13 5.052 5.052 0 0 1-3.237 2.014 4.82 4.82 0 0 1-.649.066l-.039.003h-.287a6.607 6.607 0 0 1-1.716-.265 6.776 6.776 0 0 1-3.4-2.274 6.75 6.75 0 0 1-.746-1.15 6.616 6.616 0 0 1-.714-2.596l-.005-.083-.002-.02v-.056l-.003-.073v-.096l-.003-.104v-.07l.003-.163c.008-.22.026-.45.054-.678a8.707 8.707 0 0 1 .28-1.355c.128-.444.286-.872.473-1.277a7.04 7.04 0 0 1 1.456-2.1 5.925 5.925 0 0 1 .953-.763c.169-.111.343-.213.524-.306.089-.05.182-.091.273-.135.047-.02.093-.042.138-.062a7.177 7.177 0 0 1 .714-.267l.145-.045c.049-.015.098-.026.148-.041.098-.029.197-.052.296-.076.049-.013.1-.02.15-.033l.15-.032.151-.028.076-.013.075-.01.153-.024c.057-.01.114-.013.171-.023l.169-.021c.036-.003.073-.008.106-.01l.073-.008.036-.003.042-.002c.057-.003.114-.008.171-.01l.086-.006h.023l.037-.003.145-.007a7.999 7.999 0 0 1 1.708.125 7.917 7.917 0 0 1 2.048.68 8.253 8.253 0 0 1 1.672 1.09l.09.077.089.078c.06.052.114.107.171.159.057.052.112.106.166.16.052.055.107.107.159.164a8.671 8.671 0 0 1 1.41 1.978c.012.026.028.052.04.078l.04.078.075.156c.023.051.05.1.07.153l.065.15a8.848 8.848 0 0 1 .45 1.34.19.19 0 0 0 .201.142.186.186 0 0 0 .172-.184c.01-.246.002-.532-.024-.856z"},{"slug":"prometheus","title":"Prometheus","hex":"E6522C","d":"M12 0C5.373 0 0 5.372 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-6.628-5.373-12-12-12zm0 22.46c-1.885 0-3.414-1.26-3.414-2.814h6.828c0 1.553-1.528 2.813-3.414 2.813zm5.64-3.745H6.36v-2.046h11.28v2.046zm-.04-3.098H6.391c-.037-.043-.075-.086-.111-.13-1.155-1.401-1.427-2.133-1.69-2.879-.005-.025 1.4.287 2.395.511 0 0 .513.119 1.262.255-.72-.843-1.147-1.915-1.147-3.01 0-2.406 1.845-4.508 1.18-6.207.648.053 1.34 1.367 1.387 3.422.689-.951.977-2.69.977-3.755 0-1.103.727-2.385 1.454-2.429-.648 1.069.168 1.984.894 4.256.272.854.237 2.29.447 3.201.07-1.892.395-4.652 1.595-5.605-.529 1.2.079 2.702.494 3.424.671 1.164 1.078 2.047 1.078 3.716a4.642 4.642 0 01-1.11 2.996c.792-.149 1.34-.283 1.34-.283l2.573-.502s-.374 1.538-1.81 3.019z"},{"slug":"react","title":"React","hex":"61DAFB","d":"M14.23 12.004a2.236 2.236 0 0 1-2.235 2.236 2.236 2.236 0 0 1-2.236-2.236 2.236 2.236 0 0 1 2.235-2.236 2.236 2.236 0 0 1 2.236 2.236zm2.648-10.69c-1.346 0-3.107.96-4.888 2.622-1.78-1.653-3.542-2.602-4.887-2.602-.41 0-.783.093-1.106.278-1.375.793-1.683 3.264-.973 6.365C1.98 8.917 0 10.42 0 12.004c0 1.59 1.99 3.097 5.043 4.03-.704 3.113-.39 5.588.988 6.38.32.187.69.275 1.102.275 1.345 0 3.107-.96 4.888-2.624 1.78 1.654 3.542 2.603 4.887 2.603.41 0 .783-.09 1.106-.275 1.374-.792 1.683-3.263.973-6.365C22.02 15.096 24 13.59 24 12.004c0-1.59-1.99-3.097-5.043-4.032.704-3.11.39-5.587-.988-6.38-.318-.184-.688-.277-1.092-.278zm-.005 1.09v.006c.225 0 .406.044.558.127.666.382.955 1.835.73 3.704-.054.46-.142.945-.25 1.44-.96-.236-2.006-.417-3.107-.534-.66-.905-1.345-1.727-2.035-2.447 1.592-1.48 3.087-2.292 4.105-2.295zm-9.77.02c1.012 0 2.514.808 4.11 2.28-.686.72-1.37 1.537-2.02 2.442-1.107.117-2.154.298-3.113.538-.112-.49-.195-.964-.254-1.42-.23-1.868.054-3.32.714-3.707.19-.09.4-.127.563-.132zm4.882 3.05c.455.468.91.992 1.36 1.564-.44-.02-.89-.034-1.345-.034-.46 0-.915.01-1.36.034.44-.572.895-1.096 1.345-1.565zM12 8.1c.74 0 1.477.034 2.202.093.406.582.802 1.203 1.183 1.86.372.64.71 1.29 1.018 1.946-.308.655-.646 1.31-1.013 1.95-.38.66-.773 1.288-1.18 1.87-.728.063-1.466.098-2.21.098-.74 0-1.477-.035-2.202-.093-.406-.582-.802-1.204-1.183-1.86-.372-.64-.71-1.29-1.018-1.946.303-.657.646-1.313 1.013-1.954.38-.66.773-1.286 1.18-1.868.728-.064 1.466-.098 2.21-.098zm-3.635.254c-.24.377-.48.763-.704 1.16-.225.39-.435.782-.635 1.174-.265-.656-.49-1.31-.676-1.947.64-.15 1.315-.283 2.015-.386zm7.26 0c.695.103 1.365.23 2.006.387-.18.632-.405 1.282-.66 1.933-.2-.39-.41-.783-.64-1.174-.225-.392-.465-.774-.705-1.146zm3.063.675c.484.15.944.317 1.375.498 1.732.74 2.852 1.708 2.852 2.476-.005.768-1.125 1.74-2.857 2.475-.42.18-.88.342-1.355.493-.28-.958-.646-1.956-1.1-2.98.45-1.017.81-2.01 1.085-2.964zm-13.395.004c.278.96.645 1.957 1.1 2.98-.45 1.017-.812 2.01-1.086 2.964-.484-.15-.944-.318-1.37-.5-1.732-.737-2.852-1.706-2.852-2.474 0-.768 1.12-1.742 2.852-2.476.42-.18.88-.342 1.356-.494zm11.678 4.28c.265.657.49 1.312.676 1.948-.64.157-1.316.29-2.016.39.24-.375.48-.762.705-1.158.225-.39.435-.788.636-1.18zm-9.945.02c.2.392.41.783.64 1.175.23.39.465.772.705 1.143-.695-.102-1.365-.23-2.006-.386.18-.63.406-1.282.66-1.933zM17.92 16.32c.112.493.2.968.254 1.423.23 1.868-.054 3.32-.714 3.708-.147.09-.338.128-.563.128-1.012 0-2.514-.807-4.11-2.28.686-.72 1.37-1.536 2.02-2.44 1.107-.118 2.154-.3 3.113-.54zm-11.83.01c.96.234 2.006.415 3.107.532.66.905 1.345 1.727 2.035 2.446-1.595 1.483-3.092 2.295-4.11 2.295-.22-.005-.406-.05-.553-.132-.666-.38-.955-1.834-.73-3.703.054-.46.142-.944.25-1.438zm4.56.64c.44.02.89.034 1.345.034.46 0 .915-.01 1.36-.034-.44.572-.895 1.095-1.345 1.565-.455-.47-.91-.993-1.36-1.565z"},{"slug":"lua","title":"Lua","hex":"2C2D72","d":"M.38 10.377l-.272-.037c-.048.344-.082.695-.101 1.041l.275.016c.018-.34.051-.682.098-1.02zM4.136 3.289l-.184-.205c-.258.232-.509.48-.746.734l.202.188c.231-.248.476-.49.728-.717zM5.769 2.059l-.146-.235c-.296.186-.586.385-.863.594l.166.219c.27-.203.554-.399.843-.578zM1.824 18.369c.185.297.384.586.593.863l.22-.164c-.205-.271-.399-.555-.58-.844l-.233.145zM1.127 16.402l-.255.104c.129.318.274.635.431.943l.005.01.245-.125-.005-.01c-.153-.301-.295-.611-.421-.922zM.298 9.309l.269.063c.076-.332.168-.664.272-.986l-.261-.087c-.108.332-.202.672-.28 1.01zM.274 12.42l-.275.01c.012.348.04.699.083 1.043l.273-.033c-.042-.336-.069-.68-.081-1.02zM.256 14.506c.073.34.162.682.264 1.014l.263-.08c-.1-.326-.187-.658-.258-.99l-.269.056zM11.573.275L11.563 0c-.348.012-.699.039-1.044.082l.034.273c.338-.041.68-.068 1.02-.08zM23.221 8.566c.1.326.186.66.256.992l.27-.059c-.072-.34-.16-.682-.262-1.014l-.264.081zM17.621 1.389c-.309-.164-.627-.314-.947-.449l-.107.252c.314.133.625.281.926.439l.128-.242zM15.693.572c-.332-.105-.67-.199-1.01-.277l-.063.268c.332.076.664.168.988.273l.085-.264zM6.674 1.545c.298-.15.606-.291.916-.418L7.486.873c-.317.127-.632.272-.937.428l-.015.008.125.244.015-.008zM23.727 11.588l.275-.01a11.797 11.797 0 0 0-.082-1.045l-.273.033c.041.338.068.682.08 1.022zM13.654.105c-.346-.047-.696-.08-1.043-.098l-.014.273c.339.018.683.051 1.019.098l.038-.273zM9.544.527l-.058-.27c-.34.072-.681.16-1.014.264l.081.262c.325-.099.659-.185.991-.256zM1.921 5.469l.231.15c.185-.285.384-.566.592-.834l-.217-.17c-.213.276-.417.563-.606.854zM.943 7.318l.253.107c.132-.313.28-.625.439-.924l-.243-.128c-.163.307-.314.625-.449.945zM18.223 21.943l.145.234c.295-.186.586-.385.863-.594l-.164-.219c-.272.204-.557.4-.844.579zM21.248 19.219l.217.17c.215-.273.418-.561.607-.854l-.23-.148c-.186.285-.385.564-.594.832zM19.855 20.715l.184.203c.258-.23.51-.479.746-.732l-.201-.188c-.23.248-.477.488-.729.717zM22.359 17.504l.244.129c.162-.307.314-.625.449-.945l-.254-.107a11.27 11.27 0 0 1-.439.923zM23.617 13.629l.273.039c.049-.346.082-.695.102-1.043l-.275-.014c-.018.338-.051.682-.1 1.018zM23.156 15.621l.264.086c.107-.332.201-.67.279-1.01l-.268-.063c-.077.333-.169.665-.275.987zM22.453 6.672c.154.303.297.617.424.932l.256-.104c-.131-.322-.277-.643-.436-.953l-.244.125zM8.296 23.418c.331.107.67.201 1.009.279l.062-.268c-.331-.076-.663-.168-.986-.273l-.085.262zM10.335 23.889c.345.049.696.082 1.043.102l.014-.275c-.339-.018-.682-.051-1.019-.098l-.038.271zM17.326 22.449c-.303.154-.613.297-.926.424l.104.256c.318-.131.639-.275.947-.434l.004-.002-.123-.246-.006.002zM4.613 21.467c.274.213.562.418.854.605l.149-.23c-.285-.184-.565-.385-.833-.592l-.17.217zM12.417 23.725l.009.275c.348-.014.699-.041 1.045-.084l-.035-.271c-.336.041-.68.068-1.019.08zM6.37 22.604c.307.162.625.314.946.449l.107-.254c-.313-.133-.624-.279-.924-.439l-.129.244zM3.083 20.041c.233.258.48.51.734.746l.188-.201c-.249-.23-.49-.477-.717-.729l-.205.184zM14.445 23.475l.059.27c.34-.074.68-.162 1.014-.266l-.082-.262c-.325.099-.659.185-.991.258zM21.18.129A2.689 2.689 0 1 0 21.18 5.507 2.689 2.689 0 1 0 21.18.129zM15.324 15.447c0 .471.314.66.852.66.67 0 1.297-.396 1.297-1.016v-.645c-.23.107-.379.141-1.107.24-.735.109-1.042.306-1.042.761zM12 2.818c-5.07 0-9.18 4.109-9.18 9.18 0 5.068 4.11 9.18 9.18 9.18 5.07 0 9.18-4.111 9.18-9.18 0-5.07-4.11-9.18-9.18-9.18zm-2.487 13.77H5.771v-6.023h.769v5.346h2.974v.677zm4.13 0h-.619v-.67c-.405.57-.811.793-1.446.793-.843 0-1.38-.463-1.38-1.182v-3.271h.686v3c0 .52.347.85.893.85.719 0 1.181-.578 1.181-1.461v-2.389h.686v4.33zm-.53-8.393c0-1.484 1.205-2.689 2.689-2.689s2.688 1.205 2.688 2.689-1.203 2.688-2.688 2.688-2.689-1.203-2.689-2.688zm5.567 7.856v.52c-.223.059-.33.074-.471.074-.34 0-.637-.238-.711-.57-.381.406-.918.637-1.471.637-.877 0-1.422-.463-1.422-1.248 0-.527.256-.916.76-1.123.266-.107.414-.141 1.389-.264.545-.066.719-.191.719-.48v-.182c0-.412-.348-.645-.967-.645-.645 0-.957.24-1.016.77h-.693c.041-1 .686-1.404 1.734-1.404 1.066 0 1.627.412 1.627 1.182v2.412c0 .215.133.338.373.338.041-.002.074-.002.149-.017z"},{"slug":"swagger","title":"Swagger","hex":"85EA2D","d":"M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12c6.616 0 12-5.383 12-12S18.616 0 12 0zm0 1.144c5.995 0 10.856 4.86 10.856 10.856 0 5.995-4.86 10.856-10.856 10.856-5.996 0-10.856-4.86-10.856-10.856C1.144 6.004 6.004 1.144 12 1.144zM8.37 5.868a6.707 6.707 0 0 0-.423.005c-.983.056-1.573.517-1.735 1.472-.115.665-.096 1.348-.143 2.017-.013.35-.05.697-.115 1.038-.134.609-.397.798-1.016.83a2.65 2.65 0 0 0-.244.042v1.463c1.126.055 1.278.452 1.37 1.629.033.429-.013.858.015 1.287.018.406.073.808.156 1.2.259 1.075 1.307 1.435 2.575 1.218v-1.283c-.203 0-.383.005-.558 0-.43-.013-.591-.12-.632-.535-.056-.535-.042-1.08-.075-1.62-.064-1.001-.175-1.988-1.153-2.625.503-.37.868-.812.983-1.398.083-.41.134-.821.166-1.237.028-.415-.023-.84.014-1.25.06-.665.102-.937.9-.91.12 0 .235-.017.369-.027v-1.31c-.16 0-.31-.004-.454-.006zm7.593.009a4.247 4.247 0 0 0-.813.06v1.274c.245 0 .434 0 .623.005.328.004.577.13.61.494.032.332.031.669.064 1.006.065.669.101 1.347.217 2.007.102.544.475.95.941 1.283-.817.549-1.057 1.333-1.098 2.215-.023.604-.037 1.213-.069 1.822-.028.554-.222.734-.78.748-.157.004-.31.018-.484.028v1.305c.327 0 .627.019.927 0 .932-.055 1.495-.507 1.68-1.412.078-.498.124-1 .138-1.504.032-.461.028-.927.074-1.384.069-.715.397-1.01 1.112-1.057a.972.972 0 0 0 .199-.046v-1.463c-.12-.014-.204-.027-.291-.032-.536-.023-.804-.203-.937-.71a5.146 5.146 0 0 1-.152-.993c-.037-.618-.033-1.241-.074-1.86-.08-1.192-.794-1.753-1.887-1.786zm-6.89 5.28a.844.844 0 0 0-.083 1.684h.055a.83.83 0 0 0 .877-.78v-.046a.845.845 0 0 0-.83-.858zm2.911 0a.808.808 0 0 0-.834.78c0 .027 0 .05.004.078 0 .503.342.826.859.826.507 0 .826-.332.826-.853-.005-.503-.342-.836-.855-.831zm2.963 0a.861.861 0 0 0-.876.835c0 .47.378.849.849.849h.009c.425.074.853-.337.881-.83.023-.457-.392-.854-.863-.854z"},{"slug":"github","title":"GitHub","hex":"181717","d":"M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"}] as any[]).map((i: any) => [i.slug, i]));
+function Logo({ slug, size, mono }: { slug: string; size?: number; mono?: boolean }) {
+  const i = ICONS[slug]; if (!i) return null;
+  return <svg viewBox="0 0 24 24" width={size} height={size} role="img" aria-label={i.title}><path d={i.d} fill={mono ? "currentColor" : `#${i.hex}`}/></svg>;
+}
+
+/* ------------------------------------------------------------------ types */
+type OrderState = "PendingStock" | "Confirmed" | "Rejected" | "Processing" | "Completed";
+type SaleStatus = "upcoming" | "live" | "soldout";
+type ScenarioId = "success" | "traffic" | "sellout" | "upcoming";
+type Mode = "probing" | "live" | "sim";
+
+interface Scenario {
+  id: ScenarioId; label: string; blurb: string;
+  stock: number; countdownSec: number; crowdPerSec: number; crowdSeconds: number;
+  nginxRatePerSec: number; nginxBurst: number; maxInFlight: number;
+  forcedForUser: Array<{ status: 429 | 503; retryAfter?: number; reason?: string }>;
+}
+interface SimOrder {
+  id: string; key: string; corr: string; user: boolean; state: OrderState;
+  history: Array<{ to: OrderState; at: number }>;
+  ts: { accepted: number; published?: number; decided?: number; completed?: number };
+  msgIds: string[];
+}
+/** What the page shows, from either the real API or the simulation. Times are ms since the order was accepted. */
+interface View {
+  id: string; state: OrderState; corr?: string; msgIds?: string[];
+  t: { published?: number; decided?: number; processing?: number; completed?: number };
+  history: Array<{ from?: string | null; to: string; at: number; implied?: boolean }>;
+}
+interface LogLine { at: number; src: string; text: string; tone?: "bad" | "ok" }
+type Attempt =
+  | { status: 201 | 200; view: View }
+  | { status: 429 }
+  | { status: 503; retryAfter: number; reason: string }
+  | { status: 400 | 409 | 404 | 500; message: string }
+  | { status: 0; message: string };
+
+/* -------------------------------------------- the project's real numbers */
+/* ?product=<id> picks another seeded product for the live API (default flash-product-1). */
+const PRODUCT_ID = (() => { try { const v = new URLSearchParams(location.search).get("product"); return v && /^[A-Za-z0-9-]{1,64}$/.test(v) ? v : "flash-product-1"; } catch { return "flash-product-1"; } })();
+const INVENTORY_DECISIONS_PER_SEC = 70;   // one Inventory consumer, local pilot (progress report 8.1)
+const WORKER_DELAY_MS = 200;              // Process Worker fixed delay
+const OUTBOX_PUBLISH_MS = 40;
+const PRICE_NOW = 990000, PRICE_WAS = 2490000;
+const MAX_ATTEMPTS = 6;
+
+const SCENARIOS: Scenario[] = [
+  { id: "success", label: "Normal sale", blurb: "1,000 units, 40 shoppers a second. Your order is accepted, reserved and completed.",
+    stock: 1000, countdownSec: 3, crowdPerSec: 40, crowdSeconds: 12, nginxRatePerSec: 200, nginxBurst: 100, maxInFlight: 0, forcedForUser: [] },
+  { id: "traffic", label: "Heavy traffic", blurb: "150 shoppers a second against a 60/s gateway limit. Your first tries get 429 and 503; the page waits and retries with the same Idempotency-Key.",
+    stock: 2000, countdownSec: 3, crowdPerSec: 150, crowdSeconds: 14, nginxRatePerSec: 60, nginxBurst: 20, maxInFlight: 120,
+    forcedForUser: [{ status: 429 }, { status: 503, retryAfter: 2, reason: "inflight" }, { status: 429 }] },
+  { id: "sellout", label: "Instant sell-out", blurb: "Only 60 units and 300 shoppers a second. The stock is gone in about a second; late orders are Rejected and nothing is oversold.",
+    stock: 60, countdownSec: 3, crowdPerSec: 300, crowdSeconds: 6, nginxRatePerSec: 200, nginxBurst: 100, maxInFlight: 0, forcedForUser: [] },
+  { id: "upcoming", label: "Not open yet", blurb: "Stock is loaded into Redis and read back first. Buy stays disabled until the warm-up gate opens the sale.",
+    stock: 150, countdownSec: 10, crowdPerSec: 30, crowdSeconds: 12, nginxRatePerSec: 200, nginxBurst: 100, maxInFlight: 0, forcedForUser: [] },
+];
+
+/* ---------------------------------------------------------------- helpers */
+const hex = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, "0")).join("");
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${hex(4)}-${hex(2)}-${hex(2)}-${hex(2)}-${hex(6)}`);
+const vnd = (n: number) => n.toLocaleString("vi-VN") + " ₫";
+const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, "0");
+const hms = (sec: number) => `${pad(sec / 3600)}:${pad((sec % 3600) / 60)}:${pad(sec % 60)}`;
+const short = (id: string) => (id.length > 12 ? id.slice(0, 8) + "…" : id);
+const safe = {
+  get(k: string): any { try { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch { return null; } },
+  set(k: string, v: any) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked: the page still works */ } },
+  del(k: string) { try { localStorage.removeItem(k); } catch { } },
+};
+const STORE = (m: Mode) => `flashsale-shop-${m}`;
+function useReducedMotion() {
+  const q = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const [r, setR] = useState(!!q?.matches);
+  useEffect(() => { if (!q) return; const f = () => setR(q.matches); q.addEventListener?.("change", f); return () => q.removeEventListener?.("change", f); }, []);
+  return r;
+}
+
+/* ------------------------------------------------------- the real API */
+async function fetchT(url: string, init: RequestInit, ms: number) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal, cache: "no-store" }); } finally { clearTimeout(t); }
+}
+const api = {
+  /** The page is live when the gateway answers GET /api/orders/{unknown id} with 404 (Order Service reached, no such order). */
+  async probe(): Promise<{ ok: boolean; why: string }> {
+    if (location.protocol === "file:") return { ok: false, why: "opened as a file, so there is no gateway behind it" };
+    try {
+      const r = await fetchT("/api/orders/00000000-0000-0000-0000-000000000000", {}, 2500);
+      if (r.status === 404 || r.status === 200) return { ok: true, why: "" };
+      return { ok: false, why: `the gateway answered ${r.status}` };
+    } catch (e: any) { return { ok: false, why: e?.name === "AbortError" ? "no answer within 2.5 s" : "the gateway could not be reached" }; }
+  },
+  view(b: any, corr?: string | null): View {
+    const acc = Date.parse(b.requestAcceptedAt);
+    const rel = (s?: string | null) => (s ? Date.parse(s) - acc : undefined);
+    const hist = (b.history ?? []).map((h: any) => ({ from: h.from, to: h.to, at: Date.parse(h.at) - acc, implied: h.implied }));
+    const proc = hist.find((h: any) => h.to === "Processing");
+    return { id: b.id, state: b.state, corr: corr ?? undefined, history: hist,
+      t: { published: b.state !== "PendingStock" ? undefined : undefined, decided: rel(b.confirmedOrRejectedAt), processing: proc ? proc.at : undefined, completed: rel(b.completedAt) } };
+  },
+  async place(key: string): Promise<Attempt & { ms: number; corr?: string | null }> {
+    const t0 = performance.now();
+    try {
+      const r = await fetchT("/api/orders", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({ productId: PRODUCT_ID, quantity: 1 }) }, 10000);
+      const ms = performance.now() - t0; const text = await r.text(); let body: any = text; try { body = JSON.parse(text); } catch { }
+      const corr = r.headers.get("X-Correlation-Id");
+      if (r.status === 201 || r.status === 200) return { status: r.status, view: api.view(body, corr), ms, corr };
+      if (r.status === 429) return { status: 429, ms };
+      if (r.status === 503) return { status: 503, retryAfter: Number(r.headers.get("Retry-After")) || 1, reason: typeof body === "string" ? body : "busy", ms };
+      return { status: (r.status as any), message: typeof body === "string" ? body : JSON.stringify(body), ms };
+    } catch (e: any) { return { status: 0, message: e?.name === "AbortError" ? "no answer within 10 s" : "the gateway could not be reached", ms: performance.now() - t0 }; }
+  },
+  async get(id: string): Promise<View | null> {
+    const r = await fetchT(`/api/orders/${encodeURIComponent(id)}`, {}, 5000);
+    if (!r.ok) return null; return api.view(await r.json());
+  },
+};
+
+/* ------------------------------------------------- the simulated backend */
+class FlashSim {
+  sc: Scenario; t0 = performance.now(); now = 0; started = false;
+  stock = 0; initial = 0; workerConcurrency = 8;
+  nginxTokens = 0; crowdCarry = 0; invBudget = 0;
+  outbox: Array<{ o: SimOrder; at: number }> = [];
+  invQueue: SimOrder[] = []; workerQueue: SimOrder[] = []; busy: Array<{ o: SimOrder; doneAt: number }> = [];
+  byId = new Map<string, SimOrder>(); byKey = new Map<string, string>();
+  forced: Scenario["forcedForUser"] = [];
+  c = { offered: 0, r429: 0, r503: 0, accepted: 0, reserved: 0, rejected: 0, completed: 0 };
+  log: LogLine[] = []; soldLogged = false; openLogged = false;
+  rate = { offered: 0, accepted: 0, decided: 0, completed: 0 }; private last = { offered: 0, accepted: 0, decided: 0, completed: 0, at: 0 };
+
+  constructor(sc: Scenario, workerConcurrency: number) { this.sc = sc; this.workerConcurrency = workerConcurrency; this.reset(); }
+  reset() {
+    const sc = this.sc;
+    this.t0 = performance.now(); this.now = 0; this.started = false;
+    this.stock = sc.stock; this.initial = sc.stock; this.nginxTokens = sc.nginxBurst;
+    this.outbox = []; this.invQueue = []; this.workerQueue = []; this.busy = [];
+    this.byId.clear(); this.byKey.clear(); this.forced = [...sc.forcedForUser];
+    this.c = { offered: 0, r429: 0, r503: 0, accepted: 0, reserved: 0, rejected: 0, completed: 0 };
+    this.log = []; this.soldLogged = false; this.openLogged = false; this.crowdCarry = 0; this.invBudget = 0;
+    this.rate = { offered: 0, accepted: 0, decided: 0, completed: 0 }; this.last = { offered: 0, accepted: 0, decided: 0, completed: 0, at: 0 };
+    this.say("warm-up", `Loading stock for ${PRODUCT_ID} into Redis: ${sc.stock} units`);
+  }
+  start() { this.started = true; this.t0 = performance.now(); this.now = 0;
+    this.say("warm-up", `Stock confirmed (read back ${this.stock}). Sale opens in ${this.sc.countdownSec} s`); }
+  get openAt() { return this.sc.countdownSec * 1000; }
+  get status(): SaleStatus { if (!this.started || this.now < this.openAt) return "upcoming"; return this.stock > 0 ? "live" : "soldout"; }
+  get inFlight() { return this.c.accepted - this.c.completed - this.c.rejected; }
+  say(src: string, text: string, tone?: LogLine["tone"]) { this.log.push({ at: this.now, src, text, tone }); if (this.log.length > 200) this.log.shift(); }
+
+  private mkOrder(user: boolean, key: string): SimOrder {
+    const id = `o-${hex(3)}`;
+    const o: SimOrder = { id, key, corr: `c-${hex(3)}`, user, state: "PendingStock", history: [{ to: "PendingStock", at: this.now }], ts: { accepted: this.now }, msgIds: [] };
+    this.c.accepted++;
+    if (user) { this.byId.set(id, o); this.byKey.set(key, id); }
+    this.outbox.push({ o, at: this.now + OUTBOX_PUBLISH_MS });
+    return o;
+  }
+  private move(o: SimOrder, to: OrderState) { o.state = to; o.history.push({ to, at: this.now }); }
+  view(o: SimOrder): View {
+    const at = (s: OrderState) => o.history.find(h => h.to === s)?.at;
+    const a = o.ts.accepted; const rel = (x?: number) => (x === undefined ? undefined : x - a);
+    let prev: string | null = null;
+    return { id: o.id, state: o.state, corr: o.corr, msgIds: [...o.msgIds],
+      t: { published: rel(o.ts.published), decided: rel(o.ts.decided), processing: rel(at("Processing")), completed: rel(o.ts.completed) },
+      history: o.history.map(h => { const r = { from: prev, to: h.to, at: h.at - a }; prev = h.to; return r; }) };
+  }
+  submit(key: string): Attempt {
+    if (this.byKey.has(key)) {
+      const o = this.byId.get(this.byKey.get(key)!)!;
+      this.say("order-svc", `Idempotency-Key ${key.slice(0, 8)}… seen before: returned the original order ${o.id}, no new order`, "ok");
+      return { status: 200, view: this.view(o) };
+    }
+    this.c.offered++;
+    const f = this.forced.shift();
+    if (f?.status === 429) { this.c.r429++; this.say("nginx", "429 Too Many Requests: rate limit reached, refused before the service", "bad"); return { status: 429 }; }
+    if (f?.status === 503) { this.c.r503++; this.say("order-svc", `503 Service Unavailable (${f.reason}), Retry-After ${f.retryAfter} s. Nothing was written`, "bad");
+      return { status: 503, retryAfter: f.retryAfter ?? 2, reason: f.reason ?? "inflight" }; }
+    const o = this.mkOrder(true, key);
+    this.say("order-svc", `201 Created ${o.id}: saved as PendingStock with OrderPlaced in the Outbox, one transaction`, "ok");
+    return { status: 201, view: this.view(o) };
+  }
+  get(id: string): SimOrder | undefined { return this.byId.get(id); }
+  restore(saved: { orderId: string; key: string }): SimOrder {
+    const o: SimOrder = { id: saved.orderId, key: saved.key, corr: `c-${hex(3)}`, user: true, state: "PendingStock", history: [{ to: "PendingStock", at: this.now }], ts: { accepted: this.now }, msgIds: [] };
+    this.byId.set(o.id, o); this.byKey.set(o.key, o.id); this.c.accepted++;
+    this.outbox.push({ o, at: this.now + OUTBOX_PUBLISH_MS });
+    this.say("order-svc", `Order ${o.id} found again after the page reload`);
+    return o;
+  }
+  positionOf(o: SimOrder): { stage: string; ahead: number } {
+    if (o.state === "PendingStock") {
+      const ob = this.outbox.findIndex(x => x.o === o);
+      if (ob >= 0) return { stage: "outbox", ahead: this.invQueue.length + ob };
+      return { stage: "inventory", ahead: Math.max(0, this.invQueue.indexOf(o)) };
+    }
+    if (o.state === "Confirmed") return { stage: "worker", ahead: Math.max(0, this.workerQueue.indexOf(o)) };
+    if (o.state === "Processing") return { stage: "worker", ahead: 0 };
+    return { stage: "done", ahead: 0 };
+  }
+  tick() {
+    const now = performance.now() - this.t0; const dt = Math.min(250, now - this.now); this.now = now;
+    if (!this.started) return;
+    const sc = this.sc; const open = now >= this.openAt;
+    if (open && !this.openLogged) { this.openLogged = true; this.say("inventory", `Warm-up gate open: sale:open:${PRODUCT_ID} set, Buy enabled`, "ok"); }
+    this.nginxTokens = Math.min(sc.nginxBurst, this.nginxTokens + sc.nginxRatePerSec * dt / 1000);
+    if (open && now - this.openAt < sc.crowdSeconds * 1000) {
+      this.crowdCarry += sc.crowdPerSec * dt / 1000;
+      while (this.crowdCarry >= 1) {
+        this.crowdCarry--; this.c.offered++;
+        if (this.nginxTokens < 1) { this.c.r429++; continue; }
+        this.nginxTokens--;
+        if (sc.maxInFlight > 0 && this.inFlight >= sc.maxInFlight) { this.c.r503++; continue; }
+        this.mkOrder(false, "");
+      }
+    }
+    while (this.outbox.length && this.outbox[0].at <= now) {
+      const { o } = this.outbox.shift()!; o.ts.published = now; o.msgIds.push(`m-${hex(3)}`);
+      if (o.user) this.say("outbox", `OrderPlaced for ${o.id} published to RabbitMQ, broker confirmed (message ${o.msgIds[0]})`);
+      this.invQueue.push(o);
+    }
+    this.invBudget = Math.min(INVENTORY_DECISIONS_PER_SEC, this.invBudget + INVENTORY_DECISIONS_PER_SEC * dt / 1000);
+    while (this.invBudget >= 1 && this.invQueue.length) {
+      this.invBudget--; const o = this.invQueue.shift()!; o.ts.decided = now; o.msgIds.push(`m-${hex(3)}`);
+      if (this.stock > 0) {
+        this.stock--; this.c.reserved++; this.move(o, "Confirmed"); this.workerQueue.push(o);
+        if (o.user) this.say("inventory", `Lua script: not a duplicate, stock ${this.stock + 1} > 0, deducted 1 → StockReserved for ${o.id}`, "ok");
+      } else {
+        this.c.rejected++; this.move(o, "Rejected");
+        if (o.user) this.say("inventory", `Lua script: stock is 0 → StockRejected for ${o.id}. Nothing deducted`, "bad");
+      }
+      if (this.stock === 0 && !this.soldLogged) { this.soldLogged = true; this.say("inventory", `Sold out: ${this.initial} of ${this.initial} units reserved, never more`); }
+    }
+    for (let i = this.busy.length - 1; i >= 0; i--) {
+      const b = this.busy[i];
+      if (b.doneAt <= now) { this.busy.splice(i, 1); this.move(b.o, "Completed"); b.o.ts.completed = now; this.c.completed++;
+        if (b.o.user) this.say("worker", `${b.o.id} finished after ${WORKER_DELAY_MS} ms → Completed`, "ok"); }
+    }
+    while (this.busy.length < this.workerConcurrency && this.workerQueue.length) {
+      const o = this.workerQueue.shift()!; this.move(o, "Processing"); this.busy.push({ o, doneAt: now + WORKER_DELAY_MS });
+      if (o.user) this.say("worker", `Started ${o.id} (the order ID is the Worker's idempotency key) → Processing`);
+    }
+    if (now - this.last.at >= 1000) {
+      const s = (now - this.last.at) / 1000; const decided = this.c.reserved + this.c.rejected;
+      this.rate = { offered: (this.c.offered - this.last.offered) / s, accepted: (this.c.accepted - this.last.accepted) / s,
+        decided: (decided - this.last.decided) / s, completed: (this.c.completed - this.last.completed) / s };
+      this.last = { offered: this.c.offered, accepted: this.c.accepted, decided, completed: this.c.completed, at: now };
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ icons */
+const S = (p: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{p}</svg>;
+const I = {
+  bolt: S(<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>),
+  bag: S(<><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></>),
+  clock: S(<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>),
+  heart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>,
+  left: S(<path d="m15 18-6-6 6-6"/>), right: S(<path d="m9 18 6-6-6-6"/>),
+  pause: S(<><path d="M9 5v14M15 5v14"/></>), play: S(<path d="M7 5v14l11-7z"/>),
+  check: S(<path d="m5 12 5 5 9-10"/>), x: S(<><path d="M6 6l12 12M18 6 6 18"/></>),
+  inbox: S(<><path d="M4 13h4l1 3h6l1-3h4"/><path d="M5 5h14l1 8v6H4v-6z"/></>),
+  send: S(<path d="M4 12 20 4l-6 16-3-7z"/>), box: S(<><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></>),
+  gear: S(<><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></>),
+  stock: S(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>), shield: S(<path d="M12 3 4 6v6c0 4.5 3.3 8 8 9 4.7-1 8-4.5 8-9V6z"/>),
+  users: S(<><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.8 3 2.6 3.5 5.2"/></>),
+  home: S(<><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></>), layers: S(<><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></>),
+  receipt: S(<><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></>),
+  sun: S(<><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>),
+  moon: S(<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>),
+};
+
+/* product art */
+function Earbuds() {
+  return (
+    <svg className="art" viewBox="0 0 200 160" role="img" aria-label="Aurora X2 wireless earbuds in their charging case">
+      <rect x="38" y="76" width="124" height="66" rx="30" fill="#ffffff" stroke="#0f172a" strokeWidth="4"/>
+      <path d="M38 99h124" stroke="#0f172a" strokeWidth="4"/>
+      <circle cx="100" cy="121" r="5" fill="#22c55e"/>
+      <g fill="#0f172a"><ellipse cx="70" cy="54" rx="21" ry="23"/><rect x="63" y="60" width="14" height="42" rx="7"/></g>
+      <g fill="#0f172a"><ellipse cx="130" cy="54" rx="21" ry="23"/><rect x="123" y="60" width="14" height="42" rx="7"/></g>
+      <circle cx="70" cy="52" r="9" fill="#f97316"/><circle cx="130" cy="52" r="9" fill="#f97316"/>
+    </svg>
+  );
+}
+function Hoodie() {
+  return (<svg className="art" viewBox="0 0 200 180" role="img" aria-label="Hoodie">
+    <path d="M70 22c8 14 52 14 60 0l34 20 22 52-26 12-10-24v88H50V82l-10 24-26-12 22-52z" fill="#f472b6" stroke="#0f172a" strokeWidth="4" strokeLinejoin="round"/>
+    <path d="M78 26c4 22 40 22 44 0" fill="none" stroke="#0f172a" strokeWidth="4"/><path d="M92 46v26M108 46v26" stroke="#0f172a" strokeWidth="3"/>
+    <rect x="72" y="118" width="56" height="30" rx="8" fill="#ec4899" stroke="#0f172a" strokeWidth="4"/></svg>);
+}
+function Watch() {
+  return (<svg className="art" viewBox="0 0 200 200" role="img" aria-label="Smart watch">
+    <rect x="72" y="12" width="56" height="44" rx="10" fill="#38bdf8" stroke="#0f172a" strokeWidth="4"/><rect x="72" y="144" width="56" height="44" rx="10" fill="#38bdf8" stroke="#0f172a" strokeWidth="4"/>
+    <rect x="52" y="48" width="96" height="104" rx="28" fill="#0f172a"/><rect x="62" y="58" width="76" height="84" rx="20" fill="#1e293b"/>
+    <path d="M74 104h12l6-16 10 30 8-20h16" fill="none" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+}
+function Speaker() {
+  return (<svg className="art" viewBox="0 0 200 200" role="img" aria-label="Portable speaker">
+    <rect x="46" y="22" width="108" height="160" rx="34" fill="#a78bfa" stroke="#0f172a" strokeWidth="4"/>
+    <circle cx="100" cy="118" r="38" fill="#0f172a"/><circle cx="100" cy="118" r="16" fill="#c4b5fd"/><circle cx="100" cy="58" r="12" fill="#0f172a"/></svg>);
+}
+function Tote() {
+  return (<svg className="art" viewBox="0 0 200 200" role="img" aria-label="Tote bag">
+    <path d="M70 70V52a30 30 0 0 1 60 0v18" fill="none" stroke="#0f172a" strokeWidth="6"/>
+    <path d="M40 70h120l-10 112H50z" fill="#fbbf24" stroke="#0f172a" strokeWidth="4" strokeLinejoin="round"/>
+    <path d="M86 110 100 96l14 14-14 40z" fill="#f97316" stroke="#0f172a" strokeWidth="3"/></svg>);
+}
+
+/* ------------------------------------------------------------ hero slides */
+function ArtShield() {
+  return (<svg className="art" viewBox="0 0 240 240" aria-hidden="true">
+    <path d="M120 22 42 52v62c0 50 33 88 78 104 45-16 78-54 78-104V52z" fill="#0f172a"/>
+    <path d="M120 40 58 64v50c0 40 26 70 62 84 36-14 62-44 62-84V64z" fill="#fbbf24"/>
+    <path d="m86 120 24 24 46-50" fill="none" stroke="#0f172a" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+}
+function ArtQueue() {
+  return (<svg className="art" viewBox="0 0 260 220" aria-hidden="true">
+    {[0, 1, 2, 3, 4].map(i => <rect key={i} x={20 + i * 30} y={70 + (i % 2) * 6} width="44" height="80" rx="12" fill={i === 4 ? "#f97316" : "#0f172a"} stroke="#fff" strokeWidth="3"/>)}
+    <path d="M190 110h50" stroke="#0f172a" strokeWidth="10" strokeLinecap="round"/><path d="m224 92 18 18-18 18" fill="none" stroke="#0f172a" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="214" cy="54" r="26" fill="#fff" stroke="#0f172a" strokeWidth="5"/><text x="214" y="62" textAnchor="middle" fontFamily="Lato" fontWeight="900" fontSize="22" fill="#0f172a">429</text></svg>);
+}
+function ArtSplit() {
+  return (<svg className="art" viewBox="0 0 260 220" aria-hidden="true">
+    <rect x="18" y="40" width="100" height="140" rx="22" fill="#fff" stroke="#0f172a" strokeWidth="5"/>
+    <g transform="translate(44 66) scale(2)"><path d={ICONS.redis?.d} fill="#FF4438"/></g>
+    <rect x="142" y="40" width="100" height="140" rx="22" fill="#fff" stroke="#0f172a" strokeWidth="5"/>
+    <g transform="translate(168 66) scale(2)"><path d={ICONS.postgresql?.d} fill="#4169E1"/></g>
+    <text x="68" y="160" textAnchor="middle" fontFamily="Abel" fontSize="17" fill="#0f172a">DECIDES</text>
+    <text x="192" y="160" textAnchor="middle" fontFamily="Abel" fontSize="17" fill="#0f172a">RECORDS</text></svg>);
+}
+
+function Hero({ onShop, stats }: { onShop: () => void; stats: { label: string; value: string; icon: JSX.Element }[] }) {
+  const reduce = useReducedMotion();
+  const [i, setI] = useState(0);
+  const [hover, setHover] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const slides = [
+    { cls: "s-peach", art: <><Earbuds/><div className="sticker" style={{ top: "8%", right: "6%" }}>−60%<small>TODAY</small></div></>,
+      body: <><span className="eyebrow">Drop 01 · Aurora X2</span>
+        <div className="comic" aria-hidden="true">Flash<br/><span className="alt">Sale!</span></div>
+        <h2 className="sr">Flash sale</h2>
+        <p className="lead">Up to 60% off, 1,000 units, one per shopper. Press Buy once; we keep your place even if the crowd pushes back.</p>
+        <div className="cta-row"><button className="cta" onClick={onShop}>{I.bag} Get it now</button><a className="cta dark" href="#how">How it works</a></div></> },
+    { cls: "s-amber", art: <ArtShield/>,
+      body: <><span className="eyebrow">Correctness first</span>
+        <div className="comic sm" aria-hidden="true">Never<br/><span className="alt">oversold.</span></div>
+        <h2 className="sr">Never oversold</h2>
+        <p className="lead">66 of 66 official runs on AWS EC2 passed every correctness check: no unit sold twice, no accepted order lost.</p>
+        <div className="cta-row"><a className="cta" href="#measured">See the numbers</a></div></> },
+    { cls: "s-sky", art: <ArtSplit/>,
+      body: <><span className="eyebrow">Redis decides · PostgreSQL remembers</span>
+        <h2>One atomic Lua call per order.</h2>
+        <p className="lead">The stock check and the deduction happen in a single Redis script, in 0.04 to 0.06 ms. The order and its event are saved together in PostgreSQL.</p>
+        <div className="cta-row"><a className="cta" href="#stack">The stack</a></div></> },
+    { cls: "s-navy", art: <ArtQueue/>,
+      body: <><span className="eyebrow">Under pressure</span>
+        <div className="comic sm" aria-hidden="true">Too busy?<br/><span className="alt">We say so.</span></div>
+        <h2 className="sr">Too busy? We say so.</h2>
+        <p className="lead">Nginx answers 429 and the Order Service answers 503 with Retry-After before writing anything. The shop page waits and retries with the same key.</p>
+        <div className="cta-row"><button className="cta" onClick={onShop}>{I.bolt} Try heavy traffic</button></div></> },
+  ];
+  const n = slides.length;
+  const paused = reduce || hover || userPaused;
+  useEffect(() => { if (paused) return; const id = window.setInterval(() => { if (!document.hidden) setI(x => (x + 1) % n); }, 6500); return () => window.clearInterval(id); }, [paused, n]);
+  const go = (k: number) => setI(((k % n) + n) % n);
+  return (
+    <header className="hero" id="home">
+      <div className="wrap carousel" aria-roledescription="carousel" aria-label="Highlights"
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHover(false); }}>
+        <div className="viewport">
+          <div className="track" style={{ transform: `translateX(-${i * 100}%)` }}>
+            {slides.map((s, k) => (
+              <div key={k} className={`slide ${s.cls}`} role="group" aria-roledescription="slide" aria-label={`${k + 1} of ${n}`} aria-hidden={k !== i} {...(k !== i ? { inert: "" } : {})}>
+                <div>{s.body}</div>
+                <div className="slide-art">{s.art}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="c-controls">
+          <div className="dots">{slides.map((_, k) => <button key={k} aria-label={`Show slide ${k + 1}`} aria-current={k === i} onClick={() => go(k)}/>)}</div>
+          <div className="c-btns">
+            {!reduce && <button className="round" onClick={() => setUserPaused(p => !p)} aria-label={userPaused ? "Play the slides" : "Pause the slides"}>{userPaused ? I.play : I.pause}</button>}
+            <button className="round" onClick={() => go(i - 1)} aria-label="Previous slide">{I.left}</button>
+            <button className="round" onClick={() => go(i + 1)} aria-label="Next slide">{I.right}</button>
+          </div>
+        </div>
+        <div className="strip" aria-label="Sale at a glance">
+          {stats.map(s => <div key={s.label}><span className="ic" aria-hidden="true">{s.icon}</span><div style={{ minWidth: 0 }}><div className="k">{s.label}</div><div className="v tnum">{s.value}</div></div></div>)}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* --------------------------------------------- the shopper's order flow */
+type Phase =
+  | { kind: "idle" }
+  | { kind: "sending"; attempt: number }
+  | { kind: "backoff"; attempt: number; waitMs: number; until: number; code: 429 | 503; reason?: string }
+  | { kind: "tracking"; orderId: string }
+  | { kind: "failed"; message: string }
+  | { kind: "gaveup" };
+
+interface Exchange { at: number; text: string; tone?: "ok" | "bad" }
+
+function useOrderFlow(mode: Mode, sim: FlashSim) {
+  const key0 = STORE(mode);
+  const saved = useMemo(() => safe.get(key0), [key0]);
+  const [key, setKey] = useState<string | null>(saved?.key ?? null);
+  const [phase, setPhase] = useState<Phase>(saved?.orderId ? { kind: "tracking", orderId: saved.orderId } : { kind: "idle" });
+  const [view, setView] = useState<View | null>(null);
+  const [resumed] = useState<boolean>(!!saved?.orderId);
+  const [codes, setCodes] = useState<number[]>([]);
+  const [postMs, setPostMs] = useState<number | null>(null);
+  const [ex, setEx] = useState<Exchange[]>([]);
+  const t0 = useRef(performance.now());
+  const lock = useRef(false);
+  const timer = useRef<number | null>(null);
+  const note = (text: string, tone?: Exchange["tone"]) => setEx(x => [...x.slice(-80), { at: performance.now() - t0.current, text, tone }]);
+
+  const attempt = useCallback(async (k: string, n: number) => {
+    setPhase({ kind: "sending", attempt: n });
+    let r: any;
+    if (mode === "live") { r = await api.place(k); }
+    else { await new Promise(res => setTimeout(res, 350)); r = sim.submit(k); }
+    setCodes(c => [...c, r.status]);
+    if (mode === "live") {
+      if (r.status === 201 || r.status === 200) setPostMs(r.ms);
+      note(`POST /api/orders → ${r.status || "network error"}${r.ms !== undefined ? ` in ${Math.round(r.ms)} ms` : ""}${r.view ? ` (order ${short(r.view.id)})` : ""}`, r.status === 201 || r.status === 200 ? "ok" : "bad");
+    }
+    if (r.status === 201 || r.status === 200) {
+      safe.set(key0, { key: k, orderId: r.view.id, scenario: sim.sc.id });
+      setView(r.view); setPhase({ kind: "tracking", orderId: r.view.id }); return;
+    }
+    if (r.status === 429 || r.status === 503 || r.status === 0) {
+      if (n >= MAX_ATTEMPTS) { setPhase(r.status === 0 ? { kind: "failed", message: r.message } : { kind: "gaveup" }); lock.current = false; return; }
+      if (r.status === 0 && n >= 2) { setPhase({ kind: "failed", message: r.message }); lock.current = false; return; }
+      const base = r.status === 503 ? r.retryAfter * 1000 : Math.min(8000, 1000 * 2 ** (n - 1));
+      const waitMs = Math.round(base + Math.random() * 300);
+      setPhase({ kind: "backoff", attempt: n, waitMs, until: performance.now() + waitMs, code: r.status === 0 ? 503 : r.status, reason: r.status === 503 ? r.reason : r.status === 0 ? r.message : undefined });
+      timer.current = window.setTimeout(() => attempt(k, n + 1), waitMs);
+      return;
+    }
+    setPhase({ kind: "failed", message: `${r.status}: ${r.message}` }); lock.current = false;
+  }, [mode, sim, key0]);
+
+  const buy = useCallback(() => {
+    if (lock.current) return;          // one submission at a time, whatever the click rate
+    lock.current = true;
+    const k = key ?? uuid(); setKey(k); safe.set(key0, { key: k, scenario: sim.sc.id });
+    attempt(k, 1);
+  }, [key, attempt, sim, key0]);
+
+  const resendSameKey = useCallback(async () => {
+    if (!key) return;
+    if (mode === "live") { const r: any = await api.place(key); setCodes(c => [...c, r.status]);
+      note(`POST again with the same Idempotency-Key → ${r.status}${r.view ? `, same order ${short(r.view.id)}, nothing new created` : ""}`, r.status === 200 ? "ok" : "bad");
+      if (r.view) setView(r.view); }
+    else { const r: any = sim.submit(key); if (r.view) setView(r.view); }
+  }, [key, sim, mode]);
+
+  const reset = useCallback(() => {
+    if (timer.current) window.clearTimeout(timer.current);
+    lock.current = false; safe.del(key0); setKey(null); setView(null); setCodes([]); setPostMs(null); setEx([]); setPhase({ kind: "idle" });
+  }, [key0]);
+
+  // Poll GET /api/orders/{id} once a second until Completed or Rejected.
+  useEffect(() => {
+    if (phase.kind !== "tracking") return;
+    let stop = false; let lastState = "";
+    if (mode === "sim") {
+      let o = sim.get(phase.orderId);
+      if (!o && saved?.orderId === phase.orderId && sim.started) o = sim.restore(saved);
+      const poll = () => { const cur = sim.get(phase.orderId); if (cur) setView(sim.view(cur)); };
+      poll(); const id = window.setInterval(poll, 250); return () => window.clearInterval(id);
+    }
+    const poll = async () => {
+      try {
+        const v = await api.get(phase.orderId);
+        if (stop) return;
+        if (!v) { note(`GET /api/orders/${short(phase.orderId)} → not found`, "bad"); return; }
+        if (v.state !== lastState) { note(`GET /api/orders/${short(phase.orderId)} → ${v.state}`, v.state === "Rejected" ? "bad" : v.state === "Completed" ? "ok" : undefined); lastState = v.state; }
+        setView(v);
+        if (v.state === "Completed" || v.state === "Rejected") { stop = true; return; }
+      } catch { if (!stop) note("GET failed: the gateway did not answer; trying again in 1 s", "bad"); }
+      if (!stop) window.setTimeout(poll, 1000);
+    };
+    poll();
+    return () => { stop = true; };
+  }, [phase, mode, sim, sim.started]);
+
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  return { key, phase, view, buy, reset, resendSameKey, resumed, codes, postMs, ex };
+}
+
+/* ------------------------------------------------- tracking (tx list) */
+function Track({ view, flow, mode }: { view: View; flow: ReturnType<typeof useOrderFlow>; mode: Mode }) {
+  const rejected = view.state === "Rejected";
+  const fmt = (ms?: number) => (ms === undefined ? "" : `+${(ms / 1000).toFixed(2)} s`);
+  const after = (s: OrderState) => ["Confirmed", "Processing", "Completed", "Rejected"].indexOf(view.state) >= ["Confirmed", "Processing", "Completed", "Rejected"].indexOf(s);
+  const rows: Array<{ t: string; s: string; icon: JSX.Element; done: boolean; at?: number; fail?: boolean }> = [
+    { t: "Order accepted", s: "Saved as PendingStock with its OrderPlaced event (Outbox)", icon: I.inbox, done: true, at: 0 },
+    { t: "Event published", s: "RabbitMQ confirmed the OrderPlaced message", icon: I.send, done: view.state !== "PendingStock" || view.t.published !== undefined, at: view.t.published },
+    rejected ? { t: "Sold out", s: "Redis had no stock left: StockRejected, nothing deducted", icon: I.x, done: true, at: view.t.decided, fail: true }
+             : { t: "Stock reserved", s: "Redis Lua: duplicate check, stock check, deduct 1", icon: I.box, done: view.state !== "PendingStock", at: view.t.decided },
+    ...(rejected ? [] : [
+      { t: "Processing", s: "The Process Worker does the downstream work", icon: I.gear, done: view.state === "Processing" || view.state === "Completed", at: view.t.processing },
+      { t: "Completed", s: "Your unit is reserved and processed", icon: I.check, done: view.state === "Completed", at: view.t.completed }]),
+  ];
+  const firstOpen = rows.findIndex(r => !r.done);
+  const head = view.state === "Completed" ? ["Completed", "done"] : rejected ? ["Rejected", "bad"] : view.state === "PendingStock" ? ["Pending", "pending"] : [view.state, "info"];
+  return (
+    <div className="card track-card" aria-live="polite">
+      <div className="track-head"><h3>Your order <span className="special" style={{ fontWeight: 400 }}>{short(view.id)}</span></h3><span className={`status ${head[1]}`}>{head[0]}</span></div>
+      {view.state === "Completed" && <div className="note ok"><b>Done.</b> One unit is yours and processed. Payment is outside this project's scope.</div>}
+      {rejected && <div className="note bad"><b>Sold out before your turn.</b> Your request was accepted, but the stock ran out first. No unit was taken and none was oversold.</div>}
+      <ul className="tx">
+        {rows.map((r, k) => {
+          const cls = r.fail ? "fail" : r.done ? "done" : k === firstOpen ? "now" : "todo";
+          const label = r.fail ? "Rejected" : r.done ? "Done" : k === firstOpen ? "Pending" : "Waiting";
+          return <li key={r.t} className={cls}><span className="ic">{r.icon}</span><div style={{ minWidth: 0 }}><div className="t">{r.t}</div><div className="s">{r.s}</div></div>
+            <div className="r tnum"><b>{label}</b>{r.done && r.at !== undefined ? fmt(r.at) : r.done && mode === "live" && k === 1 ? "via Outbox" : ""}</div></li>;
+        })}
+      </ul>
+      {mode === "live" && view.history.length > 0 && (
+        <details><summary className="fine" style={{ cursor: "pointer" }}>State history from GET /api/orders/{"{id}"} ({view.history.length} {view.history.length === 1 ? "row" : "rows"})</summary>
+          <div className="ids" style={{ marginTop: 8 }}>{view.history.map((h, k) => <span key={k}>{h.from ?? "∅"} → {h.to} {fmt(h.at)}{h.implied ? " (implied)" : ""}</span>)}</div>
+        </details>
+      )}
+      <div className="ids">
+        <span>Order ID: {view.id}</span>
+        <span>Idempotency-Key: {flow.key}</span>
+        {view.corr && <span>Correlation ID: {view.corr}</span>}
+        {view.msgIds && view.msgIds.length > 0 && <span>Message IDs: {view.msgIds.join(", ")}</span>}
+      </div>
+      <div className="row-btns">
+        <button className="ghost" onClick={flow.resendSameKey}>Send the same request again</button>
+        <button className="ghost" onClick={flow.reset}>Start over</button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ the product */
+function Product({ mode, sim, flow, onReload }: { mode: Mode; sim: FlashSim; flow: ReturnType<typeof useOrderFlow>; onReload: () => void }) {
+  const [fav, setFav] = useState(false);
+  const live = mode === "live";
+  const status: SaleStatus = live ? "live" : sim.status;
+  const claimed = sim.initial - sim.stock;
+  const pct = live ? 0 : Math.round((claimed / sim.initial) * 100);
+  const secsLeft = Math.max(0, Math.ceil((sim.openAt - sim.now) / 1000));
+  const [announce, setAnnounce] = useState(""); const band = useRef(-1);
+  useEffect(() => { if (live) return; const b = status === "soldout" ? 100 : Math.floor(pct / 25) * 25;
+    if (b !== band.current) { band.current = b; setAnnounce(status === "soldout" ? "Sold out." : status === "live" ? `${pct}% sold, ${sim.stock} left.` : ""); } }, [pct, status, sim.stock, live]);
+
+  const p = flow.phase; const v = flow.view;
+  const busy = p.kind === "sending" || p.kind === "backoff";
+  const sv = !live && v ? sim.get(v.id) : undefined;
+  const pos = sv ? sim.positionOf(sv) : null;
+  let label = "Buy now";
+  if (!live && !sim.started) label = "Start the sale first";
+  else if (status === "upcoming") label = `Opens in ${secsLeft} s`;
+  else if (status === "soldout" && p.kind === "idle") label = "Sold out";
+  if (p.kind === "sending") label = `Securing your unit… (try ${p.attempt})`;
+  if (p.kind === "backoff") label = "Retrying automatically…";
+  if (p.kind === "tracking" && v && v.state === "PendingStock") label = pos ? `In line, position #${pos.ahead + 1}` : "Waiting for the stock decision…";
+  if (p.kind === "tracking" && v && v.state !== "PendingStock") label = "Order placed";
+  const disabled = status !== "live" || p.kind !== "idle";
+  const backoffLeft = p.kind === "backoff" ? Math.max(0, p.until - performance.now()) : 0;
+  const tag = status === "upcoming" ? (sim.started ? `Opens in 00:${pad(secsLeft)}` : "Coming up") : status === "live" ? "Live now" : "Sold out";
+
+  return (
+    <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
+      <article className="card product" aria-labelledby="p-name">
+        <div className="p-media">
+          <span className="badge">−60%</span>
+          <button className="heart" aria-pressed={fav} aria-label={fav ? "Remove from wishlist" : "Add to wishlist"} onClick={() => setFav(f => !f)}>{I.heart}</button>
+          <Earbuds/>
+          <span className={`state-tag ${status}`} aria-live="polite"><span className="led"/>{tag}</span>
+        </div>
+        <div className="p-body">
+          <div><div className="p-name" id="p-name">Aurora X2 Wireless Earbuds</div><div className="p-sku">{PRODUCT_ID} · one per order</div></div>
+          <div className="price-row"><span className="price-now tnum">{vnd(PRICE_NOW)}</span><span className="price-was tnum">{vnd(PRICE_WAS)}</span></div>
+          {live ? (
+            <div className="note info"><span>Live stock is held in Redis and is not exposed through the gateway, so this page shows your own order only. The crowd counters run in <b>Simulation</b>.</span></div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div className="sold-row"><span>{status === "soldout" ? "No units left" : `Only ${sim.stock.toLocaleString()} left`}</span><b className="tnum">{claimed.toLocaleString()} sold</b></div>
+              <div className="meter" role="progressbar" aria-label="Units sold" aria-valuemin={0} aria-valuemax={sim.initial} aria-valuenow={claimed}><span style={{ width: `${pct}%` }}/></div>
+              <div className="sr" aria-live="polite">{announce}</div>
+            </div>
+          )}
+          <button className={`buy ${busy ? "busy" : ""}`} disabled={disabled} onClick={flow.buy} aria-describedby="buy-help">{I.bag}{label}</button>
+          <div id="buy-help" className="fine">The button locks after the first press, so repeated clicks still send one order. Retries reuse the same Idempotency-Key.</div>
+          <div aria-live="assertive" style={{ display: "contents" }}>
+            {p.kind === "backoff" && (
+              <div className="note warn"><span><b>Traffic is heavy.</b> {p.code === 429 ? "The gateway answered 429 Too Many Requests." : `The order service answered 503 (${p.reason}) and asked us to wait.`} Retrying in {(backoffLeft / 1000).toFixed(1)} s, try {p.attempt + 1} of {MAX_ATTEMPTS}.</span>
+                <div className="backoff"><span style={{ width: `${100 - (backoffLeft / p.waitMs) * 100}%` }}/></div></div>
+            )}
+            {p.kind === "gaveup" && <div className="note bad"><b>Could not get through after {MAX_ATTEMPTS} tries.</b> No order was created. Press Start over to try again.</div>}
+            {p.kind === "failed" && <div className="note bad"><b>The order did not go through.</b> {p.message}. Nothing was created. <button className="ghost" style={{ justifySelf: "start" }} onClick={flow.reset}>Start over</button></div>}
+          </div>
+          {!live && status === "soldout" && !v && <div className="note bad" role="status"><b>Sold out.</b> All {sim.initial.toLocaleString()} units were reserved by earlier orders; {sim.c.rejected.toLocaleString()} later orders were rejected and none was oversold.</div>}
+          {flow.resumed && v && <div className="note info">Restored after the reload: still tracking order {short(v.id)} with the same Idempotency-Key.</div>}
+          {!live && v && v.state === "PendingStock" && pos && <div className="note info">Accepted. {pos.ahead} orders ahead of yours in the Inventory queue.</div>}
+          {!live && v && v.state === "Confirmed" && pos && <div className="note info">One unit is reserved for you. {pos.ahead} orders ahead of yours at the Process Worker.</div>}
+          <div className="row-btns"><button className="ghost" onClick={onReload} title="Reload the shop card; the order is kept in this browser">Reload the shop card</button></div>
+        </div>
+      </article>
+      {v && <Track view={v} flow={flow} mode={mode}/>}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------- system side */
+function Stage({ logo, sub, title, what, here, children }: { logo: JSX.Element; sub?: JSX.Element; title: string; what: string; here?: boolean; children?: any }) {
+  return (
+    <div className={`stage ${here ? "here" : ""}`}>
+      {here && <span className="you">your order</span>}
+      <div className="logo" aria-hidden="true">{logo}{sub && <span className="sub">{sub}</span>}</div>
+      <div><h4>{title}</h4><div className="what">{what}</div></div>
+      <div className="nums">{children}</div>
+    </div>
+  );
+}
+const Q = ({ n, max }: { n: number; max: number }) => <div className="qbar" aria-hidden="true"><span style={{ width: `${Math.min(100, (n / max) * 100)}%` }}/></div>;
+
+function System({ mode, sim, flow, why }: { mode: Mode; sim: FlashSim; flow: ReturnType<typeof useOrderFlow>; why: string }) {
+  const live = mode === "live";
+  const c = sim.c; const r = sim.rate; const v = flow.view;
+  const sv = !live && v ? sim.get(v.id) : undefined;
+  let where = sv ? sim.positionOf(sv).stage : "";
+  if (live && v) where = v.state === "PendingStock" ? "inventory" : v.state === "Confirmed" || v.state === "Processing" ? "worker" : "";
+  if (flow.phase.kind === "sending" || flow.phase.kind === "backoff") where = "gateway";
+  const logRef = useRef<HTMLDivElement>(null);
+  const lines: LogLine[] = live ? flow.ex.map(e => ({ at: e.at, src: "you", text: e.text, tone: e.tone })) : sim.log;
+  useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [lines.length]);
+  const fmt = (ms: number) => `${(ms / 1000).toFixed(2)}s`;
+  const codes = flow.codes.length ? flow.codes.map(x => x || "err").join(" → ") : "–";
+  return (
+    <div className="card sys" style={{ minWidth: 0 }} aria-labelledby="sys-h">
+      <div className="sys-head"><h3 id="sys-h">Behind the Buy button</h3><span className={`chip ${live ? "live" : "sim"}`}>{live ? "Live API" : "Simulated in the browser"}</span></div>
+      {!live && why && <div className="note warn"><span><b>Running the simulation.</b> The live API is not reachable ({why}). Start the stack and open the page with <code>node demo-results/ui/serve.mjs</code> to use the real services.</span></div>}
+      <div className="kpis">
+        {live ? <>
+          <div className="kpi"><div className="k">Your attempts</div><div className="v tnum">{flow.codes.length}</div></div>
+          <div className="kpi"><div className="k">HTTP answers</div><div className="v tnum" style={{ fontSize: 18 }}>{codes}</div></div>
+          <div className="kpi"><div className="k">POST answer</div><div className="v tnum">{flow.postMs !== null ? Math.round(flow.postMs) : "–"} <small>ms</small></div></div>
+          <div className="kpi"><div className="k">Stock decided</div><div className="v tnum">{v?.t.decided !== undefined ? (v.t.decided / 1000).toFixed(2) : "–"} <small>s</small></div></div>
+          <div className="kpi"><div className="k">Completed</div><div className="v tnum">{v?.t.completed !== undefined ? (v.t.completed / 1000).toFixed(2) : "–"} <small>s</small></div></div>
+        </> : <>
+          <div className="kpi"><div className="k">Orders sent</div><div className="v tnum">{c.offered.toLocaleString()} <small>{r.offered.toFixed(0)}/s</small></div></div>
+          <div className="kpi"><div className="k">Refused early</div><div className="v tnum">{(c.r429 + c.r503).toLocaleString()} <small>{c.r429} / {c.r503}</small></div></div>
+          <div className="kpi"><div className="k">Reserved</div><div className="v tnum">{c.reserved.toLocaleString()} <small>of {sim.initial.toLocaleString()}</small></div></div>
+          <div className="kpi"><div className="k">Sold out</div><div className="v tnum">{c.rejected.toLocaleString()}</div></div>
+          <div className="kpi"><div className="k">Completed</div><div className="v tnum">{c.completed.toLocaleString()} <small>{r.completed.toFixed(0)}/s</small></div></div>
+        </>}
+      </div>
+      <div className="pipe">
+        <Stage logo={<Logo slug="nginx" size={26}/>} title="Nginx gateway" what={live ? "Rate limit on POST /api/orders; excess gets 429 at once." : `Rate limit ${sim.sc.nginxRatePerSec}/s, burst ${sim.sc.nginxBurst}. Excess gets 429 at once.`} here={where === "gateway"}>
+          {!live && <><span>{r.offered.toFixed(0)} requests/s</span><span className="bad">429 refused: {c.r429.toLocaleString()}</span></>}
+        </Stage>
+        <div className="link" aria-hidden="true">POST /api/orders + Idempotency-Key</div>
+        <Stage logo={<Logo slug="dotnet" size={26}/>} sub={<Logo slug="postgresql" size={15}/>} title="Order Service + Outbox" what="Admission check, then the order (PendingStock) and its event in one PostgreSQL transaction; answers 201." here={where === "outbox"}>
+          {!live && <><span className="ok">201 accepted: {c.accepted.toLocaleString()}</span><span className="bad">503 refused: {c.r503.toLocaleString()}{sim.sc.maxInFlight ? ` (limit ${sim.sc.maxInFlight})` : ""}</span><span>unfinished: {sim.inFlight.toLocaleString()}</span></>}
+        </Stage>
+        <div className="link" aria-hidden="true">OrderPlaced · publisher confirm</div>
+        <Stage logo={<Logo slug="rabbitmq" size={26}/>} title="RabbitMQ" what="Durable queues with bounded length, an Inbox on every consumer and a dead-letter queue per service.">
+          {!live && <><span>to inventory: {(sim.invQueue.length + sim.outbox.length).toLocaleString()}</span><Q n={sim.invQueue.length} max={300}/></>}
+        </Stage>
+        <div className="link" aria-hidden="true">at-least-once delivery</div>
+        <Stage logo={<Logo slug="redis" size={26}/>} sub={<Logo slug="lua" size={15}/>} title="Inventory Service + Redis Lua" what="One atomic script: duplicate check, stock check, deduct 1. Answers StockReserved or StockRejected." here={where === "inventory"}>
+          {!live && <><span>stock in Redis: {sim.stock.toLocaleString()}</span><span className="ok">reserved {c.reserved.toLocaleString()}</span><span className="bad">rejected {c.rejected.toLocaleString()}</span></>}
+        </Stage>
+        <div className="link" aria-hidden="true">StockReserved → Confirmed</div>
+        <Stage logo={<Logo slug="dotnet" size={26}/>} sub={<Logo slug="rabbitmq" size={15}/>} title="Process Worker" what={`Deterministic downstream work: ${WORKER_DELAY_MS} ms per order${live ? "" : `, ${sim.workerConcurrency} at a time`}. Then Completed.`} here={where === "worker"}>
+          {!live && <><span>waiting {sim.workerQueue.length} · working {sim.busy.length}</span><Q n={sim.workerQueue.length} max={300}/><span className="ok">completed {c.completed.toLocaleString()}</span></>}
+        </Stage>
+      </div>
+      <div>
+        <div className="sys-head" style={{ marginBottom: 8 }}><h3 style={{ fontSize: 16 }}>Event log</h3><span className="fine">{live ? "the requests this page sent" : "your order and the key moments"}</span></div>
+        <div className="log" ref={logRef} role="log" aria-label="Event log">
+          {lines.length === 0 && <div><time>–</time><span>Nothing yet. Press Buy now.</span></div>}
+          {lines.map((l, k) => <div key={k}><time>{fmt(l.at)}</time><span><span className="src">{l.src}</span> <span className={l.tone ? `e-${l.tone}` : ""}>{l.text}</span></span></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------- flash sale section */
+function FlashSale({ mode, setMode, liveOk, why, sim, scId, pick, workers, setWorkers, reloadKey, onReload }: any) {
+  const flow = useOrderFlow(mode, sim);
+  const live = mode === "live";
+  const elapsed = Math.max(0, Math.floor((sim.now - sim.openAt) / 1000));
+  const [clockNow, setClockNow] = useState(Date.now());
+  useEffect(() => { const id = window.setInterval(() => setClockNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
+  const clock = live ? ["Live", new Date(clockNow).toLocaleTimeString("en-GB")] : !sim.started ? ["Ready", "00:00:00"] : sim.status === "upcoming" ? ["Opens in", hms(Math.ceil((sim.openAt - sim.now) / 1000))] : sim.status === "soldout" ? ["Sold out at", hms(elapsed)] : ["Live for", hms(elapsed)];
+  const sc = SCENARIOS.find(s => s.id === scId)!;
+  return (
+    <section className="block" id="sale" aria-labelledby="sale-h">
+      <div className="wrap">
+        <div className="sec-head">
+          <div>
+            <span className="kicker">Today only</span>
+            <div className="fs-top">
+              <div className="fs-title"><span className="bolt-badge" aria-hidden="true">{I.bolt}</span><h2 id="sale-h">Flash Sale</h2></div>
+              <span className="clock tnum" role="timer" aria-label={`${clock[0]} ${clock[1]}`}>{I.clock}<small>{clock[0]}</small>{clock[1]}</span>
+            </div>
+          </div>
+          <div className="row-btns" role="group" aria-label="Where the orders go">
+            <button className="pill-btn" aria-pressed={live} disabled={!liveOk} onClick={() => setMode("live")} title={liveOk ? "Send real orders through the gateway" : `Live API not reachable: ${why}`}>Live API</button>
+            <button className="pill-btn" aria-pressed={!live} onClick={() => setMode("sim")}>Simulation</button>
+          </div>
+        </div>
+        {!live && <>
+          <div className="pills" role="group" aria-label="Scenario">
+            {SCENARIOS.map(s => <button key={s.id} className="pill-btn" aria-pressed={s.id === scId} onClick={() => pick(s.id)}>{s.label}</button>)}
+            <label className="pill-btn" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>Worker
+              <select value={workers} onChange={e => setWorkers(Number(e.target.value))} style={{ border: 0, background: "transparent", fontWeight: 700 }} aria-label="Worker concurrency">
+                <option value={1}>1 at a time</option><option value={8}>8 at a time</option><option value={32}>32 at a time</option>
+              </select></label>
+            <button className="pill-btn" style={{ background: "var(--orange)", borderColor: "var(--orange)", color: "#fff" }} disabled={sim.started} onClick={() => sim.start()}>Start the sale</button>
+            <button className="pill-btn" onClick={() => pick(scId)}>Reset</button>
+          </div>
+          <p className="scenario-note">{sc.blurb}</p>
+        </>}
+        {live && <p className="scenario-note" style={{ marginTop: 10 }}>Real orders: <code>POST /api/orders</code> through Nginx, then <code>GET /api/orders/{"{id}"}</code> once a second until Completed or Rejected. Reload the browser tab to see the order come back from the database.</p>}
+        <div className="fs-grid">
+          <Product key={`${mode}-${scId}-${reloadKey}`} mode={mode} sim={sim} flow={flow} onReload={onReload}/>
+          <System mode={mode} sim={sim} flow={flow} why={why}/>
+        </div>
+        <div className="drop" aria-label="Next drops">
+          {[
+            { n: "Nimbus Hoodie", bg: "var(--pink)", art: <Hoodie/>, p: 459000, w: 765000, off: "−40%" },
+            { n: "Pulse Watch S", bg: "var(--sky)", art: <Watch/>, p: 1290000, w: 2150000, off: "−40%" },
+            { n: "Echo Mini Speaker", bg: "var(--lilac)", art: <Speaker/>, p: 690000, w: 1150000, off: "−40%" },
+            { n: "Market Tote", bg: "var(--butter)", art: <Tote/>, p: 149000, w: 299000, off: "−50%" },
+          ].map(t => <Tile key={t.n} {...t}/>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+function Tile({ n, bg, art, p, w, off }: any) {
+  const [fav, setFav] = useState(false);
+  return (
+    <article className="card tile">
+      <div className="p-media" style={{ background: bg }}>
+        <span className="badge">{off}</span>
+        <button className="heart" aria-pressed={fav} aria-label={fav ? `Remove ${n} from wishlist` : `Add ${n} to wishlist`} onClick={() => setFav(f => !f)}>{I.heart}</button>
+        {art}
+      </div>
+      <div className="body"><div className="nm">{n}</div><div className="pr"><b className="tnum">{vnd(p)}</b><s className="tnum">{vnd(w)}</s></div><div className="soon">Next drop · preview only</div></div>
+    </article>
+  );
+}
+
+/* ------------------------------------------------------------ the stack */
+const STACK: Array<{ slug: string; name: string; role: string }> = [
+  { slug: "dotnet", name: ".NET 10", role: "Order, Inventory, Worker" },
+  { slug: "abp", name: "ABP Framework", role: "service modules" },
+  { slug: "postgresql", name: "PostgreSQL", role: "orders, Outbox, Inbox" },
+  { slug: "redis", name: "Redis", role: "stock, atomic Lua" },
+  { slug: "lua", name: "Lua", role: "reserve.lua" },
+  { slug: "rabbitmq", name: "RabbitMQ", role: "events, confirms, DLQ" },
+  { slug: "nginx", name: "NGINX", role: "gateway, 429" },
+  { slug: "docker", name: "Docker Compose", role: "the whole stack" },
+  { slug: "apachejmeter", name: "Apache JMeter", role: "open-loop load" },
+  { slug: "terraform", name: "Terraform", role: "EC2 hosts" },
+  { slug: "amazonec2", name: "Amazon EC2", role: "official runs" },
+  { slug: "prometheus", name: "Prometheus", role: "metrics" },
+  { slug: "grafana", name: "Grafana", role: "dashboards" },
+  { slug: "swagger", name: "OpenAPI", role: "API contract" },
+  { slug: "react", name: "React", role: "this page" },
+  { slug: "github", name: "GitHub", role: "source" },
+];
+function TechChip({ t, dup }: { t: typeof STACK[number]; dup?: boolean }) {
+  return (
+    <div className="tech" {...(dup ? { "data-dup": "", "aria-hidden": true } : {})}>
+      <span className="lg">{t.slug === "abp" ? <span className="abp" aria-label="ABP">abp</span> : <Logo slug={t.slug} size={26}/>}</span>
+      <div><b>{t.name}</b><span>{t.role}</span></div>
+    </div>
+  );
+}
+function Stack() {
+  const [paused, setPaused] = useState(false);
+  const reduce = useReducedMotion();
+  const a = STACK.slice(0, 8), b = STACK.slice(8);
+  return (
+    <section className={`stack ${paused ? "paused" : ""}`} id="stack" aria-labelledby="stack-h">
+      <div className="wrap"><div className="sec-head"><div><span className="kicker">The stack</span><h2 id="stack-h">Everything it runs on</h2><p>Three .NET services, two data stores, one broker and a gateway, measured with JMeter on AWS.</p></div>
+        {!reduce && <button className="stack-pause" onClick={() => setPaused(p => !p)} aria-pressed={paused}>{paused ? "Play" : "Pause"} the logos</button>}</div></div>
+      <div className="marquee"><div className="m-run">{a.map(t => <TechChip key={t.slug} t={t}/>)}{a.map(t => <TechChip key={t.slug + "-d"} t={t} dup/>)}</div></div>
+      <div className="marquee rev"><div className="m-run">{b.map(t => <TechChip key={t.slug} t={t}/>)}{b.map(t => <TechChip key={t.slug + "-d"} t={t} dup/>)}</div></div>
+    </section>
+  );
+}
+
+/* --------------------------------------------------- how it works + numbers */
+function How() {
+  const steps = [
+    { n: "01", h: "Accept fast, decide later", p: "The Order Service checks admission, saves the order and its OrderPlaced event in one transaction, and answers 201 with the order ID.", l: ["nginx", "dotnet", "postgresql"] },
+    { n: "02", h: "One atomic stock decision", p: "Inventory runs one Redis Lua script per message: skip duplicates, check stock, deduct one. StockReserved or StockRejected goes back over RabbitMQ.", l: ["rabbitmq", "redis", "lua"] },
+    { n: "03", h: "Finish, then show it", p: "The Process Worker completes confirmed orders. The shopper's page polls GET /api/orders/{id} and shows each state with its time.", l: ["dotnet", "rabbitmq", "react"] },
+  ];
+  return (
+    <section className="block" id="how" aria-labelledby="how-h">
+      <div className="wrap">
+        <div className="sec-head"><div><span className="kicker">How it works</span><h2 id="how-h">From Buy to Completed in three steps</h2><p>The six states the teacher's brief names: PendingStock, Confirmed, Rejected, Processing, Completed, and ProcessingFailed, which this Worker never reaches.</p></div></div>
+        <div className="steps3">{steps.map(s => <div key={s.n} className="card step"><span className="num">{s.n}</span><h3>{s.h}</h3><p>{s.p}</p><div className="logos">{s.l.map(x => <span key={x}><Logo slug={x} size={20}/></span>)}</div></div>)}</div>
+      </div>
+    </section>
+  );
+}
+function Measured() {
+  return (
+    <section className="block" id="measured" aria-labelledby="m-h">
+      <div className="wrap">
+        <div className="sec-head"><div><span className="kicker">Measured, not promised</span><h2 id="m-h">What the EC2 runs showed</h2><p>Every number below comes from the report's Results chapter and its evidence folders.</p></div></div>
+        <div className="measured">
+          <div className="card stat"><div className="big">66<span className="arrow">/</span>66</div><div className="lbl">official runs passed</div><p>22 cells × 3 repeats, configurations C1 to C4; every correctness check held in every run.</p></div>
+          <div className="card stat"><div className="big">0</div><div className="lbl">units oversold</div><p>The validator checks stock, reservations and orders per product after every run.</p></div>
+          <div className="card stat"><div className="big">0.04–0.06</div><div className="lbl">ms per Redis call</div><p>Redis was never the limit; the two vCPUs of the host were.</p></div>
+          <div className="card stat"><div className="big">326<span className="arrow">→</span>43 s</div><div className="lbl">worst drain, before and after</div><p>The Worker back-pressure fix: 0 dead letters in 9 of 9 runs, drains in 29–43 s instead of up to 326 s.</p></div>
+        </div>
+        <p className="src-note">Sources: tests/evidence/20261105T104832Z-official (TP-X02) and tests/evidence/20261107T060310Z-backpressure-ab (TP-X14).</p>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------- app */
+function App() {
+  const [theme, setTheme] = useState<string | null>(() => safe.get("flashsale-shop-theme"));
+  useEffect(() => { if (theme) document.documentElement.setAttribute("data-theme", theme); else document.documentElement.removeAttribute("data-theme"); }, [theme]);
+  const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const toggleTheme = () => { const t = dark ? "light" : "dark"; setTheme(t); safe.set("flashsale-shop-theme", t); };
+
+  const [probe, setProbe] = useState<{ done: boolean; ok: boolean; why: string }>({ done: false, ok: false, why: "" });
+  const [mode, setModeRaw] = useState<Mode>("probing");
+  useEffect(() => { api.probe().then(r => { setProbe({ done: true, ...r }); setModeRaw(m => (m === "probing" ? (r.ok ? "live" : "sim") : m)); }); }, []);
+  const setMode = (m: Mode) => setModeRaw(m);
+
+  const savedSim = safe.get(STORE("sim"));
+  const [scId, setScId] = useState<ScenarioId>((savedSim?.scenario as ScenarioId) ?? "success");
+  const [workers, setWorkers] = useState(8);
+  const simRef = useRef<FlashSim>(new FlashSim(SCENARIOS.find(s => s.id === scId)!, workers));
+  const [, setTick] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const sim = simRef.current;
+  useEffect(() => {
+    if (savedSim?.orderId && !sim.started) sim.start();
+    const id = window.setInterval(() => { sim.tick(); setTick(t => t + 1); }, 100);
+    return () => window.clearInterval(id);
+  }, [sim]);
+  useEffect(() => { simRef.current.workerConcurrency = workers; }, [workers]);
+  const pick = (id: ScenarioId) => { safe.del(STORE("sim")); setScId(id); simRef.current = new FlashSim(SCENARIOS.find(s => s.id === id)!, workers); setReloadKey(k => k + 1); };
+  const shop = (heavy?: boolean) => { document.getElementById("sale")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); if (heavy && mode !== "live") pick("traffic"); };
+
+  // active tab for the phone tab bar
+  const [active, setActive] = useState("home");
+  useEffect(() => {
+    const ids = ["home", "sale", "stack", "measured"];
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) setActive(e.target.id); }), { rootMargin: "-45% 0px -50% 0px" });
+    ids.forEach(i => { const el = document.getElementById(i); if (el) io.observe(el); });
+    return () => io.disconnect();
+  }, [mode === "probing"]);
+
+  const live = mode === "live";
+  const stats = live
+    ? [{ label: "Orders go to", value: "Real API", icon: I.send }, { label: "Product", value: PRODUCT_ID, icon: I.box }, { label: "Price", value: vnd(PRICE_NOW), icon: I.receipt }, { label: "Limit", value: "1 per order", icon: I.shield }]
+    : [{ label: "Units left", value: sim.stock.toLocaleString(), icon: I.stock }, { label: "Shoppers sent", value: sim.c.offered.toLocaleString(), icon: I.users }, { label: "Reserved", value: sim.c.reserved.toLocaleString(), icon: I.box }, { label: "Completed", value: sim.c.completed.toLocaleString(), icon: I.check }];
+  const ticker = ["Flash sale today", "Up to 60% off", "One unit per order", "Never oversold", "Retries keep your place", "Free returns on the next drop"];
+
+  return (
+    <>
+      <a href="#sale" className="sr" style={{ position: "absolute" }}>Skip to the flash sale</a>
+      <div className="ticker" aria-label="Promotions"><div className="run">{ticker.map(t => <span key={t}>{t}</span>)}{ticker.map(t => <span key={t + "d"} data-dup="" aria-hidden="true">{t}</span>)}</div></div>
+      <nav className="nav" aria-label="Main">
+        <div className="wrap">
+          <a className="brand" href="#home"><span className="brand-mark">{I.bolt}</span>FlashSale<small>SHOP</small></a>
+          <div className="nav-links"><a href="#sale">Flash sale</a><a href="#how">How it works</a><a href="#stack">Stack</a><a href="#measured">Results</a></div>
+          <span className={`mode ${mode === "probing" ? "probe" : live ? "live" : "sim"}`} role="status" title={probe.done && !probe.ok ? `Live API not reachable: ${probe.why}` : ""}>
+            <span className="led"/>{mode === "probing" ? "Checking the API…" : live ? "Live API" : "Simulation"}</span>
+          <button className="theme-btn" onClick={toggleTheme} aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>{dark ? I.sun : I.moon}</button>
+        </div>
+      </nav>
+      <Hero onShop={() => shop()} stats={stats}/>
+      <main>
+        {mode === "probing"
+          ? <section className="block" id="sale"><div className="wrap"><div className="card" style={{ padding: 24 }}>Checking whether the live API is reachable…</div></div></section>
+          : <FlashSale mode={mode} setMode={setMode} liveOk={probe.ok} why={probe.why} sim={sim} scId={scId} pick={pick} workers={workers} setWorkers={setWorkers} reloadKey={reloadKey} onReload={() => setReloadKey(k => k + 1)}/>}
+        <How/>
+        <Stack/>
+        <Measured/>
+      </main>
+      <footer><div className="wrap"><span><b className="special" style={{ color: "var(--ink)" }}>FlashSale Shop</b> · demo storefront for the flash-sale microservices capstone</span><span>Logos: Simple Icons (CC0); trademarks belong to their owners.</span></div></footer>
+      <nav className="tabbar" aria-label="Sections">
+        {[["home", "Home", I.home], ["sale", "Sale", I.bolt], ["stack", "Stack", I.layers], ["measured", "Results", I.receipt]].map(([id, l, ic]: any) =>
+          <a key={id} href={`#${id}`} className={active === id ? "on" : ""} aria-current={active === id ? "true" : undefined}>{ic}{l}</a>)}
+      </nav>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(<App/>);
+</script>
+
+<script>
+  (function () {
+    var src = document.getElementById("app-src").textContent;
+    try {
+      var out = Babel.transform(src, { filename: "app.tsx", presets: [["typescript", { isTSX: true, allExtensions: true }], "react"] }).code;
+      var s = document.createElement("script"); s.textContent = out; document.body.appendChild(s);
+    } catch (e) {
+      document.getElementById("root").textContent = "The page failed to start: " + e.message;
+      console.error(e);
+    }
+  })();
+</script>
+</body>
+</html>

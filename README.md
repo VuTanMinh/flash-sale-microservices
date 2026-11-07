@@ -36,6 +36,7 @@ documents are in `docs/`.
 | `tests/` | .NET tests, JMeter plans, and `evidence/` (saved verifier logs and run data) |
 | `docs/` | Scope, architecture, correctness, experiment, API, reproduction and evidence documents |
 | `report/` | LaTeX report, figures and the built PDFs (report and progress report) |
+| `demo-results/ui/` | Demo shop page: `node demo-results/ui/serve.mjs` serves it and forwards `/api` to Nginx (stack must be up); without the API it falls back to an in-browser simulation. See [its README](demo-results/ui/README.md) |
 
 ## Results and how to reproduce them
 

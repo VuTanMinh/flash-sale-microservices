@@ -72,6 +72,7 @@ setup-week1.ps1
 !/README.md
 !/docs/*.md
 !/docs/**/*.md
+!/demo-results/ui/README.md
 
 # Secrets: never commit environment files (API keys, passwords, tokens).
 .env
