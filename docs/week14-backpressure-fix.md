@@ -68,15 +68,50 @@ counts reconciliation re-triggers to show whether this happens.
 
 ## Switching versions on the backend
 
-- **Both versions on the backend:** it holds `frozen` (`9d00bea`) and `fix` (the
-  commit with the fix). Each image set is built once at deploy, under its own tag.
-- **Switching:** before each run the driver points the Worker at that version's image
-  and recreates only the Worker container.
-- **Reset:** the run's own reset, seed and warm-up then start it clean.
-- **Same code elsewhere:** Order Service and Inventory are identical in both versions,
-  so they are not switched.
+The session driver is `scripts/ec2-session.ps1 -Plan backpressure`, with its helpers
+`scripts/ec2-ssm-run.ps1` and `scripts/ec2-ssm-file.ps1`. It copies itself and both
+helpers into the session's evidence folder when it starts.
 
-The exact commands are fixed once the switching step is written and checked locally.
+- **One build, two Worker images.** The deploy builds every image from the branch
+  head (`035e599`), so the Worker image is the fix. Once per session the driver tags
+  that image `flashsale-process-worker:fix`. It also builds the Worker from the tag
+  `w14-official` (`9d00bea`, in a git worktree at `/opt/w14-official`) as
+  `flashsale-process-worker:frozen`.
+- **The overrides.** The driver writes `infra/worker-frozen.yml` and
+  `infra/worker-fix.yml` on the host. Each only sets the Worker's image.
+- **Order Service and Inventory are not switched.** They are byte-identical between
+  the two commits: `git diff w14-official 035e599` changes only the Process Worker,
+  report verifiers and docs.
+- **The switch.** Before each run the driver recreates only the Worker on that run's
+  image:
+
+  ```
+  docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml -f infra/worker-<v>.yml up -d --no-deps process-worker
+  ```
+
+  It then waits until `ProcessWorker.StockReserved` has a consumer. It passes the same
+  file to `run-matrix.ps1 -ExtraComposeFile`, so the run's own `compose up` keeps
+  that image.
+- **The reset.** The run's own reset, seed and warm-up then start it clean.
+- **What each run records.** `official.json` records `worker_version` and
+  `worker_image`. `manifest.json` records every container's image id. `host-post.log`
+  records reconciliation re-triggers by state, from Order Service's log.
+- **The switch check, before any measured run.** On the backend, the driver switches to
+  frozen and then to fix, and runs a short C3 at 5/s for 20 s on each. The check
+  passes when:
+  - the image id changes between the two;
+  - the validator passes on both;
+  - `flashsale_consumer_backpressure_waits_total` is exported only by the fix.
+  A local run of the same check could not be done, because Docker was not running on
+  the PC.
+
+The command, after the owner's apply and the deploy:
+
+```
+powershell -ExecutionPolicy Bypass -File .\scripts\ec2-session.ps1 -Plan backpressure `
+  -Backend <i-backend> -JMeter <i-jmeter> -BackendIp <backend-private-ip> `
+  -TimerEndUtc <apply time + 360 min> -Out <session folder>
+```
 
 ## Time and cost
 
