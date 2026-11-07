@@ -3,6 +3,11 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usetikzlibrary{shapes.geometric,positioning,fit,arrows.meta,backgrounds}
+\input{tech-logos.tex}
+% \badge{node}{logo}: a logo sticker on the nodes top-left corner (adgeR: top-right).
+\newcommand{\badge}[3][0.42]{\node[inner sep=0] at ([xshift=-1.6mm,yshift=1.6mm]#2.north west) {\techbadge[#1]{#3}};}
+\newcommand{\badgeR}[3][0.42]{\node[inner sep=0] at ([xshift=1.6mm,yshift=1.6mm]#2.north east) {\techbadge[#1]{#3}};}
+\newcommand{\badgeBL}[3][0.42]{\node[inner sep=0] at ([xshift=-1.6mm,yshift=-1.6mm]#2.south west) {\techbadge[#1]{#3}};}
 \begin{document}
 \sffamily
 \begin{tikzpicture}[
@@ -29,13 +34,24 @@
 \draw[flow] (client) -- node[ev, right=2pt] {POST /api/orders, GET status} (nginx);
 \draw[flow] (nginx) -- (order);
 \draw[flow] (order) -- node[ev, left=2pt] {one transaction} (pgo);
-\draw[flow] (order.20) -- node[ev, above=1pt] {OrderPlaced} (mq.160);
-\draw[flow] (mq.20) -- node[ev, above=1pt] {OrderPlaced} (inv.160);
+\draw[flow] (order.20) -- node[ev, above=1pt, pos=0.38] {OrderPlaced} (mq.160);
+\draw[flow] (mq.20) -- node[ev, above=1pt, pos=0.4] {OrderPlaced} (inv.160);
 \draw[flow] (inv.200) -- node[ev, below=1pt] {StockReserved / StockRejected} (mq.340);
 \draw[flow] (mq.200) -- node[ev, below=1pt, align=center] {stock results,\\Worker events} (order.340);
 \draw[flow] (inv) -- (redis);
 \draw[flow] (inv) -- (pgi);
 \draw[flow] ([xshift=-8mm]mq.south) -- node[ev, left=2pt] {StockReserved} ([xshift=-8mm]worker.north);
 \draw[flow] ([xshift=8mm]worker.north) -- node[ev, right=2pt, align=left] {ProcessingStarted,\\OrderProcessed} ([xshift=8mm]mq.south);
+% technology logos
+\badge{client}{apachejmeter}
+\badge{nginx}{nginx}
+\badge{order}{dotnet}
+\badgeBL{pgo}{postgresql}
+\node[inner sep=0] at ([yshift=1.2mm]mq.north) {\techbadge[0.42]{rabbitmq}};
+\badge{inv}{dotnet}
+\badge{redis}{redis}
+\badgeR{redis}{lua}
+\badgeR{pgi}{postgresql}
+\badge{worker}{dotnet}
 \end{tikzpicture}
 \end{document}

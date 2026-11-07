@@ -730,6 +730,29 @@ untracked setup checklist.
 \chapter{System Analysis and Design}
 % ============================================================
 
+\section{System Architecture}
+\label{sec:architecture}
+Figure~\ref{fig:architecture} shows the asynchronous system (C2--C4) and the
+events between its parts. Clients reach only the Nginx gateway. Order Service
+accepts an order and writes it with its \texttt{OrderPlaced} event in one
+PostgreSQL transaction, then answers at once; its Outbox publisher hands the
+event to RabbitMQ. Inventory Service takes the stock decision in one Redis Lua
+call and returns \texttt{StockReserved} or \texttt{StockRejected} through its
+own Outbox. The Process Worker finishes reserved orders. Each service owns its
+schema, and the services share data only through events. The C1 baseline uses
+the same gateway and Order Service, but takes the stock decision in a
+PostgreSQL transaction and has no broker.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/system-architecture.png}
+  \caption{System architecture and event flow. Each badge marks the
+  technology of its block: .NET services, PostgreSQL, RabbitMQ, Redis with
+  Lua, Nginx and JMeter. The logos in this report's diagrams are from Simple
+  Icons (CC0) and belong to their owners.}
+  \label{fig:architecture}
+\end{figure}
+
 \section{Entity-Relationship Diagram}
 The data model below is taken from the EF Core models and migrations, the
 raw baseline SQL and the role/schema initialisation script, not drawn by hand.
@@ -968,7 +991,7 @@ The diagrams are checked against the implementation by test case TP-W04
 
 \begin{figure}[p]
   \centering
-  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-happy-path.png}
+  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-happy-path-logos.png}
   \caption{Happy path as built: order accepted, stock reserved,
   result applied, processed, polled as \texttt{Completed}. The step numbers
   match Table~\ref{tab:workflow}.}
@@ -977,7 +1000,7 @@ The diagrams are checked against the implementation by test case TP-W04
 
 \begin{figure}[p]
   \centering
-  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-rejection.png}
+  \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/seq-rejection-logos.png}
   \caption{Rejection path: the same as the happy path up to the Lua script.
   \texttt{REJECTED} (sold out) and \texttt{NOT\_OPEN} (no confirmed warm-up)
   both lead to \texttt{StockRejected} and the terminal state
@@ -987,7 +1010,7 @@ The diagrams are checked against the implementation by test case TP-W04
 
 \begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.6\textwidth]{figures/seq-planned-processing.png}
+  \includegraphics[width=0.6\textwidth]{figures/seq-planned-processing-logos.png}
   \caption{The \texttt{Processing} hop of the six-state model: the
   Worker's start event moves the order to \texttt{Processing}, and its
   completion moves it to \texttt{Completed}.}
@@ -3053,6 +3076,81 @@ was the overload run in Table~\ref{tab:overload-local-ec2}
 (\nolinkurl{tests/evidence/20261022T163505Z-ec2-overload.log}), and the third
 its rerun on the reviewed code
 (\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par\fussy
+
+\section{Test Scenarios}
+\label{sec:test-scenarios}
+The tests put the system in the situations a flash sale produces: shoppers who
+retry, more buyers than stock, traffic above capacity, and parts that fail.
+Tables~\ref{tab:scen-shop}, \ref{tab:scen-load} and \ref{tab:scen-fail} list
+them with what each test does and what must hold. Every scenario passed, and
+its evidence is committed under \nolinkurl{tests/evidence/}; the case ids lead
+to the inputs, commands and evidence files in \nolinkurl{docs/test-plan.md}
+(Appendix~\ref{app:test-plan}).
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Normal purchase & \texttt{POST /api/orders} with a new key, then polling \texttt{GET} & 201 with \texttt{PendingStock} at once; GET returns the same order, which ends \texttt{Completed} & TP-A01, TP-P03 \\
+Double click or network retry & Same key and body twice; 20 concurrent posts of one key & Second answer 200 with the same order id; exactly one order row and one Outbox row & TP-A03, TP-A05 \\
+Key reused for another order & Same key, different body & 409; the original order is unchanged & TP-A04 \\
+Many shoppers retrying at once & 50 keys, 4 concurrent identical requests each & One order per key: exactly 50 orders and 50 Outbox rows & TP-A07 \\
+Buying before the sale opens & Reservation before a confirmed warm-up; warm-up rerun on an open sale & \texttt{NOT\_OPEN}, \texttt{StockRejected}, no stock touched; an open sale is not reset without \texttt{-Force} & TP-I01 \\
+Sold out & Stock results for orders after the stock reached 0, redelivered and replayed & \texttt{Rejected} with one Inbox row; duplicates change nothing & TP-W01 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: shopping and retries.}
+\label{tab:scen-shop}
+\end{table}
+
+\begin{table}[tbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01 \\
+PostgreSQL baseline (C1) at the stock boundary & 50, 100 and 150 requests for 100 units, 3 runs each & \texttt{Confirmed} = min(demand, 100); stock never below 0 and conserved & TP-B02 \\
+Hot and skewed products & 100 units, 300 orders plus 100 repeats at once; 4 products with weighted demand & Per product: reservations $\le$ stock, inventory + reservations = initial, no order reserved twice & TP-I02 \\
+Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01 \\
+Service saturated & Admission limits: concurrency, Outbox backlog, unfinished orders & 503 with \texttt{Retry-After} before any write; a replay of an accepted key still gets 200 & TP-L01, TP-L02 \\
+Overload, then recovery & Every limit on, overload profile, then normal load & Refusals all accounted for; after the drain the validator passes; backlog drained within 60\,s without a restart & TP-L04 \\
+Sell-out under load on EC2 & 2,000 units at 200 orders/s on C1, C2 and C3, 3 repeats & Exactly 2,000 sold, stock 0, every validator check holds & TP-X13 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: contention and overload.}
+\label{tab:scen-load}
+\end{table}
+
+\begin{table}[tbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02 \\
+PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03 \\
+Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01 \\
+Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02 \\
+Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
+Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
+Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
+Validator given corrupt data & Oversold, unlogged deduction, mismatch, missing data, database down & Each run fails its check or is INCONCLUSIVE, never PASS & TP-W02 \\
+Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload runs each on EC2 & Fixed Worker: no dead letter and no reconciliation in 9 of 9 runs & TP-X14 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: failures and recovery.}
+\label{tab:scen-fail}
+\end{table}
+
 
 % ============================================================
 \chapter{Experimental Design}

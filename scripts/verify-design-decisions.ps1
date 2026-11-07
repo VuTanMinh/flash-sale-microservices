@@ -59,7 +59,7 @@ $srp = Src "src\FlashSale.OrderService\Messaging\StockResultProcessor.cs"
 $gap1 = ($srp -match 'private static bool IsAwaitingPrerequisite[\s\S]{0,400}?target == OrderState\.Processing \|\| target == OrderState\.Completed') -and
         ($srp -match 'IsAwaitingPrerequisite\(order\.State, targetState\)[\s\S]{0,300}?NotYetApplicable') -and
         ($opc -match 'RequeueForRetryAsync\(') -and
-        ($opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?BasicNackAsync\([^)]*requeue: false')
+        ($opc -match 'catch \(InvalidOrderStateTransitionException[\s\S]{0,600}?(Basic)?NackAsync\([^)]*requeue: false')   # NackAsync: the serialised wrapper since 54548db
 Check "early OrderProcessed is requeued for bounded retry, not dead-lettered (fixed Week 9)" (
     $gap1 -and $doc.Contains("the prerequisite has not been applied yet, so the message is **requeued onto a delayed retry queue, never dead-lettered**"))
 Check "design doc records the out-of-order completion fix" ($doc.Contains("**Fixed for out-of-order completion (2026-10-03, Week 9):**"))

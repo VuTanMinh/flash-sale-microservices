@@ -3,6 +3,10 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usetikzlibrary{shapes.geometric,positioning,fit,arrows.meta,backgrounds}
+\input{tech-logos.tex}
+% \badge{node}{logo}: a logo sticker on the nodes top-left corner (adgeR: top-right).
+\newcommand{\badge}[3][0.42]{\node[inner sep=0] at ([xshift=-1.6mm,yshift=1.6mm]#2.north west) {\techbadge[#1]{#3}};}
+\newcommand{\badgeR}[3][0.42]{\node[inner sep=0] at ([xshift=1.6mm,yshift=1.6mm]#2.north east) {\techbadge[#1]{#3}};}
 \begin{document}
 \sffamily
 \begin{tikzpicture}[
@@ -59,5 +63,15 @@
 \draw[flow, dashed, red!60!black] ([xshift=8mm]q.north) -- node[lbl, right=2pt, align=left] {queue full: nack,\\Outbox retries later} ([xshift=8mm]p.south);
 \draw[flow] (q) -- (inv);
 \draw[flow] (inv) -- (wk);
+% technology logos
+\badge{c}{apachejmeter}
+\badge{n}{nginx}
+\badgeR{l2}{dotnet}
+\badge{w}{postgresql}
+\badge{p}{dotnet}
+\badge{q}{rabbitmq}
+\badge{inv}{redis}
+\badgeR{inv}{lua}
+\badge{wk}{dotnet}
 \end{tikzpicture}
 \end{document}
