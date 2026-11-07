@@ -20,10 +20,12 @@
 # deploy built every image from the branch head, so the Worker image there is the fixed
 # one; it is tagged :fix, and the Worker from the tag w14-official is built as :frozen.
 # Order Service and Inventory are byte-identical between the two, so one build serves
-# both. Before each run the driver points the Worker at that run's image with a
-# compose override (infra/worker-<version>.yml on the host), recreates only the Worker,
-# waits until it consumes ProcessWorker.StockReserved, and passes the same override to
-# run-matrix, so its own compose up keeps that image. Each run's official.json records
+# both. Before each run the driver re-points the tag the compose file names
+# (flashsale-process-worker:10.0) at that run's image, recreates only the Worker and
+# waits until it consumes ProcessWorker.StockReserved; run-matrix's own compose up then
+# keeps that image. (A compose override would not work: run-matrix passes
+# -ExtraComposeFile to Local runs only, so over SSM its compose up would put the Worker
+# back on the deployed image. The first switch check on EC2 showed exactly that.) Each run's official.json records
 # the Worker version and image id; run-matrix's manifest records every image id.
 # The driver copies itself into -Out at start, so the evidence holds the exact code.
 # Helpers: ec2-ssm-run.ps1 (run a bash script on a host) and ec2-ssm-file.ps1 (copy a
@@ -87,10 +89,9 @@ if ($Plan -eq "backpressure" -and -not $DryRun) {
 cd /opt/flash-sale-microservices
 git fetch -q --tags origin
 echo "head `$(git rev-parse HEAD) tag `$(git rev-parse 'w14-official^{commit}')"
-docker tag flashsale-process-worker:10.0 flashsale-process-worker:fix
+docker image inspect flashsale-process-worker:fix >/dev/null 2>&1 || docker tag flashsale-process-worker:10.0 flashsale-process-worker:fix
 rm -rf /opt/w14-official; git worktree prune; git worktree add -f /opt/w14-official w14-official >/dev/null 2>&1
 docker build -q -t flashsale-process-worker:frozen -f /opt/w14-official/src/FlashSale.ProcessWorker/Dockerfile /opt/w14-official >/dev/null
-for v in frozen fix; do printf 'services:\n  process-worker:\n    image: flashsale-process-worker:%s\n' `$v > infra/worker-`$v.yml; done
 echo "image frozen `$(docker image inspect -f '{{.Id}}' flashsale-process-worker:frozen)"
 echo "image fix `$(docker image inspect -f '{{.Id}}' flashsale-process-worker:fix)"
 "@
@@ -119,10 +120,14 @@ foreach ($rep in $Rounds) {
         if ($stock -gt 0) { $extra["Stock"] = $stock }
         $workerImage = ""
         if ($version) {
-            $extra["ExtraComposeFile"] = "infra/worker-$version.yml"
+            # run-matrix's backend steps over SSM use only the base compose file (it passes
+            # -ExtraComposeFile to Local runs only), so the version is selected by re-pointing
+            # the tag the compose file names, flashsale-process-worker:10.0; its own compose up
+            # then finds the Worker already on that image and leaves it
             $sw = @"
 cd /opt/flash-sale-microservices
-docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml -f infra/worker-$version.yml up -d --no-deps process-worker >/dev/null 2>&1
+docker tag flashsale-process-worker:$version flashsale-process-worker:10.0
+docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml up -d --no-deps process-worker >/dev/null 2>&1
 n=0; for i in `$(seq 1 90); do n=`$(docker exec infra-rabbitmq-1 rabbitmqctl -q list_queues name consumers --no-table-headers 2>/dev/null | awk '`$1=="ProcessWorker.StockReserved"{print `$2}'); [ "`${n:-0}" -ge 1 ] && break; sleep 2; done
 echo "worker_image `$(docker inspect -f '{{.Image}}' infra-process-worker-1) consumers `${n:-0}"
 "@
@@ -144,6 +149,7 @@ echo "worker_image `$(docker inspect -f '{{.Image}}' infra-process-worker-1) con
         [ordered]@{ official_repeat = $rep; round_order = $order; config = $cfg; replicas = $n; requested_per_s = $rate; stock = $(if ($stock -gt 0) { $stock } else { 100000 })
             run_id = $id; driver_started_utc = $startUtc; plan = $planDoc; kind = $Plan; worker_version = $version; worker_image = $workerImage } |
             ConvertTo-Json | Set-Content (Join-Path $dir.FullName "official.json") -Encoding UTF8
+        $h = ""
         if ($null -ne $mf -and $null -ne $mf.load -and $mf.load.first_ms) {
             $fromIso = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$mf.load.first_ms).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
             $toIso = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$mf.load.last_ms).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
@@ -156,13 +162,32 @@ for c in `$(docker ps -q); do docker inspect -f '{{.Name}} restarts={{.RestartCo
 df -h / | tail -1 | awk '{print "disk " `$5}'
 echo "too many clients: `$(docker logs --since 15m infra-postgres-1 2>&1 | grep -c 'too many clients')"
 echo "reconciliation by state: `$(docker logs --since $startUtc infra-order-service-1 2>&1 | grep -oE 'Reconciliation: order [^ ]+ stuck in [A-Za-z]+' | awk '{print `$NF}' | sort | uniq -c | awk '{printf "%s=%s ", `$2, `$1}')"
+echo "running_worker `$(docker inspect -f '{{.Image}}' infra-process-worker-1)"
+echo "backpressure_help_lines `$(docker exec infra-nginx-1 curl -s http://process-worker:8080/metrics | grep -c '^# HELP flashsale_consumer_backpressure_waits_total')"
 git rev-parse HEAD; git status --porcelain | grep -v '^?? ' | head -3 || true
 "@
             $h = Host-Run $Backend ("post-rep$rep-$version-$cfg-r$n-$rate") $b 600
             Set-Content (Join-Path $dir.FullName "host-post.log") $h -Encoding UTF8
-            ($h -split "`n" | Where-Object { $_ -match 'extract exit|restarts=|no restarts|disk |too many|reconciliation by state' }) | ForEach-Object { "   $_" }
+            ($h -split "`n" | Where-Object { $_ -match 'extract exit|restarts=|no restarts|disk |too many|reconciliation by state|running_worker|backpressure_help' }) | ForEach-Object { "   $_" }
         }
         $st = $(if ($mf) { $mf.status } else { "NO-MANIFEST" })
+        if ($version) {
+            # hard per-run assertion: the run really used the intended Worker. The manifest's
+            # Worker image, the running container's image after the run and the switch's
+            # image must all equal that version's id, and the back-pressure counter (registered
+            # at start-up by the fix only) must be exported by the fix and absent from frozen.
+            $want = @{ frozen = $imgFrozen; fix = $imgFix }[$version]
+            $manifestImg = "$($mf.prepare.images.'infra-process-worker-1')"
+            $runningImg = ([regex]::Match("$h", 'running_worker (sha256:[0-9a-f]+)')).Groups[1].Value
+            $help = [int]("0" + ([regex]::Match("$h", 'backpressure_help_lines (\d+)')).Groups[1].Value)
+            $markerOk = $(if ($version -eq "fix") { $help -ge 1 } else { $help -eq 0 })
+            $wOk = $want -and $manifestImg -eq $want -and $runningImg -eq $want -and $workerImage -eq $want -and $markerOk
+            "   worker check $(if ($wOk) { 'PASS' } else { 'FAIL' }): want $want manifest $manifestImg running $runningImg switch $workerImage backpressure_help_lines $help"
+            if (-not $wOk) {
+                Set-Content (Join-Path $dir.FullName "WRONG-WORKER.txt") "The run did not use the intended $version Worker: want $want, manifest $manifestImg, running $runningImg, switch $workerImage, back-pressure HELP lines $help. Not a valid $version run." -Encoding UTF8
+                $st = "WRONG-WORKER"
+            }
+        }
         ("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14}" -f $rep, $order, $cfg, $n, $rate, $version, $id, $st, $mf.load.achieved_per_s, $mf.load.submissions_2xx, $mf.post.db_accepted, $mf.post.drain_seconds, $mf.post.validator_exit, $mf.failed_step, $startUtc) | Add-Content $csv -Encoding ASCII
         "   RESULT rep$rep $version $id $st ach=$($mf.load.achieved_per_s) 2xx=$($mf.load.submissions_2xx) acc=$($mf.post.db_accepted) drain=$($mf.post.drain_seconds)s val=$($mf.post.validator_exit) step=$($mf.failed_step)"
         if ($mxExit -ne 0 -or $st -ne "PASS") { "RUN FAILED: rep$rep $cfg r$n $rate/s $version ($id). Stopping; copy back, diagnose, ask before any rerun."; $script:failedRun = $true; break }

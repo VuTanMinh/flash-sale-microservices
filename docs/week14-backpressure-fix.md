@@ -77,21 +77,24 @@ helpers into the session's evidence folder when it starts.
   that image `flashsale-process-worker:fix`. It also builds the Worker from the tag
   `w14-official` (`9d00bea`, in a git worktree at `/opt/w14-official`) as
   `flashsale-process-worker:frozen`.
-- **The overrides.** The driver writes `infra/worker-frozen.yml` and
-  `infra/worker-fix.yml` on the host. Each only sets the Worker's image.
 - **Order Service and Inventory are not switched.** They are byte-identical between
   the two commits: `git diff w14-official 035e599` changes only the Process Worker,
   report verifiers and docs.
-- **The switch.** Before each run the driver recreates only the Worker on that run's
-  image:
+- **The switch.** Before each run the driver re-points the tag the compose file
+  names at that run's image, then recreates only the Worker:
 
   ```
-  docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml -f infra/worker-<v>.yml up -d --no-deps process-worker
+  docker tag flashsale-process-worker:<v> flashsale-process-worker:10.0
+  docker compose --env-file infra/ec2.env -f infra/docker-compose.ec2.yml up -d --no-deps process-worker
   ```
 
-  It then waits until `ProcessWorker.StockReserved` has a consumer. It passes the same
-  file to `run-matrix.ps1 -ExtraComposeFile`, so the run's own `compose up` keeps
-  that image.
+  It then waits until `ProcessWorker.StockReserved` has a consumer. The run's own
+  `compose up` in `run-matrix.ps1` finds the Worker already on that image and leaves
+  it.
+- **Why not a compose override.** `run-matrix.ps1` passes `-ExtraComposeFile` to
+  Local runs only, so over SSM its `compose up` would put the Worker back on the
+  deployed image. The first switch check on EC2 caught this: the frozen check run's
+  manifest recorded the fix image. That check run is discarded.
 - **The reset.** The run's own reset, seed and warm-up then start it clean.
 - **What each run records.** `official.json` records `worker_version` and
   `worker_image`. `manifest.json` records every container's image id. `host-post.log`
