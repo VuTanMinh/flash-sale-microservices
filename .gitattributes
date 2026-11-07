@@ -7,3 +7,5 @@ report/figures/official/*.tex text eol=lf
 report/figures/official/*.csv text eol=crlf
 report/figures/supplementary/*.tex text eol=lf
 report/figures/supplementary/*.csv text eol=crlf
+report/figures/backpressure/*.tex text eol=lf
+report/figures/backpressure/*.csv text eol=crlf

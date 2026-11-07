@@ -1,0 +1,70 @@
+﻿{
+    "run_id":  "20261107T055905Z-C3-r1-5rps-rep1",
+    "matrix_id":  "20261107T055905Z",
+    "config":  "C3",
+    "replicas":  1,
+    "requested_per_s":  5,
+    "repeat":  1,
+    "duration_s":  20,
+    "threads":  20,
+    "product":  "flash-product-1",
+    "stock":  1000,
+    "transport":  "Ssm",
+    "host_dir":  "/tmp/matrix/20261107T055905Z-C3-r1-5rps-rep1",
+    "jmeter_plan":  "tests/jmeter/workload.jmx",
+    "jmeter_mode":  "open",
+    "jmeter_args":  "-n -t tests/jmeter/workload.jmx -Jhost=172.31.7.163 -Jport=80 -Jpath=/api/orders -JproductsFile=products.csv -Jmode=open -Jthreads1=20 -Jrate1=5 -Jduration1=20 -Jsample_variables=idempotencyKey -Jthreads2=0 -Jduration2=0 -Jthreads3=0 -Jduration3=0 -Jthreads4=0 -Jduration4=0 -Jthreads5=0 -Jduration5=0",
+    "started_utc":  "2026-11-07T05:59:05.1860916Z",
+    "status":  "PASS",
+    "failed_step":  "",
+    "prepare":  {
+                    "commit":  "035e59932026902b9ba5ff305e5b73988d170061",
+                    "commit_dirty":  false,
+                    "images":  {
+                                   "infra-order-service-1":  "sha256:ee4f13396f8e44fbc363e01afa57ddee598cf59936fafb6469a0ea66dc7254a1",
+                                   "infra-process-worker-1":  "sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78",
+                                   "infra-inventory-service-1":  "sha256:10d7003e3e74b0642caf51c011e650a94636755dcdeb00f83272e21bfaa84eb4"
+                               },
+                    "queue_bound_expected":  1000,
+                    "queue_bound_gate":  "Bound as expected: max-length 1000 (0 = no policy).",
+                    "admission_enabled":  "true",
+                    "gateway_rate":  "200r/s",
+                    "replicas":  1,
+                    "gates":  {
+                                  "reset_seed_warm":  true,
+                                  "api_up":  true,
+                                  "consumers_up":  true,
+                                  "queue_bound":  true,
+                                  "admission":  true,
+                                  "gateway":  true,
+                                  "replicas":  true
+                              }
+                },
+    "worker_concurrency":  "20",
+    "jmeter_exit":  0,
+    "load":  {
+                 "submissions":  118,
+                 "submissions_2xx":  118,
+                 "polls":  0,
+                 "achieved_per_s":  5.9,
+                 "codes":  {
+                               "201":  118
+                           },
+                 "http_ms":  {
+                                 "p50":  12.0,
+                                 "p95":  35.0,
+                                 "p99":  66.0
+                             },
+                 "first_ms":  1794031197940,
+                 "last_ms":  1794031217765
+             },
+    "post":  {
+                 "drained":  true,
+                 "drain_seconds":  0,
+                 "collector_stopped":  true,
+                 "validator_exit":  0,
+                 "db_accepted":  118,
+                 "db_dump":  true
+             },
+    "ended_utc":  "2026-11-07T06:00:30.1254962Z"
+}

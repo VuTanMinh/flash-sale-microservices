@@ -45,9 +45,13 @@ repo = os.path.abspath(os.path.join(here, "..", ".."))
 # (docs/week14-supplementary-runs.md), same layout as the official evidence;
 # outputs go to report/figures/supplementary/ and are never pooled with the official cells.
 SUPP = len(sys.argv) > 2 and sys.argv[1] == "--supplementary"
-if SUPP:
+# --backpressure <evidence-dir>: the post-freeze Process Worker A/B of 7 November
+# (docs/week14-backpressure-fix.md), frozen against fixed Worker on one host pair;
+# outputs go to report/figures/backpressure/
+BP = len(sys.argv) > 2 and sys.argv[1] == "--backpressure"
+if SUPP or BP:
     ev = sys.argv[2]
-    out = os.path.join(here, "supplementary")
+    out = os.path.join(here, "supplementary" if SUPP else "backpressure")
 else:
     ev = sys.argv[1] if len(sys.argv) > 1 else os.path.join(repo, "tests", "evidence", "20261105T104832Z-official")
     out = os.path.join(here, "official")
@@ -300,6 +304,7 @@ for rep in ("rep1", "rep2", "rep3"):
         # from the samples: Outbox backlog (summed over services and replicas), Worker dead letters
         ob = defaultdict(float)
         wdl = []
+        bpw = []
         load_cpu = []
         proc_cpu = defaultdict(list)
         series = defaultdict(dict)
@@ -313,6 +318,8 @@ for rep in ("rep1", "rep2", "rep3"):
                     ob[t] += v
                 elif row["name"] == "flashsale_process_worker_dead_lettered_total":
                     wdl.append(v)
+                elif row["name"] == "flashsale_consumer_backpressure_waits_total":
+                    bpw.append(v)
                 elif row["name"] in ("messages_ready", "messages_unacknowledged") and row["labels"].startswith("queue="):
                     q = row["labels"][6:]
                     if q == "OrderPlaced":
@@ -361,6 +368,16 @@ for rep in ("rep1", "rep2", "rep3"):
             r["done_load_per_s"] = r["accepted"] / r["duration_s"] if r.get("accepted") else None
         r["accepted_per_s"] = (r["accepted"] / r["duration_s"]) if r.get("accepted") else None
         r["worker_dead_lettered"] = (max(wdl) - min(wdl)) if wdl else None
+        # only the fixed Worker exports the back-pressure counter (None = not exported)
+        r["backpressure_waits"] = (max(bpw) - min(bpw)) if bpw else None
+        r["worker_version"] = o.get("worker_version") or ""
+        r["worker_image"] = o.get("worker_image") or ""
+        hp = os.path.join(mdir, rid, "host-post.log")
+        hpt = open(hp, encoding="utf-8-sig", errors="replace").read() if os.path.exists(hp) else ""
+        mm = re.search(r"reconciliation by state:([^\r\n]*)", hpt)
+        states = dict(re.findall(r"(\w+)=(\d+)", mm.group(1))) if mm else {}
+        r["recon_by_state"] = " ".join(f"{k}={v}" for k, v in sorted(states.items())) if mm else None
+        r["recon_logged"] = sum(int(v) for v in states.values()) if mm else None
         r["_outbox"] = dict(ob)
         r["_series"] = series
         # after the load: every sample as seconds since the last submission; unfinished
@@ -389,7 +406,67 @@ for rep in ("rep1", "rep2", "rep3"):
         r["_jtl"] = os.path.join(tmp, rep, "jtl", rid, "raw.jtl")
         runs.append(r)
 
-assert len(runs) == (18 if SUPP else 66), len(runs)
+assert len(runs) == (18 if (SUPP or BP) else 66), len(runs)
+
+if BP:
+    # Per run and per (Worker version, cell): the measures of docs/week14-backpressure-fix.md.
+    bp_fields = ["worker_dead_lettered", "backpressure_waits", "reconciliation", "recon_logged", "drain_s", "backlog_1pct_s",
+                 "comp_p95", "jtl_2xx", "n503", "n429", "sold", "achieved", "api_p95"]
+    for r in runs:
+        assert r["worker_version"] in ("frozen", "fix"), r["run_id"]
+        assert r["all_hold"] and r["status"] == "PASS", r["run_id"]
+    cols = ["rep", "run_id", "worker_version", "worker_image", "config", "replicas", "rate", "status", "all_hold",
+            "recon_by_state"] + bp_fields
+    with open(os.path.join(out, "runs.csv"), "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for r in sorted(runs, key=lambda x: (x["rep"], x["worker_version"] != "frozen", x["config"], x["rate"])):
+            w.writerow([r.get(c) for c in cols])
+    bp_order = [("C3", 1, 200), ("C3", 1, 400), ("C4", 1, 400)]
+    groups = defaultdict(list)
+    for r in runs:
+        groups[(r["worker_version"], r["config"], r["replicas"], r["rate"])].append(r)
+
+    def agg(rs, f, scale=1.0):
+        v = [x[f] / scale for x in rs if x.get(f) is not None]
+        return (statistics.median(v), min(v), max(v)) if v else None
+
+    def show(t, dec=0):
+        if t is None:
+            return "n/a"
+        med, lo, hi = t
+        s = f"{med:,.{dec}f}"
+        return s + (f" ({lo:,.{dec}f}--{hi:,.{dec}f})" if round(lo, dec) != round(hi, dec) else "")
+
+    def pct99(rs):
+        # the 99 % done time needs a collector sample after the backlog fell to 1 %; a fast
+        # drain can end before that sample, so the number of runs measured is shown
+        k = sum(1 for x in rs if x.get("backlog_1pct_s") is not None)
+        return show(agg(rs, "backlog_1pct_s")) + ("" if k == len(rs) else f" [{k} of {len(rs)}]") if k else "n/a"
+
+    with open(os.path.join(out, "cells.csv"), "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["worker_version", "config", "replicas", "rate", "runs"] + [f"{x}_{y}" for x in bp_fields for y in ("median", "min", "max")])
+        for k in bp_order:
+            for ver in ("frozen", "fix"):
+                rs = groups[(ver,) + k]
+                w.writerow([ver, *k, len(rs)] + [v for x in bp_fields for v in (agg(rs, x) or (None, None, None))])
+    lines = [r"\begin{tabular}{llrrrrrrr}", r"\toprule",
+             r"Cell & Worker & Dead-lettered & Back-pressure waits & Reconciliation & Drain (s) & 99\,\% done (s) & Completion p95 (s) & Checks \\",
+             r"\midrule"]
+    for k in bp_order:
+        for ver in ("frozen", "fix"):
+            rs = groups[(ver,) + k]
+            bp = show(agg(rs, "backpressure_waits")) if ver == "fix" else "not exported"
+            lines.append(f"{k[0]}, {k[2]}/s & {ver} & {show(agg(rs, 'worker_dead_lettered'))} & {bp} & {show(agg(rs, 'recon_logged'))} & "
+                         f"{show(agg(rs, 'drain_s'))} & {pct99(rs)} & {show(agg(rs, 'comp_p95', 1000.0), 1)} & "
+                         f"{sum(1 for x in rs if x['all_hold'])}/{len(rs)} \\\\")
+        if k != bp_order[-1]:
+            lines.append(r"\addlinespace[2pt]")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    open(os.path.join(out, "tab-backpressure.tex"), "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+    print("back-pressure tables ->", out)
+    sys.exit(0)
 
 # ------------------------------------------------------------------ per cell
 FIELDS = ["achieved", "accepted", "completed", "completed_per_s", "drain_s", "api_p50", "api_p95", "api_p99", "api_max",

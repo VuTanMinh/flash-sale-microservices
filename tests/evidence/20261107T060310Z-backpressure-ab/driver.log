@@ -1,0 +1,315 @@
+﻿Week 14 backpressure runs: 6 cells x rounds 1,2,3 ; timer ends 2026-11-07T11:47:00.0000000Z ; cutoff = run 12 min + final copy 45 min + 60 min margin
+prepare-ab: frozen sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 fix sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+== rep1 #1 C3 r1 200/s worker frozen 13:02:59
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T060310Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T060310Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 30%
+   too many clients: 0
+   reconciliation by state: Confirmed=2 Processing=4 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep1 frozen 20261107T060310Z-C3-r1-200rps-rep1 PASS ach=185.2 2xx=4100 acc=4100 drain=321s val=0 step=
+== rep1 #2 C3 r1 400/s worker frozen 13:11:00
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T061112Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T061112Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep1 frozen 20261107T061112Z-C3-r1-400rps-rep1 PASS ach=377.8 2xx=3507 acc=3507 drain=21s val=0 step=
+== rep1 #3 C4 r1 400/s worker frozen 13:14:03
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T061414Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T061414Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 31%
+   too many clients: 0
+   reconciliation by state: Confirmed=7 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep1 frozen 20261107T061414Z-C4-r1-400rps-rep1 PASS ach=350.8 2xx=4117 acc=4117 drain=318s val=0 step=
+== rep1 #4 C3 r1 200/s worker fix 13:22:04
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T062219Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T062219Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep1 fix 20261107T062219Z-C3-r1-200rps-rep1 PASS ach=191.7 2xx=4450 acc=4450 drain=33s val=0 step=
+== rep1 #5 C3 r1 400/s worker fix 13:25:26
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T062540Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T062540Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 32%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep1 fix 20261107T062540Z-C3-r1-400rps-rep1 PASS ach=387.3 2xx=4310 acc=4310 drain=32s val=0 step=
+== rep1 #6 C4 r1 400/s worker fix 13:28:44
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T062858Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T062858Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep1 fix 20261107T062858Z-C4-r1-400rps-rep1 PASS ach=377.9 2xx=4158 acc=4158 drain=36s val=0 step=
+== copy-back rep1 13:32:08
+command 924098cf-e4ec-47c2-865d-197c3555c32f
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1358838 Nov  7 06:32 /tmp/w14-rep1-backend.tgz
+
+command a75e3753-e8da-4ffb-9ee7-1161ea0e6b80
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 3991116 Nov  7 06:32 /tmp/w14-rep1-jtl.tgz
+
+   got /tmp/w14-rep1-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep1-backend.tgz (1358838 bytes, sha256 28b3d1b13961fe7b7776fb11b877207213c0fdfce3bfbea5e6e399daffe1921a, 89 chunks)
+   got /tmp/w14-rep1-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep1-jtl.tgz (3991116 bytes, sha256 b869b501a68276442991e05c708d3cef67e46129db93296bdc45479798d00243, 267 chunks)
+== copy-back rep1 done 14:12:09
+== rep2 #1 C3 r1 200/s worker frozen 14:12:09
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T071222Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T071222Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   reconciliation by state: Confirmed=5 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep2 frozen 20261107T071222Z-C3-r1-200rps-rep1 PASS ach=187.2 2xx=4291 acc=4291 drain=308s val=0 step=
+== rep2 #2 C3 r1 400/s worker frozen 14:20:01
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T072013Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T072013Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 33%
+   too many clients: 0
+   reconciliation by state: Confirmed=9 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep2 frozen 20261107T072013Z-C3-r1-400rps-rep1 PASS ach=381.2 2xx=4202 acc=4202 drain=320s val=0 step=
+== rep2 #3 C4 r1 400/s worker frozen 14:27:55
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T072807Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T072807Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   reconciliation by state: Confirmed=8 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep2 frozen 20261107T072807Z-C4-r1-400rps-rep1 PASS ach=362.7 2xx=3782 acc=3782 drain=321s val=0 step=
+== rep2 #4 C3 r1 200/s worker fix 14:36:03
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T073615Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T073615Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep2 fix 20261107T073615Z-C3-r1-200rps-rep1 PASS ach=192.8 2xx=4319 acc=4319 drain=36s val=0 step=
+== rep2 #5 C3 r1 400/s worker fix 14:39:18
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T073929Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T073929Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep2 fix 20261107T073929Z-C3-r1-400rps-rep1 PASS ach=379.8 2xx=4252 acc=4252 drain=32s val=0 step=
+== rep2 #6 C4 r1 400/s worker fix 14:42:34
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T074245Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T074245Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 36%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep2 fix 20261107T074245Z-C4-r1-400rps-rep1 PASS ach=381.5 2xx=4253 acc=4253 drain=38s val=0 step=
+== copy-back rep2 14:45:48
+command 9789ec3b-3c51-495b-9aa7-89a0cb8e4e6f
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1455593 Nov  7 07:45 /tmp/w14-rep2-backend.tgz
+
+command b59a5200-dc99-4116-bd75-893b72100f2b
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 4017596 Nov  7 07:46 /tmp/w14-rep2-jtl.tgz
+
+   got /tmp/w14-rep2-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep2-backend.tgz (1455593 bytes, sha256 0266e36346b6fd9aad512344bb8ed7a067ebba47d98ba8e712363e3b9bf18431, 94 chunks)
+   got /tmp/w14-rep2-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep2-jtl.tgz (4017596 bytes, sha256 f1dd34823cca9882774b8c3c05e5ecb5c29b43ebefdb32de87238f4373fe899b, 268 chunks)
+== copy-back rep2 done 15:23:27
+== rep3 #1 C3 r1 200/s worker frozen 15:23:27
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T082338Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T082338Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 34%
+   too many clients: 0
+   reconciliation by state: Confirmed=11 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep3 frozen 20261107T082338Z-C3-r1-200rps-rep1 PASS ach=191.1 2xx=4389 acc=4389 drain=326s val=0 step=
+== rep3 #2 C3 r1 400/s worker frozen 15:31:33
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T083145Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T083145Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   reconciliation by state: Confirmed=3 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep3 frozen 20261107T083145Z-C3-r1-400rps-rep1 PASS ach=362.5 2xx=4007 acc=4007 drain=323s val=0 step=
+== rep3 #3 C4 r1 400/s worker frozen 15:39:32
+   worker frozen image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1
+   Matrix 20261107T083943Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T083943Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   backpressure_help_lines 0
+   worker check PASS: want sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 running sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 switch sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 backpressure_help_lines 0
+   RESULT rep3 frozen 20261107T083943Z-C4-r1-400rps-rep1 PASS ach=373.9 2xx=3635 acc=3635 drain=25s val=0 step=
+== rep3 #4 C3 r1 200/s worker fix 15:42:29
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T084242Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T084242Z-C3-r1-200rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep3 fix 20261107T084242Z-C3-r1-200rps-rep1 PASS ach=185.0 2xx=4545 acc=4545 drain=43s val=0 step=
+== rep3 #5 C3 r1 400/s worker fix 15:45:50
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T084601Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T084601Z-C3-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep3 fix 20261107T084601Z-C3-r1-400rps-rep1 PASS ach=370.7 2xx=4217 acc=4217 drain=37s val=0 step=
+== rep3 #6 C4 r1 400/s worker fix 15:49:04
+   worker fix image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1
+   Matrix 20261107T084915Z: 1 run(s), 60 s each, transport Ssm
+   == 20261107T084915Z-C4-r1-400rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+   extract exit 0
+   no restarts
+   disk 35%
+   too many clients: 0
+   reconciliation by state: 
+   running_worker sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+   backpressure_help_lines 1
+   worker check PASS: want sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 running sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 switch sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 backpressure_help_lines 1
+   RESULT rep3 fix 20261107T084915Z-C4-r1-400rps-rep1 PASS ach=381.5 2xx=3937 acc=3937 drain=29s val=0 step=
+== copy-back rep3 15:52:11
+command fb7925fd-9ffa-473e-b4c9-9d0736c622a4
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 1435474 Nov  7 08:52 /tmp/w14-rep3-backend.tgz
+
+command 13f91f00-91fe-47e6-98be-1d58b7a1c65b
+status Success exit 0
+--- stdout (last 24000 chars) ---
+ 3971638 Nov  7 08:52 /tmp/w14-rep3-jtl.tgz
+
+   got /tmp/w14-rep3-backend.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep3-backend.tgz (1435474 bytes, sha256 5c0bfda4f71dd2dcf161ba8637f324de2f9d36beb599e14bc0d3266105cf0a4b, 94 chunks)
+   got /tmp/w14-rep3-jtl.tgz -> E:\Agent_Memory\DACNTT\tmp\w15ab\session\bundles\w14-rep3-jtl.tgz (3971638 bytes, sha256 0c9d612a592e28fe897ec56fe8da9a78b943c7dda54947608c4227c7def1964d, 265 chunks)
+== copy-back rep3 done 16:29:42
+SESSION DONE 16:29:42

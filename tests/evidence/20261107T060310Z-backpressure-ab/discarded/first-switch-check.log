@@ -1,0 +1,22 @@
+﻿== prepare 12:53:12
+   status Success exit 0
+   head 035e59932026902b9ba5ff305e5b73988d170061 tag 9d00beafdef229418112abce26a48899e4b04ba8
+   image frozen sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+   image fix sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+== frozen 12:53:32
+   image sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 consumers 1 backpressure_help_lines 0
+   Matrix 20261107T055344Z: 1 run(s), 20 s each, transport Ssm
+   == 20261107T055344Z-C3-r1-5rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+RESULT frozen image=sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78 manifest_image=sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 same=False help=0 status=PASS validator=0
+== fix 12:55:22
+   image sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 consumers 1 backpressure_help_lines 1
+   Matrix 20261107T055537Z: 1 run(s), 20 s each, transport Ssm
+   == 20261107T055537Z-C3-r1-5rps-rep1
+      PASS
+   MATRIX PASS: 1 run(s).
+RESULT fix image=sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 manifest_image=sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3 same=True help=1 status=PASS validator=0
+targets:       5 "health":"up"
+SWITCH CHECK FAIL: the image id changes, the manifest records it, the back-pressure HELP line is on fix only (marker), both runs PASS
+Exit code: 1

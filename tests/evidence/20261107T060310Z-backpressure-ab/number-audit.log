@@ -1,0 +1,15 @@
+OK   "18 runs" -- 18 PASS
+OK   "The frozen Worker dead-lettered 0 to 11 messages per run" -- 0.0-11.0
+OK   "every dead letter was one reconciliation re-trigger" -- dead letters == logged re-triggers in every run
+OK   "Its 7 runs with dead letters drained in 308--326\,s" -- 7 runs 308.0-326.0
+OK   "the 2 runs without any drained in 21--25\,s" -- 2 runs 21.0-25.0
+OK   "The fixed Worker dead-lettered nothing in 9 of 9 runs and triggered no reconciliation" -- fix: 0 dead letters, 0 re-triggers
+OK   "it waited 181--276 times per run instead" -- 181.0-276.0
+OK   "every run drained in 29--43\,s" -- 29.0-43.0
+OK   "30--48\,s after the load on the frozen Worker" -- 30.4-48.2 (9 runs)
+OK   "38--51\,s on the fix, where measured" -- 38.3-50.9 (4 of 9 runs)
+OK   "the completion p95 was 56--65\,s on both" -- 56.3-65.3
+OK   "Worker dead letters fell from 0--11 per run to none in 9 of 9 runs" -- as above
+OK   "from 308--326\,s in 7 of 9 runs to 29--43\,s in all of them" -- as above
+0 claim(s) failed.
+Exit code: 0

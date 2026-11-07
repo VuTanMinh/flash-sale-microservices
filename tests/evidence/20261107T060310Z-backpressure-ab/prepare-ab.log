@@ -1,0 +1,7 @@
+﻿command 34dc298a-b1eb-4d7e-9f2a-ef3dd6db8279
+status Success exit 0
+--- stdout (last 24000 chars) ---
+head 035e59932026902b9ba5ff305e5b73988d170061 tag 9d00beafdef229418112abce26a48899e4b04ba8
+image frozen sha256:134ae6aeb64b8a0ff01a0f788cb2a9b64c9f4a32089169301a706f8889b3da78
+image fix sha256:8f679358581672688f89fa65bb9708bcee2073cf9f5aa218f5921371c8c81dc3
+

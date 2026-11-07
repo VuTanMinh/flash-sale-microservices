@@ -1,0 +1,14 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+Cell & Worker & Dead-lettered & Back-pressure waits & Reconciliation & Drain (s) & 99\,\% done (s) & Completion p95 (s) & Checks \\
+\midrule
+C3, 200/s & frozen & 6 (5--11) & not exported & 6 (5--11) & 321 (308--326) & 43 (42--48) & 59.7 (59.2--63.3) & 3/3 \\
+C3, 200/s & fix & 0 & 210 (209--276) & 0 & 36 (33--43) & 51 [1 of 3] & 61.6 (58.5--65.3) & 3/3 \\
+\addlinespace[2pt]
+C3, 400/s & frozen & 3 (0--9) & not exported & 3 (0--9) & 320 (21--323) & 43 (32--44) & 59.8 (56.3--60.9) & 3/3 \\
+C3, 400/s & fix & 0 & 212 (209--230) & 0 & 32 (32--37) & 43 [1 of 3] & 61.3 (61.2--62.2) & 3/3 \\
+\addlinespace[2pt]
+C4, 400/s & frozen & 7 (0--8) & not exported & 7 (0--8) & 318 (25--321) & 39 (30--44) & 59.6 (59.3--59.9) & 3/3 \\
+C4, 400/s & fix & 0 & 214 (181--230) & 0 & 36 (29--38) & 41 (38--44) [2 of 3] & 62.2 (59.9--62.5) & 3/3 \\
+\bottomrule
+\end{tabular}

@@ -3412,7 +3412,7 @@ unacknowledged, the measured depth peaked at 1,032.
 overload: it offers more than the backend completes (about 50--66 orders a
 second, Table~\ref{tab:results-throughput}). When the 60\,s load ends, the
 backlog it left behind has to be worked off. Table~\ref{tab:results-recovery}
-and Figure~\ref{fig:results-recovery} follow that backlog in the collector's
+and Figure~\ref{fig:results-recovery} (Appendix~\ref{app:figures}) follow that backlog in the collector's
 samples, which keep running until the drain check passes. Unfinished orders
 are the orders accepted during the run minus those completed or rejected,
 from the Order Service counters.
@@ -3455,8 +3455,8 @@ pushes back on the Worker, and the Worker has no way to wait for room other
 than a retry ladder shorter than the time a queue stays full.
 The pilot diagnosis had already seen this cause, and the fix before the
 official runs reduced it without removing it (Section~\ref{sec:pilot-summary}).
-Section~\ref{sec:dis-overload} gives the fix, which was not made because the
-code was frozen for the official runs.
+Section~\ref{sec:dis-overload} gives the fix. It was not made in the frozen
+code; it was made and measured after the freeze (Section~\ref{sec:results-bp}).
 
 The earlier overload-and-recovery profile (Appendix~\ref{app:ver-overload}) shows the same behaviour from the
 client's side: refusals during the overload, then full acceptance again and
@@ -3480,18 +3480,6 @@ orders that waited for the 300\,s reconciliation. Cells: median of 3 runs
 (range).}
 \label{tab:results-recovery}
 \end{table}
-
-\begin{figure}[p]
-\centering
-\includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/official/fig-recovery.png}
-\caption{The backlog after each overload cell, one line per repeat, against
-seconds since the last submission: unfinished orders (from the Order Service
-counters), unpublished Outbox rows and messages in the main queues (from the
-collector's samples). A dashed line marks a run whose dead-lettered orders
-waited for the 300\,s reconciliation; those few orders do not show at this
-scale.}
-\label{fig:results-recovery}
-\end{figure}
 
 \begin{table}[tbp]
 \centering
@@ -3519,7 +3507,7 @@ reconciliation job. Cells: median of 3 runs (range).}
 
 \section{Consumer Replicas on One Host}
 
-Figure~\ref{fig:results-replicas} compares C4 with 1, 2 and 4 Inventory
+Figure~\ref{fig:results-replicas} (Appendix~\ref{app:figures}) compares C4 with 1, 2 and 4 Inventory
 consumers. More consumers did not help. At 100/s the accepted rate fell from
 98 to 90 orders a second and the p95 completion rose from 57 to 64\,s; at 50/s
 four consumers raised the p95 completion from 3.7 to 15\,s. The reason is the
@@ -3576,16 +3564,6 @@ Redis is the mean time per Redis command. Cells: median of 3 runs (range).}
 \label{tab:results-resources}
 \end{table}
 
-\begin{figure}[tbp]
-\centering
-\includegraphics[width=\textwidth]{figures/official/fig-replicas.png}
-\caption{C4 with 1, 2 and 4 Inventory consumers on one host: accepted orders
-per second, p95 completion latency and mean host CPU during the load. Each
-run is a small point and the median a line. All replicas share one machine,
-so this shows contention on that host, not multi-node scaling.}
-\label{fig:results-replicas}
-\end{figure}
-
 \section{Supplementary Runs}
 \label{sec:results-supp}
 
@@ -3639,6 +3617,62 @@ counts the runs in which every validator check held. Cells: median of 3 runs
 (range); Achieved, Sold and Stock left show the median only. Source: \nolinkurl{tests/evidence/20261106T135523Z-supplementary/}.}
 \label{tab:results-supp}
 \end{table}
+
+\section{Post-freeze Experiment: Worker Back-pressure}
+\label{sec:results-bp}
+
+The official and supplementary results describe the frozen code
+(\texttt{w14-official}). After the freeze was closed, the defect of
+Section~\ref{sec:results-overload} was fixed in the Process Worker and measured
+on 7~November (\nolinkurl{docs/week14-backpressure-fix.md}). These runs are
+labelled post-freeze and are never pooled with the official or supplementary
+ones.
+
+\paragraph{The fix.} A publish that the broker refuses because the target
+queue is full (a nack, which RabbitMQ.Client reports as a
+\texttt{PublishException} that is not a return) is now waited out. The Worker
+retries it after 1, 2, 4 and 8\,s, then every 8\,s, for up to 600\,s. The waits
+do not count as failed attempts, and the \texttt{StockReserved} message stays
+unacknowledged meanwhile, so the Worker's prefetch and concurrency slots fill and
+it stops taking new work. Every other error keeps the 1, 2 and 4\,s ladder and
+the dead-letter queue.
+
+\paragraph{Method.} Both Workers ran on one EC2 host pair, a third one of the
+same types and AMI. Only the Worker's image was switched; Order Service and
+Inventory are identical in both versions. Three cells, C3 at 200 and 400/s and C4
+with one consumer at 400/s, ran 3 times on each version, interleaved by repeat,
+with every value at the frozen default. Every run asserted that the manifest,
+the running container and the switch all showed the intended Worker image, and
+every run passed every validator check
+(\nolinkurl{tests/evidence/20261107T060310Z-backpressure-ab/}).
+
+\paragraph{Result} (Table\nobreakspace\ref{tab:results-bp}). The frozen Worker
+dead-lettered 0 to 11 messages per run, and every dead letter was one
+reconciliation re-trigger in Order Service's log after the 300\,s timeout. Its 7
+runs with dead letters drained in 308--326\,s; the 2 runs without any drained in
+21--25\,s, so the long drain of the official C3 and C4 overload cells is this one
+defect. The fixed Worker dead-lettered nothing in 9 of 9 runs and triggered no
+reconciliation; it waited 181--276 times per run instead, and every run drained
+in 29--43\,s. The bulk of the backlog cleared as fast as before (99\,\% done
+30--48\,s after the load on the frozen Worker and 38--51\,s on the fix, where
+measured), the completion p95 was 56--65\,s on both, and the refusals were the
+same. The fix removes the tail; it does not make the pipeline faster.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\adjustbox{max width=\linewidth}{\input{figures/backpressure/tab-backpressure.tex}}
+\caption{Process Worker back-pressure fix, frozen against fixed Worker on one
+host pair, 7~November (post-freeze; not pooled with the official tables).
+Dead-lettered and back-pressure waits are the Worker's counters over the run.
+Reconciliation counts the re-triggers Order Service logged; in every run it equals
+the Worker's dead letters. The frozen Worker exports no back-pressure counter. A
+fast drain can end before the collector's sample that shows 99\,\% done; the
+number of runs measured is then given. Cells: median of 3 runs (range).}
+\label{tab:results-bp}
+\end{table}
+
 
 
 % ============================================================
@@ -3802,9 +3836,13 @@ queue. The fix belongs at the Worker, in order of preference:
     shortens the tail but keeps reconciliation in the normal path, so it
     treats the symptom.
 \end{enumerate}
-None was implemented. The code was frozen before the official runs
-(Appendix~\ref{app:freeze}), and changing it would have meant measuring a
-different system from the one the 66 runs describe.
+None was implemented in the frozen code, which the 66 runs describe
+(Appendix~\ref{app:freeze}). After the freeze was closed, the first option was
+implemented and measured against the frozen Worker on one host pair
+(Section~\ref{sec:results-bp}). Worker dead letters fell from 0--11 per run to
+none in 9 of 9 runs, reconciliation stopped firing, and the overload drain fell
+from 308--326\,s in 7 of 9 runs to 29--43\,s in all of them. The bulk recovery and
+the completion p95 did not change. Reconciliation is back to being a safety net.
 
 \section{Consumer replicas on one host}
 
@@ -3898,8 +3936,9 @@ The main findings, each limited to this hardware and workload:
     with 429 or 503, the backlog stayed bounded, and 99\,\% of it cleared
     within a minute after the load. A few dead-lettered orders per overload
     run then waited about 300\,s for reconciliation, a defect found by the
-    experiment: the Worker needs back-pressure on a full queue, not a short
-    retry ladder.
+    experiment. A post-freeze fix, back-pressure on a full queue instead of a
+    short retry ladder, removed it: no dead letters and drains of 29--43\,s
+    (Section~\ref{sec:results-bp}).
   \item More Inventory consumers on the same host added contention, not
     capacity.
 \end{enumerate}
@@ -4115,13 +4154,14 @@ Workflow and correctness (Week 8) & TP-W01--W04 & 4 & 0 \\
 Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
 Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
 Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
-Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X13 & 21 & 0 \\
+Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X14 & 22 & 0 \\
 \midrule
-Total & 63 & 63 & 0 \\
+Total & 64 & 64 & 0 \\
 \bottomrule
 \end{tabular}
 \caption{Test cases by area. Every case has passed with committed evidence;
-the last, the supplementary EC2 session (TP-X13), ran on 6~November 2026.}
+the last, the post-freeze Worker back-pressure A/B on EC2 (TP-X14), ran on
+7~November 2026.}
 \label{tab:app-tests}
 \end{table}
 
@@ -4970,6 +5010,28 @@ remains lost; the 24 October run on the reviewed code replaces it.
 
 \begin{figure}[htbp]
 \centering
+\includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{figures/official/fig-recovery.png}
+\caption{The backlog after each overload cell, one line per repeat, against
+seconds since the last submission: unfinished orders (from the Order Service
+counters), unpublished Outbox rows and messages in the main queues (from the
+collector's samples). A dashed line marks a run whose dead-lettered orders
+waited for the 300\,s reconciliation; those few orders do not show at this
+scale.}
+\label{fig:results-recovery}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/official/fig-replicas.png}
+\caption{C4 with 1, 2 and 4 Inventory consumers on one host: accepted orders
+per second, p95 completion latency and mean host CPU during the load. Each
+run is a small point and the median a line. All replicas share one machine,
+so this shows contention on that host, not multi-node scaling.}
+\label{fig:results-replicas}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
 \includegraphics[width=\textwidth]{figures/official/fig-timeline.png}
 \caption{One run over time: C2 at 200/s (left) and C3 at 400/s (right),
 repeat~1. Top: accepted and refused responses per second, from the JTL.
@@ -5142,6 +5204,7 @@ Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-ext
 Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{20261105T104832Z-official/} (bundles, manifests, \nolinkurl{summary.log}) \\
 README reproduction from a GitHub clone & TP-X03 & \nolinkurl{20261106T074827Z-reproduction/} (\nolinkurl{summary.log}) \\
 Supplementary EC2 runs (not pooled) & TP-X13 & \nolinkurl{20261106T135523Z-supplementary/} (\nolinkurl{summary.log}) \\
+Post-freeze Worker back-pressure A/B & TP-X14 & \nolinkurl{20261107T060310Z-backpressure-ab/} (\nolinkurl{README.md}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The
