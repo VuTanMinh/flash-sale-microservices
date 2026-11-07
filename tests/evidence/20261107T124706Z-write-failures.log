@@ -1,0 +1,47 @@
+﻿# verify-write-failures.ps1 -Container verify-env-pg -DbPort 56432; clean copy of HEAD f23e2c4 plus the new verifier; 20261107T124706Z
+PASS  all three services up; every queue and DLQ declared 
+PASS  warm-up: wf-124706 has 50 units 
+== A. C1: log insert fails after the stock UPDATE (TP-B05, A-03)
+PASS  A setup: wf-c1-124706 stock 5, no log rows 
+PASS  A.1 each request with the log insert refused fails (5xx), never 200 (status=500,500,500)
+PASS  A.1 the stock UPDATE ran before the failing insert in every request (probe +3) (probe 1 -> 4)
+PASS  A.1 the whole transaction rolled back: stock still 5 (stock=5)
+PASS  A.1 the whole transaction rolled back: no log row (rows=0)
+PASS  A.1 the failure is the refused log insert (permission denied on baseline_orders) 
+PASS  A.2 grant restored: the same request is Confirmed with 4 left (status=200 body={"productId":"wf-c1-124706","result":"Confirmed","remainingStock":4})
+PASS  A.2 grant restored: stock 4, one log row (Confirmed), one more UPDATE (stock=4 rows=1 probe=5)
+== B. State-save fault vs true duplicate in both result consumers (TP-W05, A-08)
+PASS  B.1 StockResult: while the state write fails the order stays PendingStock with no Inbox row (not acked as done) (state=PendingStock inbox=0)
+PASS  B.1 StockResult: the failure was retried (warning with the MessageId) 
+PASS  B.1 StockResult: after the grant it is applied once (Confirmed, 1 Inbox row, 1 history row) (state=Confirmed)
+PASS  B.1 StockResult: nothing dead-lettered 
+PASS  B.2 StockResult duplicate: acknowledged as already processed 
+PASS  B.2 StockResult duplicate: nothing changed (1 Inbox row, 1 history row, decision time unchanged) 
+PASS  B.3 setup: order in Processing (state=Processing)
+PASS  B.3 OrderProcessed: while the state write fails the order stays Processing with no Inbox row (state=Processing inbox=0)
+PASS  B.3 OrderProcessed: the failure was retried 
+PASS  B.3 OrderProcessed: after the grant it is Completed once (1 Inbox row, 1 history row, CompletedAt set) (state=Completed)
+PASS  B.3 OrderProcessed: nothing dead-lettered 
+PASS  B.4 OrderProcessed exhausted: 3 retries, then after 4 attempts the message is in OrderProcessed.dlq (dlq=1 retries=3 final=1)
+PASS  B.4 OrderProcessed exhausted: no state change and no Inbox row 
+PASS  B.4 OrderProcessed replay after the fix: Completed once 
+PASS  B.5 OrderProcessed duplicate: acknowledged as already processed 
+PASS  B.5 OrderProcessed duplicate: nothing changed (1 Inbox row, 1 history row, CompletedAt unchanged) 
+== C. Crash after the publish confirm, before the Outbox row is marked sent (TP-O03, B-08)
+PASS  C.1 setup: a real order completes end to end (state=Completed)
+PASS  C.1 crash state: Order Service killed, its OrderPlaced row back to unsent 
+PASS  C.1 restart: the row is published again with the same MessageId 
+PASS  C.1 Inventory received the duplicate and acked it as already processed 
+PASS  C.1 one business effect: 1 Inventory Inbox row, stock and reserved set unchanged, 1 result row (stock 46 -> 46)
+PASS  C.1 the order is untouched (Completed, one history row per state) 
+PASS  C.2 setup: a real order completes end to end (state=Completed)
+PASS  C.2 crash state: Inventory killed, its StockReserved row back to unsent 
+PASS  C.2 restart: the row is published again with the same MessageId 
+PASS  C.2 Order Service acked the duplicate StockReserved as already processed 
+PASS  C.2 the Worker repeated its deterministic work and its OrderProcessed (MessageId = OrderId) was acked as already processed 
+PASS  C.2 one business effect: 1 Inbox row each, Confirmed and Completed once, times unchanged 
+PASS  C.2 no second deduction: stock and reserved set unchanged 
+PASS  C every DLQ empty; every main queue drained (non-empty: )
+
+Exit code: 0
+A failed C1 log insert rolls back its stock UPDATE; a failed state write is retried or dead-lettered, never acked as done, while a true duplicate is acked as a no-op; a re-published Outbox row after a crash before the mark has one business effect.

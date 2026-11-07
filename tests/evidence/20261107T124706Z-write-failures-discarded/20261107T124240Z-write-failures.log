@@ -1,0 +1,19 @@
+﻿# verify-write-failures.ps1 -Container verify-env-pg -DbPort 56432; clean copy of HEAD f23e2c4 plus the new verifier; 20261107T124240Z
+PASS  all three services up; every queue and DLQ declared 
+PASS  warm-up: wf-124241 has 50 units 
+== A. C1: log insert fails after the stock UPDATE (TP-B05, A-03)
+PASS  A setup: wf-c1-124241 stock 5, no log rows 
+PASS  A.1 each request with the log insert refused fails (5xx), never 200 (status=500,500,500)
+PASS  A.1 the stock UPDATE ran before the failing insert in every request (probe +3) (probe 1 -> 4)
+PASS  A.1 the whole transaction rolled back: stock still 5 (stock=5)
+PASS  A.1 the whole transaction rolled back: no log row (rows=0)
+PASS  A.1 the failure is the refused log insert (permission denied on baseline_orders) 
+PASS  A.2 grant restored: the same request is Confirmed with 4 left (status=200 body={"productId":"wf-c1-124241","result":"Confirmed","remainingStock":4})
+PASS  A.2 grant restored: stock 4, one log row (Confirmed), one more UPDATE (stock=4 rows=1 probe=5)
+== B. State-save fault vs true duplicate in both result consumers (TP-W05, A-08)
+PASS  B.1 StockResult: while the state write fails the order stays PendingStock with no Inbox row (not acked as done) (state=PendingStock inbox=0)
+PASS  B.1 StockResult: the failure was retried (warning with the MessageId) 
+FAIL  unexpected error: Cannot bind parameter 'Count'. Cannot convert value "Confirmed" to type "System.Int32". Error: "Input string was not in a correct format." 
+
+Exit code: 1
+1 check(s) failed.

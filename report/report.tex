@@ -3143,6 +3143,9 @@ Duplicate and out-of-order messages & 8 concurrent copies; a new message id for 
 Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
 Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
 Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
+C1 log write fails after the stock update & The log insert refused after the stock UPDATE ran & 5xx; stock and log unchanged: the whole transaction rolled back & TP-B05 \\
+Order state write fails & The state UPDATE refused while a stock result or a completion arrives; then a true duplicate & Retried or dead-lettered, never acknowledged as done; applied once after the fix; the duplicate changes nothing & TP-W05 \\
+Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03 \\
 Validator given corrupt data & Oversold, unlogged deduction, mismatch, missing data, database down & Each run fails its check or is INCONCLUSIVE, never PASS & TP-W02 \\
 Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload runs each on EC2 & Fixed Worker: no dead letter and no reconciliation in 9 of 9 runs & TP-X14 \\
 \bottomrule
@@ -4243,23 +4246,23 @@ counts the cases by area.
 Area & Cases & PASS & NOT RUN \\
 \midrule
 Environment and build & TP-E01--E04 & 4 & 0 \\
-Baseline (C0, C1) & TP-B01--B04 & 4 & 0 \\
+Baseline (C0, C1) & TP-B01--B05 & 5 & 0 \\
 Documentation consistency & TP-D01--D04 & 4 & 0 \\
 Order API (Week 5) & TP-A01--A07 & 7 & 0 \\
-Outbox and publication (Week 6) & TP-O01--O02 & 2 & 0 \\
+Outbox and publication (Week 6) & TP-O01--O03 & 3 & 0 \\
 Inventory reservation (Week 7) & TP-I01--I03 & 3 & 0 \\
-Workflow and correctness (Week 8) & TP-W01--W04 & 4 & 0 \\
+Workflow and correctness (Week 8) & TP-W01--W05 & 5 & 0 \\
 Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
 Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
 Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
 Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X14 & 22 & 0 \\
 \midrule
-Total & 64 & 64 & 0 \\
+Total & 67 & 67 & 0 \\
 \bottomrule
 \end{tabular}
 \caption{Test cases by area. Every case has passed with committed evidence;
-the last, the post-freeze Worker back-pressure A/B on EC2 (TP-X14), ran on
-7~November 2026.}
+the last are the post-freeze Worker back-pressure A/B on EC2 (TP-X14) and
+the write-failure cases TP-B05, TP-W05 and TP-O03, all on 7~November 2026.}
 \label{tab:app-tests}
 \end{table}
 
