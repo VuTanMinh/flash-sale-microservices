@@ -1,0 +1,19 @@
+Post-freeze Process Worker back-pressure A/B on EC2, 7 November 2026 (TP-X14). README.md has the full record.
+
+Runs: 18 of 18 PASS, all validator checks holding (driver.log, runs.csv).
+Worker check: PASS on all 18. Manifest, running container and switch show the intended image:
+  frozen sha256:134ae6ae..., fix sha256:8f679358...
+
+Per run (report/figures/backpressure/runs.csv):
+  frozen  dead-lettered 0-11 per run; reconciliation re-triggers equal to dead letters in every run
+          drain 308-326 s in the 7 runs with dead letters, 21-25 s in the 2 without
+  fix     dead-lettered 0 in 9 of 9; reconciliation 0; back-pressure waits 181-276 per run
+          drain 29-43 s
+
+Bulk recovery: 99 % done 30-48 s (frozen) and 38-51 s (fix, where measured).
+Completion p95: 56-65 s on both versions.
+
+Number audit (number-audit.log): every stated number checks out.
+Copy-back: host and PC SHA-256 match for every bundle (driver.log); SHA256SUMS lists every file.
+Discarded: the first switch check, whose "frozen" run used the fix image (discarded/, README.md).
+Exit code: 0
