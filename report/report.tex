@@ -169,6 +169,9 @@
 xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 \author{Vũ Đình Kiệt (523V0011) \\ Vũ Tấn Minh (523V0012) \\ Class 23K50201 \\ Ton Duc Thang University}
 \date{\today}
+% Lets a paragraph with long monospace names (metric names, paths) take a
+% little extra inter-word space instead of running into the margin.
+\setlength{\emergencystretch}{2.5em}
 
 \begin{document}
 
@@ -754,7 +757,7 @@ PostgreSQL transaction and has no broker.
 \end{figure}
 
 \section{Entity-Relationship Diagram}
-The data model below is taken from the EF Core models and migrations, the
+The data model (Figures~\ref{fig:erd-order}--\ref{fig:erd-baseline}) is taken from the EF Core models and migrations, the
 raw baseline SQL and the role/schema initialisation script, not drawn by hand.
 \nolinkurl{docs/erd.md} holds the same diagrams plus a machine-readable manifest,
 and \nolinkurl{scripts/verify-erd.ps1} compares that manifest with a live
@@ -782,6 +785,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
   \caption{\texttt{order\_service} schema (Order Service). The Outbox row
   references its order logically through \texttt{OrderId}. The Inbox
   (\texttt{processed\_messages}) is unique per broker \texttt{MessageId}.}
+  \label{fig:erd-order}
 \end{figure}
 
 \begin{figure}[H]
@@ -790,6 +794,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
   \caption{\texttt{inventory\_service} schema (Inventory Service). It has both
   an Outbox, unique per \texttt{OrderId} so one order yields at most one stock
   result event, and an Inbox, unique per \texttt{MessageId}.}
+  \label{fig:erd-inventory}
 \end{figure}
 
 \begin{figure}[H]
@@ -798,6 +803,7 @@ asynchronous design, stock is held in Redis, not PostgreSQL:
   \caption{C0/C1 baseline tables (raw SQL, not EF-migrated). \texttt{stock}
   deliberately has no non-negative check so that C0 can demonstrate
   overselling.}
+  \label{fig:erd-baseline}
 \end{figure}
 
 \paragraph{Unique constraints.} Four unique indexes carry the system's
@@ -840,9 +846,10 @@ order in which the rows were written, and every read of the history uses it.
 
 \section{Class Diagram}
 \label{sec:class-diagram}
-The domain and messaging classes below are taken from the source
+The domain and messaging classes (Figures~\ref{fig:class-order}
+and~\ref{fig:class-events}) are taken from the source
 (\texttt{Entities/} in Order and Inventory Service and the shared
-\texttt{FlashSale.EventContracts} library; \nolinkurl{docs/class-diagram.md}).
+\texttt{FlashSale.\allowbreak EventContracts} library; \nolinkurl{docs/class-diagram.md}).
 \nolinkurl{scripts/verify-design-alignment.ps1} checks that every class and
 property in the diagrams exists in code with the same type, and that no public
 property is missing. Inventory Service has its own \texttt{OutboxEvent} and
@@ -854,6 +861,7 @@ entity classes, only the event contracts.
   \includegraphics[width=0.85\textwidth]{figures/class-order-service.png}
   \caption{Order Service domain classes. \texttt{Order.TransitionTo} enforces
   the state machine; the Outbox row refers to its order only logically.}
+  \label{fig:class-order}
 \end{figure}
 
 \begin{figure}[H]
@@ -861,6 +869,7 @@ entity classes, only the event contracts.
   \includegraphics[width=0.82\textwidth]{figures/class-event-contracts-stacked.png}
   \caption{Event contracts shared by all services. Every event carries a
   \texttt{MessageId} (Inbox key) and a \texttt{CorrelationId} (trace key).}
+  \label{fig:class-events}
 \end{figure}
 
 The code has the six-state model, with \texttt{OrderState.\allowbreak Processing},
@@ -927,8 +936,8 @@ stock is the only rejection cause in scope.
 
 \section{Order State Machine}
 \label{sec:order-state-machine}
-See \nolinkurl{docs/order-state-machine.md} for the full diagram and
-transition table. The adopted model (decided 2026-10-01) uses the teacher's
+Figure~\ref{fig:state-machine} shows the model, and
+\nolinkurl{docs/order-state-machine.md} has the full diagram and transition table. The adopted model (decided 2026-10-01) uses the teacher's
 six named states: \texttt{PendingStock}, \texttt{Confirmed},
 \texttt{Rejected}, \texttt{Processing}, \texttt{Completed} and
 \texttt{ProcessingFailed}. \texttt{Processing} is reachable through a
@@ -951,6 +960,7 @@ described in Section~\ref{sec:week11}.
   \includegraphics[width=0.55\textwidth]{figures/state-machine.png}
   \caption{Adopted six-state order model. \texttt{ProcessingFailed} has no
   producer in scope.}
+  \label{fig:state-machine}
 \end{figure}
 
 \section{Sequence Diagrams}
@@ -975,7 +985,9 @@ code and configuration:
 Clients post and poll through Nginx, which applies the C3
 rate limit (Section~\ref{sec:load-shedding}); that hop is exercised by TP-L01
 and TP-L04. The \texttt{Processing} hop of
-the six-state model is drawn in a separate diagram. Retry and DLQ branches are listed per step in
+the six-state model is drawn in a separate diagram
+(Figure~\ref{fig:seq-processing}). Figures~\ref{fig:seq-happy}
+and~\ref{fig:seq-reject} show the happy and the rejection path. Retry and DLQ branches are listed per step in
 Section~\ref{sec:workflow} rather than drawn.
 
 The diagrams are checked against the implementation by test case TP-W04
@@ -983,7 +995,7 @@ The diagrams are checked against the implementation by test case TP-W04
 
 \begin{itemize}
   \item 38 static checks compare each arrow with the code and the
-    \texttt{appsettings.json} files.
+    \texttt{appsettings.\allowbreak json} files.
   \item A live run traces real orders through all three services and checks
     their database rows, timestamps, Redis keys and logs against the step
     order.
@@ -1014,6 +1026,7 @@ The diagrams are checked against the implementation by test case TP-W04
   \caption{The \texttt{Processing} hop of the six-state model: the
   Worker's start event moves the order to \texttt{Processing}, and its
   completion moves it to \texttt{Completed}.}
+  \label{fig:seq-processing}
 \end{figure}
 
 \section{Idempotency, Ordering and Ownership}
@@ -1132,6 +1145,9 @@ failures.
 % ============================================================
 \chapter{Implementation}
 % ============================================================
+Each section below ends with the evidence for what it built. The longer
+verification detail is in Appendix~\ref{app:verification}, and
+Appendix~\ref{app:evidence} indexes every saved result.
 
 \section{Baseline Configurations: C0 and C1}
 \label{sec:c0-c1}
@@ -1200,7 +1216,7 @@ instead of being turned into an unhandled exception.
 
 \subsection{C1 -- the PostgreSQL atomic update}
 
-C1 (\nolinkurl{src/FlashSale.OrderService/Controllers/BaselineOrdersController.cs},
+C1 (\nolinkurl{src/FlashSale.OrderService/}\allowbreak\nolinkurl{Controllers/BaselineOrdersController.cs},
 \texttt{POST /api/c1/orders}) replaces the two round trips with one
 conditional statement. Its \texttt{WHERE} clause is evaluated by PostgreSQL
 against the row's current value while holding the row lock, not against a
@@ -1228,7 +1244,7 @@ scenario three times:
 
 \begin{center}
 \small
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.4pt}
 \begin{tabular}{@{}lrrrrrl@{}}
 \toprule
 Scenario & Requests & Confirmed & Rejected & Final stock & HTTP 200 & Verdict \\
@@ -1838,7 +1854,7 @@ no accepted order can go unnoticed. The broken-fixture test now also covers
 check 5 under C3 (16 of 16 checks,
 \nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261020T030140Z-validator.log}).
 
-\paragraph{Evidence} (fresh clone; \texttt{tests/evidence/}\allowbreak\texttt{20261002T062442Z-validator.log} and
+\sloppy\paragraph{Evidence} (fresh clone; \texttt{tests/evidence/}\allowbreak\texttt{20261002T062442Z-validator.log} and
 \nolinkurl{20261002T062442Z-}\allowbreak\texttt{real-runs.log}).
 \nolinkurl{scripts/verify-validator.ps1} feeds the validator correct C1 and C2
 fixtures, which pass, and one broken fixture per failure mode: oversold
@@ -1855,7 +1871,7 @@ Each broken fixture fails the targeted invariant or is reported
     settled as exactly 30 orders: 20 \texttt{Completed} and 10
     \texttt{Rejected}. The Redis reservation set and the 20 successful orders
     were the same order ids, and stock was 0.
-\end{itemize}
+\end{itemize}\par\fussy
 While this script was being developed, a second run reused a product id
 whose orders were still in the database from the first run. The validator
 correctly failed it, because the successful orders exceeded the stock that
@@ -2626,9 +2642,9 @@ contract: \texttt{MessageId} is regenerated at every hop (each consumer needs
 its own Inbox key), and \texttt{OrderId} only exists once an order does,
 whereas a correlation id identifies the \emph{request}.
 
-Order Service does not mint the value. ABP's own
+\sloppy Order Service does not mint the value. ABP's own
 \texttt{app.UseCorrelationId()} middleware was already populating
-\texttt{ICorrelationIdProvider} from the caller's \texttt{X-Correlation-Id}
+\texttt{ICorrelation\allowbreak IdProvider} from the caller's \texttt{X-Correlation-Id}
 header (generating one per request when absent), and
 \texttt{app.UseAbp}\allowbreak\texttt{SerilogEnrichers()} was already stamping that value onto
 every log line written during the request. Generating a second id in the
@@ -2637,8 +2653,8 @@ about what the request is called -- the precise failure this step exists to
 prevent -- so the controller takes ABP's value and carries it onto the order
 and every event that follows. Across the message hops, where no HTTP
 middleware exists, each consumer re-establishes it with
-\texttt{LogContext.PushProperty}, which flows through the awaits into
-everything that logs downstream of it.
+\texttt{LogContext.\allowbreak PushProperty}, which flows through the awaits into
+everything that logs downstream of it.\par\fussy
 
 Every log line also carries a \texttt{Service} property, so one search over
 the three JSON logs shows which service wrote each line. The Process Worker's
@@ -2731,18 +2747,18 @@ RabbitMQ publish, deliver, ack rates & Management API \texttt{message\_stats}
 \end{tabular}
 \end{table}
 The exported metrics fall into five groups:
-\begin{itemize}
-  \item \textbf{Business results.} \nolinkurl{flashsale_orders_accepted_total}
+\begin{itemize}\sloppy
+  \item \textbf{Business results.} \texttt{flashsale\_orders\_\allowbreak accepted\_total}
     counts orders, and only after the commit, so it can be compared with
-    JMeter's request count. \texttt{flashsale\_orders\_outcome\_total\{outcome\}}
+    JMeter's request count. \texttt{flashsale\_orders\_\allowbreak outcome\_total\{outcome\}}
     counts state changes that were actually applied, never an idempotent
     no-op, so it cannot drift from the database under redelivery. Inventory's
-    \texttt{flashsale\_stock\_decisions\_total\{outcome\}} has the values
+    \texttt{flashsale\_stock\_\allowbreak decisions\_total\{outcome\}} has the values
     \texttt{reserved}, \texttt{rejected}, \texttt{not\_open} and
     \texttt{duplicate}. Each counts a business result, never an attempt.
   \item \textbf{Work attempts, kept apart from results.} The Worker's
-    \nolinkurl{flashsale_orders_processed_total} and
-    \nolinkurl{flashsale_process_worker_duration_seconds} count every
+    \texttt{flashsale\_orders\_\allowbreak processed\_total} and
+    \texttt{flashsale\_process\_worker\_\allowbreak duration\_seconds} count every
     processing run, including replays. A replay therefore raises the attempt
     count but not the completion count.
   \item \textbf{Reliability.} All three consumers export
@@ -2906,7 +2922,8 @@ bounded queues in RabbitMQ. A new request is refused early with a response code
 that means ``too busy''. Every limit is off by default, so C2 behaves exactly
 as before until a C3 configuration switches the limits on. The design is in
 \nolinkurl{docs/load-shedding.md}; Figure~\ref{fig:load-shedding-layers} shows
-where each layer refuses work.
+where each layer refuses work, and Table~\ref{tab:load-shedding} what each one
+refuses and where it is counted.
 
 \begin{figure}[tbp]
   \centering
@@ -3027,6 +3044,83 @@ all 10 orders were accepted and the case fails, as it should.
 
 A preliminary overload-and-recovery run before the pilot (TP-L04) is in Appendix~\ref{app:ver-overload}.
 
+\section{Test Scenarios}
+\label{sec:test-scenarios}
+The tests put the system in the situations a flash sale produces: shoppers who
+retry, more buyers than stock, traffic above capacity, and parts that fail.
+Tables~\ref{tab:scen-shop}, \ref{tab:scen-load} and \ref{tab:scen-fail} list
+them with what each test does and what must hold. Every scenario passed, and
+its evidence is committed under \nolinkurl{tests/evidence/}; the case ids lead
+to the inputs, commands and evidence files in \nolinkurl{docs/test-plan.md}
+(Appendix~\ref{app:test-plan}).
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.105\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Normal purchase & \texttt{POST /api/orders} with a new key, then polling \texttt{GET} & 201 with \texttt{PendingStock} at once; GET returns the same order, which ends \texttt{Completed} & TP-A01, TP-P03 \\
+Double click or network retry & Same key and body twice; 20 concurrent posts of one key & Second answer 200 with the same order id; exactly one order row and one Outbox row & TP-A03, TP-A05 \\
+Key reused for another order & Same key, different body & 409; the original order is unchanged & TP-A04 \\
+Many shoppers retrying at once & 50 keys, 4 concurrent identical requests each & One order per key: exactly 50 orders and 50 Outbox rows & TP-A07 \\
+Buying before the sale opens & Reservation before a confirmed warm-up; warm-up rerun on an open sale & \texttt{NOT\_OPEN}, \texttt{StockRejected}, no stock touched; an open sale is not reset without \texttt{-Force} & TP-I01 \\
+Sold out & Stock results for orders after the stock reached 0, redelivered and replayed & \texttt{Rejected} with one Inbox row; duplicates change nothing & TP-W01 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: shopping and retries.}
+\label{tab:scen-shop}
+\end{table}
+
+\begin{table}[!t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.105\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01 \\
+PostgreSQL baseline (C1) at the stock boundary & 50, 100 and 150 requests for 100 units, 3 runs each & \texttt{Confirmed} = min(demand, 100); stock never below 0 and conserved & TP-B02 \\
+Hot and skewed products & 100 units, 300 orders plus 100 repeats at once; 4 products with weighted demand & Per product: reservations $\le$ stock, inventory + reservations = initial, no order reserved twice & TP-I02 \\
+Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01 \\
+Service saturated & Admission limits: concurrency, Outbox backlog, unfinished orders & 503 with \texttt{Retry-After} before any write; a replay of an accepted key still gets 200 & TP-L01, TP-L02 \\
+Overload, then recovery & Every limit on, overload profile, then normal load & Refusals all accounted for; after the drain the validator passes; backlog drained within 60\,s without a restart & TP-L04 \\
+Sell-out under load on EC2 & 2,000 units at 200 orders/s on C1, C2 and C3, 3 repeats & Exactly 2,000 sold, stock 0, every validator check holds & TP-X13 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: contention and overload.}
+\label{tab:scen-load}
+\end{table}
+
+\begin{table}[tbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.105\textwidth}@{}}
+\toprule
+Situation & What the test does & What must hold & Case \\
+\midrule
+Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02 \\
+PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03 \\
+Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01 \\
+Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02 \\
+Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
+Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
+Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
+C1 log write fails after the stock update & The log insert refused after the stock UPDATE ran & 5xx; stock and log unchanged: the whole transaction rolled back & TP-B05 \\
+Order state write fails & The state UPDATE refused while a stock result or a completion arrives; then a true duplicate & Retried or dead-lettered, never acknowledged as done; applied once after the fix; the duplicate changes nothing & TP-W05 \\
+Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03 \\
+Validator given corrupt data & Oversold, unlogged deduction, mismatch, missing data, database down & Each run fails its check or is INCONCLUSIVE, never PASS & TP-W02 \\
+Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload runs each on EC2 & Fixed Worker: no dead letter and no reconciliation in 9 of 9 runs & TP-X14 \\
+\bottomrule
+\end{tabular}
+\caption{Test scenarios: failures and recovery.}
+\label{tab:scen-fail}
+\end{table}
+
 \section{Deployment on AWS EC2}
 \label{sec:ec2-deployment}
 
@@ -3077,83 +3171,6 @@ was the overload run in Table~\ref{tab:overload-local-ec2}
 its rerun on the reviewed code
 (\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par\fussy
 
-\section{Test Scenarios}
-\label{sec:test-scenarios}
-The tests put the system in the situations a flash sale produces: shoppers who
-retry, more buyers than stock, traffic above capacity, and parts that fail.
-Tables~\ref{tab:scen-shop}, \ref{tab:scen-load} and \ref{tab:scen-fail} list
-them with what each test does and what must hold. Every scenario passed, and
-its evidence is committed under \nolinkurl{tests/evidence/}; the case ids lead
-to the inputs, commands and evidence files in \nolinkurl{docs/test-plan.md}
-(Appendix~\ref{app:test-plan}).
-
-\begin{table}[!htbp]
-\centering
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
-\toprule
-Situation & What the test does & What must hold & Case \\
-\midrule
-Normal purchase & \texttt{POST /api/orders} with a new key, then polling \texttt{GET} & 201 with \texttt{PendingStock} at once; GET returns the same order, which ends \texttt{Completed} & TP-A01, TP-P03 \\
-Double click or network retry & Same key and body twice; 20 concurrent posts of one key & Second answer 200 with the same order id; exactly one order row and one Outbox row & TP-A03, TP-A05 \\
-Key reused for another order & Same key, different body & 409; the original order is unchanged & TP-A04 \\
-Many shoppers retrying at once & 50 keys, 4 concurrent identical requests each & One order per key: exactly 50 orders and 50 Outbox rows & TP-A07 \\
-Buying before the sale opens & Reservation before a confirmed warm-up; warm-up rerun on an open sale & \texttt{NOT\_OPEN}, \texttt{StockRejected}, no stock touched; an open sale is not reset without \texttt{-Force} & TP-I01 \\
-Sold out & Stock results for orders after the stock reached 0, redelivered and replayed & \texttt{Rejected} with one Inbox row; duplicates change nothing & TP-W01 \\
-\bottomrule
-\end{tabular}
-\caption{Test scenarios: shopping and retries.}
-\label{tab:scen-shop}
-\end{table}
-
-\begin{table}[tbp]
-\centering
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
-\toprule
-Situation & What the test does & What must hold & Case \\
-\midrule
-Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01 \\
-PostgreSQL baseline (C1) at the stock boundary & 50, 100 and 150 requests for 100 units, 3 runs each & \texttt{Confirmed} = min(demand, 100); stock never below 0 and conserved & TP-B02 \\
-Hot and skewed products & 100 units, 300 orders plus 100 repeats at once; 4 products with weighted demand & Per product: reservations $\le$ stock, inventory + reservations = initial, no order reserved twice & TP-I02 \\
-Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01 \\
-Service saturated & Admission limits: concurrency, Outbox backlog, unfinished orders & 503 with \texttt{Retry-After} before any write; a replay of an accepted key still gets 200 & TP-L01, TP-L02 \\
-Overload, then recovery & Every limit on, overload profile, then normal load & Refusals all accounted for; after the drain the validator passes; backlog drained within 60\,s without a restart & TP-L04 \\
-Sell-out under load on EC2 & 2,000 units at 200 orders/s on C1, C2 and C3, 3 repeats & Exactly 2,000 sold, stock 0, every validator check holds & TP-X13 \\
-\bottomrule
-\end{tabular}
-\caption{Test scenarios: contention and overload.}
-\label{tab:scen-load}
-\end{table}
-
-\begin{table}[tbp]
-\centering
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}@{}}
-\toprule
-Situation & What the test does & What must hold & Case \\
-\midrule
-Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02 \\
-PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03 \\
-Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01 \\
-Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02 \\
-Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
-Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
-Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
-C1 log write fails after the stock update & The log insert refused after the stock UPDATE ran & 5xx; stock and log unchanged: the whole transaction rolled back & TP-B05 \\
-Order state write fails & The state UPDATE refused while a stock result or a completion arrives; then a true duplicate & Retried or dead-lettered, never acknowledged as done; applied once after the fix; the duplicate changes nothing & TP-W05 \\
-Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03 \\
-Validator given corrupt data & Oversold, unlogged deduction, mismatch, missing data, database down & Each run fails its check or is INCONCLUSIVE, never PASS & TP-W02 \\
-Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload runs each on EC2 & Fixed Worker: no dead letter and no reconciliation in 9 of 9 runs & TP-X14 \\
-\bottomrule
-\end{tabular}
-\caption{Test scenarios: failures and recovery.}
-\label{tab:scen-fail}
-\end{table}
-
 
 % ============================================================
 \chapter{Experimental Design}
@@ -3161,6 +3178,7 @@ Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload
 This chapter fixes how the official runs were made: a pilot and the fix it
 led to, the values locked for the runs, the workload profiles and the capacity
 of the host. The official, repeated measurements fill the Results chapter.
+Appendix~\ref{app:commands} gives the commands that run them.
 
 \section{Pilot and calibration}
 \label{sec:pilot-summary}
@@ -4094,7 +4112,7 @@ Accessed 5~November 2026.
 J.~Dean and L.~A. Barroso.
 \newblock The tail at scale.
 \newblock \emph{Communications of the ACM}, 56:74--80, 2013.
-\newblock \url{https://research.google/pubs/the-tail-at-scale/}.
+\newblock \url{https://research.google/pubs/the-tail-at-scale/}. Accessed 7~November 2026.
 
 \bibitem{sre-overload}
 A.~Forero~Cuervo.
@@ -4132,7 +4150,7 @@ Accessed 5~November 2026.
 M.~Kleppmann.
 \newblock \emph{Designing Data-Intensive Applications}.
 \newblock O'Reilly Media, 2017.
-\newblock \url{https://dataintensive.net/}.
+\newblock \url{https://dataintensive.net/}. Accessed 7~November 2026.
 
 \bibitem{dotnet10}
 Microsoft.
@@ -4222,7 +4240,7 @@ B.~Schroeder, A.~Wierman, and M.~Harchol-Balter.
 \newblock Open versus closed: a cautionary tale.
 \newblock In \emph{Proceedings of the 3rd USENIX Symposium on Networked
 Systems Design and Implementation (NSDI~'06)}, 2006.
-\newblock \url{https://www.usenix.org/conference/nsdi-06/open-versus-closed-cautionary-tale}.
+\newblock \url{https://www.usenix.org/conference/nsdi-06/open-versus-closed-cautionary-tale}. Accessed 7~November 2026.
 
 \end{thebibliography}
 
@@ -4323,10 +4341,10 @@ dead-lettered. Now Order Service writes nothing for it, republishes it onto a
 delayed retry queue (2, 4, then 8\,s) and applies it once the order is
 \texttt{Confirmed} (TP-M02).
 
-\paragraph{Evidence} (TP-W04; fresh clone;
-\nolinkurl{tests/evidence/20261002T152659Z-workflow.log}).
+\sloppy\paragraph{Evidence} (TP-W04; fresh clone;
+\nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261002T152659Z-workflow.log}).
 The verifier passes its 35 static checks. Each check
-is tied to the code or configuration. For example:
+is tied to the code or configuration. For example:\par\fussy
 
 \begin{itemize}
   \item Each event's drawn required queues must equal the

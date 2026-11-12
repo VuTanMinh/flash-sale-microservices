@@ -1,0 +1,58 @@
+Week 15 report QA (05 Week 15 box 1), 7 and 12 November 2026, on report/report.tex after this pass's fixes.
+No runtime, configuration or service code changed; no new experiment.
+
+1. Numerical consistency
+PASS  analyze_official.py (official), --supplementary and --backpressure regenerate every table, figure and CSV
+      under report/figures with 0 files changed (git status clean for report/figures)
+PASS  tests/evidence/20261106T102457Z-review-fixes/audit_review.py: 0 claims failed
+PASS  tests/evidence/20261106T135523Z-supplementary/audit_supplementary.py: 0 claims failed
+PASS  tests/evidence/20261107T060310Z-backpressure-ab/audit_backpressure.py: 0 claims failed
+PASS  case count: Appendix A states 67 of 67 PASS; docs/test-plan.md has 67 rows; README and docs state no count
+PASS  every TP id named in the report exists in docs/test-plan.md
+NOTE  the report has no abstract (it opens with the table of contents); left for the authors to decide
+
+2. Figure and table references
+PASS  0 undefined references, 0 "??" in the PDF, no duplicate labels
+FIXED 7 figures had no label (3 ERD, 2 class, state machine, Processing sequence): labelled and referenced
+FIXED fig:seq-reject and tab:load-shedding were never referenced: now referenced in the text
+FIXED appendices G (Run Commands), H (Evidence Index) and B (Implementation Verification Detail) were never
+      referenced: now referenced from the Implementation and Experimental Design chapters
+
+3. Citations
+PASS  26 \cite keys, 26 bibliography entries; none undefined, unused or duplicated
+FIXED 3 published works with a landing-page URL had no access date (dean-tail, kleppmann-ddia,
+      schroeder-open-closed); each URL answered 200 on 7 November 2026 and now carries "Accessed 7 November 2026"
+
+4. Formatting
+FIXED page 82 gap: Test Scenarios now precedes Deployment on AWS EC2 and its second table is top-placed, so
+      the text fills the page (sections 8.9 Test Scenarios, 8.10 Deployment on AWS EC2)
+FIXED 13 overfull lines over 5 pt -> none (largest now 4.7 pt): narrower scenario-table columns, break points
+      in long monospace names, \emergencystretch 2.5em, three paragraphs set \sloppy locally
+PASS  no section heading left at the bottom of a page
+PASS  terminology: state names, C0-C4 and TP ids written one way throughout (code identifiers and log lines
+      quoted as they are)
+NOTE  the report has a table of contents but no list of figures or list of tables; left for the authors to decide
+
+5. Appendices
+PASS  appendices A-H complete and each referenced from the main text
+PASS  no paragraph or reference about AI tools (the removed section stays removed)
+
+6. Originality
+PASS  no quoted passage of 12 or more words; no quote environment; no Vietnamese text outside the title page
+      and PDF metadata. No external plagiarism service was used.
+
+Build: latexmk exit 0; 143 pages; main text pages 7-109.
+Report verifiers on this report:
+PASS  verify-design-chapter 44/44
+PASS  verify-test-plan 287/287
+PASS  verify-freeze 106/106
+PASS  verify-observability-report 22/22
+PASS  verify-design-alignment 53/53
+PASS  verify-design-decisions 28/28
+PASS  verify-baseline-report -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z 19/19
+PASS  verify-order-report -Stamp 20261001T123816Z 23/23
+PASS  verify-publication-report -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z 25/25
+PASS  verify-delivery-report -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z 38/38
+PASS  verify-failure-report -FailuresStamp 20261011T084521Z -ReconciliationStamp 20261011T102304Z 103/103
+
+Exit code: 0
