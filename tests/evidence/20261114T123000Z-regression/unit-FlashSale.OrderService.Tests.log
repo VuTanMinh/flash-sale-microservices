@@ -1,0 +1,17 @@
+Test run for E:\Agent_Memory\DACNTT\tmp\regress\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:01.41]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing [SKIP]
+[xUnit.net 00:00:01.43]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completed_never_regresses_and_history_agrees_with_state [SKIP]
+[xUnit.net 00:00:01.43]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg [SKIP]
+[xUnit.net 00:00:01.43]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Concurrent_duplicate_starts_apply_exactly_once [SKIP]
+[xUnit.net 00:00:01.43]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back [SKIP]
+[xUnit.net 00:00:01.43]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException [SKIP]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing [1 ms]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completed_never_regresses_and_history_agrees_with_state [1 ms]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg [1 ms]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Concurrent_duplicate_starts_apply_exactly_once [1 ms]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back [1 ms]
+  Skipped FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException [1 ms]
+Results File: D:\DACNTT\tests\evidence\20261114T123000Z-regression\FlashSale.OrderService.Tests.trx
+
+Passed!  - Failed:     0, Passed:    98, Skipped:     6, Total:   104, Duration: 13 s - FlashSale.OrderService.Tests.dll (net10.0)

@@ -1,0 +1,5 @@
+Test run for E:\Agent_Memory\DACNTT\tmp\regress\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\DACNTT\tests\evidence\20261114T123000Z-regression\FlashSale.ProcessWorker.Tests.trx
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 427 ms - FlashSale.ProcessWorker.Tests.dll (net10.0)
