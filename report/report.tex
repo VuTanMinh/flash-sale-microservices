@@ -2524,6 +2524,14 @@ Redis data loss (F18) is the main unsupported case. After a Redis loss, the
 warm-up must be repeated before sales reopen. Whether Redis
 persistence survives a crash without loss has not been verified.
 
+One known gap is not in the table. Inventory runs the reservation script
+before it looks for a stored result, so an order rejected with
+\texttt{NOT\_OPEN} before warm-up, whose result is delayed past the
+reconciliation timeout and re-sent after the sale opens, takes one unit while
+the order stays \texttt{Rejected}; this can undersell by one unit but never
+oversell, the validator reports the mismatch, and it cannot occur in the
+official runs, where warm-up precedes every order.
+
 Two rules hold for every row:
 \begin{itemize}
   \item No recovery changes an order's state to hide a failure. A stuck order
