@@ -1493,14 +1493,13 @@ where the order exists without a corresponding pending event, or vice versa,
 because "the order exists" and "an event needs publishing" have been reduced
 to a single fact instead of two facts that could disagree.
 
-This claim is verified directly, not just argued from the pattern's
-description, in
+This claim is verified directly in
 \nolinkurl{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs}: a real
 SQLite in-memory database (not a mock, and not EF Core's InMemory provider,
 which does not enforce relational constraints and so cannot demonstrate a
 rollback at all) is made to reject an outbox insert via a genuine primary-key
 collision, and the accompanying order insert is confirmed absent afterward
---- the whole transaction rolled back, not just the failing half.
+--- the whole transaction rolled back.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
@@ -2284,7 +2283,7 @@ The two non-transient classes skip the ladder entirely:
     routing to DLQ}.
 \end{itemize}
 
-The validation fixed a real bug, not just a gap. Before it, an
+The validation also fixed a real bug. Before it, an
 \texttt{OrderPlaced} with an empty \texttt{MessageId} was processed as if it
 were real. The Inbox then recorded \texttt{Guid.Empty}, so a
 \emph{second, different} invalid message was wrongly skipped as ``already
