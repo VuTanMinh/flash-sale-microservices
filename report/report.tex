@@ -248,9 +248,9 @@ only 50--66 orders a second, using about twice C1's CPU per order. Load
 shedding refused excess requests early and kept the backlog bounded; a
 post-freeze back-pressure fix in the Process Worker removed the dead letters
 that overload had left for reconciliation. More Inventory consumers on the same
-host added contention, not capacity. On this hardware the asynchronous
-design's value is decoupling and the guarantee that accepted work is never
-lost, not speed.
+host added contention and no extra capacity. On this hardware the asynchronous
+design is slower; its value is decoupling and the guarantee that accepted work
+is never lost.
 
 \tableofcontents
 
