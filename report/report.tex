@@ -83,6 +83,10 @@
 % footer style, matching the rest of this design rather than confusingly
 % doubling up in the one place two page styles were fighting.
 \renewcommand*{\chapterpagestyle}{scrheadings}
+% cleanthesis sets \cofoot{} for scrheadings only, so the "plain" variant kept
+% KOMA's centred page number and the first front-matter page showed its number
+% twice. Empty it for plain pages too.
+\cofoot[]{}
 
 % Loaded AFTER cleanthesis's own \RequirePackage[T1]{fontenc}: fontenc
 % accumulates encodings across repeated \usepackage calls, and the LAST one
@@ -214,6 +218,39 @@ FLASH-SALE SCENARIO}
   \vfill
   {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Flash sales send short bursts of concurrent orders at a small, fixed stock, so
+a backend must never sell a unit twice and must stay in control when requests
+arrive faster than it can process them. This project designs and evaluates an
+event-driven microservices backend for this case and compares it with a
+synchronous PostgreSQL baseline. Five configurations are studied: C0, a
+deliberately unsafe read-check-write demonstration; C1, one conditional atomic
+update in PostgreSQL; C2, an asynchronous design in which an Order Service
+accepts orders through a Transactional Outbox, RabbitMQ with publisher
+confirms carries the events, an Inventory Service reserves stock in one atomic
+Redis Lua script, and every consumer is idempotent through an Inbox; C3, C2
+with load shedding by the Nginx gateway (429), admission control in the Order
+Service (503) and bounded queues; and C4, C3 with one, two or four Inventory
+replicas on the same host.
+
+The services run with Docker Compose on one AWS EC2 \texttt{m7i-flex.large}
+instance created with Terraform, and JMeter drives them from a separate EC2
+host. The frozen matrix of 22 cells was run three times each, and all 66
+official runs passed every check of the correctness validator. No unit was
+ever oversold and no accepted order was lost, including a sell-out of 2,000
+units at 200 orders a second. On this 2-vCPU host the synchronous baseline was
+faster for the client at every tested rate and kept up to 200 requests a
+second, while the asynchronous design accepted the same load but completed
+only 50--66 orders a second, using about twice C1's CPU per order. Load
+shedding refused excess requests early and kept the backlog bounded; a
+post-freeze back-pressure fix in the Process Worker removed the dead letters
+that overload had left for reconciliation. More Inventory consumers on the same
+host added contention, not capacity. On this hardware the asynchronous
+design's value is decoupling and the guarantee that accepted work is never
+lost, not speed.
 
 \tableofcontents
 
@@ -5301,36 +5338,37 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error report.tex
 Every saved result is in \nolinkurl{tests/evidence/}. The Week~3 baseline
 results are in \nolinkurl{tests/baseline/results/} and
 \nolinkurl{tests/jmeter/results/}. File
-names start with the UTC time of the run, for example
-\nolinkurl{20261104T145044Z-freeze.log}, so a later run never overwrites an
+names start with the UTC time of the run, so a later run never overwrites an
 earlier one. \nolinkurl{docs/evidence-index.md} maps every requirement of the
-brief to its test cases, their status and their logs. Table~\ref{tab:app-evidence}
-lists the evidence behind the experiment chapters.
+brief to its test cases, their status and their logs, and
+\nolinkurl{docs/test-plan.md} gives each case's full file names.
+Table~\ref{tab:app-evidence} lists the evidence behind the experiment chapters
+by date and name.
 
 \begin{table}[H]
 \centering
-\footnotesize
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.31\textwidth}l>{\raggedright\arraybackslash}p{0.52\textwidth}@{}}
+\scriptsize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.32\textwidth}ll>{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
 \toprule
-Claim & Case & Evidence in \nolinkurl{tests/evidence/} \\
+Claim & Case & Date (2026) & Evidence in \nolinkurl{tests/evidence/} \\
 \midrule
-Pilot of C1 to C4 on EC2 & TP-X01 & \nolinkurl{20261101T204940Z-ec2-pilot.log}, \allowbreak\texttt{-ec2-pilot-results.csv} \\
-Slowdown cause & --- & \nolinkurl{20261103T150800Z-slowdown-diagnosis.log} \\
-Consumer concurrency is safe & TP-X08 & \nolinkurl{20261103T235000Z-consumer-concurrency/} \\
-EC2 confirmation of the fix & TP-X07 & \nolinkurl{20261104T132500Z-ec2-confirmation/} \\
-Workload profiles & TP-X04 & \nolinkurl{20261031T161516Z-ec2-stack.log} \\
-Open-loop load mode & TP-X05 & \nolinkurl{20261031T171915Z-ec2-stack.log} \\
-Matrix runner and queue-bound gate & TP-X06 & \nolinkurl{20261101T181846Z-ec2-stack-matrix.log} \\
-Freeze manifest matches the repository (first freeze) & TP-X09 & \nolinkurl{20261104T145044Z-freeze.log}, \allowbreak\texttt{-freeze-negative.log} \\
-Re-freeze at 9d00bea & TP-X09 & \nolinkurl{20261105T100509Z-freeze.log}, \nolinkurl{-freeze-negative.log} \\
-Freeze closed, official code tagged \texttt{w14-official} & TP-X09 & \nolinkurl{20261106T182128Z-freeze-tag/} \\
-Validator run filter (check 0b) & TP-X10 & \nolinkurl{20261105T070413Z-validator-run-filter.log} \\
-Status history (check 7), missing parameters & TP-X11 & \nolinkurl{20261105T064537Z-validator.log}, \nolinkurl{-validator-negative.log} \\
-Extractor sums gauges across replicas & TP-X12 & \nolinkurl{20261105T095414Z-extract.log}, \nolinkurl{20261105T074539Z-extract-negative.log} \\
-Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{20261105T104832Z-official/} (bundles, manifests, \nolinkurl{summary.log}) \\
-README reproduction from a GitHub clone & TP-X03 & \nolinkurl{20261106T074827Z-reproduction/} (\nolinkurl{summary.log}) \\
-Supplementary EC2 runs (not pooled) & TP-X13 & \nolinkurl{20261106T135523Z-supplementary/} (\nolinkurl{summary.log}) \\
-Post-freeze Worker back-pressure A/B & TP-X14 & \nolinkurl{20261107T060310Z-backpressure-ab/} (\nolinkurl{README.md}) \\
+Pilot of C1 to C4 on EC2 & TP-X01 & 1 Nov & \nolinkurl{ec2-pilot.log}, \nolinkurl{ec2-pilot-results.csv} \\
+Slowdown cause & --- & 3 Nov & \nolinkurl{slowdown-diagnosis.log} \\
+Consumer concurrency is safe & TP-X08 & 3 Nov & \nolinkurl{consumer-concurrency/} \\
+EC2 confirmation of the fix & TP-X07 & 4 Nov & \nolinkurl{ec2-confirmation/} \\
+Workload profiles & TP-X04 & 31 Oct & \nolinkurl{ec2-stack.log} (first run) \\
+Open-loop load mode & TP-X05 & 31 Oct & \nolinkurl{ec2-stack.log} (second run) \\
+Matrix runner and queue-bound gate & TP-X06 & 1 Nov & \nolinkurl{ec2-stack-matrix.log} \\
+Freeze manifest matches the repository (first freeze) & TP-X09 & 4 Nov & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
+Re-freeze at 9d00bea & TP-X09 & 5 Nov & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
+Freeze closed, official code tagged \texttt{w14-official} & TP-X09 & 6 Nov & \nolinkurl{freeze-tag/} \\
+Validator run filter (check 0b) & TP-X10 & 5 Nov & \nolinkurl{validator-run-filter.log} \\
+Status history (check 7), missing parameters & TP-X11 & 5 Nov & \nolinkurl{validator.log}, \nolinkurl{validator-negative.log} \\
+Extractor sums gauges across replicas & TP-X12 & 5 Nov & \nolinkurl{extract.log}, \nolinkurl{extract-negative.log} \\
+Official runs: 66 of 66 pass & TP-X02 & 5 Nov & \nolinkurl{official/} (bundles, manifests, \nolinkurl{summary.log}) \\
+README reproduction from a GitHub clone & TP-X03 & 6 Nov & \nolinkurl{reproduction/} (\nolinkurl{summary.log}) \\
+Supplementary EC2 runs (not pooled) & TP-X13 & 6 Nov & \nolinkurl{supplementary/} (\nolinkurl{summary.log}) \\
+Post-freeze Worker back-pressure A/B & TP-X14 & 7 Nov & \nolinkurl{backpressure-ab/} (\nolinkurl{README.md}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The
