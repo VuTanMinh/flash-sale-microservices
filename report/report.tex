@@ -3130,8 +3130,8 @@ Situation & What the test does & What must hold & Case \\
 Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01, Fig.~\ref{fig:fail-c0-race} \\
 PostgreSQL baseline (C1) at the stock boundary & 50, 100 and 150 requests for 100 units, 3 runs each & \texttt{Confirmed} = min(demand, 100); stock never below 0 and conserved & TP-B02 \\
 Hot and skewed products & 100 units, 300 orders plus 100 repeats at once; 4 products with weighted demand & Per product: reservations $\le$ stock, inventory + reservations = initial, no order reserved twice & TP-I02 \\
-Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01 \\
-Service saturated & Admission limits: concurrency, Outbox backlog, unfinished orders & 503 with \texttt{Retry-After} before any write; a replay of an accepted key still gets 200 & TP-L01, TP-L02 \\
+Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01, Fig.~\ref{fig:fail-overload-refusal} \\
+Service saturated & Admission limits: concurrency, Outbox backlog, unfinished orders & 503 with \texttt{Retry-After} before any write; a replay of an accepted key still gets 200 & TP-L01, TP-L02, Fig.~\ref{fig:fail-overload-refusal} \\
 Overload, then recovery & Every limit on, overload profile, then normal load & Refusals all accounted for; after the drain the validator passes; backlog drained within 60\,s without a restart & TP-L04 \\
 Sell-out under load on EC2 & 2,000 units at 200 orders/s on C1, C2 and C3, 3 repeats & Exactly 2,000 sold, stock 0, every validator check holds & TP-X13 \\
 \bottomrule
@@ -3154,7 +3154,7 @@ Crash after commit, before acknowledgement & Each of the four consumers killed, 
 Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02, Fig.~\ref{fig:fail-duplicates} \\
 Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01, Fig.~\ref{fig:fail-retry-dlq} \\
 Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02, Fig.~\ref{fig:fail-reconciliation} \\
-Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
+Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01, Fig.~\ref{fig:fail-worker-killed} \\
 C1 log write fails after the stock update & The log insert refused after the stock UPDATE ran & 5xx; stock and log unchanged: the whole transaction rolled back & TP-B05 \\
 Order state write fails & The state UPDATE refused while a stock result or a completion arrives; then a true duplicate & Retried or dead-lettered, never acknowledged as done; applied once after the fix; the duplicate changes nothing & TP-W05 \\
 Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03, Fig.~\ref{fig:fail-publish-before-mark} \\
@@ -5459,6 +5459,26 @@ Each diagram below is drawn from the code path and the test case named in its ca
   deduction; after three re-triggers without progress the order stays
   \texttt{PendingStock} and is surfaced with one alert.}
   \label{fig:fail-reconciliation}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-worker-killed-logos.png}
+  \caption{The Process Worker is killed during its work (TP-P01). The unacknowledged
+  \texttt{StockReserved} is delivered again, both Worker events keep their message
+  ids, and the order completes once.}
+  \label{fig:fail-worker-killed}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-overload-refusal-logos.png}
+  \caption{The most common failure a buyer meets: a request refused under overload
+  (TP-L01, TP-L02, TP-A03). Nginx answers 429, or Order Service's admission answers 503
+  with \texttt{Retry-After}, before anything is written; a retry with the same
+  \texttt{Idempotency-Key} is accepted once. Figure~\ref{fig:load-shedding-layers} shows
+  the three shedding layers.}
+  \label{fig:fail-overload-refusal}
 \end{figure}
 
 \end{document}

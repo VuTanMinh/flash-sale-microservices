@@ -9,7 +9,8 @@ sequenceDiagram
         NX-->>Client: 429 Too Many Requests (Order Service never sees it)
     else within the rate limit
         NX->>OS: POST /api/orders (Idempotency-Key k)
-        OS->>PGO: look up k: not found (a known key is answered 200 before any admission check)
+        OS->>PGO: look up k: not found
+        Note over OS,PGO: a known key is answered 200 before any admission check
         Note over OS: admission: Outbox backlog, unfinished orders, concurrency slot
         OS-->>Client: 503 Service Unavailable, Retry-After: 1 (a limit is reached)
         Note over OS,PGO: nothing written: no order, no Outbox row
