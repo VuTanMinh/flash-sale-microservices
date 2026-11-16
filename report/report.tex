@@ -3151,13 +3151,13 @@ Situation & What the test does & What must hold & Case \\
 Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02, Fig.~\ref{fig:fail-broker-down} \\
 PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03, Fig.~\ref{fig:fail-cross-store} \\
 Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01, Fig.~\ref{fig:fail-crash-before-ack} \\
-Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02 \\
-Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
-Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
+Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02, Fig.~\ref{fig:fail-duplicates} \\
+Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01, Fig.~\ref{fig:fail-retry-dlq} \\
+Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02, Fig.~\ref{fig:fail-reconciliation} \\
 Worker stopped mid-work & Graceful stop and hard kill during processing & Requeued, not dead-lettered; each order \texttt{Completed} once after the restart & TP-P01 \\
 C1 log write fails after the stock update & The log insert refused after the stock UPDATE ran & 5xx; stock and log unchanged: the whole transaction rolled back & TP-B05 \\
 Order state write fails & The state UPDATE refused while a stock result or a completion arrives; then a true duplicate & Retried or dead-lettered, never acknowledged as done; applied once after the fix; the duplicate changes nothing & TP-W05 \\
-Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03 \\
+Crash after publishing, before the Outbox mark & Publishing service killed with its row unsent, then restarted & The row is sent again with the same message id; the Inboxes make it one effect & TP-O03, Fig.~\ref{fig:fail-publish-before-mark} \\
 Validator given corrupt data & Oversold, unlogged deduction, mismatch, missing data, database down & Each run fails its check or is INCONCLUSIVE, never PASS & TP-W02 \\
 Queue full at the Worker (post-freeze fix) & Frozen and fixed Worker, 9 overload runs each on EC2 & Fixed Worker: no dead letter and no reconciliation in 9 of 9 runs & TP-X14 \\
 \bottomrule
@@ -5419,6 +5419,46 @@ Each diagram below is drawn from the code path and the test case named in its ca
   accepted and its event waits in the Outbox; once the broker is back and confirms
   the publish, the row is marked published and the event is delivered once.}
   \label{fig:fail-broker-down}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-publish-before-mark-logos.png}
+  \caption{A crash after the broker confirm, before the Outbox row is marked (TP-O03,
+  failure mode F16). The row is sent again with the same \texttt{MessageId} and the
+  receiver's Inbox turns it into one effect. TP-O03 recreates this state (the
+  service stopped and its row set back to unsent); a crash at exactly this point
+  was not injected.}
+  \label{fig:fail-publish-before-mark}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-duplicates-logos.png}
+  \caption{Duplicate and out-of-order delivery (TP-M02). Eight concurrent copies of one
+  message apply once through the Inbox's unique index; a completion that arrives
+  before the stock result is requeued with a delay and applied once later.}
+  \label{fig:fail-duplicates}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-retry-dlq-logos.png}
+  \caption{A failed write: bounded retry, dead-letter queue and replay (TP-F01, TP-W05).
+  A fault that clears within the retry window is applied once; one that outlasts four
+  attempts goes to that service's DLQ, and its replay after the fix applies once.
+  A poison message is dead-lettered after one attempt.}
+  \label{fig:fail-retry-dlq}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-reconciliation-logos.png}
+  \caption{A lost result recovered by reconciliation (TP-F02, \texttt{ReconciliationWorker}).
+  A fresh \texttt{OrderPlaced} makes Inventory re-send its stored result with no second
+  deduction; after three re-triggers without progress the order stays
+  \texttt{PendingStock} and is surfaced with one alert.}
+  \label{fig:fail-reconciliation}
 \end{figure}
 
 \end{document}
