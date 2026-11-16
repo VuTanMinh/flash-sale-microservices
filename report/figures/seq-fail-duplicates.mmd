@@ -1,0 +1,14 @@
+sequenceDiagram
+    autonumber
+    participant MQ as RabbitMQ
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    MQ->>OS: 8 concurrent copies of StockReserved (same MessageId)
+    OS->>PGO: one transaction each: Confirmed + Inbox row
+    PGO-->>OS: one commits, the others hit the Inbox unique index
+    OS-->>MQ: all acked (applied once, others no-op)
+    MQ->>OS: OrderProcessed while the order is still PendingStock
+    OS->>MQ: requeue to a delayed retry queue (2, 4, 8 s), ack the original
+    MQ->>OS: StockReserved arrives: PendingStock -> Confirmed
+    MQ->>OS: OrderProcessed again after its delay
+    OS->>PGO: Confirmed -> Completed once (implied Processing row)

@@ -3096,7 +3096,8 @@ Tables~\ref{tab:scen-shop}, \ref{tab:scen-load} and \ref{tab:scen-fail} list
 them with what each test does and what must hold. Every scenario passed, and
 its evidence is committed under \nolinkurl{tests/evidence/}; the case ids lead
 to the inputs, commands and evidence files in \nolinkurl{docs/test-plan.md}
-(Appendix~\ref{app:test-plan}).
+(Appendix~\ref{app:test-plan}). Appendix~\ref{app:failure-diagrams} draws ten of the
+failure and overload scenarios as sequence diagrams.
 
 \begin{table}[!htbp]
 \centering
@@ -3126,7 +3127,7 @@ Sold out & Stock results for orders after the stock reached 0, redelivered and r
 \toprule
 Situation & What the test does & What must hold & Case \\
 \midrule
-Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01 \\
+Naive design under a race (C0) & Stock 1, 5 concurrent attempts & Oversells (more than one \texttt{Confirmed}, stock below 0): the failure the design must prevent & TP-B01, Fig.~\ref{fig:fail-c0-race} \\
 PostgreSQL baseline (C1) at the stock boundary & 50, 100 and 150 requests for 100 units, 3 runs each & \texttt{Confirmed} = min(demand, 100); stock never below 0 and conserved & TP-B02 \\
 Hot and skewed products & 100 units, 300 orders plus 100 repeats at once; 4 products with weighted demand & Per product: reservations $\le$ stock, inventory + reservations = initial, no order reserved twice & TP-I02 \\
 Burst above the gateway rate & Nginx with a low \texttt{ORDER\_RATE} & 429 with no order row for any refused key; GET polling never limited & TP-L01 \\
@@ -3147,9 +3148,9 @@ Sell-out under load on EC2 & 2,000 units at 200 orders/s on C1, C2 and C3, 3 rep
 \toprule
 Situation & What the test does & What must hold & Case \\
 \midrule
-Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02 \\
-PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03 \\
-Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01 \\
+Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02, Fig.~\ref{fig:fail-broker-down} \\
+PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03, Fig.~\ref{fig:fail-cross-store} \\
+Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01, Fig.~\ref{fig:fail-crash-before-ack} \\
 Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02 \\
 Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01 \\
 Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02 \\
@@ -5377,5 +5378,47 @@ validator log and extraction; the database dumps stayed on the backend because
 each run was extracted before the next reset.}
 \label{tab:app-evidence}
 \end{table}
+
+\chapter{Failure Scenario Diagrams}
+\label{app:failure-diagrams}
+
+Each diagram below is drawn from the code path and the test case named in its caption, in the style of Figures~\ref{fig:seq-happy}--\ref{fig:seq-processing}. Section~\ref{sec:test-scenarios} links each one from its scenario.
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-c0-race-logos.png}
+  \caption{The C0 race (TP-B01, \texttt{C0NaiveDemo.cs}). Five attempts start together;
+  each reads the stock, waits 50\,ms and decrements without a condition, so two of
+  them sell the last unit and the stock goes below 0. Two attempts are drawn.}
+  \label{fig:fail-c0-race}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-cross-store-logos.png}
+  \caption{The PostgreSQL write fails after Redis reserved the unit (TP-I03,
+  \texttt{OrderPlacedProcessor}). The message is not acknowledged; the retry or the
+  replay gets \texttt{DUPLICATE} from \texttt{reserve.lua}, writes the result once,
+  and exactly one unit is taken.}
+  \label{fig:fail-cross-store}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-crash-before-ack-logos.png}
+  \caption{A crash after the commit and before the acknowledgement (TP-M01, all four
+  consumers). The redelivered message finds its \texttt{MessageId} in the Inbox and
+  is acknowledged as already processed: one effect.}
+  \label{fig:fail-crash-before-ack}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-broker-down-logos.png}
+  \caption{The broker is down (TP-O02, \texttt{OutboxPublisherWorker}). The order is
+  accepted and its event waits in the Outbox; once the broker is back and confirms
+  the publish, the row is marked published and the event is delivered once.}
+  \label{fig:fail-broker-down}
+\end{figure}
 
 \end{document}

@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant RW as Reconciliation (Order Service)
+    participant PGO as PostgreSQL (order_service)
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    participant R as Redis
+    Note over MQ: the StockReserved result was dead-lettered and the DLQ purged
+    RW->>PGO: find orders stuck in PendingStock past the timeout
+    RW->>PGO: insert a new OrderPlaced Outbox row (new MessageId)
+    MQ->>IS: deliver the re-triggered OrderPlaced
+    IS->>R: EVAL reserve.lua
+    R-->>IS: DUPLICATE (no second deduction)
+    IS->>MQ: re-send the stored StockReserved (original MessageId)
+    MQ->>PGO: Order Service applies it: Confirmed, then Completed
+    Note over RW: after 3 re-triggers without progress: one Error alert, the order stays PendingStock

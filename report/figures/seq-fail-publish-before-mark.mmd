@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant OP as Outbox publisher
+    participant PG as PostgreSQL (its schema)
+    participant MQ as RabbitMQ
+    participant C as Receiving consumer
+    OP->>MQ: publish event (MessageId m), confirmed
+    MQ->>C: deliver m: applied, Inbox row m
+    Note over OP: crash before the row is marked published
+    Note over OP,PG: after restart the row is still unpublished
+    OP->>MQ: publish the same row again (same MessageId m)
+    MQ->>C: deliver m again
+    C->>C: Inbox: m already processed
+    C-->>MQ: ack as no-op (one business effect)
+    OP->>PG: mark the row published
+    Note over OP,C: TP-O03 recreates this state (service stopped, row set back to unsent)

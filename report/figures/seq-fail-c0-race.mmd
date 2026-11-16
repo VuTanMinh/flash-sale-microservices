@@ -1,0 +1,13 @@
+sequenceDiagram
+    autonumber
+    participant A1 as Attempt 1
+    participant A2 as Attempt 2
+    participant PG as PostgreSQL (order_service)
+    Note over PG: inventory row: stock 1
+    Note over A1,A2: 5 attempts start together behind one gate
+    A1->>PG: SELECT stock: 1
+    A2->>PG: SELECT stock: 1
+    Note over A1,A2: each waits 50 ms, both saw stock 1
+    A1->>PG: UPDATE stock = stock − 1 (no condition): stock 0
+    A2->>PG: UPDATE stock = stock − 1 (no condition): stock -1
+    Note over PG: more than one Confirmed, stock below 0: the race C1 and C2 prevent

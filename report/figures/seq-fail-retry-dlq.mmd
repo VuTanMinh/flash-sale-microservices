@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    participant MQ as RabbitMQ
+    participant C as Consumer (Order or Inventory Service)
+    participant PG as PostgreSQL (its schema)
+    participant DLQ as Service DLQ (RabbitMQ)
+    MQ->>C: deliver message (MessageId m)
+    C-xPG: one transaction: business change + Inbox row m: write fails
+    Note over C: not acknowledged, the consumer retries after 1 s
+    alt the fault clears within the retry window
+        C->>PG: retry succeeds: applied once
+        C-->>MQ: ack
+    else the fault outlasts 4 attempts (1 s, 2 s, 4 s apart)
+        C-->>DLQ: nack without requeue: dead-lettered, x-death names the source queue
+        Note over DLQ: only this service's DLQ, the main queue is empty, no loop
+        DLQ->>MQ: after the fix, the dead letter is replayed unchanged
+        MQ->>C: deliver m again
+        C->>PG: applied once
+    end
+    Note over C,DLQ: malformed JSON or an empty MessageId is dead-lettered after one attempt

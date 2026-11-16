@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    actor Client
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    participant OP as Order Outbox publisher
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    Client->>OS: POST /api/orders (Idempotency-Key)
+    OS->>PGO: one transaction: order (PendingStock) + Outbox row OrderPlaced
+    OS-->>Client: 201 Created (PendingStock)
+    Note over MQ: broker stopped
+    OP->>PGO: SELECT unpublished rows (FOR UPDATE SKIP LOCKED)
+    OP-xMQ: publish OrderPlaced (mandatory, confirm): connection refused
+    Note over OP,PGO: row stays unpublished, retried on the next poll
+    Note over MQ: broker back
+    OP->>MQ: publish OrderPlaced (same MessageId)
+    MQ-->>OP: confirm (routed to every required queue)
+    OP->>PGO: mark the row published
+    MQ->>IS: deliver OrderPlaced (once)

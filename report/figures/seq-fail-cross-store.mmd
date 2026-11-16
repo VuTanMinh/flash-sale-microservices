@@ -1,0 +1,18 @@
+sequenceDiagram
+    autonumber
+    participant MQ as RabbitMQ
+    participant IS as Inventory Service
+    participant R as Redis
+    participant PGI as PostgreSQL (inventory_service)
+    MQ->>IS: deliver OrderPlaced
+    IS->>PGI: Inbox: MessageId processed? (no)
+    IS->>R: EVAL reserve.lua
+    R-->>IS: RESERVED (stock − 1, order added to the reserved set)
+    IS-xPGI: one transaction: result Outbox row StockReserved + Inbox row: write refused
+    Note over IS: not acknowledged, retried after 1, 2, 4 s, then the service DLQ
+    Note over PGI: write allowed again (or the dead letter replayed)
+    IS->>R: EVAL reserve.lua (same OrderId)
+    R-->>IS: DUPLICATE (nothing deducted again)
+    IS->>PGI: one transaction: StockReserved Outbox row + Inbox row
+    IS-->>MQ: ack
+    Note over R,PGI: exactly one unit taken for the order

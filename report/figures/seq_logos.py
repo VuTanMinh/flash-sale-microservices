@@ -20,8 +20,14 @@ LOGO = [                          # first match on the participant label wins
     ('nginx', 'nginx'), ('postgres', 'postgresql'), ('rabbitmq', 'rabbitmq'),
     ('redis', 'redis'), ('order service', 'dotnet'), ('inventory service', 'dotnet'),
     ('outbox publisher', 'dotnet'), ('process worker', 'dotnet'),
+    # generic participants of the failure-scenario diagrams (all .NET code)
+    ('consumer', 'dotnet'), ('reconciliation', 'dotnet'), ('attempt', 'dotnet'),
 ]
-NAMES = ['happy-path', 'rejection', 'planned-processing']
+NAMES = ['happy-path', 'rejection', 'planned-processing',
+         # failure-scenario diagrams (rendered with render_mmd.cjs)
+         'fail-c0-race', 'fail-cross-store', 'fail-crash-before-ack', 'fail-broker-down',
+         'fail-publish-before-mark', 'fail-duplicates', 'fail-retry-dlq', 'fail-reconciliation',
+         'fail-worker-killed', 'fail-overload-refusal']
 
 
 def participants(mmd):
@@ -61,9 +67,13 @@ def badges(slugs, px):
     return out
 
 
-def boxes(im, rows):
-    """x-extents of the participant boxes on the first row (from `rows`) that crosses them."""
+def boxes(im, rows, expected):
+    """x-extents of the participant boxes on the first row (from `rows`) that crosses them.
+
+    A wrapped label can split one box's fill on that row; if the plain runs do not
+    give `expected` boxes, runs separated by less than 30 px are merged."""
     w = im.width
+    first_plain = []
     for y in rows:
         runs, x = [], 0
         while x < w:
@@ -71,12 +81,26 @@ def boxes(im, rows):
                 x0 = x
                 while x < w and im.getpixel((x, y))[:3] == FILL:
                     x += 1
-                if x - x0 > 40:
+                if x - x0 > 12:
                     runs.append((x0, x, y))
             x += 1
-        if runs:
-            return runs
-    return []
+        if not runs:
+            continue
+        plain = [r for r in runs if r[1] - r[0] > 40]
+        if len(plain) == expected:
+            return plain
+        merged = [runs[0]]
+        for r in runs[1:]:
+            if r[0] - merged[-1][1] < 30:
+                merged[-1] = (merged[-1][0], r[1], y)
+            else:
+                merged.append(r)
+        merged = [r for r in merged if r[1] - r[0] > 40]
+        if len(merged) == expected:
+            return merged
+        if plain and not first_plain:
+            first_plain = plain
+    return first_plain
 
 
 def top_edge(im, x, y, step):
@@ -90,11 +114,13 @@ def main():
         src = os.path.join(HERE, f'seq-{name}.png')
         labels = participants(os.path.join(HERE, f'seq-{name}.mmd'))
         im = Image.open(src).convert('RGBA')
-        art = badges({slug_for(l) for l in labels}, 44)
-        top = boxes(im, range(5, 140))
-        bottom = boxes(im, range(im.height - 5, im.height - 140, -1))
+        # the fail-* diagrams are rendered at twice the scale (render_mmd.cjs), so larger badges
+        size = 72 if name.startswith('fail-') else 44
+        art = badges({slug_for(l) for l in labels}, size)
+        top = boxes(im, range(5, 140), len(labels))
+        bottom = boxes(im, range(im.height - 5, im.height - 140, -1), len(labels))
         assert len(top) == len(labels) == len(bottom), (name, len(top), len(bottom), labels)
-        pad = 56
+        pad = size + 12
         canvas = Image.new('RGBA', (im.width, im.height + 2 * pad), (255, 255, 255, 255))
         canvas.alpha_composite(im, (0, pad))
         for (x0, x1, y), label in zip(top, labels):          # centred just above the top box

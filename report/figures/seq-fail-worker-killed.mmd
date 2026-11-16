@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    participant MQ as RabbitMQ
+    participant PW as Process Worker
+    participant OS as Order Service
+    MQ->>PW: deliver StockReserved
+    PW->>MQ: publish OrderProcessingStarted (MessageId derived from OrderId)
+    Note over PW: killed during the deterministic delay, before the ack
+    Note over MQ: StockReserved returns to the queue
+    MQ->>PW: redeliver (restarted Worker)
+    PW->>MQ: OrderProcessingStarted again (same MessageId)
+    MQ->>OS: Inbox: already processed, no-op
+    PW->>MQ: publish OrderProcessed (MessageId = OrderId)
+    PW-->>MQ: ack StockReserved
+    MQ->>OS: Processing -> Completed once

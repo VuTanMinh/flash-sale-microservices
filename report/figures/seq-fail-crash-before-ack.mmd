@@ -1,0 +1,14 @@
+sequenceDiagram
+    autonumber
+    participant MQ as RabbitMQ
+    participant C as Consumer (any of the four)
+    participant PG as PostgreSQL (its schema)
+    MQ->>C: deliver message (MessageId m)
+    C->>PG: one transaction: business change + Inbox row m
+    PG-->>C: commit
+    Note over C: process killed before the ack
+    Note over MQ: unacked message returns to the queue
+    MQ->>C: redeliver message m (after restart)
+    C->>PG: Inbox: m already processed? (yes)
+    C-->>MQ: ack as no-op
+    Note over PG: one effect, timestamps unchanged

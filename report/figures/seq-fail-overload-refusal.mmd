@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    actor Client
+    participant NX as Nginx
+    participant OS as Order Service
+    participant PGO as PostgreSQL (order_service)
+    Client->>NX: POST /api/orders (Idempotency-Key k)
+    alt over ORDER_RATE
+        NX-->>Client: 429 Too Many Requests (Order Service never sees it)
+    else within the rate limit
+        NX->>OS: POST /api/orders (Idempotency-Key k)
+        OS->>PGO: look up k: not found (a known key is answered 200 before any admission check)
+        Note over OS: admission: Outbox backlog, unfinished orders, concurrency slot
+        OS-->>Client: 503 Service Unavailable, Retry-After: 1 (a limit is reached)
+        Note over OS,PGO: nothing written: no order, no Outbox row
+    end
+    Note over Client: wait, then retry with the SAME Idempotency-Key
+    Client->>NX: POST /api/orders (Idempotency-Key k)
+    NX->>OS: POST /api/orders (Idempotency-Key k)
+    OS->>PGO: one transaction: order (PendingStock) + Outbox row OrderPlaced
+    OS-->>Client: 201 Created (or 200 with the original order if k was accepted before)
