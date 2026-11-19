@@ -47,15 +47,15 @@ tables for the order's state history and IDs. The shop's own colours and fonts
 are applied on top through Bootstrap's CSS variables, and Bootstrap's dark mode
 follows the page's theme switch.
 
-Bootstrap is vendored in `vendor/bootstrap-5.3.3/` (`bootstrap.min.css` and its
-MIT `LICENSE`), so it loads without internet. The page uses no Bootstrap
-JavaScript.
+Everything the page needs to start is vendored in `vendor/`, each with its
+MIT `LICENSE`, so it runs without internet:
+- `bootstrap-5.3.3/bootstrap.min.css`. The page uses no Bootstrap JavaScript.
+- `react-18.3.1/react.production.min.js` and `react-dom.production.min.js`
+  (React 18.3.1).
+- `babel-standalone-7.23.5/babel.min.js`.
 
-Still loaded from the internet:
-- React 18.3.1, ReactDOM 18.3.1 and Babel standalone 7.23.5 from cdnjs. The
-  page does not start without them.
-- The Lato, Assistant and Abel fonts from Google Fonts. Without them the page
-  falls back to system fonts.
+Only the Lato, Assistant and Abel fonts come from Google Fonts. Without
+internet the page falls back to system fonts.
 
 `screenshots/` holds desktop, phone and dark-mode screenshots.
 - 01, 04, 05, 06, 07 and 10 were retaken on 19 November 2026 with the

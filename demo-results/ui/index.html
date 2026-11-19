@@ -405,9 +405,10 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 <div id="root"></div>
 <noscript><p style="padding:24px">This page needs JavaScript.</p></noscript>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<!-- React, ReactDOM and Babel standalone, vendored (MIT, licences next to each file) so the page starts without internet. -->
+<script src="vendor/react-18.3.1/react.production.min.js"></script>
+<script src="vendor/react-18.3.1/react-dom.production.min.js"></script>
+<script src="vendor/babel-standalone-7.23.5/babel.min.js"></script>
 
 <script type="text/x-tsx" id="app-src">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
