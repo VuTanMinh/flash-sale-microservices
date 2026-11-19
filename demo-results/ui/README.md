@@ -54,17 +54,31 @@ MIT `LICENSE`, so it runs without internet:
   (React 18.3.1).
 - `babel-standalone-7.23.5/babel.min.js`.
 
-Only the Lato, Assistant and Abel fonts come from Google Fonts. Without
-internet the page falls back to system fonts.
+Fonts:
+- Normal text uses ITC Officina Display when it is installed. It is a licensed
+  font and is not on Google Fonts, so it is not shipped here. Without it, the
+  page uses Assistant and Lato.
+- Small labels (kickers, chips, tags, the ticker) use Franklin Gothic Medium.
+  It comes with Windows; elsewhere the page uses Libre Franklin.
+- The logo keeps Lato and Abel.
+- Lato, Assistant, Abel and Libre Franklin come from Google Fonts. Without
+  internet the page falls back to the installed fonts.
 
-`screenshots/` holds desktop, phone and dark-mode screenshots, all taken on
-19 November 2026 with the Bootstrap styling.
-- 01, 04, 05, 06, 07 and 10 show the simulation and the static sections.
-- The live-mode shots (02, 08 and 11) come from real orders on the local stack:
+Buttons have no glow at rest; only a faint neutral shadow shows on hover.
+
+The earbuds photo in `images/aurora-x2-earbuds.png` (330 × 250) was supplied
+by the project owner. It sits on a panel of its own light grey, with softened
+edges, and is never shown wider than 330 px.
+
+`screenshots/` holds desktop, phone and dark-mode screenshots.
+- 01, 04, 05, 06, 07 and 10 (20 November 2026) show the simulation and the
+  static sections with the photo, the fonts and the wider spacing.
+- The live-mode shots (02, 08 and 11) are from 19 November 2026. They still
+  show the earlier drawn earbuds and the tighter spacing. They come from real
+  orders on the local stack:
   - 63a546b7 on c0-demo-product went to Completed. A second POST with the same
     Idempotency-Key returned 200 and the same order.
   - fe654b6d on the same product was Rejected, as its one unit was gone.
   - 8662a96d on flash-product-1 (phone) went to Completed.
 
-Logos are from Simple Icons 13.21.0 (CC0), inlined in the page. Fonts are
-Lato, Assistant and Abel from Google Fonts, with system fonts as fallback.
+Logos are from Simple Icons 13.21.0 (CC0), inlined in the page.

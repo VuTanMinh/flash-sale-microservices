@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%227%22 fill=%22%23f97316%22/%3E%3Cpath d=%22M13 3 5 14h6l-1 7 8-11h-6z%22 fill=%22white%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abel&family=Assistant:wght@400;500;600;700;800&family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abel&family=Libre+Franklin:wght@500;600&family=Assistant:wght@400;500;600;700;800&family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap">
 <!-- Bootstrap 5.3.3, vendored (MIT, vendor/bootstrap-5.3.3/LICENSE) so the page works without internet.
      It is loaded first; the shop's own rules below adjust it through Bootstrap's CSS variables. -->
 <link rel="stylesheet" href="vendor/bootstrap-5.3.3/bootstrap.min.css">
@@ -46,9 +46,15 @@
   --shadow-lg: 0 2px 4px rgba(15, 23, 42, .06), 0 30px 60px -24px rgba(15, 23, 42, .35);
   --r-lg: 24px;
   --r-md: 16px;
-  --f-body: "Assistant", "Lato", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --f-ui: "Lato", "Assistant", "Segoe UI", system-ui, sans-serif;
-  --f-special: "Abel", "Lato", "Segoe UI", system-ui, sans-serif;
+  /* Normal text: ITC Officina Display when it is installed (a licensed font, not on Google Fonts);
+     otherwise the previous Assistant / Lato. Fancy labels (kickers, chips, tags): Franklin Gothic,
+     which ships with Windows; Libre Franklin from Google Fonts elsewhere. The logo keeps Lato + Abel. */
+  --f-officina: "ITC Officina Display", "Officina Display", "ITC Officina Display Std", "OfficinaDisplayITC", "ITC Officina Sans", "Officina Sans";
+  --f-body: var(--f-officina), "Assistant", "Lato", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-ui: var(--f-officina), "Lato", "Assistant", "Segoe UI", system-ui, sans-serif;
+  --f-special: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic", "Libre Franklin", "Segoe UI", system-ui, sans-serif;
+  --f-logo: "Lato", "Segoe UI", system-ui, sans-serif;
+  --f-logo-small: "Abel", "Lato", "Segoe UI", system-ui, sans-serif;
   --f-mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
   color-scheme: light;
 }
@@ -103,7 +109,8 @@ button { cursor: pointer; }
 .brand:hover, .brand:focus { color: var(--on-navy); }
 .brand-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, var(--amber), var(--orange)); color: #fff; box-shadow: 0 6px 18px -6px var(--orange); }
 .brand-mark svg { width: 20px; height: 20px; }
-.brand small { font-family: var(--f-special); font-weight: 400; font-size: 13px; color: var(--on-navy-muted); letter-spacing: .08em; margin-left: 2px; }
+.brand { font-family: var(--f-logo); }
+.brand small { font-family: var(--f-logo-small); font-weight: 400; font-size: 13px; color: var(--on-navy-muted); letter-spacing: .08em; margin-left: 2px; }
 .nav-links { display: flex; flex-direction: row; gap: 4px; margin-left: auto; }
 .nav-links a { text-decoration: none; font-family: var(--f-ui); font-weight: 700; font-size: 15px; color: var(--on-navy-muted); padding: 8px 12px; border-radius: 999px; }
 .nav-links a:hover { color: var(--on-navy); background: rgba(255,255,255,.06); }
@@ -209,9 +216,18 @@ section.block { padding: 64px 0 8px; }
 .p-media::after { content: ""; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.45); z-index: 0; }
 :root[data-theme="dark"] .p-media::after { background: rgba(255,255,255,.07); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .p-media::after { background: rgba(255,255,255,.07); } }
+/* the earbuds photo: its panel takes the photo's own light-grey background (#ececec) in both themes,
+   so the photo's edges disappear; no drop shadow on the photo */
+.p-media.photo-media { background: #ececec; display: flex; align-items: center; justify-content: center; }
+.p-media.photo-media::after { display: none; }
+.p-media img.photo { width: 82%; max-width: 330px; height: auto; position: relative; z-index: 1; }
+/* fade the photo's edges into the panel, so no rectangle shows (the pods sit in the middle) */
+img.photo { -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 52%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 72% 70% at 50% 52%, #000 62%, transparent 100%); }
+.photo-frame { background: #ececec; border-radius: var(--r-lg); padding: 18px 22px; width: min(100%, 374px); box-shadow: 0 24px 40px -24px rgba(15,23,42,.55); }
+.photo-frame img.photo { display: block; width: 100%; height: auto; }
 .p-media svg.art { width: 62%; position: relative; z-index: 1; filter: drop-shadow(0 22px 26px rgba(15,23,42,.22)); }
 .p-badge { position: absolute; top: 16px; left: 16px; z-index: 2; background: var(--orange); color: var(--orange-ink); font-family: var(--f-ui); font-weight: 900; border-radius: 10px; padding: 6px 10px; font-size: 15px; box-shadow: 0 6px 16px -6px rgba(249,115,22,.8); }
-.heart { position: absolute; top: 14px; right: 14px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card); color: var(--ink-2); display: grid; place-items: center; box-shadow: var(--shadow); }
+.heart { position: absolute; top: 14px; right: 14px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); color: var(--ink-2); display: grid; place-items: center; box-shadow: none; }
 .heart svg { width: 20px; height: 20px; }
 .heart[aria-pressed="true"] { color: #e11d48; }
 .heart[aria-pressed="true"] svg path { fill: currentColor; }
@@ -234,7 +250,9 @@ section.block { padding: 64px 0 8px; }
 .buy { --bs-btn-padding-x: 20px; --bs-btn-padding-y: 17px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 900; --bs-btn-font-size: 19px; --bs-btn-border-radius: 18px; --bs-btn-border-width: 0;
   --bs-btn-color: #fff; --bs-btn-bg: var(--navy); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #1e293b; --bs-btn-active-color: #fff; --bs-btn-active-bg: #1e293b;
   --bs-btn-disabled-color: var(--muted); --bs-btn-disabled-bg: var(--card-2); --bs-btn-disabled-opacity: 1;
-  width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(15,23,42,.7); transition: transform .08s ease, background .2s; position: relative; overflow: hidden; }
+  width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: none; transition: transform .08s ease, background .2s, box-shadow .2s; position: relative; overflow: hidden; }
+/* buttons have no glow by default; only a faint neutral shadow while hovered */
+.buy:hover:not(:disabled), .cta:hover { box-shadow: 0 6px 14px -8px rgba(15,23,42,.45); }
 :root[data-theme="dark"] .buy { --bs-btn-bg: var(--orange); --bs-btn-hover-bg: #ea580c; --bs-btn-active-bg: #ea580c; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .buy { --bs-btn-bg: var(--orange); --bs-btn-hover-bg: #ea580c; --bs-btn-active-bg: #ea580c; } }
 .buy svg { width: 20px; height: 20px; }
@@ -246,26 +264,28 @@ section.block { padding: 64px 0 8px; }
 
 /* Messages are Bootstrap alerts (alert-warning for 429/503, alert-danger for errors and
    sold out, alert-success, alert-info); .note only makes them compact. */
-.note { border-radius: 14px; padding: 12px 14px; margin: 0; font-size: 16px; display: grid; gap: 6px; }
+.note { border-radius: 14px; padding: 14px 16px; margin: 0; font-size: 16px; line-height: 1.6; display: grid; gap: 8px; }
 .note b { font-family: var(--f-ui); }
 .code-badge { font-family: var(--f-mono); font-size: 13px; margin-right: 6px; vertical-align: 1px; }
 .backoff { height: 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 22%, transparent); overflow: hidden; }
 .backoff > span { display: block; height: 100%; background: currentColor; }
 
 /* order tracking card, styled like a transaction list */
-.track-card { padding: 20px 22px; display: grid; gap: 14px; }
+.track-card { padding: 22px 24px; display: grid; gap: 16px; }
 .track-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .track-head h3 { font-size: 19px; font-weight: 900; }
 /* order-state badges: Bootstrap .badge with one text-bg-* colour per state */
 .state-badge { font-family: var(--f-ui); font-weight: 800; font-size: 14px; letter-spacing: .02em; padding: .45em .85em; }
 .state-badge.sm { font-size: 12px; padding: .35em .7em; }
 .hist-table { --bs-table-bg: transparent; --bs-table-striped-bg: color-mix(in srgb, var(--line) 45%, transparent); --bs-table-color: var(--ink); --bs-table-striped-color: var(--ink); font-size: 14px; }
+.hist-table td, .hist-table th { padding-top: 8px; padding-bottom: 8px; }
 .hist-table th { font-family: var(--f-ui); font-weight: 700; font-size: 13px; color: var(--muted); }
 .ids-table { --bs-table-bg: transparent; --bs-table-color: var(--ink-2); margin: 0; font-family: var(--f-mono); font-size: 13px; }
 .ids-table th { font-family: var(--f-ui); font-weight: 700; color: var(--muted); white-space: nowrap; padding-right: 12px; width: 1%; }
 .ids-table td { word-break: break-all; }
+.ids-table th, .ids-table td { padding-top: 6px; padding-bottom: 6px; line-height: 1.5; }
 .tx { list-style: none; margin: 0; padding: 0; display: grid; }
-.tx li { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; }
+.tx li { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 13px 0; }
 .tx li + li { border-top: 1px dashed var(--line); }
 .tx .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
 .tx .ic svg { width: 20px; height: 20px; }
@@ -274,8 +294,8 @@ section.block { padding: 64px 0 8px; }
 .tx li.fail .ic { background: var(--red-soft); color: var(--red); }
 @keyframes ring { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 22%, transparent); } }
 .tx .t { font-family: var(--f-ui); font-weight: 700; font-size: 15px; }
-.tx .s { font-size: 13px; color: var(--muted); }
-.tx .r { text-align: right; font-size: 13px; }
+.tx .s { font-size: 14px; line-height: 1.55; color: var(--muted); margin-top: 2px; }
+.tx .r { text-align: right; font-size: 13px; line-height: 1.6; }
 .tx .r b { display: block; font-family: var(--f-ui); font-size: 13px; }
 .tx li.done .r b { color: var(--green); } .tx li.now .r b { color: var(--amber-text); } .tx li.fail .r b { color: var(--red); } .tx li.todo .r b { color: var(--muted); font-weight: 400; }
 .ids { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: grid; gap: 2px; word-break: break-all; background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
@@ -287,40 +307,40 @@ section.block { padding: 64px 0 8px; }
   --bs-btn-disabled-color: var(--ink-2); --bs-btn-disabled-bg: var(--card); --bs-btn-disabled-border-color: var(--line); --bs-btn-disabled-opacity: .5; }
 .cta { --bs-btn-padding-x: 22px; --bs-btn-padding-y: 14px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 900; --bs-btn-font-size: 17px; --bs-btn-border-radius: 16px; --bs-btn-border-width: 0;
   --bs-btn-color: #fff; --bs-btn-bg: var(--orange); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #ea580c; --bs-btn-active-color: #fff; --bs-btn-active-bg: #c2410c;
-  text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(249,115,22,.9); }
+  text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: none; transition: background .2s, box-shadow .2s; }
 .cta.dark { --bs-btn-color: var(--navy); --bs-btn-bg: #fff; --bs-btn-hover-color: var(--navy); --bs-btn-hover-bg: #e2e8f0; --bs-btn-active-color: var(--navy); --bs-btn-active-bg: #cbd5e1; box-shadow: none; }
 .cta svg { width: 18px; height: 18px; }
 
 /* pipeline side */
-.sys { padding: 22px; display: grid; gap: 18px; min-width: 0; }
+.sys { padding: 24px; display: grid; gap: 22px; min-width: 0; }
 .sys-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sys-head h3 { font-size: 20px; font-weight: 900; }
 .chip { font-family: var(--f-special); font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: 13px; padding: 5px 11px; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 12px; }
 @media (max-width: 600px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; } }
-.kpi { border-radius: 16px; padding: 12px 14px; background: var(--card-2); }
+.kpi { border-radius: 16px; padding: 14px 16px; background: var(--card-2); display: grid; gap: 6px; align-content: start; }
 .kpi:nth-child(1) { background: var(--sky); } .kpi:nth-child(2) { background: var(--pink); } .kpi:nth-child(3) { background: var(--butter); } .kpi:nth-child(4) { background: var(--lilac); } .kpi:nth-child(5) { background: var(--green-soft); }
-.kpi .k { font-size: 13px; color: var(--ink-2); }
+.kpi .k { font-size: 14px; line-height: 1.35; color: var(--ink-2); }
 .kpi .v { font-family: var(--f-ui); font-weight: 900; font-size: 26px; line-height: 1.15; }
-.kpi .v small { font-family: var(--f-body); font-size: 13px; font-weight: 600; color: var(--muted); }
+.kpi .v small { font-family: var(--f-body); font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 3px; }
 .pipe { display: grid; gap: 0; }
-.stage { display: grid; grid-template-columns: 46px minmax(0, 1fr) minmax(0, 210px); gap: 14px; align-items: center; padding: 12px 14px; border-radius: 16px; border: 1.5px solid var(--line); position: relative; transition: border-color .25s, background .25s, box-shadow .25s; }
+.stage { display: grid; grid-template-columns: 46px minmax(0, 1fr) minmax(0, 210px); gap: 16px; align-items: center; padding: 16px 18px; border-radius: 16px; border: 1.5px solid var(--line); position: relative; transition: border-color .25s, background .25s, box-shadow .25s; }
 .stage.here { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 7%, var(--card)); box-shadow: 0 10px 26px -16px rgba(249,115,22,.7); }
 .stage .logo { width: 46px; height: 46px; border-radius: 14px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; position: relative; }
 .stage .logo svg { width: 26px; height: 26px; }
 .stage .logo .sub { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; border-radius: 8px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; }
 .stage .logo .sub svg { width: 15px; height: 15px; }
-.stage h4 { font-size: 15px; font-weight: 900; }
-.stage .what { font-size: 13px; color: var(--muted); line-height: 1.4; }
-.stage .nums { font-family: var(--f-mono); font-size: 12px; display: grid; gap: 3px; font-variant-numeric: tabular-nums; }
+.stage h4 { font-size: 16px; font-weight: 900; margin-bottom: 4px; }
+.stage .what { font-size: 14px; color: var(--muted); line-height: 1.6; word-spacing: .06em; }
+.stage .nums { font-family: var(--f-mono); font-size: 13px; line-height: 1.45; display: grid; gap: 7px; font-variant-numeric: tabular-nums; word-spacing: .1em; }
 .stage .nums .bad { color: var(--red); } .stage .nums .ok { color: var(--green); }
 .you { position: absolute; top: -11px; right: 12px; background: var(--orange); color: #fff; font-family: var(--f-special); letter-spacing: .1em; text-transform: uppercase; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
-.link { height: 22px; margin-left: 36px; border-left: 2px dashed var(--line); display: flex; align-items: center; padding-left: 26px; font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.link { height: 32px; margin-left: 40px; border-left: 2px dashed var(--line); display: flex; align-items: center; padding-left: 26px; font-size: 13px; color: var(--muted); font-family: var(--f-mono); word-spacing: .1em; }
 .qbar { height: 6px; background: var(--card-2); border-radius: 4px; overflow: hidden; }
 .qbar > span { display: block; height: 100%; background: var(--orange); transition: width .25s; }
 @media (max-width: 600px) { .stage { grid-template-columns: 46px minmax(0, 1fr); } .stage .nums { grid-column: 1 / -1; } .link { margin-left: 22px; } }
-.log { background: var(--navy); color: #cbd5e1; border-radius: 16px; padding: 12px 14px; font-family: var(--f-mono); font-size: 12px; max-height: 220px; overflow: auto; display: grid; gap: 3px; }
-.log div { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; }
+.log { background: var(--navy); color: #cbd5e1; border-radius: 16px; padding: 16px 18px; font-family: var(--f-mono); font-size: 13px; line-height: 1.55; word-spacing: .12em; max-height: 260px; overflow: auto; display: grid; gap: 9px; }
+.log div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; }
 .log time { color: #64748b; }
 .log .src { color: var(--amber); }
 .log .e-bad { color: #fca5a5; } .log .e-ok { color: #86efac; }
@@ -699,17 +719,9 @@ const I = {
 };
 
 /* product art */
+/* The product photo (supplied by the project owner), on a panel of its own background colour so its edges blend in. */
 function Earbuds() {
-  return (
-    <svg className="art" viewBox="0 0 200 160" role="img" aria-label="Aurora X2 wireless earbuds in their charging case">
-      <rect x="38" y="76" width="124" height="66" rx="30" fill="#ffffff" stroke="#0f172a" strokeWidth="4"/>
-      <path d="M38 99h124" stroke="#0f172a" strokeWidth="4"/>
-      <circle cx="100" cy="121" r="5" fill="#22c55e"/>
-      <g fill="#0f172a"><ellipse cx="70" cy="54" rx="21" ry="23"/><rect x="63" y="60" width="14" height="42" rx="7"/></g>
-      <g fill="#0f172a"><ellipse cx="130" cy="54" rx="21" ry="23"/><rect x="123" y="60" width="14" height="42" rx="7"/></g>
-      <circle cx="70" cy="52" r="9" fill="#f97316"/><circle cx="130" cy="52" r="9" fill="#f97316"/>
-    </svg>
-  );
+  return <img className="photo" src="images/aurora-x2-earbuds.png" width={330} height={250} alt="Aurora X2 wireless earbuds in their charging case"/>;
 }
 function Hoodie() {
   return (<svg className="art" viewBox="0 0 200 180" role="img" aria-label="Hoodie">
@@ -754,8 +766,8 @@ function ArtSplit() {
     <g transform="translate(44 66) scale(2)"><path d={ICONS.redis?.d} fill="#FF4438"/></g>
     <rect x="142" y="40" width="100" height="140" rx="22" fill="#fff" stroke="#0f172a" strokeWidth="5"/>
     <g transform="translate(168 66) scale(2)"><path d={ICONS.postgresql?.d} fill="#4169E1"/></g>
-    <text x="68" y="160" textAnchor="middle" fontFamily="Abel" fontSize="17" fill="#0f172a">DECIDES</text>
-    <text x="192" y="160" textAnchor="middle" fontFamily="Abel" fontSize="17" fill="#0f172a">RECORDS</text></svg>);
+    <text x="68" y="160" textAnchor="middle" fontFamily="Franklin Gothic Medium, Libre Franklin, sans-serif" fontSize="16" letterSpacing="1" fill="#0f172a">DECIDES</text>
+    <text x="192" y="160" textAnchor="middle" fontFamily="Franklin Gothic Medium, Libre Franklin, sans-serif" fontSize="16" letterSpacing="1" fill="#0f172a">RECORDS</text></svg>);
 }
 
 function Hero({ onShop, stats }: { onShop: () => void; stats: { label: string; value: string; icon: JSX.Element }[] }) {
@@ -764,7 +776,7 @@ function Hero({ onShop, stats }: { onShop: () => void; stats: { label: string; v
   const [hover, setHover] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
   const slides = [
-    { cls: "s-peach", art: <><Earbuds/><div className="sticker" style={{ top: "8%", right: "6%" }}>−60%<small>TODAY</small></div></>,
+    { cls: "s-peach", art: <><div className="photo-frame"><Earbuds/></div><div className="sticker" style={{ top: "8%", right: "6%" }}>−60%<small>TODAY</small></div></>,
       body: <><span className="eyebrow">Drop 01 · Aurora X2</span>
         <div className="comic" aria-hidden="true">Flash<br/><span className="alt">Sale!</span></div>
         <h2 className="sr">Flash sale</h2>
@@ -1015,7 +1027,7 @@ function Product({ mode, sim, flow, onReload }: { mode: Mode; sim: FlashSim; flo
   return (
     <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
       <article className="card product" aria-labelledby="p-name">
-        <div className="p-media">
+        <div className="p-media photo-media">
           <span className="p-badge">−60%</span>
           <button className="heart" aria-pressed={fav} aria-label={fav ? "Remove from wishlist" : "Add to wishlist"} onClick={() => setFav(f => !f)}>{I.heart}</button>
           <Earbuds/>
