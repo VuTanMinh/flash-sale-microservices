@@ -9,6 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abel&family=Assistant:wght@400;500;600;700;800&family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap">
+<!-- Bootstrap 5.3.3, vendored (MIT, vendor/bootstrap-5.3.3/LICENSE) so the page works without internet.
+     It is loaded first; the shop's own rules below adjust it through Bootstrap's CSS variables. -->
+<link rel="stylesheet" href="vendor/bootstrap-5.3.3/bootstrap.min.css">
 <style>
 /* Tokens. Light is the default look of the reference screens: navy blocks, white cards, orange accents. */
 :root {
@@ -17,7 +20,7 @@
   --card-2: #f0f2f5;
   --ink: #0f172a;
   --ink-2: #334155;
-  --muted: #64748b;
+  --muted: #556274;
   --line: #e2e8f0;
   --navy: #0f172a;
   --navy-2: #1e293b;
@@ -64,10 +67,20 @@
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -12px rgba(0,0,0,.6); --shadow-lg: 0 30px 60px -24px rgba(0,0,0,.7);
   color-scheme: dark; }
 
+/* Bootstrap's own variables, pointed at the shop's tokens so its reboot, cards, tables,
+   badges and alerts follow both themes (data-bs-theme is kept in step with data-theme). */
+:root, [data-bs-theme] {
+  --bs-body-font-family: var(--f-body); --bs-body-font-size: 17px; --bs-body-line-height: 1.55;
+  --bs-body-bg: var(--page); --bs-body-color: var(--ink); --bs-emphasis-color: var(--ink);
+  --bs-secondary-color: var(--muted); --bs-border-color: var(--line); --bs-heading-color: inherit;
+  --bs-code-color: var(--amber-text); --bs-border-radius: 12px;
+}
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 84px; }
-body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-h1, h2, h3, h4 { font-family: var(--f-ui); margin: 0; line-height: 1.1; text-wrap: balance; }
+/* 17px base: readable on a projector */
+body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+h1, h2, h3, h4 { font-family: var(--f-ui); font-weight: 800; margin: 0; line-height: 1.1; text-wrap: balance; }
 p { margin: 0; }
 a { color: inherit; }
 button, select, input { font: inherit; color: inherit; }
@@ -83,15 +96,16 @@ button { cursor: pointer; }
 .ticker .run { display: inline-flex; gap: 36px; padding: 7px 0; animation: marquee 38s linear infinite; }
 .ticker .run span::after { content: "✦"; margin-left: 36px; opacity: .8; }
 
-/* ---------- nav */
-.nav { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--navy) 92%, transparent); backdrop-filter: saturate(1.4) blur(12px); color: var(--on-navy); border-bottom: 1px solid rgba(255,255,255,.06); }
-.nav .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--f-ui); font-weight: 900; font-size: 20px; letter-spacing: -.01em; }
+/* ---------- nav (a Bootstrap .navbar, dark variant, coloured with the shop's navy) */
+.topnav { position: sticky; top: 0; z-index: 30; padding: 0; background: color-mix(in srgb, var(--navy) 92%, transparent); backdrop-filter: saturate(1.4) blur(12px); color: var(--on-navy); border-bottom: 1px solid rgba(255,255,255,.06); }
+.topnav .wrap { display: flex; flex-wrap: nowrap; align-items: center; gap: 20px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0; margin: 0; color: var(--on-navy); text-decoration: none; font-family: var(--f-ui); font-weight: 900; font-size: 21px; letter-spacing: -.01em; }
+.brand:hover, .brand:focus { color: var(--on-navy); }
 .brand-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, var(--amber), var(--orange)); color: #fff; box-shadow: 0 6px 18px -6px var(--orange); }
 .brand-mark svg { width: 20px; height: 20px; }
 .brand small { font-family: var(--f-special); font-weight: 400; font-size: 13px; color: var(--on-navy-muted); letter-spacing: .08em; margin-left: 2px; }
-.nav-links { display: flex; gap: 4px; margin-left: auto; }
-.nav-links a { text-decoration: none; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--on-navy-muted); padding: 8px 12px; border-radius: 999px; }
+.nav-links { display: flex; flex-direction: row; gap: 4px; margin-left: auto; }
+.nav-links a { text-decoration: none; font-family: var(--f-ui); font-weight: 700; font-size: 15px; color: var(--on-navy-muted); padding: 8px 12px; border-radius: 999px; }
 .nav-links a:hover { color: var(--on-navy); background: rgba(255,255,255,.06); }
 .mode { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: var(--on-navy); border-radius: 999px; padding: 6px 12px 6px 10px; font-family: var(--f-ui); font-weight: 700; font-size: 13px; }
 .mode .led { width: 8px; height: 8px; border-radius: 50%; background: var(--on-navy-muted); }
@@ -120,7 +134,7 @@ button { cursor: pointer; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--f-special); font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
 .eyebrow::before { content: ""; width: 22px; height: 2px; background: currentColor; }
 .slide h2 { font-size: clamp(30px, 4.2vw, 52px); font-weight: 900; letter-spacing: -.02em; margin: 12px 0 14px; }
-.slide p.lead { color: var(--on-navy-muted); font-size: 18px; max-width: 46ch; }
+.slide p.lead { color: var(--on-navy-muted); font-size: 19px; font-weight: 400; max-width: 46ch; }
 .slide .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 .comic { display: inline-block; font-family: "Lato", var(--f-ui); font-weight: 900; text-transform: uppercase; line-height: .86; letter-spacing: -.01em;
   font-size: clamp(54px, 8.4vw, 116px); color: #fff; transform: rotate(-6deg); transform-origin: left center;
@@ -175,23 +189,28 @@ section.block { padding: 64px 0 8px; }
 .clock svg { width: 18px; height: 18px; }
 .clock small { font-family: var(--f-special); font-weight: 400; font-size: 13px; letter-spacing: .1em; color: var(--on-navy-muted); text-transform: uppercase; margin-right: 2px; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 22px; }
-.pill-btn { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 16px; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--ink-2); transition: border-color .2s, background .2s, color .2s; }
-.pill-btn:hover { border-color: var(--ink-2); }
-.pill-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--page); }
-.pill-btn:disabled { opacity: .45; cursor: not-allowed; }
-.scenario-note { color: var(--muted); font-size: 15px; margin: -10px 0 22px; max-width: 80ch; }
+/* Buttons are Bootstrap .btn; each shop variant only sets Bootstrap's --bs-btn-* variables. */
+.pill-btn { --bs-btn-padding-x: 16px; --bs-btn-padding-y: 8px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 700; --bs-btn-font-size: 15px;
+  --bs-btn-border-radius: 999px; --bs-btn-border-width: 1.5px; --bs-btn-color: var(--ink-2); --bs-btn-bg: var(--card); --bs-btn-border-color: var(--line);
+  --bs-btn-hover-color: var(--ink); --bs-btn-hover-bg: var(--card); --bs-btn-hover-border-color: var(--ink-2);
+  --bs-btn-active-color: var(--page); --bs-btn-active-bg: var(--ink); --bs-btn-active-border-color: var(--ink);
+  --bs-btn-disabled-color: var(--ink-2); --bs-btn-disabled-bg: var(--card); --bs-btn-disabled-border-color: var(--line); --bs-btn-disabled-opacity: .45; }
+.pill-btn[aria-pressed="true"] { --bs-btn-color: var(--page); --bs-btn-bg: var(--ink); --bs-btn-border-color: var(--ink); --bs-btn-hover-color: var(--page); --bs-btn-hover-bg: var(--ink); --bs-btn-hover-border-color: var(--ink); }
+.pill-btn.go { --bs-btn-color: #fff; --bs-btn-bg: var(--orange); --bs-btn-border-color: var(--orange); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #ea580c; --bs-btn-hover-border-color: #ea580c;
+  --bs-btn-disabled-color: #fff; --bs-btn-disabled-bg: var(--orange); --bs-btn-disabled-border-color: var(--orange); }
+.pill-btn select { border: 0; background: transparent; color: inherit; font-weight: 700; }
+.scenario-note { color: var(--muted); font-size: 16px; margin: -10px 0 22px; max-width: 80ch; }
 
-.fs-grid { display: grid; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 24px; align-items: start; }
-@media (max-width: 980px) { .fs-grid { grid-template-columns: minmax(0, 1fr); } }
+.fs-grid { margin-top: 0; }
 
-.card { background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow); border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.card { --bs-card-bg: var(--card); --bs-card-color: var(--ink); background: var(--card); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--shadow); border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .product { overflow: hidden; }
 .p-media { position: relative; background: var(--peach); aspect-ratio: 5 / 4; display: grid; place-items: center; overflow: hidden; }
 .p-media::after { content: ""; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.45); z-index: 0; }
 :root[data-theme="dark"] .p-media::after { background: rgba(255,255,255,.07); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .p-media::after { background: rgba(255,255,255,.07); } }
 .p-media svg.art { width: 62%; position: relative; z-index: 1; filter: drop-shadow(0 22px 26px rgba(15,23,42,.22)); }
-.badge { position: absolute; top: 16px; left: 16px; z-index: 2; background: var(--orange); color: var(--orange-ink); font-family: var(--f-ui); font-weight: 900; border-radius: 10px; padding: 6px 10px; font-size: 15px; box-shadow: 0 6px 16px -6px rgba(249,115,22,.8); }
+.p-badge { position: absolute; top: 16px; left: 16px; z-index: 2; background: var(--orange); color: var(--orange-ink); font-family: var(--f-ui); font-weight: 900; border-radius: 10px; padding: 6px 10px; font-size: 15px; box-shadow: 0 6px 16px -6px rgba(249,115,22,.8); }
 .heart { position: absolute; top: 14px; right: 14px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card); color: var(--ink-2); display: grid; place-items: center; box-shadow: var(--shadow); }
 .heart svg { width: 20px; height: 20px; }
 .heart[aria-pressed="true"] { color: #e11d48; }
@@ -212,32 +231,39 @@ section.block { padding: 64px 0 8px; }
 .meter > span { display: block; height: 100%; border-radius: 999px; background: var(--navy); transition: width .45s ease; position: relative; }
 :root[data-theme="dark"] .meter > span { background: var(--amber); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .meter > span { background: var(--amber); } }
-.buy { width: 100%; border: 0; border-radius: 18px; padding: 17px 20px; background: var(--navy); color: #fff; font-family: var(--f-ui); font-weight: 900; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(15,23,42,.7); transition: transform .08s ease, background .2s; position: relative; overflow: hidden; }
-:root[data-theme="dark"] .buy { background: var(--orange); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .buy { background: var(--orange); } }
+.buy { --bs-btn-padding-x: 20px; --bs-btn-padding-y: 17px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 900; --bs-btn-font-size: 19px; --bs-btn-border-radius: 18px; --bs-btn-border-width: 0;
+  --bs-btn-color: #fff; --bs-btn-bg: var(--navy); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #1e293b; --bs-btn-active-color: #fff; --bs-btn-active-bg: #1e293b;
+  --bs-btn-disabled-color: var(--muted); --bs-btn-disabled-bg: var(--card-2); --bs-btn-disabled-opacity: 1;
+  width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(15,23,42,.7); transition: transform .08s ease, background .2s; position: relative; overflow: hidden; }
+:root[data-theme="dark"] .buy { --bs-btn-bg: var(--orange); --bs-btn-hover-bg: #ea580c; --bs-btn-active-bg: #ea580c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .buy { --bs-btn-bg: var(--orange); --bs-btn-hover-bg: #ea580c; --bs-btn-active-bg: #ea580c; } }
 .buy svg { width: 20px; height: 20px; }
-.buy:hover:not(:disabled) { background: #1e293b; }
 .buy:active:not(:disabled) { transform: scale(.985); }
-.buy:disabled, :root .buy:disabled, :root:not([data-theme="light"]) .buy:disabled { cursor: not-allowed; background: var(--card-2); color: var(--muted); box-shadow: none; }
+.buy:disabled { cursor: not-allowed; box-shadow: none; }
 .buy.busy::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); transform: translateX(-100%); animation: shimmer 1.3s infinite; }
 @keyframes shimmer { to { transform: translateX(100%); } }
 .fine { font-size: 13px; color: var(--muted); }
 
-.note { border-radius: 14px; padding: 12px 14px; font-size: 15px; display: grid; gap: 6px; }
+/* Messages are Bootstrap alerts (alert-warning for 429/503, alert-danger for errors and
+   sold out, alert-success, alert-info); .note only makes them compact. */
+.note { border-radius: 14px; padding: 12px 14px; margin: 0; font-size: 16px; display: grid; gap: 6px; }
 .note b { font-family: var(--f-ui); }
-.note.warn { background: var(--butter); color: var(--amber-text); }
-.note.bad { background: var(--red-soft); color: var(--red); }
-.note.ok { background: var(--green-soft); color: var(--green); }
-.note.info { background: var(--blue-soft); color: var(--blue); }
+.code-badge { font-family: var(--f-mono); font-size: 13px; margin-right: 6px; vertical-align: 1px; }
 .backoff { height: 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 22%, transparent); overflow: hidden; }
 .backoff > span { display: block; height: 100%; background: currentColor; }
 
 /* order tracking card, styled like a transaction list */
 .track-card { padding: 20px 22px; display: grid; gap: 14px; }
 .track-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.track-head h3 { font-size: 18px; font-weight: 900; }
-.status { font-family: var(--f-ui); font-weight: 900; font-size: 14px; }
-.status.pending { color: var(--amber-text); } .status.done { color: var(--green); } .status.bad { color: var(--red); } .status.info { color: var(--blue); }
+.track-head h3 { font-size: 19px; font-weight: 900; }
+/* order-state badges: Bootstrap .badge with one text-bg-* colour per state */
+.state-badge { font-family: var(--f-ui); font-weight: 800; font-size: 14px; letter-spacing: .02em; padding: .45em .85em; }
+.state-badge.sm { font-size: 12px; padding: .35em .7em; }
+.hist-table { --bs-table-bg: transparent; --bs-table-striped-bg: color-mix(in srgb, var(--line) 45%, transparent); --bs-table-color: var(--ink); --bs-table-striped-color: var(--ink); font-size: 14px; }
+.hist-table th { font-family: var(--f-ui); font-weight: 700; font-size: 13px; color: var(--muted); }
+.ids-table { --bs-table-bg: transparent; --bs-table-color: var(--ink-2); margin: 0; font-family: var(--f-mono); font-size: 13px; }
+.ids-table th { font-family: var(--f-ui); font-weight: 700; color: var(--muted); white-space: nowrap; padding-right: 12px; width: 1%; }
+.ids-table td { word-break: break-all; }
 .tx { list-style: none; margin: 0; padding: 0; display: grid; }
 .tx li { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; }
 .tx li + li { border-top: 1px dashed var(--line); }
@@ -254,22 +280,22 @@ section.block { padding: 64px 0 8px; }
 .tx li.done .r b { color: var(--green); } .tx li.now .r b { color: var(--amber-text); } .tx li.fail .r b { color: var(--red); } .tx li.todo .r b { color: var(--muted); font-weight: 400; }
 .ids { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: grid; gap: 2px; word-break: break-all; background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
 .row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
-.ghost { border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 9px 14px; font-family: var(--f-ui); font-weight: 700; font-size: 14px; color: var(--ink-2); }
-.ghost:hover { border-color: var(--ink-2); }
-.ghost:disabled { opacity: .5; cursor: not-allowed; }
-.cta { border: 0; border-radius: 16px; padding: 14px 22px; font-family: var(--f-ui); font-weight: 900; font-size: 16px; background: var(--orange); color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(249,115,22,.9); }
-.cta:hover { background: #ea580c; }
-.cta.dark { background: #fff; color: var(--navy); box-shadow: none; }
-.cta.dark:hover { background: #e2e8f0; }
+.ghost { --bs-btn-padding-x: 14px; --bs-btn-padding-y: 9px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 700; --bs-btn-font-size: 15px; --bs-btn-border-radius: 12px; --bs-btn-border-width: 1.5px;
+  --bs-btn-color: var(--ink-2); --bs-btn-bg: var(--card); --bs-btn-border-color: var(--line);
+  --bs-btn-hover-color: var(--ink); --bs-btn-hover-bg: var(--card); --bs-btn-hover-border-color: var(--ink-2);
+  --bs-btn-active-color: var(--ink); --bs-btn-active-bg: var(--card-2); --bs-btn-active-border-color: var(--ink-2);
+  --bs-btn-disabled-color: var(--ink-2); --bs-btn-disabled-bg: var(--card); --bs-btn-disabled-border-color: var(--line); --bs-btn-disabled-opacity: .5; }
+.cta { --bs-btn-padding-x: 22px; --bs-btn-padding-y: 14px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 900; --bs-btn-font-size: 17px; --bs-btn-border-radius: 16px; --bs-btn-border-width: 0;
+  --bs-btn-color: #fff; --bs-btn-bg: var(--orange); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #ea580c; --bs-btn-active-color: #fff; --bs-btn-active-bg: #c2410c;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 14px 30px -14px rgba(249,115,22,.9); }
+.cta.dark { --bs-btn-color: var(--navy); --bs-btn-bg: #fff; --bs-btn-hover-color: var(--navy); --bs-btn-hover-bg: #e2e8f0; --bs-btn-active-color: var(--navy); --bs-btn-active-bg: #cbd5e1; box-shadow: none; }
 .cta svg { width: 18px; height: 18px; }
 
 /* pipeline side */
 .sys { padding: 22px; display: grid; gap: 18px; min-width: 0; }
 .sys-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sys-head h3 { font-size: 20px; font-weight: 900; }
-.chip { font-family: var(--f-special); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; border-radius: 999px; padding: 4px 10px; background: var(--card-2); color: var(--muted); }
-.chip.live { background: var(--green-soft); color: var(--green); }
-.chip.sim { background: var(--butter); color: var(--amber-text); }
+.chip { font-family: var(--f-special); font-weight: 400; text-transform: uppercase; letter-spacing: .12em; font-size: 13px; padding: 5px 11px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
 @media (max-width: 600px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 .kpi { border-radius: 16px; padding: 12px 14px; background: var(--card-2); }
@@ -300,13 +326,12 @@ section.block { padding: 64px 0 8px; }
 .log .e-bad { color: #fca5a5; } .log .e-ok { color: #86efac; }
 .offline { display: grid; gap: 8px; }
 
-/* more in this drop */
-.drop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
-@media (max-width: 980px) { .drop { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* more in this drop (a Bootstrap row: 2 columns, 4 from lg) */
+.drop { margin-top: 10px; }
 .tile { overflow: hidden; }
 .tile .p-media { aspect-ratio: 1; }
 .tile .p-media svg.art { width: 58%; }
-.tile .badge { font-size: 13px; padding: 4px 8px; top: 12px; left: 12px; }
+.tile .p-badge { font-size: 13px; padding: 4px 8px; top: 12px; left: 12px; }
 .tile .heart { width: 34px; height: 34px; top: 10px; right: 10px; }
 .tile .heart svg { width: 17px; height: 17px; }
 .tile .body { padding: 14px 16px 16px; display: grid; gap: 6px; }
@@ -336,8 +361,7 @@ section.block { padding: 64px 0 8px; }
 .stack.paused .m-run { animation-play-state: paused; }
 
 /* how it works + measured */
-.steps3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-@media (max-width: 860px) { .steps3 { grid-template-columns: minmax(0, 1fr); } }
+/* .steps3 and .measured are Bootstrap rows (row-cols-*), so these rules only style the cards */
 .step { padding: 24px; display: grid; gap: 10px; align-content: start; }
 .step .num { font-family: var(--f-special); font-size: 15px; letter-spacing: .14em; color: var(--orange); }
 .step h3 { font-size: 21px; font-weight: 900; }
@@ -345,15 +369,12 @@ section.block { padding: 64px 0 8px; }
 .step .logos { display: flex; gap: 8px; margin-top: 4px; }
 .step .logos span { width: 36px; height: 36px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; }
 .step .logos svg { width: 20px; height: 20px; }
-.measured { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
-@media (max-width: 980px) { .measured { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .measured { grid-template-columns: minmax(0, 1fr); } }
 .stat { padding: 22px; display: grid; gap: 6px; align-content: start; }
 .stat .big { font-family: var(--f-ui); font-weight: 900; font-size: clamp(34px, 3.6vw, 46px); letter-spacing: -.02em; line-height: 1; }
 .stat .big .arrow { color: var(--orange); }
 .stat .lbl { font-family: var(--f-ui); font-weight: 700; }
 .stat p { color: var(--muted); font-size: 14px; }
-.stat:nth-child(1) { background: var(--sky); } .stat:nth-child(2) { background: var(--butter); } .stat:nth-child(3) { background: var(--pink); } .stat:nth-child(4) { background: var(--lilac); }
+.measured > .col:nth-child(1) .stat { background: var(--sky); } .measured > .col:nth-child(2) .stat { background: var(--butter); } .measured > .col:nth-child(3) .stat { background: var(--pink); } .measured > .col:nth-child(4) .stat { background: var(--lilac); }
 .src-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
 
 /* footer + mobile tab bar */
@@ -399,7 +420,16 @@ function Logo({ slug, size, mono }: { slug: string; size?: number; mono?: boolea
 }
 
 /* ------------------------------------------------------------------ types */
-type OrderState = "PendingStock" | "Confirmed" | "Rejected" | "Processing" | "Completed";
+type OrderState = "PendingStock" | "Confirmed" | "Rejected" | "Processing" | "Completed" | "ProcessingFailed";
+
+/* One Bootstrap badge colour per order state (the brief's six states). */
+const STATE_BADGE: Record<string, string> = {
+  PendingStock: "text-bg-warning", Confirmed: "text-bg-info", Processing: "text-bg-primary",
+  Completed: "text-bg-success", Rejected: "text-bg-danger", ProcessingFailed: "text-bg-dark",
+};
+function StateBadge({ s, small }: { s: string; small?: boolean }) {
+  return <span className={`badge rounded-pill state-badge ${small ? "sm" : ""} ${STATE_BADGE[s] ?? "text-bg-secondary"}`}>{s}</span>;
+}
 type SaleStatus = "upcoming" | "live" | "soldout";
 type ScenarioId = "success" | "traffic" | "sellout" | "upcoming";
 type Mode = "probing" | "live" | "sim";
@@ -738,24 +768,24 @@ function Hero({ onShop, stats }: { onShop: () => void; stats: { label: string; v
         <div className="comic" aria-hidden="true">Flash<br/><span className="alt">Sale!</span></div>
         <h2 className="sr">Flash sale</h2>
         <p className="lead">Up to 60% off, 1,000 units, one per shopper. Press Buy once; we keep your place even if the crowd pushes back.</p>
-        <div className="cta-row"><button className="cta" onClick={onShop}>{I.bag} Get it now</button><a className="cta dark" href="#how">How it works</a></div></> },
+        <div className="cta-row"><button className="btn cta" onClick={onShop}>{I.bag} Get it now</button><a className="btn cta dark" href="#how">How it works</a></div></> },
     { cls: "s-amber", art: <ArtShield/>,
       body: <><span className="eyebrow">Correctness first</span>
         <div className="comic sm" aria-hidden="true">Never<br/><span className="alt">oversold.</span></div>
         <h2 className="sr">Never oversold</h2>
         <p className="lead">66 of 66 official runs on AWS EC2 passed every correctness check: no unit sold twice, no accepted order lost.</p>
-        <div className="cta-row"><a className="cta" href="#measured">See the numbers</a></div></> },
+        <div className="cta-row"><a className="btn cta" href="#measured">See the numbers</a></div></> },
     { cls: "s-sky", art: <ArtSplit/>,
       body: <><span className="eyebrow">Redis decides · PostgreSQL remembers</span>
         <h2>One atomic Lua call per order.</h2>
         <p className="lead">The stock check and the deduction happen in a single Redis script, in 0.04 to 0.06 ms. The order and its event are saved together in PostgreSQL.</p>
-        <div className="cta-row"><a className="cta" href="#stack">The stack</a></div></> },
+        <div className="cta-row"><a className="btn cta" href="#stack">The stack</a></div></> },
     { cls: "s-navy", art: <ArtQueue/>,
       body: <><span className="eyebrow">Under pressure</span>
         <div className="comic sm" aria-hidden="true">Too busy?<br/><span className="alt">We say so.</span></div>
         <h2 className="sr">Too busy? We say so.</h2>
         <p className="lead">Nginx answers 429 and the Order Service answers 503 with Retry-After before writing anything. The shop page waits and retries with the same key.</p>
-        <div className="cta-row"><button className="cta" onClick={onShop}>{I.bolt} Try heavy traffic</button></div></> },
+        <div className="cta-row"><button className="btn cta" onClick={onShop}>{I.bolt} Try heavy traffic</button></div></> },
   ];
   const n = slides.length;
   const paused = reduce || hover || userPaused;
@@ -908,12 +938,11 @@ function Track({ view, flow, mode }: { view: View; flow: ReturnType<typeof useOr
       { t: "Completed", s: "Your unit is reserved and processed", icon: I.check, done: view.state === "Completed", at: view.t.completed }]),
   ];
   const firstOpen = rows.findIndex(r => !r.done);
-  const head = view.state === "Completed" ? ["Completed", "done"] : rejected ? ["Rejected", "bad"] : view.state === "PendingStock" ? ["Pending", "pending"] : [view.state, "info"];
   return (
     <div className="card track-card" aria-live="polite">
-      <div className="track-head"><h3>Your order <span className="special" style={{ fontWeight: 400 }}>{short(view.id)}</span></h3><span className={`status ${head[1]}`}>{head[0]}</span></div>
-      {view.state === "Completed" && <div className="note ok"><b>Done.</b> One unit is yours and processed. Payment is outside this project's scope.</div>}
-      {rejected && <div className="note bad"><b>Sold out before your turn.</b> Your request was accepted, but the stock ran out first. No unit was taken and none was oversold.</div>}
+      <div className="track-head"><h3>Your order <span className="special" style={{ fontWeight: 400 }}>{short(view.id)}</span></h3><StateBadge s={view.state}/></div>
+      {view.state === "Completed" && <div className="note alert alert-success"><b>Done.</b> One unit is yours and processed. Payment is outside this project's scope.</div>}
+      {rejected && <div className="note alert alert-danger"><b>Sold out before your turn.</b> Your request was accepted, but the stock ran out first. No unit was taken and none was oversold.</div>}
       <ul className="tx">
         {rows.map((r, k) => {
           const cls = r.fail ? "fail" : r.done ? "done" : k === firstOpen ? "now" : "todo";
@@ -924,18 +953,31 @@ function Track({ view, flow, mode }: { view: View; flow: ReturnType<typeof useOr
       </ul>
       {mode === "live" && view.history.length > 0 && (
         <details><summary className="fine" style={{ cursor: "pointer" }}>State history from GET /api/orders/{"{id}"} ({view.history.length} {view.history.length === 1 ? "row" : "rows"})</summary>
-          <div className="ids" style={{ marginTop: 8 }}>{view.history.map((h, k) => <span key={k}>{h.from ?? "∅"} → {h.to} {fmt(h.at)}{h.implied ? " (implied)" : ""}</span>)}</div>
+          <div className="table-responsive" style={{ marginTop: 8 }}>
+            <table className="table table-sm table-striped align-middle hist-table mb-0">
+              <thead><tr><th scope="col">#</th><th scope="col">From</th><th scope="col">To</th><th scope="col" className="text-end">At</th></tr></thead>
+              <tbody>{view.history.map((h, k) => <tr key={k}>
+                <td className="tnum">{k + 1}</td>
+                <td>{h.from ? <StateBadge s={h.from} small/> : "∅"}</td>
+                <td><StateBadge s={h.to} small/>{h.implied ? <span className="fine"> (implied)</span> : null}</td>
+                <td className="text-end tnum">{fmt(h.at)}</td></tr>)}</tbody>
+            </table>
+          </div>
         </details>
       )}
       <div className="ids">
-        <span>Order ID: {view.id}</span>
-        <span>Idempotency-Key: {flow.key}</span>
-        {view.corr && <span>Correlation ID: {view.corr}</span>}
-        {view.msgIds && view.msgIds.length > 0 && <span>Message IDs: {view.msgIds.join(", ")}</span>}
+        <table className="table table-sm table-borderless ids-table">
+          <tbody>
+            <tr><th scope="row">Order ID</th><td>{view.id}</td></tr>
+            <tr><th scope="row">Idempotency-Key</th><td>{flow.key}</td></tr>
+            {view.corr && <tr><th scope="row">Correlation ID</th><td>{view.corr}</td></tr>}
+            {view.msgIds && view.msgIds.length > 0 && <tr><th scope="row">Message IDs</th><td>{view.msgIds.join(", ")}</td></tr>}
+          </tbody>
+        </table>
       </div>
       <div className="row-btns">
-        <button className="ghost" onClick={flow.resendSameKey}>Send the same request again</button>
-        <button className="ghost" onClick={flow.reset}>Start over</button>
+        <button className="btn ghost" onClick={flow.resendSameKey}>Send the same request again</button>
+        <button className="btn ghost" onClick={flow.reset}>Start over</button>
       </div>
     </div>
   );
@@ -973,7 +1015,7 @@ function Product({ mode, sim, flow, onReload }: { mode: Mode; sim: FlashSim; flo
     <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
       <article className="card product" aria-labelledby="p-name">
         <div className="p-media">
-          <span className="badge">−60%</span>
+          <span className="p-badge">−60%</span>
           <button className="heart" aria-pressed={fav} aria-label={fav ? "Remove from wishlist" : "Add to wishlist"} onClick={() => setFav(f => !f)}>{I.heart}</button>
           <Earbuds/>
           <span className={`state-tag ${status}`} aria-live="polite"><span className="led"/>{tag}</span>
@@ -982,7 +1024,7 @@ function Product({ mode, sim, flow, onReload }: { mode: Mode; sim: FlashSim; flo
           <div><div className="p-name" id="p-name">Aurora X2 Wireless Earbuds</div><div className="p-sku">{PRODUCT_ID} · one per order</div></div>
           <div className="price-row"><span className="price-now tnum">{vnd(PRICE_NOW)}</span><span className="price-was tnum">{vnd(PRICE_WAS)}</span></div>
           {live ? (
-            <div className="note info"><span>Live stock is held in Redis and is not exposed through the gateway, so this page shows your own order only. The crowd counters run in <b>Simulation</b>.</span></div>
+            <div className="note alert alert-info"><span>Live stock is held in Redis and is not exposed through the gateway, so this page shows your own order only. The crowd counters run in <b>Simulation</b>.</span></div>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
               <div className="sold-row"><span>{status === "soldout" ? "No units left" : `Only ${sim.stock.toLocaleString()} left`}</span><b className="tnum">{claimed.toLocaleString()} sold</b></div>
@@ -990,21 +1032,21 @@ function Product({ mode, sim, flow, onReload }: { mode: Mode; sim: FlashSim; flo
               <div className="sr" aria-live="polite">{announce}</div>
             </div>
           )}
-          <button className={`buy ${busy ? "busy" : ""}`} disabled={disabled} onClick={flow.buy} aria-describedby="buy-help">{I.bag}{label}</button>
+          <button className={`btn buy ${busy ? "busy" : ""}`} disabled={disabled} onClick={flow.buy} aria-describedby="buy-help">{I.bag}{label}</button>
           <div id="buy-help" className="fine">The button locks after the first press, so repeated clicks still send one order. Retries reuse the same Idempotency-Key.</div>
           <div aria-live="assertive" style={{ display: "contents" }}>
             {p.kind === "backoff" && (
-              <div className="note warn"><span><b>Traffic is heavy.</b> {p.code === 429 ? "The gateway answered 429 Too Many Requests." : `The order service answered 503 (${p.reason}) and asked us to wait.`} Retrying in {(backoffLeft / 1000).toFixed(1)} s, try {p.attempt + 1} of {MAX_ATTEMPTS}.</span>
+              <div className="note alert alert-warning"><span><span className="badge text-bg-warning code-badge">{p.code}</span><b>Traffic is heavy.</b> {p.code === 429 ? "The gateway answered 429 Too Many Requests." : `The order service answered 503 (${p.reason}) and asked us to wait.`} Retrying in {(backoffLeft / 1000).toFixed(1)} s, try {p.attempt + 1} of {MAX_ATTEMPTS}.</span>
                 <div className="backoff"><span style={{ width: `${100 - (backoffLeft / p.waitMs) * 100}%` }}/></div></div>
             )}
-            {p.kind === "gaveup" && <div className="note bad"><b>Could not get through after {MAX_ATTEMPTS} tries.</b> No order was created. Press Start over to try again.</div>}
-            {p.kind === "failed" && <div className="note bad"><b>The order did not go through.</b> {p.message}. Nothing was created. <button className="ghost" style={{ justifySelf: "start" }} onClick={flow.reset}>Start over</button></div>}
+            {p.kind === "gaveup" && <div className="note alert alert-danger"><b>Could not get through after {MAX_ATTEMPTS} tries.</b> No order was created. Press Start over to try again.</div>}
+            {p.kind === "failed" && <div className="note alert alert-danger"><b>The order did not go through.</b> {p.message}. Nothing was created. <button className="btn ghost" style={{ justifySelf: "start" }} onClick={flow.reset}>Start over</button></div>}
           </div>
-          {!live && status === "soldout" && !v && <div className="note bad" role="status"><b>Sold out.</b> All {sim.initial.toLocaleString()} units were reserved by earlier orders; {sim.c.rejected.toLocaleString()} later orders were rejected and none was oversold.</div>}
-          {flow.resumed && v && <div className="note info">Restored after the reload: still tracking order {short(v.id)} with the same Idempotency-Key.</div>}
-          {!live && v && v.state === "PendingStock" && pos && <div className="note info">Accepted. {pos.ahead} orders ahead of yours in the Inventory queue.</div>}
-          {!live && v && v.state === "Confirmed" && pos && <div className="note info">One unit is reserved for you. {pos.ahead} orders ahead of yours at the Process Worker.</div>}
-          <div className="row-btns"><button className="ghost" onClick={onReload} title="Reload the shop card; the order is kept in this browser">Reload the shop card</button></div>
+          {!live && status === "soldout" && !v && <div className="note alert alert-danger" role="status"><b>Sold out.</b> All {sim.initial.toLocaleString()} units were reserved by earlier orders; {sim.c.rejected.toLocaleString()} later orders were rejected and none was oversold.</div>}
+          {flow.resumed && v && <div className="note alert alert-info">Restored after the reload: still tracking order {short(v.id)} with the same Idempotency-Key.</div>}
+          {!live && v && v.state === "PendingStock" && pos && <div className="note alert alert-info">Accepted. {pos.ahead} orders ahead of yours in the Inventory queue.</div>}
+          {!live && v && v.state === "Confirmed" && pos && <div className="note alert alert-info">One unit is reserved for you. {pos.ahead} orders ahead of yours at the Process Worker.</div>}
+          <div className="row-btns"><button className="btn ghost" onClick={onReload} title="Reload the shop card; the order is kept in this browser">Reload the shop card</button></div>
         </div>
       </article>
       {v && <Track view={v} flow={flow} mode={mode}/>}
@@ -1039,8 +1081,8 @@ function System({ mode, sim, flow, why }: { mode: Mode; sim: FlashSim; flow: Ret
   const codes = flow.codes.length ? flow.codes.map(x => x || "err").join(" → ") : "–";
   return (
     <div className="card sys" style={{ minWidth: 0 }} aria-labelledby="sys-h">
-      <div className="sys-head"><h3 id="sys-h">Behind the Buy button</h3><span className={`chip ${live ? "live" : "sim"}`}>{live ? "Live API" : "Simulated in the browser"}</span></div>
-      {!live && why && <div className="note warn"><span><b>Running the simulation.</b> The live API is not reachable ({why}). Start the stack and open the page with <code>node demo-results/ui/serve.mjs</code> to use the real services.</span></div>}
+      <div className="sys-head"><h3 id="sys-h">Behind the Buy button</h3><span className={`badge rounded-pill chip ${live ? "text-bg-success" : "text-bg-warning"}`}>{live ? "Live API" : "Simulated in the browser"}</span></div>
+      {!live && why && <div className="note alert alert-warning"><span><b>Running the simulation.</b> The live API is not reachable ({why}). Start the stack and open the page with <code>node demo-results/ui/serve.mjs</code> to use the real services.</span></div>}
       <div className="kpis">
         {live ? <>
           <div className="kpi"><div className="k">Your attempts</div><div className="v tnum">{flow.codes.length}</div></div>
@@ -1109,34 +1151,34 @@ function FlashSale({ mode, setMode, liveOk, why, sim, scId, pick, workers, setWo
             </div>
           </div>
           <div className="row-btns" role="group" aria-label="Where the orders go">
-            <button className="pill-btn" aria-pressed={live} disabled={!liveOk} onClick={() => setMode("live")} title={liveOk ? "Send real orders through the gateway" : `Live API not reachable: ${why}`}>Live API</button>
-            <button className="pill-btn" aria-pressed={!live} onClick={() => setMode("sim")}>Simulation</button>
+            <button className="btn pill-btn" aria-pressed={live} disabled={!liveOk} onClick={() => setMode("live")} title={liveOk ? "Send real orders through the gateway" : `Live API not reachable: ${why}`}>Live API</button>
+            <button className="btn pill-btn" aria-pressed={!live} onClick={() => setMode("sim")}>Simulation</button>
           </div>
         </div>
         {!live && <>
           <div className="pills" role="group" aria-label="Scenario">
-            {SCENARIOS.map(s => <button key={s.id} className="pill-btn" aria-pressed={s.id === scId} onClick={() => pick(s.id)}>{s.label}</button>)}
-            <label className="pill-btn" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>Worker
-              <select value={workers} onChange={e => setWorkers(Number(e.target.value))} style={{ border: 0, background: "transparent", fontWeight: 700 }} aria-label="Worker concurrency">
+            {SCENARIOS.map(s => <button key={s.id} className="btn pill-btn" aria-pressed={s.id === scId} onClick={() => pick(s.id)}>{s.label}</button>)}
+            <label className="btn pill-btn" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>Worker
+              <select value={workers} onChange={e => setWorkers(Number(e.target.value))} aria-label="Worker concurrency">
                 <option value={1}>1 at a time</option><option value={8}>8 at a time</option><option value={32}>32 at a time</option>
               </select></label>
-            <button className="pill-btn" style={{ background: "var(--orange)", borderColor: "var(--orange)", color: "#fff" }} disabled={sim.started} onClick={() => sim.start()}>Start the sale</button>
-            <button className="pill-btn" onClick={() => pick(scId)}>Reset</button>
+            <button className="btn pill-btn go" disabled={sim.started} onClick={() => sim.start()}>Start the sale</button>
+            <button className="btn pill-btn" onClick={() => pick(scId)}>Reset</button>
           </div>
           <p className="scenario-note">{sc.blurb}</p>
         </>}
         {live && <p className="scenario-note" style={{ marginTop: 10 }}>Real orders: <code>POST /api/orders</code> through Nginx, then <code>GET /api/orders/{"{id}"}</code> once a second until Completed or Rejected. Reload the browser tab to see the order come back from the database.</p>}
-        <div className="fs-grid">
-          <Product key={`${mode}-${scId}-${reloadKey}`} mode={mode} sim={sim} flow={flow} onReload={onReload}/>
-          <System mode={mode} sim={sim} flow={flow} why={why}/>
+        <div className="row g-4 align-items-start fs-grid">
+          <div className="col-12 col-lg-5"><Product key={`${mode}-${scId}-${reloadKey}`} mode={mode} sim={sim} flow={flow} onReload={onReload}/></div>
+          <div className="col-12 col-lg-7"><System mode={mode} sim={sim} flow={flow} why={why}/></div>
         </div>
-        <div className="drop" aria-label="Next drops">
+        <div className="row row-cols-2 row-cols-lg-4 g-3 drop" aria-label="Next drops">
           {[
             { n: "Nimbus Hoodie", bg: "var(--pink)", art: <Hoodie/>, p: 459000, w: 765000, off: "−40%" },
             { n: "Pulse Watch S", bg: "var(--sky)", art: <Watch/>, p: 1290000, w: 2150000, off: "−40%" },
             { n: "Echo Mini Speaker", bg: "var(--lilac)", art: <Speaker/>, p: 690000, w: 1150000, off: "−40%" },
             { n: "Market Tote", bg: "var(--butter)", art: <Tote/>, p: 149000, w: 299000, off: "−50%" },
-          ].map(t => <Tile key={t.n} {...t}/>)}
+          ].map(t => <div className="col" key={t.n}><Tile {...t}/></div>)}
         </div>
       </div>
     </section>
@@ -1145,9 +1187,9 @@ function FlashSale({ mode, setMode, liveOk, why, sim, scId, pick, workers, setWo
 function Tile({ n, bg, art, p, w, off }: any) {
   const [fav, setFav] = useState(false);
   return (
-    <article className="card tile">
+    <article className="card tile h-100">
       <div className="p-media" style={{ background: bg }}>
-        <span className="badge">{off}</span>
+        <span className="p-badge">{off}</span>
         <button className="heart" aria-pressed={fav} aria-label={fav ? `Remove ${n} from wishlist` : `Add ${n} to wishlist`} onClick={() => setFav(f => !f)}>{I.heart}</button>
         {art}
       </div>
@@ -1208,7 +1250,7 @@ function How() {
     <section className="block" id="how" aria-labelledby="how-h">
       <div className="wrap">
         <div className="sec-head"><div><span className="kicker">How it works</span><h2 id="how-h">From Buy to Completed in three steps</h2><p>The six states the teacher's brief names: PendingStock, Confirmed, Rejected, Processing, Completed, and ProcessingFailed, which this Worker never reaches.</p></div></div>
-        <div className="steps3">{steps.map(s => <div key={s.n} className="card step"><span className="num">{s.n}</span><h3>{s.h}</h3><p>{s.p}</p><div className="logos">{s.l.map(x => <span key={x}><Logo slug={x} size={20}/></span>)}</div></div>)}</div>
+        <div className="row row-cols-1 row-cols-md-3 g-3 steps3">{steps.map(s => <div key={s.n} className="col"><div className="card step h-100"><span className="num">{s.n}</span><h3>{s.h}</h3><p>{s.p}</p><div className="logos">{s.l.map(x => <span key={x}><Logo slug={x} size={20}/></span>)}</div></div></div>)}</div>
       </div>
     </section>
   );
@@ -1218,11 +1260,11 @@ function Measured() {
     <section className="block" id="measured" aria-labelledby="m-h">
       <div className="wrap">
         <div className="sec-head"><div><span className="kicker">Measured, not promised</span><h2 id="m-h">What the EC2 runs showed</h2><p>Every number below comes from the report's Results chapter and its evidence folders.</p></div></div>
-        <div className="measured">
-          <div className="card stat"><div className="big">66<span className="arrow">/</span>66</div><div className="lbl">official runs passed</div><p>22 cells × 3 repeats, configurations C1 to C4; every correctness check held in every run.</p></div>
-          <div className="card stat"><div className="big">0</div><div className="lbl">units oversold</div><p>The validator checks stock, reservations and orders per product after every run.</p></div>
-          <div className="card stat"><div className="big">0.04–0.06</div><div className="lbl">ms per Redis call</div><p>Redis was never the limit; the two vCPUs of the host were.</p></div>
-          <div className="card stat"><div className="big">326<span className="arrow">→</span>43 s</div><div className="lbl">worst drain, before and after</div><p>The Worker back-pressure fix: 0 dead letters in 9 of 9 runs, drains in 29–43 s instead of up to 326 s.</p></div>
+        <div className="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 measured">
+          <div className="col"><div className="card stat h-100"><div className="big">66<span className="arrow">/</span>66</div><div className="lbl">official runs passed</div><p>22 cells × 3 repeats, configurations C1 to C4; every correctness check held in every run.</p></div></div>
+          <div className="col"><div className="card stat h-100"><div className="big">0</div><div className="lbl">units oversold</div><p>The validator checks stock, reservations and orders per product after every run.</p></div></div>
+          <div className="col"><div className="card stat h-100"><div className="big">0.04–0.06</div><div className="lbl">ms per Redis call</div><p>Redis was never the limit; the two vCPUs of the host were.</p></div></div>
+          <div className="col"><div className="card stat h-100"><div className="big">326<span className="arrow">→</span>43 s</div><div className="lbl">worst drain, before and after</div><p>The Worker back-pressure fix: 0 dead letters in 9 of 9 runs, drains in 29–43 s instead of up to 326 s.</p></div></div>
         </div>
         <p className="src-note">Sources: tests/evidence/20261105T104832Z-official (TP-X02) and tests/evidence/20261107T060310Z-backpressure-ab (TP-X14).</p>
       </div>
@@ -1234,6 +1276,12 @@ function Measured() {
 function App() {
   const [theme, setTheme] = useState<string | null>(() => safe.get("flashsale-shop-theme"));
   useEffect(() => { if (theme) document.documentElement.setAttribute("data-theme", theme); else document.documentElement.removeAttribute("data-theme"); }, [theme]);
+  // Bootstrap's own dark mode (tables, alerts, badges) follows the same choice, or the system setting when none is saved.
+  useEffect(() => {
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => document.documentElement.setAttribute("data-bs-theme", theme ?? (mq.matches ? "dark" : "light"));
+    apply(); mq.addEventListener?.("change", apply); return () => mq.removeEventListener?.("change", apply);
+  }, [theme]);
   const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   const toggleTheme = () => { const t = dark ? "light" : "dark"; setTheme(t); safe.set("flashsale-shop-theme", t); };
 
@@ -1277,10 +1325,10 @@ function App() {
     <>
       <a href="#sale" className="sr" style={{ position: "absolute" }}>Skip to the flash sale</a>
       <div className="ticker" aria-label="Promotions"><div className="run">{ticker.map(t => <span key={t}>{t}</span>)}{ticker.map(t => <span key={t + "d"} data-dup="" aria-hidden="true">{t}</span>)}</div></div>
-      <nav className="nav" aria-label="Main">
+      <nav className="navbar navbar-expand-md topnav" data-bs-theme="dark" aria-label="Main">
         <div className="wrap">
-          <a className="brand" href="#home"><span className="brand-mark">{I.bolt}</span>FlashSale<small>SHOP</small></a>
-          <div className="nav-links"><a href="#sale">Flash sale</a><a href="#how">How it works</a><a href="#stack">Stack</a><a href="#measured">Results</a></div>
+          <a className="navbar-brand brand" href="#home"><span className="brand-mark">{I.bolt}</span>FlashSale<small>SHOP</small></a>
+          <div className="navbar-nav nav-links"><a className="nav-link" href="#sale">Flash sale</a><a className="nav-link" href="#how">How it works</a><a className="nav-link" href="#stack">Stack</a><a className="nav-link" href="#measured">Results</a></div>
           <span className={`mode ${mode === "probing" ? "probe" : live ? "live" : "sim"}`} role="status" title={probe.done && !probe.ok ? `Live API not reachable: ${probe.why}` : ""}>
             <span className="led"/>{mode === "probing" ? "Checking the API…" : live ? "Live API" : "Simulation"}</span>
           <button className="theme-btn" onClick={toggleTheme} aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>{dark ? I.sun : I.moon}</button>

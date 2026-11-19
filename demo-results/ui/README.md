@@ -13,7 +13,19 @@ technology logo strip. The flash-sale screen works in two modes:
 
 ## Run it
 
-1. Start the stack and the three services (`docs/setup-and-run.md`, steps 1–3).
+1. Start the local stack, load the stock and start the three services, each in
+   its own window, from the repository root:
+
+   ```powershell
+   docker compose -f infra/docker-compose.yml up -d
+   powershell -ExecutionPolicy Bypass -File .\scripts\warm-up.ps1 -Force
+   dotnet run --project src\FlashSale.OrderService
+   dotnet run --project src\FlashSale.InventoryService
+   dotnet run --project src\FlashSale.ProcessWorker
+   ```
+
+   The warm-up must print `Warm-up complete and confirmed.` Run it again before
+   a new demo: a sold-out product rejects every order.
 2. Start the page server. It serves the page and forwards `/api/*` to the
    gateway, so the page and the API share one origin:
 
@@ -27,11 +39,32 @@ technology logo strip. The flash-sale screen works in two modes:
 
 Opening `index.html` directly as a file gives the simulation only.
 
-`screenshots/` holds desktop, phone and dark-mode screenshots, taken on
-7 November 2026. The live-mode shots (02, 08, 11) come from real orders on the
-local stack: e51d5af9 on c0-demo-product went to Completed, then 589f8862 on
-the same product and 963c7241 on flash-product-1 were Rejected, as both were
-sold out in Redis. The others show the simulation and the static sections.
+## Styling and what needs internet
+
+The page is styled with Bootstrap 5.3.3: navbar, cards, grid rows, buttons,
+order-state badges (one colour per state), alerts for 429, 503 and errors, and
+tables for the order's state history and IDs. The shop's own colours and fonts
+are applied on top through Bootstrap's CSS variables, and Bootstrap's dark mode
+follows the page's theme switch.
+
+Bootstrap is vendored in `vendor/bootstrap-5.3.3/` (`bootstrap.min.css` and its
+MIT `LICENSE`), so it loads without internet. The page uses no Bootstrap
+JavaScript.
+
+Still loaded from the internet:
+- React 18.3.1, ReactDOM 18.3.1 and Babel standalone 7.23.5 from cdnjs. The
+  page does not start without them.
+- The Lato, Assistant and Abel fonts from Google Fonts. Without them the page
+  falls back to system fonts.
+
+`screenshots/` holds desktop, phone and dark-mode screenshots.
+- 01, 04, 05, 06, 07 and 10 were retaken on 19 November 2026 with the
+  Bootstrap styling. They show the simulation and the static sections.
+- The live-mode shots (02, 08 and 11) are from 7 November 2026 and show the
+  earlier styling. They come from real orders on the local stack:
+  - e51d5af9 on c0-demo-product went to Completed;
+  - 589f8862 on the same product and 963c7241 on flash-product-1 were
+    Rejected, as both were sold out in Redis.
 
 Logos are from Simple Icons 13.21.0 (CC0), inlined in the page. Fonts are
 Lato, Assistant and Abel from Google Fonts, with system fonts as fallback.
