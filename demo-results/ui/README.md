@@ -57,14 +57,14 @@ MIT `LICENSE`, so it runs without internet:
 Only the Lato, Assistant and Abel fonts come from Google Fonts. Without
 internet the page falls back to system fonts.
 
-`screenshots/` holds desktop, phone and dark-mode screenshots.
-- 01, 04, 05, 06, 07 and 10 were retaken on 19 November 2026 with the
-  Bootstrap styling. They show the simulation and the static sections.
-- The live-mode shots (02, 08 and 11) are from 7 November 2026 and show the
-  earlier styling. They come from real orders on the local stack:
-  - e51d5af9 on c0-demo-product went to Completed;
-  - 589f8862 on the same product and 963c7241 on flash-product-1 were
-    Rejected, as both were sold out in Redis.
+`screenshots/` holds desktop, phone and dark-mode screenshots, all taken on
+19 November 2026 with the Bootstrap styling.
+- 01, 04, 05, 06, 07 and 10 show the simulation and the static sections.
+- The live-mode shots (02, 08 and 11) come from real orders on the local stack:
+  - 63a546b7 on c0-demo-product went to Completed. A second POST with the same
+    Idempotency-Key returned 200 and the same order.
+  - fe654b6d on the same product was Rejected, as its one unit was gone.
+  - 8662a96d on flash-product-1 (phone) went to Completed.
 
 Logos are from Simple Icons 13.21.0 (CC0), inlined in the page. Fonts are
 Lato, Assistant and Abel from Google Fonts, with system fonts as fallback.
