@@ -73,12 +73,11 @@ edges, and is never shown wider than 330 px.
 `screenshots/` holds desktop, phone and dark-mode screenshots.
 - 01, 04, 05, 06, 07 and 10 (20 November 2026) show the simulation and the
   static sections with the photo, the fonts and the wider spacing.
-- The live-mode shots (02, 08 and 11) are from 19 November 2026. They still
-  show the earlier drawn earbuds and the tighter spacing. They come from real
-  orders on the local stack:
-  - 63a546b7 on c0-demo-product went to Completed. A second POST with the same
+- The live-mode shots (02, 08 and 11) were retaken on 21 November 2026 in the
+  current look. They come from real orders on the local stack:
+  - 23d268a7 on c0-demo-product went to Completed. A second POST with the same
     Idempotency-Key returned 200 and the same order.
-  - fe654b6d on the same product was Rejected, as its one unit was gone.
-  - 8662a96d on flash-product-1 (phone) went to Completed.
+  - 4e68154e on the same product was Rejected, as its one unit was gone.
+  - 4b8d3d6f on flash-product-1 (phone) went to Completed.
 
 Logos are from Simple Icons 13.21.0 (CC0), inlined in the page.
