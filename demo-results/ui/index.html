@@ -193,7 +193,23 @@ section.block { padding: 64px 0 8px; }
 .clock { display: inline-flex; align-items: center; gap: 8px; background: var(--navy); color: var(--amber); border-radius: 999px; padding: 8px 14px 8px 10px; font-family: var(--f-ui); font-weight: 600; font-size: 17px; letter-spacing: .04em; }
 .clock svg { width: 18px; height: 18px; }
 .clock small { font-family: var(--f-special); font-weight: 400; font-size: 13px; letter-spacing: .1em; color: var(--on-navy-muted); text-transform: uppercase; margin-right: 2px; }
-.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 22px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+/* simulation: the scenario options on one row, the run controls in their own bar below */
+.sim-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 24px 0 16px; }
+.opt-label { font-family: var(--f-special); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; color: var(--muted); margin-right: 4px; }
+.sale-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; padding: 16px 20px; margin: 0 0 28px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.sale-bar .scenario-note { margin: 0; flex: 1 1 360px; }
+.sale-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.sale-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.sale-actions .btn svg { width: 18px; height: 18px; }
+.sale-start { --bs-btn-padding-x: 24px; --bs-btn-padding-y: 12px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 600; --bs-btn-font-size: 17px; --bs-btn-border-radius: 12px; --bs-btn-border-width: 0;
+  --bs-btn-color: #fff; --bs-btn-bg: var(--orange); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #ea580c; --bs-btn-active-color: #fff; --bs-btn-active-bg: #c2410c;
+  --bs-btn-disabled-color: #fff; --bs-btn-disabled-bg: var(--orange); --bs-btn-disabled-opacity: .45; }
+.sale-reset { --bs-btn-padding-x: 20px; --bs-btn-padding-y: 12px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 600; --bs-btn-font-size: 17px; --bs-btn-border-radius: 12px; --bs-btn-border-width: 1.5px;
+  --bs-btn-color: var(--ink); --bs-btn-bg: transparent; --bs-btn-border-color: var(--ink-2); --bs-btn-hover-color: var(--ink); --bs-btn-hover-bg: var(--card-2); --bs-btn-hover-border-color: var(--ink);
+  --bs-btn-active-color: var(--ink); --bs-btn-active-bg: var(--card-2); --bs-btn-active-border-color: var(--ink); }
+.sale-actions .btn { white-space: nowrap; }
+@media (max-width: 600px) { .sale-actions { width: 100%; } .sale-actions .btn { flex: 1 1 auto; --bs-btn-padding-x: 16px; --bs-btn-font-size: 16px; } .sale-actions .sale-start { flex-grow: 2; } }
 /* Buttons are Bootstrap .btn; each shop variant only sets Bootstrap's --bs-btn-* variables. */
 .pill-btn { --bs-btn-padding-x: 16px; --bs-btn-padding-y: 8px; --bs-btn-font-family: var(--f-ui); --bs-btn-font-weight: 700; --bs-btn-font-size: 15px;
   --bs-btn-border-radius: 999px; --bs-btn-border-width: 1.5px; --bs-btn-color: var(--ink-2); --bs-btn-bg: var(--card); --bs-btn-border-color: var(--line);
@@ -201,10 +217,8 @@ section.block { padding: 64px 0 8px; }
   --bs-btn-active-color: var(--page); --bs-btn-active-bg: var(--ink); --bs-btn-active-border-color: var(--ink);
   --bs-btn-disabled-color: var(--ink-2); --bs-btn-disabled-bg: var(--card); --bs-btn-disabled-border-color: var(--line); --bs-btn-disabled-opacity: .45; }
 .pill-btn[aria-pressed="true"] { --bs-btn-color: var(--page); --bs-btn-bg: var(--ink); --bs-btn-border-color: var(--ink); --bs-btn-hover-color: var(--page); --bs-btn-hover-bg: var(--ink); --bs-btn-hover-border-color: var(--ink); }
-.pill-btn.go { --bs-btn-color: #fff; --bs-btn-bg: var(--orange); --bs-btn-border-color: var(--orange); --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #ea580c; --bs-btn-hover-border-color: #ea580c;
-  --bs-btn-disabled-color: #fff; --bs-btn-disabled-bg: var(--orange); --bs-btn-disabled-border-color: var(--orange); }
 .pill-btn select { border: 0; background: transparent; color: inherit; font-weight: 700; }
-.scenario-note { color: var(--muted); font-size: 16px; margin: -10px 0 22px; max-width: 80ch; }
+.scenario-note { color: var(--muted); font-size: 16px; margin: 0 0 22px; max-width: 80ch; }
 
 .fs-grid { margin-top: 0; }
 
@@ -698,6 +712,7 @@ const I = {
   clock: S(<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>),
   left: S(<path d="m15 18-6-6 6-6"/>), right: S(<path d="m9 18 6-6-6-6"/>),
   pause: S(<><path d="M9 5v14M15 5v14"/></>), play: S(<path d="M7 5v14l11-7z"/>),
+  reset: S(<><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></>),
   check: S(<path d="m5 12 5 5 9-10"/>), x: S(<><path d="M6 6l12 12M18 6 6 18"/></>),
   inbox: S(<><path d="M4 13h4l1 3h6l1-3h4"/><path d="M5 5h14l1 8v6H4v-6z"/></>),
   send: S(<path d="M4 12 20 4l-6 16-3-7z"/>), box: S(<><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></>),
@@ -1160,16 +1175,24 @@ function FlashSale({ mode, setMode, liveOk, why, sim, scId, pick, workers, setWo
           </div>
         </div>
         {!live && <>
-          <div className="pills" role="group" aria-label="Scenario">
-            {SCENARIOS.map(s => <button key={s.id} className="btn pill-btn" aria-pressed={s.id === scId} onClick={() => pick(s.id)}>{s.label}</button>)}
-            <label className="btn pill-btn" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>Worker
-              <select value={workers} onChange={e => setWorkers(Number(e.target.value))} aria-label="Worker concurrency">
-                <option value={1}>1 at a time</option><option value={8}>8 at a time</option><option value={32}>32 at a time</option>
-              </select></label>
-            <button className="btn pill-btn go" disabled={sim.started} onClick={() => sim.start()}>Start the sale</button>
-            <button className="btn pill-btn" onClick={() => pick(scId)}>Reset</button>
+          {/* the options only choose the run; starting and resetting it live in the bar below */}
+          <div className="sim-options">
+            <span className="opt-label" aria-hidden="true">Scenario</span>
+            <div className="pills" role="group" aria-label="Scenario">
+              {SCENARIOS.map(s => <button key={s.id} className="btn pill-btn" aria-pressed={s.id === scId} onClick={() => pick(s.id)}>{s.label}</button>)}
+              <label className="btn pill-btn" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>Worker
+                <select value={workers} onChange={e => setWorkers(Number(e.target.value))} aria-label="Worker concurrency">
+                  <option value={1}>1 at a time</option><option value={8}>8 at a time</option><option value={32}>32 at a time</option>
+                </select></label>
+            </div>
           </div>
-          <p className="scenario-note">{sc.blurb}</p>
+          <div className="sale-bar">
+            <p className="scenario-note">{sc.blurb}</p>
+            <div className="sale-actions" role="group" aria-label="Sale controls">
+              <button className="btn sale-start" disabled={sim.started} onClick={() => sim.start()}>{I.play} Start the sale</button>
+              <button className="btn sale-reset" onClick={() => pick(scId)}>{I.reset} Reset</button>
+            </div>
+          </div>
         </>}
         {live && <p className="scenario-note" style={{ marginTop: 10 }}>Real orders: <code>POST /api/orders</code> through Nginx, then <code>GET /api/orders/{"{id}"}</code> once a second until Completed or Rejected. Reload the browser tab to see the order come back from the database.</p>}
         <div className="row g-4 align-items-start fs-grid">
