@@ -1,7 +1,7 @@
 sequenceDiagram
     autonumber
     participant MQ as RabbitMQ
-    participant C as Consumer (any of the four)
+    participant C as Consumer (Inventory or Order Service)
     participant PG as PostgreSQL (its schema)
     MQ->>C: deliver message (MessageId m)
     C->>PG: one transaction: business change + Inbox row m

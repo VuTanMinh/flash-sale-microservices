@@ -243,7 +243,7 @@ official runs passed every check of the correctness validator. No unit was
 ever oversold and no accepted order was lost, including a sell-out of 2,000
 units at 200 orders a second. On this 2-vCPU host the synchronous baseline was
 faster for the client at every tested rate and kept up to 200 requests a
-second, while the asynchronous design accepted the same load but completed
+second, while the asynchronous design accepted every request it received (about 168 a second when 200 were offered) but completed
 only 50--66 orders a second, using about twice C1's CPU per order. Load
 shedding refused excess requests early and kept the backlog bounded; a
 post-freeze back-pressure fix in the Process Worker removed the dead letters
@@ -362,7 +362,7 @@ The results have the following limits:
     The gateway admits 200 requests/s and the admission control holds the
     Outbox near 2,000 rows, while the pipeline keeps up only at about 50
     orders/s. At 100/s and above C3 and C4 therefore still accept faster than
-    they complete, and accepted orders wait 57--64\,s at p95 to complete: the
+    they complete, and accepted orders wait 57--69\,s at p95 to complete: the
     limits bound the backlog, not the wait.
   \item A stock decision of \texttt{REJECTED} is not recorded in Redis, so a
     redelivered message for a rejected order runs the reservation script again.
@@ -650,7 +650,7 @@ it, not assumed here.
     idempotency, checks stock, decrements and records the result atomically,
     in one script call, which Redis runs atomically~\cite{redis-lua,redis-eval}.
     Accessed through \texttt{Stack\allowbreak Exchange.\allowbreak Redis}.
-    RedisInsight (bundled with Redis Stack) is for inspection only.
+    RedisInsight (bundled with Redis Stack) is for inspection only. Redis Stack is the local development image; the EC2 runs use the plain \texttt{redis:7.4.7} image, which runs the same script.
   \item[RabbitMQ vs.\ Kafka] RabbitMQ fits this workload: routed queues per
     consumer, publisher confirms, bounded retry, dead-lettering and bounded
     queues with an overflow policy for load shedding. Historical log replay,
@@ -689,12 +689,12 @@ monitoring containers. From the repository root, start them with
 \toprule
 Service & Image & Host ports \\
 \midrule
-PostgreSQL & \texttt{postgres:16} & 5432 \\
-Redis Stack & \texttt{redis/redis-stack:latest} & 6379 (data), 8001 (RedisInsight UI) \\
-RabbitMQ & \texttt{rabbitmq:3-management} & 5672 (AMQP), 15672 (management UI) \\
-Nginx & \texttt{nginx:latest} & 8080 (host) $\to$ 80 (container) \\
-Prometheus & \texttt{prom/prometheus:latest} & 9090 \\
-Grafana & \texttt{grafana/grafana:latest} & 3000 \\
+PostgreSQL & \texttt{postgres:16.14} & 5432 \\
+Redis Stack & \texttt{redis/redis-stack:7.4.0-v8} & 6379 (data), 8001 (RedisInsight UI) \\
+RabbitMQ & \texttt{rabbitmq:3.13.7-management} & 5672 (AMQP), 15672 (management UI) \\
+Nginx & \texttt{nginx:1.31.3} & 8080 (host) $\to$ 80 (container) \\
+Prometheus & \texttt{prom/prometheus:v3.14.0} & 9090 \\
+Grafana & \texttt{grafana/grafana:13.2.2} & 3000 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -703,8 +703,7 @@ The .NET services currently run on the host; Prometheus reaches them through
 \texttt{host.docker.internal}. PostgreSQL's \texttt{flashsale} account is for local
 bootstrap only. Order Service and Inventory Service use separate local roles
 created by \nolinkurl{infra/initdb/01-create-service-roles.sql}. These development
-passwords are not deployment secrets. Mutable image tags must be pinned before
-official experiments.
+passwords are not deployment secrets. Every image tag has been pinned to an exact version since Week~12; the EC2 stack uses the same pins, with plain \texttt{redis:7.4.7} in place of Redis Stack (Appendix~\ref{app:freeze}).
 
 \section{Toolchain}
 
@@ -936,8 +935,7 @@ Endpoint & Status & Meaning \\
 \end{tabular}
 \end{center}
 
-Request validation (quantity must equal 1, non-blank product and key) was
-is verified by case TP-A02. With load shedding on, a new
+Request validation (quantity must equal 1, non-blank product and key) is verified by case TP-A02. With load shedding on, a new
 request is also rejected before order creation when admission capacity is
 exhausted (503, case TP-L01). The remaining paths in the export are ABP module
 scaffolding (identity, account, permissions, multi-tenancy). The scope lock
@@ -965,9 +963,7 @@ Event & Publisher & Consumer(s) & Transition \\
 
 Each event carries \texttt{MessageId}, regenerated at every hop because each
 consumer keeps its own Inbox, and \texttt{CorrelationId}, copied unchanged from
-the inbound request so one value traces the whole journey. The Process Worker
-sets \texttt{MessageId} equal to \texttt{OrderId}, because it has no database
-of its own; a replay then carries the same \texttt{MessageId}, and the Inbox drops it.
+the inbound request so one value traces the whole journey. The Process Worker has no database of its own, so it derives its \texttt{MessageId}s from \texttt{OrderId}: for \texttt{OrderProcessed} it sets \texttt{MessageId} equal to \texttt{OrderId}, and \texttt{OrderProcessingStarted} carries a name-based UUID made from it; a replay then carries the same \texttt{MessageId}, and the Inbox drops it.
 \texttt{StockRejectedEto} has no \texttt{Reason} field, because insufficient
 stock is the only rejection cause in scope.
 
@@ -1164,8 +1160,7 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \end{tabular}
 \end{center}
 
-\paragraph{Known gaps in the supported model.} None remain open in the
-delivery path. An \texttt{OrderProcessed} that arrives while the order is still
+\paragraph{Known gaps in the supported model.} One remains: a \texttt{NOT\_OPEN} result re-sent after warm-up can undersell by one unit, never oversell; it is described after Table~\ref{tab:failure-modes}. Two earlier gaps are closed. An \texttt{OrderProcessed} that arrives while the order is still
 \texttt{PendingStock} used to be dead-lettered. It is now requeued
 onto delayed retry queues and applied once the order is \texttt{Confirmed}
 (TP-M02). The
@@ -1429,12 +1424,7 @@ repository; the error page now applies only outside \texttt{/api}.
 \subsection{State management}
 
 \texttt{Entities/Order.cs} implements the state machine as guarded
-transitions (\texttt{Order.}\allowbreak\texttt{TransitionTo}). The current code has three legal
-transitions: \texttt{PendingStock} $\to$ \texttt{Confirmed}, \texttt{PendingStock}
-$\to$ \texttt{Rejected} and \texttt{Confirmed} $\to$ \texttt{Completed}. Every
-other pair throws \texttt{InvalidOrderStateTransitionException} and changes
-nothing. The adopted six-state model adds \texttt{Processing}
-(Section~\ref{sec:order-state-machine}).
+transitions (\texttt{Order.}\allowbreak\texttt{TransitionTo}). At this stage the code had three legal transitions: \texttt{PendingStock} $\to$ \texttt{Confirmed}, \texttt{PendingStock} $\to$ \texttt{Rejected} and \texttt{Confirmed} $\to$ \texttt{Completed}. Every other pair throws \texttt{InvalidOrderStateTransitionException} and changes nothing. Week~11 added \texttt{Processing} (Section~\ref{sec:week11}), so the final code has four: \texttt{PendingStock} $\to$ \texttt{Confirmed} or \texttt{Rejected}, \texttt{Confirmed} $\to$ \texttt{Processing} and \texttt{Processing} $\to$ \texttt{Completed} (Section~\ref{sec:order-state-machine}).
 
 Result events are applied by \texttt{StockResultProcessor}:
 
@@ -1443,7 +1433,7 @@ Result events are applied by \texttt{StockResultProcessor}:
     \texttt{MessageId}, is acknowledged without a transition and recorded in
     the Inbox;
   \item an event for a state the order has already passed on
-    \texttt{PendingStock} $\to$ \texttt{Confirmed} $\to$ \texttt{Completed}
+    \texttt{PendingStock} $\to$ \texttt{Confirmed} $\to$ \texttt{Processing} $\to$ \texttt{Completed}
     (for example \texttt{StockReserved} after \texttt{Completed}) is likewise
     acknowledged. Before the fix this case threw and would have been
     dead-lettered; it was found by a code check and fixed;
@@ -1950,15 +1940,9 @@ steps 5--9. & O02 \\
 \texttt{Confirmed}/\texttt{Rejected} and the Inbox row in one transaction. &
 Retried, then dead-lettered; a conflict is dead-lettered at once. & W01,
 W03 \\
-24--27 & Process Worker: fixed 200\,ms delay, publish
-\texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId}. &
-Retried, then dead-lettered; a redelivery republishes the same
-\texttt{MessageId}. & P01 \\
-28--30 & Order Service: \texttt{Confirmed} to \texttt{Completed} with the
-Inbox row in one transaction. & If the order is still
-\texttt{PendingStock}: requeued (2, 4, 8\,s), then applied. & W04, M02 \\
-31--32 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404}
-for an unknown id. & A01 \\
+24--28 & Process Worker: publish \texttt{OrderProcessingStarted} (\texttt{MessageId} derived from \texttt{OrderId}), wait a fixed 200\,ms, publish \texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId}, then ack. & Retried, then dead-lettered; a redelivery republishes the same two \texttt{MessageId}s. & P01, P02 \\
+29--34 & Order Service: \texttt{Confirmed} to \texttt{Processing}, then \texttt{Processing} to \texttt{Completed}, each with its Inbox row in one transaction. & If the order is still \texttt{PendingStock}: requeued (2, 4, 8\,s), then applied; a completion while \texttt{Confirmed} applies both steps with an implied \texttt{Processing} row. & W04, M02, P02 \\
+35--36 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404} for an unknown id. & A01 \\
 \bottomrule
 \end{tabular}
 \caption{Steps of the main workflow (test case ids without the
@@ -2004,7 +1988,7 @@ Two kinds of duplicate have to be absorbed, by two different layers.
     \end{itemize}
 \end{itemize}
 
-Table~\ref{tab:consumers} lists every consumer. Only a PostgreSQL unique
+Table~\ref{tab:consumers} lists the consumers as of Week~9. Week~11 added a fifth, Order Service's \texttt{OrderProcessingStartedConsumer} (\texttt{Confirmed}~$\to$~\texttt{Processing}), which follows the same pattern, and the Worker now also publishes \texttt{OrderProcessingStarted} (Section~\ref{sec:week11}). Only a PostgreSQL unique
 violation (23505) is treated as ``already processed''. Any other database
 error is retried and then dead-lettered, so a failed write is never
 acknowledged as done (TP-W03).
@@ -2256,7 +2240,7 @@ result DLQ ended empty.
 
 In the same fresh clone, the earlier checks still pass: TP-M01 (34/34),
 TP-W04 (62/62), TP-W01 (10/10) and the unit tests (45/45 at the time,
-including two new tests for the early case; 98 on the final code,
+including two new tests for the early case; 104 on the final code,
 Section~\ref{sec:review-fixes}).
 
 \paragraph{Negative control.} The fix was reverted in a scratch copy and the
@@ -2290,8 +2274,7 @@ A failure is classified before it is retried
 \end{itemize}
 Retry is implemented directly in each of the four consumers. These are
 Inventory's \texttt{OrderPlacedConsumer}, Order Service's
-\texttt{StockResultConsumer} and \texttt{OrderProcessedConsumer}, and the
-Process Worker's \texttt{StockReservedConsumer}. ABP's RabbitMQ event bus is
+\texttt{StockResultConsumer} and \texttt{OrderProcessedConsumer}, and the Process Worker's \texttt{StockReservedConsumer}. Week~11 added a fifth, Order Service's \texttt{OrderProcessingStartedConsumer}, with the same ladder and its own \texttt{OrderProcessingStarted.dlq}. ABP's RabbitMQ event bus is
 not used (Section~\ref{sec:outbox}).
 
 All four use the same in-process ladder as \texttt{OutboxPublisherWorker}:
@@ -2516,7 +2499,7 @@ F2 & Outbox write fails with the order write & One transaction: no order, no eve
 F3 & Broker down; queue or binding missing; nack; return & Outbox row stays unpublished and is retried; delivered once after recovery & Verified & TP-O02 \\
 F4 & PostgreSQL write fails after Redis reserved & Retried, then DLQ; replay gets \texttt{DUPLICATE} and writes the result once & Verified & TP-I03, TP-F01 \\
 F5 & Order Service write fails while applying a result & Retried, then DLQ; replay applies it once & Verified & TP-W03, TP-F01 \\
-F6 & Consumer crash after commit, before ack (all four) & Redelivery hits the Inbox; acked as already processed & Verified & TP-M01 \\
+F6 & Consumer crash after commit, before ack (four of the five consumers) & Redelivery hits the Inbox; acked as already processed & Verified & TP-M01 \\
 F7 & Duplicate deliveries, concurrent or with a new \texttt{MessageId} & Inbox, Redis \texttt{DUPLICATE}, one result row per order & Verified & TP-M02 \\
 F8 & Completion arrives before the stock result & Requeued with 2/4/8\,s delays; DLQ after 3 requeues & Verified & TP-M02 \\
 F9 & Transient handler fault & Four attempts (1/2/4\,s), then the service's DLQ & Verified & TP-F01 \\
@@ -2805,7 +2788,7 @@ The exported metrics fall into five groups:
     \texttt{flashsale\_process\_worker\_\allowbreak duration\_seconds} count every
     processing run, including replays. A replay therefore raises the attempt
     count but not the completion count.
-  \item \textbf{Reliability.} All three consumers export
+  \item \textbf{Reliability.} Every consumer in the three services exports
     \nolinkurl{flashsale_consumer_retries_total} and
     \nolinkurl{flashsale_consumer_dead_lettered_total}, both labelled by
     consumer. The dead-letter counter also has a reason: \texttt{exhausted}, \texttt{invalid} or
@@ -2905,8 +2888,7 @@ Request accepted & Order \texttt{orders.}\allowbreak\texttt{RequestAcceptedAt} &
   Service builds the order, just \emph{before} the order and its Outbox row
   commit. \\
 Event published & Order \texttt{outbox\_events.}\allowbreak\texttt{PublishedAt}
-  (\texttt{OrderPlaced} row) & When the publisher marks the row, \emph{after}
-  the broker's routed confirm. \\
+  (\texttt{OrderPlaced} row) & The time the publisher sent the confirmed publish, written to the row after the broker's routed confirm. \\
 Stock decided & Inventory \texttt{outbox\_events.}\allowbreak\texttt{CreatedAt} (the result row)
   & When Inventory writes the result, in the same transaction as its Inbox
   row, right after the Lua decision. \\
@@ -3150,7 +3132,7 @@ Situation & What the test does & What must hold & Case \\
 \midrule
 Broker trouble & Required queue deleted, binding removed, broker stopped, queue full & No Outbox row marked sent unless every required queue received it; delivered once after recovery & TP-O02, Fig.~\ref{fig:fail-broker-down} \\
 PostgreSQL fails after Redis reserved & Inventory Outbox insert refused after \texttt{reserve.lua} ran & Exactly one deduction; never acknowledged while the result is missing; the retry gets \texttt{DUPLICATE} & TP-I03, Fig.~\ref{fig:fail-cross-store} \\
-Crash after commit, before acknowledgement & Each of the four consumers killed, then restarted & The redelivery is acknowledged as already processed; one effect & TP-M01, Fig.~\ref{fig:fail-crash-before-ack} \\
+Crash after commit, before acknowledgement & Four of the five consumers killed, then restarted (not the start-event consumer) & The redelivery is acknowledged as already processed; one effect & TP-M01, Fig.~\ref{fig:fail-crash-before-ack} \\
 Duplicate and out-of-order messages & 8 concurrent copies; a new message id for the same fact; completion before confirmation & Applied once; the early completion is requeued, then applied once & TP-M02, Fig.~\ref{fig:fail-duplicates} \\
 Poison message or lasting fault & Malformed JSON, empty message id, a fault that outlasts the retries & 4 attempts 1, 2 and 4\,s apart, then the service DLQ; poison goes straight there; a replay applies once & TP-F01, Fig.~\ref{fig:fail-retry-dlq} \\
 Lost result or service down & \texttt{StockReserved} dead-lettered and purged; Inventory stopped with orders waiting & Reconciliation re-sends the stored result; one deduction; the order ends \texttt{Completed} & TP-F02, Fig.~\ref{fig:fail-reconciliation} \\
@@ -4085,14 +4067,14 @@ a separate host, in 66 validated runs of a frozen matrix.
 
 The main findings, each limited to this hardware and workload:
 \begin{enumerate}
-  \item Every configuration kept every inventory invariant, under load and in
+  \item Every valid configuration (C1 to C4) kept every inventory invariant, under load and in
     the separate scarce-stock and duplicate-message tests, including a sell-out
     of 2,000 units at 200/s; no unit was ever over-sold and no accepted order
     was lost.
   \item On one 2-vCPU host the synchronous atomic update was faster for the
     client at every tested rate and kept up to 200 requests a second, which is
     also where it stopped when offered 400. The
-    asynchronous design accepted the same load but completed only 50--66 orders
+    asynchronous design accepted every request it received (about 168 a second when 200 were offered) but completed only 50--66 orders
     a second: it spent about twice C1's CPU per order, and once the host was
     saturated its Outbox publisher, sharing the Order Service process with the
     API, completed only 4--30 orders a second during the load.
@@ -4351,7 +4333,7 @@ Section~\ref{sec:review-fixes} has one too.
   \centering
   \includegraphics[width=0.85\textwidth]{figures/verification-overview.png}
   \caption{Checks per runtime verifier in its latest run (no failures), plus
-  98 unit tests. Test-case IDs refer to \nolinkurl{docs/test-plan.md}; each PASS
+  111 unit tests (104 for Order Service, 7 for the Process Worker). Test-case IDs refer to \nolinkurl{docs/test-plan.md}; each PASS
   links to a saved log in \nolinkurl{tests/evidence/}.}
   \label{fig:verification-overview}
 \end{figure}
@@ -4363,8 +4345,7 @@ Section~\ref{sec:review-fixes} has one too.
 the code in five places:
 
 \begin{itemize}
-  \item They drew Nginx in front of Order Service, but Nginx forwards
-    nothing yet.
+  \item They drew Nginx in front of Order Service, but at that point Nginx forwarded nothing; it has fronted Order Service since Week~12.
   \item They drew a plain publish and confirm, without the required-queue
     check and the \texttt{mandatory} flag added in Week 6.
   \item They left out the Inbox steps.
@@ -4481,7 +4462,7 @@ all three services on a throwaway broker and Redis
 \begin{itemize}
   \item \textbf{Deterministic success.} With a 500\,ms delay, 5 orders
     complete. Each Worker duration is at least 500\,ms; the measured values
-    were 517--643\,ms. Each applied completion has
+    were 523--609\,ms. Each applied completion has
     \texttt{MessageId = OrderId}.
   \item \textbf{Replay with the same identity, a duplicate with a new
     \texttt{MessageId}, and 5 concurrent copies.} The Worker repeats the
@@ -4737,7 +4718,7 @@ Service restarts & 0 & 0 & 0 & 0 & 0 \\
 \caption{The same overload plan, one run each. Counts match JMeter, the Nginx
 log and the admission metric in every run. \textsuperscript{a}The earlier,
 narrower measure that missed messages already delivered to the Worker; not
-comparable with the other two. The 22 October local run was re-extracted with
+comparable with the other three. The 22 October local run was re-extracted with
 the current extractor; the 22 October EC2 run could not be.
 \textsuperscript{b}With the second-pass definition (p95 of accepted responses
 only, no 1\,s gap in the window).}
@@ -4818,9 +4799,7 @@ C4, 2 replicas & 50 & 49.6 & 2,974 & 303 & 351 & 6 & 2,053 & 26 \\
 \end{table}
 
 Three things stood out. C1 and C2 both stopped near 180 accepted requests/s
-whatever the offered rate, with Order Service, PostgreSQL and RabbitMQ each near
-one full core of the two: the backend's CPU, not JMeter, set the ceiling (JMeter
-used 13--17\,\% CPU on average, and the C3 run reached 306.6/s because early
+whatever the offered rate, with Order Service alone above one full core of the two (108--143\,\% at 200 and 400/s, Table~\ref{tab:pilot-resource}): the backend's CPU, not JMeter, set the ceiling (JMeter used 13--17\,\% CPU on average in the five tuning runs, the only ones where it was sampled, and the C3 run reached 306.6/s because early
 refusals are cheap). The queued path finished work far more slowly than the API
 accepted it: C2 kept up at 50/s with no backlog, but at 100/s an order took more
 than a minute to complete. And the C3/C4 settings drained more slowly than C2,
@@ -5388,8 +5367,7 @@ Each diagram below is drawn from the code path and the test case named in its ca
   \centering
   \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-c0-race-logos.png}
   \caption{The C0 race (TP-B01, \texttt{C0NaiveDemo.cs}). Five attempts start together;
-  each reads the stock, waits 50\,ms and decrements without a condition, so two of
-  them sell the last unit and the stock goes below 0. Two attempts are drawn.}
+  each reads the stock, waits 50\,ms and decrements without a condition, so all five sell the single unit and the stock ends at $-4$. Two of the attempts are drawn.}
   \label{fig:fail-c0-race}
 \end{figure}
 
@@ -5406,9 +5384,7 @@ Each diagram below is drawn from the code path and the test case named in its ca
 \begin{figure}[p]
   \centering
   \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{figures/seq-fail-crash-before-ack-logos.png}
-  \caption{A crash after the commit and before the acknowledgement (TP-M01, all four
-  consumers). The redelivered message finds its \texttt{MessageId} in the Inbox and
-  is acknowledged as already processed: one effect.}
+  \caption{A crash after the commit and before the acknowledgement (TP-M01, four of the five consumers; the start-event consumer has the same hook and Inbox but no crash case). Drawn for Inventory or Order Service: the redelivered message finds its \texttt{MessageId} in the Inbox and is acknowledged as already processed, one effect. The Process Worker has no database; its redelivery republishes and Order Service's Inbox absorbs it (Figure~\ref{fig:fail-worker-killed}).}
   \label{fig:fail-crash-before-ack}
 \end{figure}
 

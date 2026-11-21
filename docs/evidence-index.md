@@ -2,8 +2,7 @@
 
 Generated from `docs/test-plan.md` and the logs in `tests/evidence/`. For each
 requirement of the brief (`docs/teacher-brief.md` §4), the test cases that cover
-it, their status, and two log paths: the evidence the test plan names, and the
-latest saved run of the same verifier. The test plan holds the inputs, expected
+it, their status, and two log paths: the evidence the test plan names, and a later saved run of the same verifier (mostly the 24 October re-runs; the 14 November regression re-ran the runtime verifiers again, `tests/evidence/20261114T123000Z-regression/`). The test plan holds the inputs, expected
 results and negative controls of each case.
 
 Kinds of evidence: **offline** checks read code, documents and configuration;
@@ -51,9 +50,10 @@ half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
 |  | TP-E02 | PASS | `tests/evidence/20261001T114318Z-environment-existing.log` | `tests/evidence/20261013T145229Z-environment.log` |
 |  | TP-E04 | PASS | `tests/evidence/20261023T173539Z-runtime-accounts.log` | `tests/evidence/20261023T173539Z-runtime-accounts.log` |
 | Terraform, AWS EC2 backend, separate JMeter host | TP-L03 | PASS | `tests/evidence/20261024T084414Z-deployment-offline.log` | `tests/evidence/20261022T093449Z-ec2-deployment.log` |
-| Repeated experiments C0-C4, README reproduction | TP-X01 | NOT RUN | — | — |
-|  | TP-X02 | NOT RUN | — | — |
-|  | TP-X03 | NOT RUN | — | — |
+| Repeated experiments C0-C4, README reproduction | TP-X01 | PASS | `tests/evidence/20261101T204940Z-ec2-pilot.log` | — |
+|  | TP-X02 | PASS | `tests/evidence/20261105T104832Z-official/summary.log` | — |
+|  | TP-X03 | PASS | `tests/evidence/20261106T074827Z-reproduction/summary.log` | — |
+|  | TP-X13 | PASS | `tests/evidence/20261106T135523Z-supplementary/summary.log` | — |
 
 ## Not covered by a saved run
 
@@ -62,4 +62,4 @@ half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
   summary) exists. It is not reconstructed; the 24 Oct EC2 rerun on the reviewed
   code (`tests/evidence/20261024T104902Z-ec2-overload*`, raw data archived)
   replaces it.
-- TP-X01–X03 belong to Weeks 13–14.
+- TP-X01–X03 and TP-X13 are the Week 13–14 EC2 runs; their raw data are in the folders named above.
