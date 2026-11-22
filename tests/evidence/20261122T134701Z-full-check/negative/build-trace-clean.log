@@ -1,0 +1,17 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 446 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 446 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 504 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 505 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 536 ms).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\tmp\negscratch\trace-clean\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:06.65

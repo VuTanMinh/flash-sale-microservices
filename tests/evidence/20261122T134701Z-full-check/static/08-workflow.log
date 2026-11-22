@@ -1,0 +1,44 @@
+﻿# verify-workflow.ps1 ; repo E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z at b451b4c; started 2026-11-22T13:49:10.2928108Z
+== Static: diagrams against code and configuration (E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\docs\sequence-diagrams.md)
+PASS  doc has a happy-path, a rejection and a processing-hop diagram
+PASS  report/figures/seq-happy-path.mmd is identical to the diagram in the doc
+PASS  report/figures/seq-rejection.mmd is identical to the diagram in the doc
+PASS  report/figures/seq-planned-processing.mmd is identical to the diagram in the doc
+PASS  steps 1-4: POST answers 201 Created (diagram and controller)
+PASS  steps 2-3: key lookup, then order + OrderPlaced Outbox row in one SaveChangesAsync
+PASS  Order Outbox publisher: polls every 2s, up to 50 rows, oldest first, claimed with a row lock, next batch at once when full (as drawn)
+PASS  Order Outbox publisher marks a row published only after a confirmed publish, stamped with its send time
+PASS  Inventory Outbox publisher: polls every 2s, up to 50 rows, oldest first, claimed with a row lock, next batch at once when full (as drawn)
+PASS  Inventory Outbox publisher marks a row published only after a confirmed publish, stamped with its send time
+PASS  Inventory publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Process Worker (started) publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Process Worker (completed) publisher: required-queue check, mandatory publish, tracked confirms
+PASS  Order publisher: required-queue check, mandatory publish, tracked confirms
+PASS  every publish arrow is drawn as mandatory with a confirm
+PASS  OrderPlaced is drawn with exactly its configured required queues (OrderPlaced)
+PASS  StockReserved is drawn with exactly its configured required queues (StockReserved, ProcessWorker.StockReserved)
+PASS  StockRejected is drawn with exactly its configured required queues (StockRejected)
+PASS  OrderProcessingStarted is drawn with exactly its configured required queues (OrderProcessingStarted)
+PASS  OrderProcessed is drawn with exactly its configured required queues (OrderProcessed)
+PASS  steps 11-12: Inventory checks its Inbox before running reserve.lua (code and diagram)
+PASS  step 12: reserve.lua gets the inventory, processed and sale:open keys
+PASS  outcome mapping: RESERVED/DUPLICATE -> StockReserved, REJECTED/NOT_OPEN -> StockRejected
+PASS  step 14: Outbox row (only if none for the OrderId; an already-published one is re-sent) and Inbox row in one SaveChangesAsync
+PASS  Inventory OrderPlaced consumer acks only after processing (autoAck off)
+PASS  Order StockResult consumer acks only after processing (autoAck off)
+PASS  Order OrderProcessed consumer acks only after processing (autoAck off)
+PASS  Process Worker StockReserved consumer acks only after processing (autoAck off)
+PASS  steps 22/29/30: Inbox check, transition, history and Inbox row in one save (StockResultProcessor)
+PASS  OrderProcessed uses StockResultProcessor.ProcessCompletionAsync with ProcessingStartedAt
+PASS  the fork is drawn as par over the two configured queues (StockReserved, ProcessWorker.StockReserved)
+PASS  step 25: Process Worker delay is the configured 200 ms
+PASS  step 26: OrderProcessed MessageId = OrderId (code and diagram)
+PASS  step 25b: OrderProcessingStarted MessageId is derived from OrderId (code and diagram)
+PASS  Process Worker binds only StockReserved, and the rejection path does not draw it
+PASS  steps 31-32: polling returns the final state
+PASS  Nginx is drawn only if infra/nginx.conf forwards requests (forwards: True)
+PASS  Processing is drawn as a real hop, matching OrderState (no PLANNED note)
+
+The workflow description and sequence diagrams match the implementation.
+
+Exit code: 0

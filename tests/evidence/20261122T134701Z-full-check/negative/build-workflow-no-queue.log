@@ -1,0 +1,17 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 1,6 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 1,6 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 1,78 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 1,8 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 1,84 sec).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\tmp\negscratch\workflow-no-queue\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:18.75

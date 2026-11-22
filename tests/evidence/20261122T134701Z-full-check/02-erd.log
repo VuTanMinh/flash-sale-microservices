@@ -1,0 +1,37 @@
+﻿# verify-erd.ps1 -Container verify-env-pg; repo E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z at b451b4c; started 2026-11-22T13:51:50.6165305Z
+PASS  order_service has exactly the documented tables
+PASS  inventory_service has exactly the documented tables
+PASS  order_service.orders columns
+PASS  order_service.orders unique constraints
+PASS  order_service.orders owner
+PASS  order_service.outbox_events columns
+PASS  order_service.outbox_events unique constraints
+PASS  order_service.outbox_events owner
+PASS  order_service.processed_messages columns
+PASS  order_service.processed_messages unique constraints
+PASS  order_service.processed_messages owner
+PASS  order_service.order_status_history columns
+PASS  order_service.order_status_history unique constraints
+PASS  order_service.order_status_history owner
+PASS  order_service.inventory columns
+PASS  order_service.inventory unique constraints
+PASS  order_service.inventory owner
+PASS  order_service.baseline_orders columns
+PASS  order_service.baseline_orders unique constraints
+PASS  order_service.baseline_orders owner
+PASS  inventory_service.outbox_events columns
+PASS  inventory_service.outbox_events unique constraints
+PASS  inventory_service.outbox_events owner
+PASS  inventory_service.processed_messages columns
+PASS  inventory_service.processed_messages unique constraints
+PASS  inventory_service.processed_messages owner
+PASS  no foreign keys in service schemas
+PASS  public holds 37 ABP/OpenIddict tables
+PASS  public holds nothing else except Order Service migration history
+PASS  public tables owned by order_service_user
+PASS  Order Service migrations all applied (public history)
+PASS  Inventory Service migrations all applied (inventory_service history)
+
+All checks passed: docs/erd.md matches the database.
+
+Exit code: 0

@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="09f6f9a4-0ce4-458c-b9f5-3c437f81d728" name="Lenovo@KIETVD 2026-11-22 23:02:46" runUser="KIETVD\Lenovo" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-22T23:02:46.2394122+07:00" queuing="2026-11-22T23:02:46.2394129+07:00" start="2026-11-22T23:02:41.6436064+07:00" finish="2026-11-22T23:02:46.2485890+07:00" />
+  <TestSettings name="default" id="432eee52-f22b-432c-ad71-2438c756d744">
+    <Deployment runDeploymentRoot="Lenovo_KIETVD_2026-11-22_23_02_46" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="313fbe08-2fca-48d7-837a-3c816ea566a1" testId="15b5183e-9858-935c-264d-0ccd106ec20d" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.Nacks_are_waited_out_with_the_backoff_and_the_publish_then_succeeds" computerName="KIETVD" duration="00:00:00.0245143" startTime="2026-11-22T23:02:46.0075758+07:00" endTime="2026-11-22T23:02:46.0105696+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="313fbe08-2fca-48d7-837a-3c816ea566a1" />
+    <UnitTestResult executionId="ac79a796-8af9-4027-87c9-1234bf3db623" testId="879a73f3-d969-6cf1-ad50-ed075bdede96" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.The_nack_is_rethrown_once_the_wait_cap_would_be_exceeded" computerName="KIETVD" duration="00:00:00.0084905" startTime="2026-11-22T23:02:46.0117649+07:00" endTime="2026-11-22T23:02:46.0195531+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ac79a796-8af9-4027-87c9-1234bf3db623" />
+    <UnitTestResult executionId="534be3de-315a-4fb1-8efb-da0463594ee0" testId="a074ebb2-1455-1313-062c-732df4e343de" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_cancelled_host_does_not_keep_waiting" computerName="KIETVD" duration="00:00:00.0013256" startTime="2026-11-22T23:02:46.0199938+07:00" endTime="2026-11-22T23:02:46.0209907+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="534be3de-315a-4fb1-8efb-da0463594ee0" />
+    <UnitTestResult executionId="06544dba-0cdf-44f3-8acd-7e29da6db4ab" testId="e12c75a3-f953-537e-4b64-2aa1df9eeec4" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_return_is_rethrown_at_once_without_waiting" computerName="KIETVD" duration="00:00:00.0016864" startTime="2026-11-22T23:02:46.0070492+07:00" endTime="2026-11-22T23:02:46.0072199+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="06544dba-0cdf-44f3-8acd-7e29da6db4ab" />
+    <UnitTestResult executionId="380177d1-11ac-435d-85da-e5ac63a8dde9" testId="876ce57a-00f8-7a74-d1a9-94ba6e0e5887" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_broker_nack_is_back_pressure" computerName="KIETVD" duration="00:00:00.0001731" startTime="2026-11-22T23:02:46.0111358+07:00" endTime="2026-11-22T23:02:46.0113399+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="380177d1-11ac-435d-85da-e5ac63a8dde9" />
+    <UnitTestResult executionId="74cb0d66-0f02-4698-9d61-57595c35ecac" testId="179ca0c1-8ce4-79e4-f486-42b215face85" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.Another_error_is_rethrown_at_once_without_waiting" computerName="KIETVD" duration="00:00:00.3338273" startTime="2026-11-22T23:02:45.6349144+07:00" endTime="2026-11-22T23:02:45.9808505+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="74cb0d66-0f02-4698-9d61-57595c35ecac" />
+    <UnitTestResult executionId="ee160e2c-8350-4a17-9476-52394358b0bf" testId="4052e928-b692-6d0c-f1e9-c074c47e294e" testName="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_return_or_any_other_error_is_not_back_pressure" computerName="KIETVD" duration="00:00:00.0028064" startTime="2026-11-22T23:02:46.0056025+07:00" endTime="2026-11-22T23:02:46.0057735+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ee160e2c-8350-4a17-9476-52394358b0bf" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_cancelled_host_does_not_keep_waiting" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="a074ebb2-1455-1313-062c-732df4e343de">
+      <Execution id="534be3de-315a-4fb1-8efb-da0463594ee0" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="A_cancelled_host_does_not_keep_waiting" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.Another_error_is_rethrown_at_once_without_waiting" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="179ca0c1-8ce4-79e4-f486-42b215face85">
+      <Execution id="74cb0d66-0f02-4698-9d61-57595c35ecac" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="Another_error_is_rethrown_at_once_without_waiting" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.Nacks_are_waited_out_with_the_backoff_and_the_publish_then_succeeds" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="15b5183e-9858-935c-264d-0ccd106ec20d">
+      <Execution id="313fbe08-2fca-48d7-837a-3c816ea566a1" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="Nacks_are_waited_out_with_the_backoff_and_the_publish_then_succeeds" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.The_nack_is_rethrown_once_the_wait_cap_would_be_exceeded" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="879a73f3-d969-6cf1-ad50-ed075bdede96">
+      <Execution id="ac79a796-8af9-4027-87c9-1234bf3db623" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="The_nack_is_rethrown_once_the_wait_cap_would_be_exceeded" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_return_or_any_other_error_is_not_back_pressure" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="4052e928-b692-6d0c-f1e9-c074c47e294e">
+      <Execution id="ee160e2c-8350-4a17-9476-52394358b0bf" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="A_return_or_any_other_error_is_not_back_pressure" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_return_is_rethrown_at_once_without_waiting" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="e12c75a3-f953-537e-4b64-2aa1df9eeec4">
+      <Execution id="06544dba-0cdf-44f3-8acd-7e29da6db4ab" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="A_return_is_rethrown_at_once_without_waiting" />
+    </UnitTest>
+    <UnitTest name="FlashSale.ProcessWorker.Tests.PublishBackPressureTests.A_broker_nack_is_back_pressure" storage="e:\agent_memory\dacntt\tmp\fullcheck-git-20261122t134701z\tests\flashsale.processworker.tests\bin\debug\net10.0\flashsale.processworker.tests.dll" id="876ce57a-00f8-7a74-d1a9-94ba6e0e5887">
+      <Execution id="380177d1-11ac-435d-85da-e5ac63a8dde9" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.ProcessWorker.Tests\bin\Debug\net10.0\FlashSale.ProcessWorker.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.ProcessWorker.Tests.PublishBackPressureTests" name="A_broker_nack_is_back_pressure" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="15b5183e-9858-935c-264d-0ccd106ec20d" executionId="313fbe08-2fca-48d7-837a-3c816ea566a1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="879a73f3-d969-6cf1-ad50-ed075bdede96" executionId="ac79a796-8af9-4027-87c9-1234bf3db623" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a074ebb2-1455-1313-062c-732df4e343de" executionId="534be3de-315a-4fb1-8efb-da0463594ee0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e12c75a3-f953-537e-4b64-2aa1df9eeec4" executionId="06544dba-0cdf-44f3-8acd-7e29da6db4ab" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="876ce57a-00f8-7a74-d1a9-94ba6e0e5887" executionId="380177d1-11ac-435d-85da-e5ac63a8dde9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="179ca0c1-8ce4-79e4-f486-42b215face85" executionId="74cb0d66-0f02-4698-9d61-57595c35ecac" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4052e928-b692-6d0c-f1e9-c074c47e294e" executionId="ee160e2c-8350-4a17-9476-52394358b0bf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="7" executed="7" passed="7" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.8)&#xD;
+[xUnit.net 00:00:00.75]   Discovering: FlashSale.ProcessWorker.Tests&#xD;
+[xUnit.net 00:00:00.83]   Discovered:  FlashSale.ProcessWorker.Tests&#xD;
+[xUnit.net 00:00:00.88]   Starting:    FlashSale.ProcessWorker.Tests&#xD;
+[xUnit.net 00:00:01.32]   Finished:    FlashSale.ProcessWorker.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

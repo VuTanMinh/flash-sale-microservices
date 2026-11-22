@@ -1,0 +1,50 @@
+﻿# verify-message-timestamps.ps1 -Container verify-env-pg -DbPort 56432; repo E:\Agent_Memory\DACNTT\tmp\negscratch\message-timestamps-inventory-unstamped at b451b4c+message-timestamps-inventory-unstamped; started 2026-11-22T16:59:53.3611689Z
+== Environment
+PASS  all three services up; every main and retry queue declared -- OrderPlaced=True,StockReserved=True,StockRejected=True,ProcessWorker.StockReserved=True,OrderProcessingStarted=True,OrderProcessed=True,OrderProcessed.retry.1=True,OrderProcessed.retry.2=True,OrderProcessed.retry.3=True,OrderProcessingStarted.retry.1=True,OrderProcessingStarted.retry.2=True,OrderProcessingStarted.retry.3=True
+PASS  warm-up: ts-165954 has 20 units
+== P1. OrderPlaced (Order Service outbox)
+PASS  P1 OrderPlaced: message sits in OrderPlaced -- depth=1
+PASS  P1 OrderPlaced: head_message_timestamp present -- head=1795366846
+PASS  P1 OrderPlaced: properties.timestamp present and positive -- timestamp=1795366846
+PASS  P1 OrderPlaced: timestamp is the publish moment (not stale, not future) -- ts=1795366846 window=1795366837..1795366852
+PASS  P1 OrderPlaced: head_message_timestamp matches the message timestamp -- head=1795366846 ts=1795366846
+PASS  P1 OrderPlaced: head_message_timestamp age grows while the message waits -- head 1795366846 -> 1795366846, age 6s -> 9s
+== P2. StockReserved (Inventory Service outbox)
+PASS  P2 StockReserved: message sits in StockReserved -- depth=1
+FAIL  P2 StockReserved: head_message_timestamp present -- head=-1
+FAIL  P2 StockReserved: properties.timestamp present and positive -- timestamp=0
+FAIL  P2 StockReserved: timestamp is the publish moment (not stale, not future) -- ts=0 window=1795366863..1795366882
+FAIL  P2 StockReserved: head_message_timestamp matches the message timestamp -- head=-1 ts=0
+FAIL  P2 StockReserved: head_message_timestamp age grows while the message waits -- head -1 -> -1, age 1795366883s -> 1795366886s
+== P3/P4. OrderProcessed and OrderProcessingStarted (Process Worker)
+PASS  P4 OrderProcessingStarted: message sits in OrderProcessingStarted -- depth=1
+PASS  P4 OrderProcessingStarted: head_message_timestamp present -- head=1795366905
+PASS  P4 OrderProcessingStarted: properties.timestamp present and positive -- timestamp=1795366905
+PASS  P4 OrderProcessingStarted: timestamp is the publish moment (not stale, not future) -- ts=1795366905 window=1795366898..1795366907
+PASS  P4 OrderProcessingStarted: head_message_timestamp matches the message timestamp -- head=1795366905 ts=1795366905
+PASS  P4 OrderProcessingStarted: head_message_timestamp age grows while the message waits -- head 1795366905 -> 1795366905, age 2s -> 5s
+PASS  P3 OrderProcessed: message sits in OrderProcessed -- depth=1
+PASS  P3 OrderProcessed: head_message_timestamp present -- head=1795366905
+PASS  P3 OrderProcessed: properties.timestamp present and positive -- timestamp=1795366905
+PASS  P3 OrderProcessed: timestamp is the publish moment (not stale, not future) -- ts=1795366905 window=1795366898..1795366914
+PASS  P3 OrderProcessed: head_message_timestamp matches the message timestamp -- head=1795366905 ts=1795366905
+PASS  P3 OrderProcessed: head_message_timestamp age grows while the message waits -- head 1795366905 -> 1795366905, age 9s -> 12s
+== P5. OrderProcessed delayed requeue (Order Service)
+PASS  P5: order 64380ed0-f482-460f-9513-33067d126dce created and still PendingStock -- state=PendingStock
+PASS  P5 OrderProcessed requeue: message sits in OrderProcessed.retry.3 -- depth=1
+PASS  P5 OrderProcessed requeue: head_message_timestamp present -- head=1795366951
+PASS  P5 OrderProcessed requeue: properties.timestamp present and positive -- timestamp=1795366951
+PASS  P5 OrderProcessed requeue: timestamp is the publish moment (not stale, not future) -- ts=1795366951 window=1795366940..1795366957
+PASS  P5 OrderProcessed requeue: head_message_timestamp matches the message timestamp -- head=1795366951 ts=1795366951
+PASS  P5 OrderProcessed requeue: head_message_timestamp age grows while the message waits -- head 1795366951 -> 1795366951, age 6s -> 9s
+== P6. OrderProcessingStarted delayed requeue (Order Service)
+PASS  P6: order 694108b3-4c2b-42ed-b955-3409f1b8b1f1 created and still PendingStock -- state=PendingStock
+PASS  P6 OrderProcessingStarted requeue: message sits in OrderProcessingStarted.retry.3 -- depth=1
+PASS  P6 OrderProcessingStarted requeue: head_message_timestamp present -- head=1795366980
+PASS  P6 OrderProcessingStarted requeue: properties.timestamp present and positive -- timestamp=1795366980
+PASS  P6 OrderProcessingStarted requeue: timestamp is the publish moment (not stale, not future) -- ts=1795366980 window=1795366969..1795366983
+PASS  P6 OrderProcessingStarted requeue: head_message_timestamp matches the message timestamp -- head=1795366980 ts=1795366980
+PASS  P6 OrderProcessingStarted requeue: head_message_timestamp age grows while the message waits -- head 1795366980 -> 1795366980, age 3s -> 7s
+5 check(s) failed.
+
+Exit code: 1

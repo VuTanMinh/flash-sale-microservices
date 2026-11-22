@@ -1,0 +1,78 @@
+﻿Test run for E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+dotnet : [xUnit.net 00:00:12.00]     
+FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing [FAIL]
+At E:\Agent_Memory\DACNTT\tmp\neg-check.ps1:125 char:5
++     dotnet test tests\FlashSale.OrderService.Tests --no-build -nologo ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([xUnit.net 00:0..._nothing [FAIL]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Failed FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing [10 s]
+  Error Message:
+   Assert.Throws() Failure: No exception was thrown
+Expected: typeof(FlashSale.OrderService.Entities.InvalidOrderStateTransitionException)
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 315
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 321
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflicting_stock_outcomes_throw_and_record_nothing() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 321
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:12.67]     FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_never_moves_a_Comple
+ted_order_back_to_Processing [FAIL]
+  Failed FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_never_moves_a_Completed_order_back_to_Processing [112 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: AlreadyProcessed
+Actual:   Applied
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_never_moves_a_Completed_order_back_to_Processing() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateBehaviourTests.cs:line 220
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:13.06]     FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_is_re_decided_when_t
+he_conflict_arrives_as_AbpDbConcurrencyException [FAIL]
+  Failed FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_is_re_decided_when_the_conflict_arrives_as_AbpDbConcurrencyException [66 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: AlreadyProcessed
+Actual:   Applied
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateBehaviourTests.Late_start_event_is_re_decided_when_the_conflict_arrives_as_AbpDbConcurrencyException() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateBehaviourTests.cs:line 264
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:14.94]     
+FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg [FAIL]
+  Failed FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg [1 s]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 2
+Actual:   3
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 200
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 210
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 210
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Completion_after_start_applies_only_the_remaining_leg() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 210
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:17.79]     
+FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back [FAIL]
+  Failed FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back [1 s]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: AlreadyProcessed
+Actual:   Applied
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 137
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 144
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Start_after_completion_never_moves_the_order_back() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 144
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:19.10]     FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapp
+ed_as_AbpDbConcurrencyException [FAIL]
+  Failed FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException [1 s]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: AlreadyProcessed
+Actual:   Applied
+  Stack Trace:
+     at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 415
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 417
+   at FlashSale.OrderService.Tests.OrderStateRacePostgresTests.Conflict_is_redecided_when_rewrapped_as_AbpDbConcurrencyException() in E:\Agent_Memory\DACNTT\tmp\negscratch\unit-no-concurrency-token\tests\FlashSale.OrderService.Tests\OrderStateRacePostgresTests.cs:line 417
+--- End of stack trace from previous location ---
+
+Failed!  - Failed:     6, Passed:    48, Skipped:     0, Total:    54, Duration: 17 s - FlashSale.OrderService.Tests.dll (net10.0)

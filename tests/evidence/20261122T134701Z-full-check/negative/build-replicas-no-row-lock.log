@@ -1,0 +1,17 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 1,69 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 1,69 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 1,81 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 1,82 sec).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 1,83 sec).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\tmp\negscratch\replicas-no-row-lock\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:17.41

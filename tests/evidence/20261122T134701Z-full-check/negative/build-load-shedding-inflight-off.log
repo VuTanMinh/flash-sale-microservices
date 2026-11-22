@@ -1,0 +1,17 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 581 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 581 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 710 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 712 ms).
+  Restored E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 738 ms).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\tmp\negscratch\load-shedding-inflight-off\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:08.82

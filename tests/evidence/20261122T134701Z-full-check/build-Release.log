@@ -1,0 +1,13 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\src\FlashSale.EventContracts\bin\Release\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\src\FlashSale.ProcessWorker\bin\Release\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\src\FlashSale.InventoryService\bin\Release\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\src\FlashSale.OrderService\bin\Release\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\tmp\fullcheck-git-20261122T134701Z\tests\FlashSale.OrderService.Tests\bin\Release\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:09.24
