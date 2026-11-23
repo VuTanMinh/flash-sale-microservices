@@ -184,6 +184,8 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 \newcommand{\projecttitleen}{DESIGN AND PERFORMANCE EVALUATION OF A
 MICROSERVICES SYSTEM FOR LARGE-SCALE CONCURRENT TRANSACTION PROCESSING IN A
 FLASH-SALE SCENARIO}
+% The kind of report, as it appears on both covers (owner: "IT project", for now).
+\newcommand{\projectlabel}{IT PROJECT}
 \begin{titlepage}
   \centering
   {\fontsize{14}{17}\selectfont VIETNAM GENERAL CONFEDERATION OF LABOUR\\
@@ -196,7 +198,7 @@ FLASH-SALE SCENARIO}
   \vspace{2cm}
   {\fontsize{24}{30}\selectfont\bfseries \projecttitleen\par}
   \vspace{1.6cm}
-  {\fontsize{22}{27}\selectfont\bfseries CAPSTONE PROJECT REPORT\\[2pt] SOFTWARE ENGINEERING\par}
+  {\fontsize{22}{27}\selectfont\bfseries \projectlabel\\[2pt] SOFTWARE ENGINEERING\par}
   \vfill
   {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
@@ -212,12 +214,87 @@ FLASH-SALE SCENARIO}
   \vspace{1.0cm}
   {\fontsize{20}{26}\selectfont\bfseries \projecttitleen\par}
   \vspace{0.9cm}
-  {\fontsize{18}{23}\selectfont\bfseries CAPSTONE PROJECT REPORT\\[2pt] SOFTWARE ENGINEERING\par}
+  {\fontsize{18}{23}\selectfont\bfseries \projectlabel\\[2pt] SOFTWARE ENGINEERING\par}
   \vspace{0.9cm}
-  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{Mr. MAI VĂN MẠNH}\par}
+  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{MSc. MAI VĂN MẠNH}\par}
   \vfill
   {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
+
+% Front matter in the order of the faculty template: acknowledgment,
+% certification, declaration, abstract, contents and lists, numbered i, ii, ...
+\clearpage
+\pagenumbering{roman}
+
+\chapter*{Acknowledgment}
+\addcontentsline{toc}{chapter}{Acknowledgment}
+
+We would like to express our sincere gratitude to our advisor,
+\textbf{MSc.~Mai Văn Mạnh}, for the guidance, the constructive feedback and the
+encouragement throughout this IT project.
+
+We also thank the lecturers and staff of the Faculty of Information Technology
+at Ton Duc Thang University for the knowledge and the support that this work
+built on, and our classmates and friends for their discussions and help.
+
+Finally, we are grateful to our families for their patience and encouragement.
+
+\vspace{3em}
+\begin{flushright}
+  Ho Chi Minh City, \hspace{1.5em} day \hspace{2em} month \hspace{2em} year 2026\\[1.5em]
+  \textbf{Authors}\\
+  \textit{(Signature and full name)}\\[5em]
+  Vũ Tấn Minh \hspace{4em} Vũ Đình Kiệt
+\end{flushright}
+
+\chapter*{Certification}
+\addcontentsline{toc}{chapter}{Certification}
+
+This IT project was carried out at \textbf{Ton Duc Thang University}.\\[0.5em]
+\textbf{Advisor: MSc.~Mai Văn Mạnh}\\[3em]
+\makebox[0.6\textwidth]{\dotfill}\\
+\textit{(Title, full name and signature)}\\[3em]
+
+This IT project was defended before the Examination Committee held at Ton Duc
+Thang University on \makebox[2.5em]{\dotfill}\,/\,\makebox[2.5em]{\dotfill}\,/\,\makebox[4em]{\dotfill}.\\[3em]
+
+Confirmation of the Chairman of the Examination Committee and the Dean of the
+Faculty after receiving the revised report (if any).\\[3em]
+
+\noindent
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \textbf{CHAIRMAN}\\[6em]
+  \dotfill
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \textbf{DEAN OF FACULTY}\\[6em]
+  \dotfill
+\end{minipage}
+
+\chapter*{Declaration of Authorship}
+\addcontentsline{toc}{chapter}{Declaration of Authorship}
+
+We hereby declare that this IT project was carried out by us under the
+guidance and supervision of \textbf{MSc.~Mai Văn Mạnh}, and that the work and
+the results contained in it are original and have not been submitted anywhere
+for any previous purpose. The experimental data and figures in this report
+come from our own implementation and measurements; material, data and comments
+from other authors and organizations are acknowledged and explicitly cited in
+the References.
+
+We take full responsibility for any fraud detected in this IT project. Ton Duc
+Thang University is not responsible for any copyright infringement caused by
+our work (if any).
+
+\vspace{3em}
+\begin{flushright}
+  Ho Chi Minh City, \hspace{1.5em} day \hspace{2em} month \hspace{2em} year 2026\\[1.5em]
+  \textbf{Authors}\\
+  \textit{(Signature and full name)}\\[5em]
+  Vũ Tấn Minh \hspace{4em} Vũ Đình Kiệt
+\end{flushright}
 
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
@@ -253,6 +330,12 @@ design is slower; its value is decoupling and the guarantee that accepted work
 is never lost.
 
 \tableofcontents
+\listoffigures
+\listoftables
+
+% The main text is numbered from 1, as in the faculty template.
+\clearpage
+\pagenumbering{arabic}
 
 % ============================================================
 \chapter{Introduction}
@@ -265,9 +348,10 @@ quickly, and must control work when the incoming rate exceeds available capacity
 This project compares a synchronous PostgreSQL inventory baseline with an
 asynchronous design using RabbitMQ and an atomic Redis Lua reservation. It evaluates
 correctness, request and completion latency, throughput, overload response, and the
-effect of running multiple consumers on one host. The research question, boundaries,
-and experiment controls are recorded in
-\nolinkurl{docs/00-scope-lock.md} and \nolinkurl{docs/experiment-protocol.md}.
+effect of running multiple consumers on one host. The research questions are
+stated in Section~\ref{sec:rq}; the scope as it was locked and the experiment
+controls are recorded in \nolinkurl{docs/00-scope-lock.md} and
+\nolinkurl{docs/experiment-protocol.md}.
 
 % ============================================================
 \section{Problem Statement}
@@ -307,12 +391,83 @@ faster or safer.
 \end{enumerate}
 
 % ============================================================
+\section{Research Questions}
+\label{sec:rq}
+% ============================================================
+
+The study answers four questions, taken from the scope lock
+(\nolinkurl{docs/00-scope-lock.md}) and the brief's evaluation plan; the
+Discussion (Chapter~\ref{sec:discussion}) answers them in this order.
+\begin{enumerate}
+  \item[\textbf{RQ1}] Does each valid implementation preserve the inventory
+    invariants under concurrent requests for scarce stock?
+  \item[\textbf{RQ2}] How do C1 and C2 trade request latency, end-to-end
+    completion latency, throughput and complexity?
+  \item[\textbf{RQ3}] At overload, do the C3 controls reject excess work
+    predictably and recover after the load falls?
+  \item[\textbf{RQ4}] On one EC2 host, how do 1, 2 and 4 Inventory Service
+    consumers affect throughput, queue drain time and shared-resource
+    contention?
+\end{enumerate}
+The brief's initial target of about 2,000 reservation attempts a second on the
+chosen hardware is measured against as well, as an experimental target rather
+than a guarantee (Section~\ref{sec:capacity}).
+
+% ============================================================
+\section{Research Methodology}
+% ============================================================
+
+\paragraph{Theoretical part.} The design rests on established patterns rather
+than on a new mechanism: an atomic conditional update for a contended row, an
+atomic Redis script, at-least-once messaging with idempotent consumers, the
+Transactional Outbox, bounded retries with a dead-letter queue, load shedding,
+and open-loop load generation. Chapter~\ref{sec:background} summarises them from
+their primary sources. Before the code, the project fixed the inventory
+invariants, the order state machine, the failure model and the experiment
+protocol in \nolinkurl{docs/}, so that the tests and the experiments had
+written criteria to check against.
+
+\paragraph{Practical part.} The system was built in the order of the brief's
+15-week roadmap: the C0 and C1 baselines first, then the Order Service, the
+Outbox, the Inventory Service with its Lua reservation, the Inbox, retries,
+dead-letter queues and reconciliation, the Process Worker and observability,
+and finally load shedding. Every feature has test cases in the test plan
+(Appendix~\ref{app:test-plan}); a case counts as passed only when its saved
+evidence shows it, and each runtime verifier was also run against a
+deliberately broken copy (a negative control) to show that it can fail. The
+experiments then ran on AWS EC2: a pilot to calibrate the settings, a code and
+matrix freeze, and 66 official runs with reset, seed and warm-up before each
+and the correctness validator after each (Chapter~\ref{sec:experimental-design}).
+The tables and figures are computed from the saved raw data by a script, and
+every conclusion is limited to the tested hardware, workload and failure model.
+
+% ============================================================
+\section{Structure of the Report}
+% ============================================================
+
+Chapter~\ref{sec:scope} sets the scope and its limits.
+Chapter~\ref{sec:background} explains the background patterns and related work.
+Chapters~\ref{sec:requirements} to~\ref{sec:devenv} give the requirements, the
+technology choices and the development environment.
+Chapter~\ref{sec:design} presents the system analysis and design, and
+Chapter~\ref{sec:implementation} the implementation, its verification and the
+demonstration interface. Chapter~\ref{sec:experimental-design} describes the
+experiments, Chapter~\ref{sec:results-official-ch} reports the results, and
+Chapter~\ref{sec:discussion} answers the research questions.
+Chapter~\ref{sec:conclusion} concludes. The appendices hold the test plan
+summary, the verification details, the pilot, the external review, further
+result figures, the freeze manifest, the run commands, the evidence index and
+the failure scenario diagrams.
+
+% ============================================================
 \chapter{Scope and Limitations}
+\label{sec:scope}
 
 \section{Scope}
 % ============================================================
 
-See \nolinkurl{docs/00-scope-lock.md} for the research question and scope. The system
+The research questions are in Section~\ref{sec:rq}, and
+\nolinkurl{docs/00-scope-lock.md} records the scope as it was locked. The system
 includes Order Service, Inventory Service, a deterministic Process Worker,
 PostgreSQL schemas owned by each service, Redis Lua stock reservation, RabbitMQ,
 and the Nginx, application and queue load-shedding controls of C3. The backend target
@@ -539,7 +694,51 @@ M7i-flex instance family~\cite{aws-m7i} and AWS Systems Manager Run
 Command~\cite{aws-run-command}.
 
 % ============================================================
+\section{Related work}
+\label{sec:related-work}
+% ============================================================
+
+This project applies established designs rather than proposing a new one, so
+its closest related work is the literature that defines those designs and
+their guarantees.
+
+\paragraph{Reliable messaging.} Hohpe and Woolf catalogue the messaging
+patterns the asynchronous design uses, among them the Idempotent Receiver and
+the Dead Letter Channel~\cite{hohpe-eip,eip-idempotent,eip-dead-letter}.
+Richardson describes the Transactional Outbox and the Idempotent Consumer as the
+standard ways for a service to keep its own data and the events it publishes
+consistent without a distributed transaction~\cite{richardson-patterns,
+richardson-outbox,richardson-idempotent}. Kleppmann explains why a message
+system that delivers at least once still gives one effect per message only when
+the receiver deduplicates or is idempotent~\cite{kleppmann-ddia}. These sources
+define the mechanisms and what they guarantee; they do not measure what the
+mechanisms cost on a small host against a synchronous baseline, which is what
+this study does.
+
+\paragraph{Overload and latency.} Google's Site Reliability Engineering book
+argues that a service under overload should refuse excess requests early and
+cheaply, and that clients should back off and limit their retries, so that the
+service keeps doing useful work~\cite{sre-overload}; C3's 429 and 503 responses
+with \texttt{Retry-After} follow that advice. Dean and Barroso show that the tail
+of the latency distribution, not its mean, decides how a large system
+feels~\cite{dean-tail}, which is why the results report p95 and p99.
+
+\paragraph{Measuring under load.} Schroeder, Wierman and Harchol-Balter show
+that closed-loop load generators, where each client waits for its answer
+before it sends again, behave very differently from open arrival processes and
+can hide how a system behaves under overload~\cite{schroeder-open-closed}; the
+official runs therefore used JMeter's open mode and report the rate achieved.
+
+\paragraph{What this study adds.} It compares, under the same workload and on
+the same single host, a synchronous atomic update with an event-driven
+pipeline built from these patterns, measures latency, throughput, overload and
+recovery, and validates every run's correctness, including a deliberately
+unsafe design (C0) that shows the checks can fail. Published descriptions of
+production flash-sale systems were not reviewed for this study.
+
+% ============================================================
 \chapter{System Requirements}
+\label{sec:requirements}
 % ============================================================
 
 Requirements below follow the teacher brief (\nolinkurl{docs/teacher-brief.md},
@@ -627,6 +826,7 @@ it, not assumed here.
 
 % ============================================================
 \chapter{Technology Selection}
+\label{sec:technology}
 % ============================================================
 
 \begin{description}
@@ -676,6 +876,7 @@ it, not assumed here.
 
 % ============================================================
 \chapter{Development Environment}
+\label{sec:devenv}
 % ============================================================
 
 \section{Local infrastructure (Docker Compose)}
@@ -767,6 +968,7 @@ untracked setup checklist.
 
 % ============================================================
 \chapter{System Analysis and Design}
+\label{sec:design}
 % ============================================================
 
 \section{System Architecture}
@@ -1176,6 +1378,7 @@ failures.
 
 % ============================================================
 \chapter{Implementation}
+\label{sec:implementation}
 % ============================================================
 Each section below ends with the evidence for what it built. The longer
 verification detail is in Appendix~\ref{app:verification}, and
@@ -3198,9 +3401,66 @@ was the overload run in Table~\ref{tab:overload-local-ec2}
 its rerun on the reviewed code
 (\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par\fussy
 
+% ============================================================
+\section{Demonstration User Interface}
+\label{sec:demo-ui}
+% ============================================================
+
+The study excludes a frontend (Chapter~\ref{sec:scope}); what is designed and
+measured is the backend. For demonstrations only, a single-page storefront was
+built in \nolinkurl{demo-results/ui/} with React~18 and Bootstrap~5.3.3, both
+stored in the repository so that the page runs without internet. It takes no
+part in any test or measurement. A small Node.js server (\texttt{serve.mjs})
+serves the page and forwards \texttt{/api/*} to the Nginx gateway, so the page
+uses exactly the API that JMeter uses.
+
+In \emph{Live API} mode (Figure~\ref{fig:ui-live}) the Buy button sends one
+\texttt{POST /api/orders} with an \texttt{Idempotency-Key} and then polls
+\texttt{GET /api/orders/\{id\}} once a second until the order is
+\texttt{Completed} or \texttt{Rejected}. The page shows each state with its time
+since acceptance and the state history read from the database. A 429 or a 503
+with \texttt{Retry-After} makes it wait and retry with the same key, and a
+second press with the same key returns the original order. An order for a
+sold-out product is accepted and then \texttt{Rejected}
+(Figure~\ref{fig:ui-rejected}).
+
+In \emph{Simulation} mode (Figure~\ref{fig:ui-sim}) the page models a crowd in
+the browser, for the scenarios that need many shoppers: a normal sale, heavy
+traffic, an instant sell-out and a sale that is not open yet. It uses
+illustrative numbers from the project, such as the local pilot's stock-decision
+rate, and does not reproduce the EC2 results; it also takes over when the live
+API cannot be reached.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/ui/02-desktop-flash-sale-live.png}
+  \caption{Live API mode after one real order on the local stack: two attempts
+  (201, then 200 for the same \texttt{Idempotency-Key}), the time to the stock
+  decision and to completion, and the stages the order passed through.}
+  \label{fig:ui-live}
+\end{figure}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/ui/11-desktop-rejected-live.png}
+  \caption{A real order for a product whose only unit was already sold: accepted,
+  then \texttt{Rejected} by the stock decision, with nothing deducted.}
+  \label{fig:ui-rejected}
+\end{figure}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{figures/ui/06-desktop-flash-sale-simulation.png}
+  \caption{Simulation mode, heavy traffic: the gateway's 429 and a retry with the
+  same key, the controls that start and reset the sale, and the simulated
+  pipeline beside the product.}
+  \label{fig:ui-sim}
+\end{figure}
+
 
 % ============================================================
 \chapter{Experimental Design}
+\label{sec:experimental-design}
 % ============================================================
 This chapter fixes how the official runs were made: a pilot and the fix it
 led to, the values locked for the runs, the workload profiles and the capacity
@@ -3297,6 +3557,47 @@ itself states for the chosen hardware. The backend stays on
 \texttt{m7i-flex.large} (the owner's decision), so this study reports the
 achieved rate with the hardware it ran on, as a limitation against that target,
 rather than scaling the hardware to reach it.
+
+% ============================================================
+\section{Cost of the AWS sessions}
+\label{sec:cost}
+% ============================================================
+
+Each measured session ran two on-demand instances in \texttt{ap-southeast-2}:
+the \texttt{m7i-flex.large} backend and the \texttt{c7i-flex.large} JMeter host.
+AWS's published on-demand prices for Linux in that region, effective
+1~November 2026, are USD~0.1197 and USD~0.11072 an hour, USD~0.2304 for the
+pair~\cite{aws-ec2-pricing}. Table~\ref{tab:cost} multiplies that by how long
+the servers were up. Terraform gives each instance a safety timer of a set
+number of minutes, and each session's deploy log records when the timer was
+scheduled, so the creation time is that time minus the minutes; the end is
+the destroy time where the evidence records it.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{3.9cm}p{6.6cm}r@{}}
+\toprule
+Session & Servers up & Estimate (USD) \\
+\midrule
+Official matrix, 5 Nov & from about 10:29 UTC (720-minute timer due at 22:29); the last
+  run started at 18:06 and the destroy time was not logged, so 7.6 to 12\,h & 1.75--2.76 \\
+Supplementary, 6 Nov & about 13:44 to 16:20 UTC (destroy logged), 2.6\,h & 0.60 \\
+Back-pressure A/B, 7 Nov & about 05:47 to 09:29 UTC (session end logged), 3.7\,h & 0.85 \\
+\midrule
+Total & about 14 to 18\,h & 3.20--4.21 \\
+\bottomrule
+\end{tabular}
+\caption{Estimated instance cost of the three sessions whose results the report
+uses: hours from \nolinkurl{tests/evidence/20261105T104832Z-official},
+\nolinkurl{20261106T135523Z-supplementary} and
+\nolinkurl{20261107T060310Z-backpressure-ab}, times USD~0.2304 an hour. Not
+included: the two 30\,GB EBS volumes, public IPv4 addresses, data transfer, and
+the earlier deployment, pilot and confirmation sessions (22~October to
+4~November), whose hours were not totalled. An estimate, not the billed amount;
+the sessions ran on the account's AWS Free-plan credits.}
+\label{tab:cost}
+\end{table}
 
 % ============================================================
 \chapter{Results}
@@ -4119,6 +4420,14 @@ Amazon Web Services.
 \newblock \emph{Amazon EC2 M7i and M7i-flex instances}.
 \newblock \url{https://aws.amazon.com/ec2/instance-types/m7i/}. Accessed
 5~November 2026.
+
+\bibitem{aws-ec2-pricing}
+Amazon Web Services.
+\newblock \emph{Amazon EC2 On-Demand Pricing}. Prices for \texttt{m7i-flex.large}
+and \texttt{c7i-flex.large}, Linux, \texttt{ap-southeast-2}, read from the AWS
+Price List service, effective 1~November 2026.
+\newblock \url{https://aws.amazon.com/ec2/pricing/on-demand/}. Accessed
+23~November 2026.
 
 \bibitem{aws-run-command}
 Amazon Web Services.

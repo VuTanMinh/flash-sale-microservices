@@ -1,0 +1,13 @@
+﻿01-design-chapter                        exit 0   PASS 44   FAIL 0       0 min
+02-test-plan                             exit 0   PASS 287  FAIL 0     0.1 min
+03-freeze                                exit 0   PASS 106  FAIL 0     0.1 min
+04-observability-report                  exit 0   PASS 22   FAIL 0     0.1 min
+05-design-alignment                      exit 0   PASS 53   FAIL 0       0 min
+06-design-decisions                      exit 0   PASS 28   FAIL 0       0 min
+07-requirements-trace                    exit 0   PASS 40   FAIL 0       0 min
+08-baseline-report                       exit 0   PASS 19   FAIL 0       0 min
+09-order-report                          exit 0   PASS 23   FAIL 0       0 min
+10-publication-report                    exit 0   PASS 25   FAIL 0       0 min
+11-inventory-report                      exit 0   PASS 29   FAIL 0       0 min
+12-delivery-report                       exit 0   PASS 38   FAIL 0       0 min
+13-failure-report                        exit 0   PASS 103  FAIL 0       0 min
