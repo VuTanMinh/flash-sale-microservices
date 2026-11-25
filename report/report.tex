@@ -2475,7 +2475,7 @@ result DLQ ended empty.
 
 In the same fresh clone, the earlier checks still pass: TP-M01 (34/34),
 TP-W04 (62/62), TP-W01 (10/10) and the unit tests (45/45 at the time,
-including two new tests for the early case; 104 on the final code,
+including two new tests for the early case; 104 Order Service tests on the final code,
 Section~\ref{sec:review-fixes}).
 
 \paragraph{Negative control.} The fix was reverted in a scratch copy and the
@@ -4834,11 +4834,20 @@ final code after the review fixes. Each was checked, when it was built, with a
 negative control that must make it fail, and every fix in
 Section~\ref{sec:review-fixes} has one too.
 
+Since 25~November a GitHub Actions workflow
+(\nolinkurl{.github/workflows/ci.yml}) builds the solution and runs the three
+unit-test projects on every push, with a PostgreSQL service container for the
+race tests and a Redis service container for the Inventory tests that use a
+real Redis. The runtime verifiers are not part of it: they are Windows
+PowerShell scripts that start their own containers and were run by hand.
+
 \begin{figure}[tbp]
   \centering
   \includegraphics[width=0.85\textwidth]{figures/verification-overview.png}
   \caption{Checks per runtime verifier in its latest run (no failures), plus
-  111 unit tests (104 for Order Service, 7 for the Process Worker). Test-case IDs refer to \nolinkurl{docs/test-plan.md}; each PASS
+  119 unit tests (104 for Order Service, including 6 PostgreSQL race tests;
+  8 for Inventory Service, including 5 against a real Redis; 7 for the Process
+  Worker). Test-case IDs refer to \nolinkurl{docs/test-plan.md}; each PASS
   links to a saved log in \nolinkurl{tests/evidence/}.}
   \label{fig:verification-overview}
 \end{figure}
