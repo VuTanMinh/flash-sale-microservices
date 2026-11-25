@@ -8,12 +8,20 @@
 # *.pfx is git-ignored, so a fresh clone does not have it and Order Service
 # stops at startup with "Signing Certificate couldn't found: openiddict.pfx".
 # This uses the ABP-documented `dotnet dev-certs` command with the
-# passphrase already in OrderServiceModule. Local/experiment use only.
+# passphrase read from appsettings.json (AuthServer:CertificatePassPhrase) --
+# the same key OrderServiceModule reads, so the two can never drift.
+# Local/experiment use only.
 # ============================================================
 $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pfx = Join-Path $repoRoot "src\FlashSale.OrderService\openiddict.pfx"
-$passphrase = "99426be9-e087-4c7d-b9cb-566835df936d"   # must match OrderServiceModule
+$appSettings = Join-Path $repoRoot "src\FlashSale.OrderService\appsettings.json"
+$appSettingsJson = Get-Content $appSettings -Raw | ConvertFrom-Json
+$passphrase = $appSettingsJson.AuthServer.CertificatePassPhrase
+if ([string]::IsNullOrWhiteSpace($passphrase)) {
+    Write-Host "AuthServer:CertificatePassPhrase is missing in $appSettings" -ForegroundColor Red
+    exit 1
+}
 
 if (Test-Path $pfx) {
     Write-Host "openiddict.pfx already exists: $pfx"

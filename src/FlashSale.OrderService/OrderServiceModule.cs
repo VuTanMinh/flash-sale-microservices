@@ -135,10 +135,18 @@ public class OrderServiceModule : AbpModule
                 options.AddDevelopmentEncryptionAndSigningCertificate = false;
             });
 
+            var certificatePassPhrase = configuration["AuthServer:CertificatePassPhrase"];
+            if (string.IsNullOrWhiteSpace(certificatePassPhrase))
+            {
+                throw new InvalidOperationException(
+                    "AuthServer:CertificatePassPhrase is required to load the OpenIddict production certificate (openiddict.pfx). " +
+                    "Set it in appsettings.json or via the AuthServer__CertificatePassPhrase environment variable.");
+            }
+
             PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
             {
                 // EphemeralKeySet keeps the key in memory only: no admin rights needed, and the key is never persisted to the machine store.
-                serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", "99426be9-e087-4c7d-b9cb-566835df936d", System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.EphemeralKeySet);
+                serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", certificatePassPhrase, System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.EphemeralKeySet);
             });
         }
         
