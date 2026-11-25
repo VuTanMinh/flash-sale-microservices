@@ -130,8 +130,8 @@ foreach ($evt in "OrderPlaced", "StockReserved", "StockRejected", "OrderProcessi
 }
 
 # Steps 10-15: reservation
-Check "steps 11-12: Inventory checks its Inbox before running reserve.lua (code and diagram)" (
-    (Before $proc "ProcessedMessages.AnyAsync" "ReserveAsync") -and (Before $hp "Inbox: MessageId already processed?" "EVAL reserve.lua"))
+Check "steps 11-12: Inventory checks its Inbox and looks up the stored result before running reserve.lua (code and diagram)" (
+    (Before $proc "ProcessedMessages.AnyAsync" "ReserveAsync") -and (Before $proc "OutboxEvents.FirstOrDefaultAsync" "ReserveAsync") -and (Before $hp "Inbox: MessageId already processed?" "EVAL reserve.lua"))
 Check "step 12: reserve.lua gets the inventory, processed and sale:open keys" (
     $res.Contains('$"inventory:{productId}"') -and $res.Contains('$"processed:{productId}"') -and $res.Contains('$"sale:open:{productId}"') -and
     $both.Contains("EVAL reserve.lua (inventory, processed and sale:open keys)"))
@@ -141,8 +141,8 @@ Check "outcome mapping: RESERVED/DUPLICATE -> StockReserved, REJECTED/NOT_OPEN -
     $hp.Contains("RESERVED (") -and $rj.Contains("REJECTED (nothing deducted)") -and $rj.Contains("NOT_OPEN (nothing deducted)"))
 Check "step 14: Outbox row (only if none for the OrderId; an already-published one is re-sent) and Inbox row in one SaveChangesAsync" (
     $proc.Contains("OutboxEvents.FirstOrDefaultAsync(e => e.OrderId == orderPlaced.OrderId)") -and $proc.Contains("existingResult.MarkForRepublish()") -and
-    (Before $proc "OutboxEvents.Add(" "SaveChangesAsync") -and
-    (Before $proc "ProcessedMessages.Add(" "SaveChangesAsync") -and ([regex]::Matches($proc, 'SaveChangesAsync\(').Count -eq 1) -and
+    (Before $proc "OutboxEvents.Add(" "await saveChangesAsync()") -and
+    (Before $proc "ProcessedMessages.Add(" "await saveChangesAsync()") -and ([regex]::Matches($proc, 'await saveChangesAsync\(').Count -eq 1) -and $proc.Contains("() => dbContext.SaveChangesAsync()") -and
     $hp.Contains("one transaction: Outbox row StockReserved (if none for this OrderId) + Inbox row") -and
     $rj.Contains("one transaction: Outbox row StockRejected (if none for this OrderId) + Inbox row"))
 
