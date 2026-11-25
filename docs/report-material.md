@@ -83,3 +83,60 @@ machine (C4, low rates), as coverage, not compared across configurations. Source
 `20261031T171915Z-ec2-stack.log`, which passed every check too and gives the same skew counts
 (46, 10, 7, 4) and the same below/equal/above results. Either change 86 to 82, or keep 86 and
 cite `20261031T171915Z-ec2-stack.log`. The table above uses the cited run (82).
+
+## 3. Academic references for Related Work (checked online on 25 Nov 2026)
+
+Each entry below was looked up and its bibliographic details confirmed before listing it.
+They are not in the report yet; use the ones you want in Section 3.7 and add them to the
+bibliography in the report's style.
+
+1. **H. Garcia-Molina and K. Salem. Sagas.** In *Proceedings of the 1987 ACM SIGMOD
+   International Conference on Management of Data*, pages 249–259, 1987.
+   DOI 10.1145/38713.38742.
+   *Summary:* a long-lived transaction is split into a sequence of smaller transactions
+   that can interleave with others, with compensation instead of one global transaction.
+   *Relation to this project:* the classic alternative to distributed transactions. Our
+   order workflow is a saga-like sequence of local transactions (Order → Inventory → Order
+   → Worker → Order) linked by events, except that it has no compensation step, because the
+   Worker is success-only (the brief) and a rejected order simply ends `Rejected`.
+
+2. **P. Helland. Life beyond Distributed Transactions: an Apostate's Opinion.** In
+   *Proceedings of the 3rd Biennial Conference on Innovative Data Systems Research (CIDR)*,
+   Asilomar, California, 2007. A shorter updated version appeared in *ACM Queue*.
+   *Summary:* argues that distributed transactions are impractical at scale and that
+   scalable applications should update one entity per transaction and talk to other
+   entities by messages, which must then be processed idempotently.
+   *Relation:* the design principle behind our schema-per-service, one local transaction per
+   step, at-least-once messages and an Inbox for idempotence.
+
+3. **M. Welsh, D. Culler and E. Brewer. SEDA: An Architecture for Well-Conditioned,
+   Scalable Internet Services.** In *Proceedings of the 18th ACM Symposium on Operating
+   Systems Principles (SOSP)*, Chateau Lake Louise, Canada, 2001.
+   *Summary:* services built as stages connected by explicit queues, with admission control
+   on each queue so that the service degrades gracefully under overload instead of being
+   overcommitted.
+   *Relation:* our C3 design is close to this: stages (Order, Inventory, Worker) joined by
+   bounded queues, with admission control (503) and a gateway rate limit (429) so that
+   overload is refused early. Our replicas result (more consumers on one host add
+   contention) is consistent with SEDA's point that capacity is set by the shared resource,
+   not by the number of stage threads.
+
+4. **R. Laigner, Y. Zhou, M. A. V. Salles, Y. Liu and M. Kalinowski. Data Management in
+   Microservices: State of the Practice, Challenges, and Research Directions.**
+   *Proceedings of the VLDB Endowment*, 14(13):3348–3361, 2021. arXiv:2103.00170.
+   *Summary:* a literature review, an analysis of open-source microservice applications and
+   a survey of over 120 practitioners and researchers on how microservices manage data; the
+   challenges it reports include managing constraints across distributed service states,
+   weak concurrency isolation, data replication semantics and consistency across storage
+   technologies.
+   *Relation:* these are exactly the problems our Outbox, Inbox and per-service schemas
+   address at application level, and it supports the report's point that this costs
+   complexity (the failure-mode table has 22 cases).
+
+None of these papers measures a flash-sale workload, so they support the design choices,
+not the numbers. The Related Work section can still say honestly that published
+descriptions of production flash-sale systems were not reviewed.
+
+Sources checked: dblp/bibtex record of the SIGMOD 1987 paper; the CIDR 2007 PDF hosted at
+UC Irvine and the ACM Queue version; the SOSP 2001 paper (Princeton and Michigan course
+copies); the PVLDB/arXiv record of Laigner et al.
