@@ -1,0 +1,22 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 709 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 709 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 809 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\tests\FlashSale.InventoryService.Tests\FlashSale.InventoryService.Tests.csproj (in 809 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 813 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 817 ms).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\Messaging\OrderProcessedConsumer.cs(299,112): warning CS0162: Unreachable code detected [E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\FlashSale.OrderService.csproj]
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+  FlashSale.InventoryService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll
+
+Build succeeded.
+
+E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\Messaging\OrderProcessedConsumer.cs(299,112): warning CS0162: Unreachable code detected [E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ordering-early-completion-dead-lettered\src\FlashSale.OrderService\FlashSale.OrderService.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:15.14

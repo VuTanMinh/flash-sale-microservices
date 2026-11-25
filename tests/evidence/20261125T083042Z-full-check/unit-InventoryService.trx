@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="a4264394-a784-4966-a894-77d9d84871d7" name="Lenovo@KIETVD 2026-11-25 19:38:03" runUser="KIETVD\Lenovo" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-25T19:38:03.6641892+07:00" queuing="2026-11-25T19:38:03.6641900+07:00" start="2026-11-25T19:37:54.8948023+07:00" finish="2026-11-25T19:38:03.8679919+07:00" />
+  <TestSettings name="default" id="e6f06a4d-b9cb-455c-b1b8-9db20f33330b">
+    <Deployment runDeploymentRoot="Lenovo_KIETVD_2026-11-25_19_38_03" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="397c55e2-e4ad-4052-ad76-86a3d54f20c2" testId="ac3d5c84-ddd7-b0e0-bf16-36aa7c58b8fd" testName="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Inbox_already_has_MessageId_returns_AlreadyProcessed_and_never_reserves" computerName="KIETVD" duration="00:00:00.0232081" startTime="2026-11-25T19:38:03.7403235+07:00" endTime="2026-11-25T19:38:03.7619699+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="397c55e2-e4ad-4052-ad76-86a3d54f20c2" />
+    <UnitTestResult executionId="55234de3-f53e-4594-9c71-533d371605f7" testId="72ba80f0-ff23-1eab-6298-c5a6d0864204" testName="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Stored_published_StockRejected_result_is_requeued_without_reserving" computerName="KIETVD" duration="00:00:00.1244252" startTime="2026-11-25T19:38:03.6439117+07:00" endTime="2026-11-25T19:38:03.7386069+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="55234de3-f53e-4594-9c71-533d371605f7" />
+    <UnitTestResult executionId="aef73f59-458b-4ee1-bc87-bd08d02b1ffc" testId="8c3b2e7a-9c10-bd31-5a22-e79fcc5ca100" testName="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Stored_unpublished_result_is_left_alone_without_reserving" computerName="KIETVD" duration="00:00:05.4822176" startTime="2026-11-25T19:37:58.1179035+07:00" endTime="2026-11-25T19:38:03.6130341+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="aef73f59-458b-4ee1-bc87-bd08d02b1ffc" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Inbox_already_has_MessageId_returns_AlreadyProcessed_and_never_reserves" storage="e:\agent_memory\dacntt\fullcheck-20261125t083042z\tests\flashsale.inventoryservice.tests\bin\debug\net10.0\flashsale.inventoryservice.tests.dll" id="ac3d5c84-ddd7-b0e0-bf16-36aa7c58b8fd">
+      <Execution id="397c55e2-e4ad-4052-ad76-86a3d54f20c2" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests" name="Inbox_already_has_MessageId_returns_AlreadyProcessed_and_never_reserves" />
+    </UnitTest>
+    <UnitTest name="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Stored_unpublished_result_is_left_alone_without_reserving" storage="e:\agent_memory\dacntt\fullcheck-20261125t083042z\tests\flashsale.inventoryservice.tests\bin\debug\net10.0\flashsale.inventoryservice.tests.dll" id="8c3b2e7a-9c10-bd31-5a22-e79fcc5ca100">
+      <Execution id="aef73f59-458b-4ee1-bc87-bd08d02b1ffc" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests" name="Stored_unpublished_result_is_left_alone_without_reserving" />
+    </UnitTest>
+    <UnitTest name="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests.Stored_published_StockRejected_result_is_requeued_without_reserving" storage="e:\agent_memory\dacntt\fullcheck-20261125t083042z\tests\flashsale.inventoryservice.tests\bin\debug\net10.0\flashsale.inventoryservice.tests.dll" id="72ba80f0-ff23-1eab-6298-c5a6d0864204">
+      <Execution id="55234de3-f53e-4594-9c71-533d371605f7" />
+      <TestMethod codeBase="E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="FlashSale.InventoryService.Tests.OrderPlacedProcessorTests" name="Stored_published_StockRejected_result_is_requeued_without_reserving" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="ac3d5c84-ddd7-b0e0-bf16-36aa7c58b8fd" executionId="397c55e2-e4ad-4052-ad76-86a3d54f20c2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="72ba80f0-ff23-1eab-6298-c5a6d0864204" executionId="55234de3-f53e-4594-9c71-533d371605f7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8c3b2e7a-9c10-bd31-5a22-e79fcc5ca100" executionId="aef73f59-458b-4ee1-bc87-bd08d02b1ffc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="3" executed="3" passed="3" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.8)&#xD;
+[xUnit.net 00:00:00.73]   Discovering: FlashSale.InventoryService.Tests&#xD;
+[xUnit.net 00:00:00.78]   Discovered:  FlashSale.InventoryService.Tests&#xD;
+[xUnit.net 00:00:00.81]   Starting:    FlashSale.InventoryService.Tests&#xD;
+[xUnit.net 00:00:06.50]   Finished:    FlashSale.InventoryService.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

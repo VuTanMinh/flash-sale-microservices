@@ -1,0 +1,34 @@
+﻿08:45:57Z  workflow-no-queue -> 02-workflow                              exit 1   PASS 58   FAIL 8     2.3 min
+08:50:23Z  delivery-no-inbox-check -> 04-delivery                              exit 1   PASS 40   FAIL 1     3.1 min
+09:01:16Z  delivery-ack-before-commit -> 06-delivery                              exit 1   PASS 29   FAIL 12    9.6 min
+09:09:24Z  delivery-ordering-early-completion-dead-lettered -> 08-delivery-ordering                     exit 1   PASS 34   FAIL 10    6.8 min
+09:17:58Z  worker-shutdown-fix-reverted -> 10-worker                                exit 1   PASS 54   FAIL 2     7.3 min
+09:23:03Z  processing-implied-false -> 12-processing                            exit 1   PASS 39   FAIL 2     3.8 min
+09:26:13Z  metrics-no-duplicate-counter -> 14-metrics                               exit 1   PASS 16   FAIL 1     1.9 min
+09:29:58Z  message-timestamps-inventory-unstamped -> 16-message-timestamps                    exit 1   PASS 35   FAIL 5     2.5 min
+09:35:52Z  reconciliation-pendingstock-only -> 18-reconciliation                        exit 1   PASS 33   FAIL 2     4.6 min
+09:45:38Z  load-shedding-inflight-off -> 20-load-shedding                         exit 1   PASS 43   FAIL 2     8.5 min
+09:47:30Z  replicas-no-row-lock -> 22-replicas                              exit 1   PASS 3    FAIL 2     0.6 min
+09:50:02Z  validator-check5-pass -> 24-validator                             exit 1   PASS 27   FAIL 1     1.3 min
+09:51:55Z  extract-old-extractor -> 26-extract                               exit 1   PASS 38   FAIL 14    0.6 min
+09:54:28Z  trace-order clean -> exit 0 PASS 28 FAIL 0
+09:57:01Z  trace-order no-messageid -> exit 1 PASS 24 FAIL 4
+09:58:26Z  unit-no-concurrency-token -> Failed!  - Failed:     6, Passed:    48, Skipped:     0, Total:    54, Duration: 14 s - FlashSale.OrderService.Tests.dll (net10.0)
+09:58:26Z  ALL DONE
+12:45:15Z  workflow-no-queue -> 02-workflow                              exit 1   PASS 59   FAIL 7     2.6 min
+12:50:43Z  delivery-no-inbox-check -> 04-delivery                              exit 1   PASS 40   FAIL 1     3.5 min
+13:02:44Z  delivery-ack-before-commit -> 06-delivery                              exit 1   PASS 29   FAIL 12   10.3 min
+13:11:42Z  delivery-ordering-early-completion-dead-lettered -> 08-delivery-ordering                     exit 1   PASS 34   FAIL 10      7 min
+13:22:36Z  worker-shutdown-fix-reverted -> 10-worker                                exit 1   PASS 54   FAIL 2       9 min
+13:29:21Z  processing-implied-false -> 12-processing                            exit 1   PASS 39   FAIL 2     4.9 min
+13:33:15Z  metrics-no-duplicate-counter -> 14-metrics                               exit 1   PASS 16   FAIL 1     2.2 min
+13:37:53Z  message-timestamps-inventory-unstamped -> 16-message-timestamps                    exit 1   PASS 35   FAIL 5     2.9 min
+13:44:36Z  reconciliation-pendingstock-only -> 18-reconciliation                        exit 1   PASS 33   FAIL 2       5 min
+13:55:35Z  load-shedding-inflight-off -> 20-load-shedding                         exit 1   PASS 43   FAIL 2     9.3 min
+13:58:00Z  replicas-no-row-lock -> 22-replicas                              exit 1   PASS 3    FAIL 2     0.6 min
+14:01:26Z  validator-check5-pass -> 24-validator                             exit 1   PASS 27   FAIL 1     1.6 min
+14:03:55Z  extract-old-extractor -> 26-extract                               exit 1   PASS 38   FAIL 14    0.8 min
+14:07:16Z  trace-order clean -> exit 0 PASS 28 FAIL 0
+14:10:29Z  trace-order no-messageid -> exit 1 PASS 24 FAIL 4
+14:12:24Z  unit-no-concurrency-token -> Failed!  - Failed:     6, Passed:    48, Skipped:     0, Total:    54, Duration: 18 s - FlashSale.OrderService.Tests.dll (net10.0)
+14:12:24Z  ALL DONE

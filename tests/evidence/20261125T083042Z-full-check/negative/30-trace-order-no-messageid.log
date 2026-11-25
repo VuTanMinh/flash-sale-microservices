@@ -1,0 +1,152 @@
+﻿# trace-order.ps1 -Container verify-env-pg -DbPort 56432; repo E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\trace-no-messageid at 4fb353f+no-messageid; started 2026-11-25T14:08:58.5387626Z
+== Environment
+PASS  all three services up; every queue and DLQ declared -- OrderPlaced=0,StockReserved=0,StockRejected=0,OrderProcessingStarted=0,OrderProcessed=0,ProcessWorker.StockReserved=0,OrderPlaced.dlq=0,StockReserved.dlq=0,StockRejected.dlq=0,OrderProcessingStarted.dlq=0,OrderProcessed.dlq=0,ProcessWorker.StockReserved.dlq=0
+PASS  warm-up: tr-140859 has 20 units
+PASS  warm-up: tr-rej-140859 is open with 0 units
+== 1. Success
+PASS  ok: order accepted -- order=76c0c105-65d9-4bd8-b782-4c7408ef865d
+== 2. Stock rejection
+PASS  reject: order accepted -- order=80809f16-cabc-41d2-b13d-d4901308a625
+== 3. Recovered fault (Order Inbox INSERT revoked ~3 s)
+PASS  fault: order accepted and a retry happened while the grant was revoked -- order=db1d94a5-a553-42c1-9978-c7bf42d5a4bf retried=True
+== Trace: ok (CorrelationId trace-ok-140859, order 76c0c105-65d9-4bd8-b782-4c7408ef865d)
+PASS  ok: final state is Completed -- state=Completed
+   -- timeline: ok (17 log lines)
+      2026-11-25T14:10:02.0248126Z  FlashSale.OrderService       Executing endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:02.0765234Z  FlashSale.OrderService       Route matched with {action = "CreateOrder", controller = "Orders", area = "", page = ""}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.ActionResult`1[FlashSale.OrderService.Controllers.OrdersController+OrderResponse]] CreateOrderAsync(CreateOrderRequest, System.String) on controller FlashSale.OrderService.Controllers.OrdersController (FlashSale.OrderService).
+      2026-11-25T14:10:02.7510032Z  FlashSale.OrderService       Executing ObjectResult, writing value of type 'FlashSale.OrderService.Controllers.OrdersController+OrderResponse'.
+      2026-11-25T14:10:02.7933555Z  FlashSale.OrderService       Executed action FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService) in 710.4836ms
+      2026-11-25T14:10:02.7943205Z  FlashSale.OrderService       Executed endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:03.9348801Z  FlashSale.InventoryService   Received OrderPlaced 469d1c01-20ed-4ffe-b243-f4e91aab8cd0 for order 76c0c105-65d9-4bd8-b782-4c7408ef865d
+      2026-11-25T14:10:04.4013579Z  FlashSale.InventoryService   OrderPlaced 76c0c105-65d9-4bd8-b782-4c7408ef865d for product tr-140859 -> Reserved
+      2026-11-25T14:10:06.4797235Z  FlashSale.OrderService       Received StockReserved a977cf03-77c6-461c-b1a8-af44da8bff68 for order 76c0c105-65d9-4bd8-b782-4c7408ef865d
+      2026-11-25T14:10:06.5969815Z  FlashSale.OrderService       Order 76c0c105-65d9-4bd8-b782-4c7408ef865d -> Confirmed
+      2026-11-25T14:10:06.8863631Z  FlashSale.ProcessWorker      Received StockReserved for order 76c0c105-65d9-4bd8-b782-4c7408ef865d; starting downstream processing
+      2026-11-25T14:10:06.8964300Z  FlashSale.ProcessWorker      Connecting to RabbitMQ at localhost:5696
+      2026-11-25T14:10:06.9969538Z  FlashSale.OrderService       Received OrderProcessingStarted 6c214a18-460e-215d-8088-af73bd2e1559 for order 76c0c105-65d9-4bd8-b782-4c7408ef865d
+      2026-11-25T14:10:07.0189515Z  FlashSale.OrderService       Order 76c0c105-65d9-4bd8-b782-4c7408ef865d -> Processing
+      2026-11-25T14:10:07.2375260Z  FlashSale.ProcessWorker      Connecting to RabbitMQ at localhost:5696
+      2026-11-25T14:10:07.3197454Z  FlashSale.OrderService       Received OrderProcessed 76c0c105-65d9-4bd8-b782-4c7408ef865d for order 76c0c105-65d9-4bd8-b782-4c7408ef865d
+      2026-11-25T14:10:07.3356293Z  FlashSale.ProcessWorker      Order 76c0c105-65d9-4bd8-b782-4c7408ef865d processed in 430ms; published OrderProcessed
+      2026-11-25T14:10:07.3429000Z  FlashSale.OrderService       Order 76c0c105-65d9-4bd8-b782-4c7408ef865d -> Completed
+FAIL  ok: every expected hop is in the trace (10 hops) -- missing: Worker received StockReserved
+PASS  ok: the same CorrelationId appears in 3 services' logs, each line tagged with its Service -- services=3
+FAIL  ok: the MessageIds link up across services -- OrderPlaced outbox=469d1c01-20ed-4ffe-b243-f4e91aab8cd0 inventory-received=469d1c01-20ed-4ffe-b243-f4e91aab8cd0; StockReserved outbox=a977cf03-77c6-461c-b1a8-af44da8bff68 order-received=a977cf03-77c6-461c-b1a8-af44da8bff68; worker-received=; start=6c214a18-460e-215d-8088-af73bd2e1559 (derived 6c214a18-460e-215d-8088-af73bd2e1559); completion=76c0c105-65d9-4bd8-b782-4c7408ef865d
+   -- stage timestamps: accepted=2026-11-25 14:10:02.271669 published=2026-11-25 14:10:03.766031 decided=2026-11-25 14:10:04.410757 applied=2026-11-25 14:10:06.559745 completed=2026-11-25 14:10:07.333926
+   -- intervals: accept->publish 1,494.4 ms; accept->decide 2,139.1 ms; decide->apply 2,149.0 ms; apply->complete 774.2 ms; accept->complete 5,062.3 ms
+PASS  ok: every stage timestamp is present; acceptance <= publication and acceptance <= decision <= applied <= completion -- 2026-11-25 14:10:02.271669 / pub 2026-11-25 14:10:03.766031 / 2026-11-25 14:10:04.410757 / 2026-11-25 14:10:06.559745 / 2026-11-25 14:10:07.333926
+PASS  ok: the history (by Seq) is PendingStock -> Confirmed -> Processing -> Completed -- history=PendingStock,Confirmed,Processing,Completed
+PASS  ok: the API polling response shows the same state and history -- api-state=Completed api-history=PendingStock,Confirmed,Processing,Completed
+== Trace: reject (CorrelationId trace-reject-140859, order 80809f16-cabc-41d2-b13d-d4901308a625)
+PASS  reject: final state is Rejected -- state=Rejected
+   -- timeline: reject (9 log lines)
+      2026-11-25T14:10:07.6528049Z  FlashSale.OrderService       Executing endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:07.6532814Z  FlashSale.OrderService       Route matched with {action = "CreateOrder", controller = "Orders", area = "", page = ""}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.ActionResult`1[FlashSale.OrderService.Controllers.OrdersController+OrderResponse]] CreateOrderAsync(CreateOrderRequest, System.String) on controller FlashSale.OrderService.Controllers.OrdersController (FlashSale.OrderService).
+      2026-11-25T14:10:07.6743340Z  FlashSale.OrderService       Executing ObjectResult, writing value of type 'FlashSale.OrderService.Controllers.OrdersController+OrderResponse'.
+      2026-11-25T14:10:07.6755377Z  FlashSale.OrderService       Executed action FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService) in 22.1353ms
+      2026-11-25T14:10:07.6756337Z  FlashSale.OrderService       Executed endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:07.9440399Z  FlashSale.InventoryService   Received OrderPlaced aff2669c-d653-45d0-9815-788692bd809c for order 80809f16-cabc-41d2-b13d-d4901308a625
+      2026-11-25T14:10:07.9526453Z  FlashSale.InventoryService   OrderPlaced 80809f16-cabc-41d2-b13d-d4901308a625 for product tr-rej-140859 -> Rejected
+      2026-11-25T14:10:08.5402030Z  FlashSale.OrderService       Received StockRejected 022ec926-903c-46aa-8872-29d468b3d65f for order 80809f16-cabc-41d2-b13d-d4901308a625
+      2026-11-25T14:10:08.5567198Z  FlashSale.OrderService       Order 80809f16-cabc-41d2-b13d-d4901308a625 -> Rejected
+PASS  reject: every expected hop is in the trace (6 hops) -- missing: 
+PASS  reject: the same CorrelationId appears in 2 services' logs, each line tagged with its Service -- services=2
+PASS  reject: the MessageIds link up across services -- OrderPlaced outbox=aff2669c-d653-45d0-9815-788692bd809c inventory-received=aff2669c-d653-45d0-9815-788692bd809c; StockRejected outbox=022ec926-903c-46aa-8872-29d468b3d65f order-received=022ec926-903c-46aa-8872-29d468b3d65f
+   -- stage timestamps: accepted=2026-11-25 14:10:07.661512 published=2026-11-25 14:10:07.937604 decided=2026-11-25 14:10:07.956154 applied=2026-11-25 14:10:08.546496 completed=-
+   -- intervals: accept->publish 276.1 ms; accept->decide 294.6 ms; decide->apply 590.3 ms
+PASS  reject: every stage timestamp is present; acceptance <= publication and acceptance <= decision <= applied -- 2026-11-25 14:10:07.661512 / pub 2026-11-25 14:10:07.937604 / 2026-11-25 14:10:07.956154 / 2026-11-25 14:10:08.546496
+PASS  reject: a rejected order has no completion time -- completed=-
+PASS  reject: the history (by Seq) is PendingStock -> Rejected -- history=PendingStock,Rejected
+PASS  reject: the API polling response shows the same state and history -- api-state=Rejected api-history=PendingStock,Rejected
+== Trace: fault (CorrelationId trace-fault-140859, order db1d94a5-a553-42c1-9978-c7bf42d5a4bf)
+PASS  fault: final state is Completed -- state=Completed
+   -- timeline: fault (27 log lines)
+      2026-11-25T14:10:09.6763741Z  FlashSale.OrderService       Executing endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:09.6766145Z  FlashSale.OrderService       Route matched with {action = "CreateOrder", controller = "Orders", area = "", page = ""}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.ActionResult`1[FlashSale.OrderService.Controllers.OrdersController+OrderResponse]] CreateOrderAsync(CreateOrderRequest, System.String) on controller FlashSale.OrderService.Controllers.OrdersController (FlashSale.OrderService).
+      2026-11-25T14:10:09.6904133Z  FlashSale.OrderService       Executing ObjectResult, writing value of type 'FlashSale.OrderService.Controllers.OrdersController+OrderResponse'.
+      2026-11-25T14:10:09.6907985Z  FlashSale.OrderService       Executed action FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService) in 14.1242ms
+      2026-11-25T14:10:09.6908497Z  FlashSale.OrderService       Executed endpoint 'FlashSale.OrderService.Controllers.OrdersController.CreateOrderAsync (FlashSale.OrderService)'
+      2026-11-25T14:10:09.9740000Z  FlashSale.InventoryService   Received OrderPlaced b7cf5749-fa4e-49e1-8aa2-91146b0be25a for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:09.9807075Z  FlashSale.InventoryService   OrderPlaced db1d94a5-a553-42c1-9978-c7bf42d5a4bf for product tr-140859 -> Reserved
+      2026-11-25T14:10:10.5815268Z  FlashSale.OrderService       Received StockReserved b320f317-ef0c-4483-89a3-991bb0cf5ecb for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:10.5817981Z  FlashSale.ProcessWorker      Received StockReserved for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf; starting downstream processing
+      2026-11-25T14:10:10.5925510Z  FlashSale.OrderService       Received OrderProcessingStarted 62364013-0e07-a057-86cd-dd6d644856ba for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:10.5985232Z  FlashSale.OrderService       OrderProcessingStarted 62364013-0e07-a057-86cd-dd6d644856ba for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf arrived before its StockReserved; requeuing attempt 1/3 to 'OrderProcessingStarted.retry.1'
+      2026-11-25T14:10:10.6383043Z  FlashSale.OrderService       An exception occurred in the database while saving changes for context type 'FlashSale.OrderService.Data.OrderServiceDbContext'.
+Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving the entity changes. See the inner exception for details.
+ ---> Npgsql.PostgresException (0x80004005): 42501: permission denied for table processed_messages
+   at Npgsql.Internal.NpgsqlConnector.ReadMessageLong(Boolean async, DataRowLoadingMode dataRowLoadingMode, Boolean readingNotifications, Boolean isReadingPrependedMessage)
+   at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+   at Npgsql.NpgsqlDataReader.NextResult(Boolean async, Boolean isConsuming, CancellationToken cancellationToken)
+   at Npgsql.NpgsqlDataReader.NextResult(Boolean async, Boolean isConsuming, CancellationToken cancellationToken)
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Update.Internal.NpgsqlModificationCommandBatch.Consume(RelationalDataReader reader, Boolean async, CancellationToken cancellationToken)
+  Exception data:
+    Severity: ERROR
+    SqlState: 42501
+    MessageText: permission denied for table processed_messages
+    File: aclchk.c
+    Line: 2812
+    Routine: aclcheck_error
+   --- End of inner exception stack trace ---
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Update.Internal.NpgsqlModificationCommandBatch.Consume(RelationalDataReader reader, Boolean async, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal.NpgsqlExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+      2026-11-25T14:10:10.6398153Z  FlashSale.OrderService       Failed to process StockReserved b320f317-ef0c-4483-89a3-991bb0cf5ecb for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf (attempt 1/4); retrying in 00:00:01
+      2026-11-25T14:10:10.8103860Z  FlashSale.OrderService       Received OrderProcessed db1d94a5-a553-42c1-9978-c7bf42d5a4bf for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:10.8180801Z  FlashSale.OrderService       OrderProcessed db1d94a5-a553-42c1-9978-c7bf42d5a4bf for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf arrived before its StockReserved; requeuing attempt 1/3 to 'OrderProcessed.retry.1'
+      2026-11-25T14:10:10.8195441Z  FlashSale.ProcessWorker      Order db1d94a5-a553-42c1-9978-c7bf42d5a4bf processed in 237ms; published OrderProcessed
+      2026-11-25T14:10:11.6551282Z  FlashSale.OrderService       An exception occurred in the database while saving changes for context type 'FlashSale.OrderService.Data.OrderServiceDbContext'.
+Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving the entity changes. See the inner exception for details.
+ ---> Npgsql.PostgresException (0x80004005): 42501: permission denied for table processed_messages
+   at Npgsql.Internal.NpgsqlConnector.ReadMessageLong(Boolean async, DataRowLoadingMode dataRowLoadingMode, Boolean readingNotifications, Boolean isReadingPrependedMessage)
+   at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+   at Npgsql.NpgsqlDataReader.NextResult(Boolean async, Boolean isConsuming, CancellationToken cancellationToken)
+   at Npgsql.NpgsqlDataReader.NextResult(Boolean async, Boolean isConsuming, CancellationToken cancellationToken)
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Update.Internal.NpgsqlModificationCommandBatch.Consume(RelationalDataReader reader, Boolean async, CancellationToken cancellationToken)
+  Exception data:
+    Severity: ERROR
+    SqlState: 42501
+    MessageText: permission denied for table processed_messages
+    File: aclchk.c
+    Line: 2812
+    Routine: aclcheck_error
+   --- End of inner exception stack trace ---
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Update.Internal.NpgsqlModificationCommandBatch.Consume(RelationalDataReader reader, Boolean async, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal.NpgsqlExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+      2026-11-25T14:10:11.6554706Z  FlashSale.OrderService       Failed to process StockReserved b320f317-ef0c-4483-89a3-991bb0cf5ecb for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf (attempt 2/4); retrying in 00:00:02
+      2026-11-25T14:10:12.6047570Z  FlashSale.OrderService       Received OrderProcessingStarted 62364013-0e07-a057-86cd-dd6d644856ba for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:12.6092976Z  FlashSale.OrderService       OrderProcessingStarted 62364013-0e07-a057-86cd-dd6d644856ba for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf arrived before its StockReserved; requeuing attempt 2/3 to 'OrderProcessingStarted.retry.2'
+      2026-11-25T14:10:12.8241450Z  FlashSale.OrderService       Received OrderProcessed db1d94a5-a553-42c1-9978-c7bf42d5a4bf for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:12.8283564Z  FlashSale.OrderService       OrderProcessed db1d94a5-a553-42c1-9978-c7bf42d5a4bf for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf arrived before its StockReserved; requeuing attempt 2/3 to 'OrderProcessed.retry.2'
+      2026-11-25T14:10:13.6797400Z  FlashSale.OrderService       Order db1d94a5-a553-42c1-9978-c7bf42d5a4bf -> Confirmed
+      2026-11-25T14:10:16.6128997Z  FlashSale.OrderService       Received OrderProcessingStarted 62364013-0e07-a057-86cd-dd6d644856ba for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:16.6254755Z  FlashSale.OrderService       Order db1d94a5-a553-42c1-9978-c7bf42d5a4bf -> Processing
+      2026-11-25T14:10:16.8317695Z  FlashSale.OrderService       Received OrderProcessed db1d94a5-a553-42c1-9978-c7bf42d5a4bf for order db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+      2026-11-25T14:10:16.8422316Z  FlashSale.OrderService       Order db1d94a5-a553-42c1-9978-c7bf42d5a4bf -> Completed
+FAIL  fault: every expected hop is in the trace (11 hops) -- missing: Worker received StockReserved
+PASS  fault: the same CorrelationId appears in 3 services' logs, each line tagged with its Service -- services=3
+FAIL  fault: the MessageIds link up across services -- OrderPlaced outbox=b7cf5749-fa4e-49e1-8aa2-91146b0be25a inventory-received=b7cf5749-fa4e-49e1-8aa2-91146b0be25a; StockReserved outbox=b320f317-ef0c-4483-89a3-991bb0cf5ecb order-received=b320f317-ef0c-4483-89a3-991bb0cf5ecb; worker-received=; start=62364013-0e07-a057-86cd-dd6d644856ba (derived 62364013-0e07-a057-86cd-dd6d644856ba); completion=db1d94a5-a553-42c1-9978-c7bf42d5a4bf
+   -- stage timestamps: accepted=2026-11-25 14:10:09.681389 published=2026-11-25 14:10:09.969081 decided=2026-11-25 14:10:09.980858 applied=2026-11-25 14:10:13.671909 completed=2026-11-25 14:10:16.835886
+   -- intervals: accept->publish 287.7 ms; accept->decide 299.5 ms; decide->apply 3,691.1 ms; apply->complete 3,164.0 ms; accept->complete 7,154.5 ms
+PASS  fault: every stage timestamp is present; acceptance <= publication and acceptance <= decision <= applied <= completion -- 2026-11-25 14:10:09.681389 / pub 2026-11-25 14:10:09.969081 / 2026-11-25 14:10:09.980858 / 2026-11-25 14:10:13.671909 / 2026-11-25 14:10:16.835886
+PASS  fault: the history (by Seq) is PendingStock -> Confirmed -> Processing -> Completed -- history=PendingStock,Confirmed,Processing,Completed
+PASS  fault: the API polling response shows the same state and history -- api-state=Completed api-history=PendingStock,Confirmed,Processing,Completed
+4 check(s) failed.
+Exit code: 1

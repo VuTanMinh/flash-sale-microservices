@@ -1,0 +1,113 @@
+﻿# verify-environment.ps1 -Mode Fresh -Keep -Port 56432 -SkipBuild; repo E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\unit-no-concurrency-token at 4fb353f+unit; started 2026-11-25T14:10:49.0097207Z
+
+== SDK and build
+PASS  .NET SDK 10.0.300 matches global.json 10.0.300 (latestPatch)
+PASS  Order Service signing certificate (openiddict.pfx) present
+
+== Throwaway PostgreSQL (Fresh) on port 56432
+PASS  temporary database is up
+PASS  initdb created schemas with service owners
+
+== Migrations with the dedicated accounts
+PASS  FlashSale.OrderService migrations (as its own account)
+FAIL  FlashSale.InventoryService migrations exit=1; see C:\Users\Lenovo\AppData\Local\Temp\FlashSale.InventoryService-migrate.log
+Using launch settings from FlashSale.InventoryService\Properties\launchSettings.json...
+dotnet : Unhandled exception: An error occurred trying to start process 'E:\Agent_Memory\DACNTT\negscratch-20261125T083
+042Z\unit-no-concurrency-token\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.exe' with 
+working directory 
+'E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\unit-no-concurrency-token\src\FlashSale.InventoryService'. The 
+system cannot find the file specified.
+At E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\unit-no-concurrency-token\scripts\verify-environment.ps1:52 
+char:9
++         dotnet run --project $project --no-build --migrate-database * ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Unhandled excep...file specified.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+== Baseline (C0/C1) schema
+PASS  baseline schema applied
+
+== Order Service starts against this database (own account)
+PASS  Order Service started; POST /api/c1/orders returned 200 Rejected for an unstocked product
+PASS  GET /api/orders/{unknown id} returned 404
+
+== Account isolation
+PASS  order_service_user: SELECT count(*) FROM order_service.orders -> allowed
+PASS  order_service_user: UPDATE order_service.inventory SET stock = stock WHERE false -> allowed
+PASS  order_service_user: SELECT count(*) FROM public."AbpUsers" -> allowed
+PASS  order_service_user: SELECT count(*) FROM inventory_service.outbox_events -> denied
+FAIL  inventory_service_user: SELECT count(*) FROM inventory_service.outbox_events -> allowed (got: docker : psql:<stdin>:1: ERROR:  relation "inventory_service.outbox_events" does not exist
+At E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\unit-no-concurrency-token\scripts\verify-environment.ps1:41 
+char:19
++ ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $container psql  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (psql:<stdin>:1:... does not exist:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+LINE 1: SELECT count(*) FROM inventory_service.outbox_events
+                             ^)
+PASS  inventory_service_user: SELECT count(*) FROM order_service.orders -> denied
+PASS  inventory_service_user: SELECT count(*) FROM public."AbpUsers" -> denied
+
+== Schema matches docs/erd.md
+PASS  order_service has exactly the documented tables
+FAIL  inventory_service has exactly the documented tables
+      expected: inventory_service.__EFMigrationsHistory, inventory_service.outbox_events, inventory_service.processed_messages
+      actual:   
+PASS  order_service.orders columns
+PASS  order_service.orders unique constraints
+PASS  order_service.orders owner
+PASS  order_service.outbox_events columns
+PASS  order_service.outbox_events unique constraints
+PASS  order_service.outbox_events owner
+PASS  order_service.processed_messages columns
+PASS  order_service.processed_messages unique constraints
+PASS  order_service.processed_messages owner
+PASS  order_service.order_status_history columns
+PASS  order_service.order_status_history unique constraints
+PASS  order_service.order_status_history owner
+PASS  order_service.inventory columns
+PASS  order_service.inventory unique constraints
+PASS  order_service.inventory owner
+PASS  order_service.baseline_orders columns
+PASS  order_service.baseline_orders unique constraints
+PASS  order_service.baseline_orders owner
+FAIL  inventory_service.outbox_events columns
+      expected: CreatedAt:timestamp, EventType:text, Id:uuid, OrderId:uuid, Payload:jsonb, Published:boolean, PublishedAt:timestamp?
+      actual:   
+FAIL  inventory_service.outbox_events unique constraints
+      expected: OrderId
+      actual:   
+FAIL  inventory_service.outbox_events owner
+      expected: inventory_service_user
+      actual:   
+FAIL  inventory_service.processed_messages columns
+      expected: Id:uuid, MessageId:uuid, MessageType:text, ProcessedAt:timestamp
+      actual:   
+FAIL  inventory_service.processed_messages unique constraints
+      expected: MessageId
+      actual:   
+FAIL  inventory_service.processed_messages owner
+      expected: inventory_service_user
+      actual:   
+PASS  no foreign keys in service schemas
+PASS  public holds 37 ABP/OpenIddict tables
+PASS  public holds nothing else except Order Service migration history
+PASS  public tables owned by order_service_user
+PASS  Order Service migrations all applied (public history)
+psql:<stdin>:1: ERROR:  relation "inventory_service.__EFMigrationsHistory" does not exist
+LINE 1: SELECT "MigrationId" FROM inventory_service."__EFMigrationsH...
+                                  ^
+psql failed: SELECT "MigrationId" FROM inventory_service."__EFMigrationsHistory"
+At E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\unit-no-concurrency-token\scripts\verify-erd.ps1:26 char:32
++     if ($LASTEXITCODE -ne 0) { throw "psql failed: $sql" }
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (psql failed: SE...rationsHistory":String) [], RuntimeException
+    + FullyQualifiedErrorId : psql failed: SELECT "MigrationId" FROM inventory_service."__EFMigrationsHistory"
+ 
+FAIL  verify-erd.ps1
+
+3 check(s) failed (Fresh).
+
+Exit code: 1

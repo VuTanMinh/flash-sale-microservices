@@ -1,0 +1,11 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\src\FlashSale.EventContracts\bin\Release\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\src\FlashSale.ProcessWorker\bin\Release\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.ProcessWorker.Tests -> E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z\tests\FlashSale.ProcessWorker.Tests\bin\Release\net10.0\FlashSale.ProcessWorker.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.81

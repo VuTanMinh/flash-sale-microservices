@@ -1,0 +1,19 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 618 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 618 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 710 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\tests\FlashSale.InventoryService.Tests\FlashSale.InventoryService.Tests.csproj (in 710 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 715 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 715 ms).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.InventoryService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-ack-before-commit\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:09.01

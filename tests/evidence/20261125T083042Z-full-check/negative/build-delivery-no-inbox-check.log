@@ -1,0 +1,19 @@
+﻿  Determining projects to restore...
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.EventContracts\FlashSale.EventContracts.csproj (in 833 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.ProcessWorker\FlashSale.ProcessWorker.csproj (in 833 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.InventoryService\FlashSale.InventoryService.csproj (in 946 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\tests\FlashSale.InventoryService.Tests\FlashSale.InventoryService.Tests.csproj (in 946 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.OrderService\FlashSale.OrderService.csproj (in 986 ms).
+  Restored E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\tests\FlashSale.OrderService.Tests\FlashSale.OrderService.Tests.csproj (in 987 ms).
+  FlashSale.EventContracts -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.EventContracts\bin\Debug\net10.0\FlashSale.EventContracts.dll
+  FlashSale.ProcessWorker -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.ProcessWorker\bin\Debug\net10.0\FlashSale.ProcessWorker.dll
+  FlashSale.InventoryService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.InventoryService\bin\Debug\net10.0\FlashSale.InventoryService.dll
+  FlashSale.InventoryService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\tests\FlashSale.InventoryService.Tests\bin\Debug\net10.0\FlashSale.InventoryService.Tests.dll
+  FlashSale.OrderService -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\src\FlashSale.OrderService\bin\Debug\net10.0\FlashSale.OrderService.dll
+  FlashSale.OrderService.Tests -> E:\Agent_Memory\DACNTT\negscratch-20261125T083042Z\delivery-no-inbox-check\tests\FlashSale.OrderService.Tests\bin\Debug\net10.0\FlashSale.OrderService.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:12.67

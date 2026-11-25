@@ -1,0 +1,38 @@
+﻿08:30:48Z  clone E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z at cbc3f59
+08:31:26Z  builds done, total errors: 0
+08:33:21Z  static verifiers done
+08:34:42Z  erd|-Container verify-env-pg -> 02-erd                                   exit 0   PASS 32   FAIL 0     0.2 min
+08:35:31Z  reset-seed|-Container verify-env-pg -> 04-reset-seed                            exit 0   PASS 8    FAIL 0     0.1 min
+08:37:30Z  validator|-Container verify-env-pg -> 06-validator                             exit 0   PASS 28   FAIL 0     1.3 min
+08:39:01Z  real-runs|-Container verify-env-pg -DbPort 56432 -> 08-real-runs                             exit 0   PASS 7    FAIL 0     0.8 min
+08:40:26Z  workflow|-Container verify-env-pg -DbPort 56432 -> 10-workflow                              exit 1   PASS 65   FAIL 1     0.7 min
+08:41:50Z  RERUN workflow|-Container verify-env-pg -DbPort 56432 -> 12-workflow                              exit 1   PASS 65   FAIL 1     0.7 min
+08:41:50Z  STOPPED: workflow|-Container verify-env-pg -DbPort 56432 failed twice
+10:47:23Z  clone E:\Agent_Memory\DACNTT\fullcheck-20261125T083042Z at 4fb353f
+10:47:23Z  RESUME from workflow at 13
+10:49:27Z  workflow|-Container verify-env-pg -DbPort 56432 -> 14-workflow                              exit 0   PASS 66   FAIL 0     0.7 min
+10:51:00Z  outbox|-Container verify-env-pg -DbPort 56432 -> 16-outbox                                exit 0   PASS 12   FAIL 0     0.8 min
+10:53:59Z  publication|-Container verify-env-pg -DbPort 56432 -> 18-publication                           exit 0   PASS 18   FAIL 0     2.2 min
+10:55:32Z  inventory|-Container verify-env-pg -DbPort 56432 -> 20-inventory                             exit 0   PASS 36   FAIL 0     0.8 min
+10:57:01Z  cross-store|-Container verify-env-pg -DbPort 56432 -> 22-cross-store                           exit 0   PASS 11   FAIL 0     0.8 min
+10:58:34Z  stock-results|-Container verify-env-pg -DbPort 56432 -> 24-stock-results                         exit 0   PASS 10   FAIL 0     0.8 min
+11:00:04Z  db-exceptions|-Container verify-env-pg -DbPort 56432 -> 26-db-exceptions                         exit 0   PASS 7    FAIL 0     0.7 min
+11:04:06Z  delivery|-Container verify-env-pg -DbPort 56432 -> 28-delivery                              exit 0   PASS 41   FAIL 0     3.3 min
+11:08:17Z  delivery|-Container verify-env-pg -DbPort 56432 -NegativeControlForgetReservation -> 30-delivery-negative                     exit 1   PASS 38   FAIL 3     3.5 min
+11:12:23Z  delivery-ordering|-Container verify-env-pg -DbPort 56432 -> 32-delivery-ordering                     exit 0   PASS 44   FAIL 0     3.2 min
+11:19:13Z  failures|-Container verify-env-pg -DbPort 56432 -> 34-failures                              exit 0   PASS 74   FAIL 0     5.8 min
+11:24:09Z  reconciliation|-Container verify-env-pg -DbPort 56432 -> 36-reconciliation                        exit 0   PASS 35   FAIL 0       4 min
+11:29:31Z  processing|-Container verify-env-pg -DbPort 56432 -> 38-processing                            exit 0   PASS 41   FAIL 0     4.5 min
+11:38:57Z  worker|-Container verify-env-pg -DbPort 56432 -> 40-worker                                exit 0   PASS 56   FAIL 0     8.6 min
+11:41:50Z  metrics|-Container verify-env-pg -DbPort 56432 -> 42-metrics                               exit 0   PASS 17   FAIL 0     1.9 min
+11:45:45Z  message-timestamps|-Container verify-env-pg -DbPort 56432 -> 44-message-timestamps                    exit 0   PASS 40   FAIL 0       3 min
+11:48:49Z  extract|-Container verify-env-pg -DbPort 56432 -> 46-extract                               exit 0   PASS 57   FAIL 0     2.2 min
+11:56:58Z  load-shedding|-Container verify-env-pg -DbPort 56432 -> 48-load-shedding                         exit 0   PASS 45   FAIL 0     7.4 min
+11:58:34Z  replicas|-Container verify-env-pg -DbPort 56432 -> 50-replicas                              exit 0   PASS 5    FAIL 0     0.7 min
+12:03:00Z  run-collector|-Container verify-env-pg -DbPort 56432 -> 52-run-collector                         exit 0   PASS 30   FAIL 0     3.5 min
+12:06:53Z  write-failures|-Container verify-env-pg -DbPort 56432 -> 54-write-failures                        exit 0   PASS 40   FAIL 0       3 min
+12:37:47Z  ec2-stack -> 55-ec2-stack                             exit 0   PASS 89   FAIL 0    30.9 min
+12:39:18Z  unit tests done: Passed!  - Failed:     0, Passed:     3, Skipped:     0, Total:     3, Duration: 5 s - FlashSale.InventoryService.Tests.dll (net10.0) | Passed!  - Failed:     0, Passed:   104, Skipped:     0, Total:   104, Duration: 16 s - FlashSale.OrderService.Tests.dll (net10.0) | Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 311 ms - FlashSale.ProcessWorker.Tests.dll (net10.0)
+12:40:16Z  order service on 5100 up: True
+12:40:29Z  order-api -> 58-order-api                             exit 0   PASS 30   FAIL 0     0.2 min; HTTP 500 lines in service log: 0
+12:40:29Z  ALL DONE
