@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore src/FlashSale.OrderService.slnx
+
+      - name: Build
+        run: dotnet build src/FlashSale.OrderService.slnx --no-restore -c Release
+
+      - name: Test OrderService
+        run: dotnet test tests/FlashSale.OrderService.Tests/FlashSale.OrderService.Tests.csproj -c Release --no-build --logger "trx;LogFileName=order-service.trx"
+
+      - name: Test InventoryService
+        run: dotnet test tests/FlashSale.InventoryService.Tests/FlashSale.InventoryService.Tests.csproj -c Release --no-build --logger "trx;LogFileName=inventory-service.trx"
+
+      - name: Test ProcessWorker
+        # Not part of the solution: restore + build it from its own csproj
+        # (dotnet test restores and builds implicitly).
+        run: dotnet test tests/FlashSale.ProcessWorker.Tests/FlashSale.ProcessWorker.Tests.csproj -c Release --logger "trx;LogFileName=process-worker.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/*.trx'
+
+  postgres-race:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flashsale
+          POSTGRES_PASSWORD: flashsale_dev
+          POSTGRES_DB: flashsale
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flashsale -d flashsale"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Npgsql connection string for the admin account that
+      # OrderStateRacePostgresTests uses to CREATE/DROP its throwaway DB.
+      FLASHSALE_TEST_PG: "Host=localhost;Port=5432;Database=flashsale;Username=flashsale;Password=flashsale_dev"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore src/FlashSale.OrderService.slnx
+
+      - name: Build
+        run: dotnet build src/FlashSale.OrderService.slnx --no-restore -c Release
+
+      - name: Test PostgreSQL race cases
+        run: dotnet test tests/FlashSale.OrderService.Tests/FlashSale.OrderService.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~OrderStateRacePostgresTests" --logger "trx;LogFileName=postgres-race.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-race-results
+          path: '**/*.trx'
