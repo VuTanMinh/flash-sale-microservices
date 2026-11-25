@@ -206,11 +206,21 @@ A re-trigger must not lose a decision Inventory already made. When Inventory's
 result Outbox row that is `Published` (the result was sent, but Order Service
 lost the copy — most likely dead-lettered and the DLQ purged), it re-queues that
 **same stored result** for re-publication: same payload, same `MessageId`, no
-second Lua deduction (`reserve.lua` already answered `DUPLICATE`) and no new
-result row. Order Service's Inbox then applies the copy exactly once — or
+new result row and no second deduction. Since 25 November 2026 (commit
+`e4375f5`) Inventory looks the stored result up **before** it calls
+`reserve.lua`, so Redis is not touched at all for an order that already has a
+result (before, `reserve.lua` ran first and answered `DUPLICATE`). Order Service's Inbox then applies the copy exactly once — or
 absorbs it as a no-op if it was somehow already applied. A reserved order stays
 reserved; a rejected order stays rejected; neither is rewritten as
 "out of stock".
+
+The new order also closes the one known gap of this mechanism. An order
+rejected with `NOT_OPEN` before warm-up, whose `OrderPlaced` was re-sent after
+the sale opened, used to take one unit in Redis while its stored result stayed
+`StockRejected` (an undersell of one unit, never an oversell). Now it stays
+rejected and takes nothing. `tests/FlashSale.InventoryService.Tests`
+(`OrderPlacedProcessorTests`) checks this with a Redis connection that fails
+on any use; with the old order put back, two of its three tests fail.
 
 ### Metrics
 
@@ -264,14 +274,17 @@ names each one ("stuck in Confirmed"/"stuck in Processing").
    and checks that it applies once.
 4. If the dead letter is gone, for example purged, do nothing by hand.
    Reconciliation re-sends the order's `OrderPlaced` after
-   `ProcessingStuckTimeoutSeconds` (TP-F02 case G). Inventory answers
-   `DUPLICATE` from Redis and re-sends the stored result without a second
-   deduction.
+   `ProcessingStuckTimeoutSeconds` (TP-F02 case G). Inventory finds the
+   order's stored result and re-sends it without calling Redis, so there is
+   no second deduction.
 
-Limit: step 4 relies on Redis still holding the order in `processed:{product}`.
-If Redis lost that set (no persistence guarantee is configured), the re-sent
-order would take a second unit: stock is lost, never oversold. This case is not
-injected, and automatic recovery is not claimed for it.
+Limit: since the stored result is checked first (25 November 2026), step 4
+no longer depends on Redis keeping the order in `processed:{product}`. That set
+still matters in one case: a crash between `reserve.lua` and the PostgreSQL
+save, when no stored result exists yet. If Redis lost the set then (no
+persistence guarantee is configured), the retry would take a second unit:
+stock is lost, never oversold. This case is not injected, and automatic
+recovery is not claimed for it.
 
 `scripts/verify-reconciliation.ps1` (test case TP-F02) proves detection,
 cadence, the bound, the alert, the metrics, the known-outcome recovery, and the

@@ -192,8 +192,10 @@ out-of-order case needs it, so nothing is racing accidentally:
    must not move.
 2. **Duplicate business event with a new `MessageId`.** The real `OrderPlaced`
    is delivered again, byte for byte, with a fresh `MessageId` — exactly what
-   `ReconciliationWorker` does. Redis answers `DUPLICATE`, no second unit is
-   deducted, and there is no second result Outbox row: the already-published
+   `ReconciliationWorker` does. Inventory finds the order's stored result before
+   it calls Redis (since 25 November 2026; before, Redis answered
+   `DUPLICATE`), so no second unit is deducted and there is no second result
+   Outbox row: the already-published
    result is re-sent instead (same payload, same `MessageId`), which Order
    Service's Inbox absorbs as a no-op. The same is done for the real
    `StockReserved` on a `Completed` order, which must stay a no-op.
