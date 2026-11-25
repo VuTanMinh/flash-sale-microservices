@@ -33,6 +33,13 @@ public class Program
             var builder = WebApplication.CreateBuilder(args);
             builder.Host.UseSerilog();
 
+            // verify-worker.ps1 case E1 waits 30 s for the Worker to exit after
+            // Ctrl+C, so the 30 s default HostOptions.ShutdownTimeout can race
+            // that check. Pin it to 15 s; this only shortens the wait and does
+            // not change the shutdown behaviour (in-flight orders still stay
+            // unacked and return to the queue).
+            builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(15));
+
             builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
             builder.Services.Configure<ProcessingOptions>(builder.Configuration.GetSection("Processing"));
             builder.Services.AddSingleton<OrderProcessedPublisher>();
