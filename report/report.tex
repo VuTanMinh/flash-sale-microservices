@@ -519,9 +519,19 @@ The results have the following limits:
     orders/s. At 100/s and above C3 and C4 therefore still accept faster than
     they complete, and accepted orders wait 57--69\,s at p95 to complete: the
     limits bound the backlog, not the wait.
-  \item A stock decision of \texttt{REJECTED} is not recorded in Redis, so a
-    redelivered message for a rejected order runs the reservation script again.
-    This is harmless (it rejects again), but it is work an Inbox would skip.
+  \item A stock decision of \texttt{REJECTED} is not recorded in Redis. Since
+    commit \texttt{e4375f5} (after the official runs) Inventory looks up its
+    stored result before it runs the reservation script, so a re-sent message
+    for an order that already has a result no longer reaches Redis. Only a
+    retry after a crash between the script and the database save runs the
+    script again for a rejected order; it rejects again, so this is harmless
+    work, not a wrong result.
+  \item The OpenIddict certificate passphrase and ABP's string-encryption
+    passphrases are development values committed in \texttt{appsettings.json}
+    (they can be overridden by environment variables). The experiments did
+    not use authentication: the gateway routes only the order endpoints and
+    answers 404 for every other path, so the authentication endpoints were
+    not reachable.
   \item The set of processed order IDs per product
     (\texttt{processed:\{product\}}) grows without bound; a long-running sale
     would need an expiry or a cleanup.
@@ -1362,7 +1372,7 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \end{tabular}
 \end{center}
 
-\paragraph{Known gaps in the supported model.} One remains: a \texttt{NOT\_OPEN} result re-sent after warm-up can undersell by one unit, never oversell; it is described after Table~\ref{tab:failure-modes}. Two earlier gaps are closed. An \texttt{OrderProcessed} that arrives while the order is still
+\paragraph{Known gaps in the supported model.} None remains open. The last one, a \texttt{NOT\_OPEN} result re-sent after warm-up that could undersell by one unit (never oversell), was closed after the official runs (commit \texttt{e4375f5}); it is described after Table~\ref{tab:failure-modes}. Two earlier gaps are closed as well. An \texttt{OrderProcessed} that arrives while the order is still
 \texttt{PendingStock} used to be dead-lettered. It is now requeued
 onto delayed retry queues and applied once the order is \texttt{Confirmed}
 (TP-M02). The
@@ -2611,8 +2621,10 @@ DLQ was purged. Inventory then saw that a result row existed and wrote
 nothing, so the order stayed stuck while being re-triggered forever. Now a
 re-triggered \texttt{OrderPlaced} for an order whose result was already
 published re-sends that \emph{same stored result}: the same payload and the
-same \texttt{MessageId}. There is no second Lua deduction
-(\texttt{reserve.lua} answers \texttt{DUPLICATE}) and no new row. Order
+same \texttt{MessageId}. There is no second deduction and no new row. In
+the code of the official runs \texttt{reserve.lua} ran first and answered
+\texttt{DUPLICATE}; since commit \texttt{e4375f5} Inventory finds the stored
+result first and does not call Redis at all. Order
 Service's Inbox applies the result once, or ignores it if it was already
 applied. A reserved order therefore stays reserved and is never rewritten as
 out of stock.
@@ -2746,13 +2758,23 @@ Redis data loss (F18) is the main unsupported case. After a Redis loss, the
 warm-up must be repeated before sales reopen. Whether Redis
 persistence survives a crash without loss has not been verified.
 
-One known gap is not in the table. Inventory runs the reservation script
-before it looks for a stored result, so an order rejected with
-\texttt{NOT\_OPEN} before warm-up, whose result is delayed past the
-reconciliation timeout and re-sent after the sale opens, takes one unit while
-the order stays \texttt{Rejected}; this can undersell by one unit but never
-oversell, the validator reports the mismatch, and it cannot occur in the
-official runs, where warm-up precedes every order.
+One gap that is not in the table was closed after the official runs. In
+the code of the official runs Inventory ran the reservation script before it
+looked for a stored result. An order rejected with \texttt{NOT\_OPEN} before
+warm-up, whose result was delayed past the reconciliation timeout and re-sent
+after the sale opened, therefore took one unit while the order stayed
+\texttt{Rejected}: an undersell of one unit, never an oversell. It could not
+occur in the official runs, where warm-up precedes every order. Commit
+\texttt{e4375f5} moves the lookup of the stored result before the script, so
+an order that already has a result never reaches Redis again. Three unit tests
+in \nolinkurl{tests/FlashSale.InventoryService.Tests} check this with a Redis
+connection that fails on any use; with the old order restored, the two
+stored-result tests fail. The full regression and the negative controls on the
+fixed code are in \nolinkurl{tests/evidence/20261125T083042Z-full-check}. One
+narrow window remains by design: after a crash between \texttt{reserve.lua}
+and the PostgreSQL save there is no stored result yet, so the retry runs the
+script again and relies on the order being in \texttt{processed:\{product\}}
+(it answers \texttt{DUPLICATE}); this case is verified (TP-M01, case 1b).
 
 Two rules hold for every row:
 \begin{itemize}
