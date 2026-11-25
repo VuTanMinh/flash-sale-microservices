@@ -734,7 +734,7 @@ processed idempotently~\cite{helland-beyond}. The order workflow here follows
 both ideas: each step is a local transaction in one service's schema, the steps
 are linked by at-least-once events, and every consumer has an Inbox. It has no
 compensation step, because the Process Worker is success-only and a rejected
-order simply ends \texttt{Rejected}. Laigner et al.\ surveyed how microservice
+order ends \texttt{Rejected}. Laigner et al.\ surveyed how microservice
 applications manage data, through a literature review, an analysis of
 open-source applications and a survey of over 120 practitioners and
 researchers; the challenges they report include keeping constraints across
@@ -1722,50 +1722,48 @@ Passed!  - Failed: 0, Passed: 43, Skipped: 0, Total: 43
 (Inventory Service) that stock should be reserved, the order write
 and the "notify" action become two separate operations against two separate
 systems (Postgres and RabbitMQ) that cannot be wrapped in one atomic
-transaction the way two SQL statements against the same database can. Naively
-sequencing them --- write the order, then publish an event --- exposes two
-distinct failure orderings, and a system that only handles one of them is
-still broken. This is the dual-write problem that the Transactional Outbox
-pattern solves~\cite{richardson-outbox,richardson-patterns}:
+transaction the way two SQL statements against the same database can. If
+they are run one after the other (write the order, then publish an
+event), two failure orderings are possible, and a system that handles only
+one of them is still broken. This is the dual-write problem that the
+Transactional Outbox pattern solves~\cite{richardson-outbox,richardson-patterns}:
 
 \begin{enumerate}
   \item \textbf{The database commits but the publish fails.} The order now
     exists in \texttt{PendingStock} with no corresponding event ever sent.
-    Nothing will ever move it out of \texttt{PendingStock} -- it is silently
-    stuck forever, and neither the client nor any operator has any signal
-    that anything is wrong.
+    Nothing moves it out of \texttt{PendingStock}, so it stays there, and
+    neither the client nor an operator gets any sign that something is
+    wrong.
   \item \textbf{The publish succeeds but the database transaction rolls
     back} (or the process crashes between the two steps). Inventory Service
     now receives an \texttt{OrderPlaced} event for an order that, as far as
     Order Service's own database is concerned, never happened. It may
-    reserve real stock against a phantom order that no client will ever be
-    able to query or complete.
+    reserve real stock for an order that no client can query or complete.
 \end{enumerate}
 
 Both failures share a root cause: two systems that must agree with each
 other are being updated as if they were one, with no mechanism enforcing
-that they actually end up agreeing.
+that they end up agreeing.
 
-\paragraph{How the Outbox pattern eliminates both.} Rather than publishing
+\paragraph{How the Outbox pattern eliminates both.} Instead of publishing
 directly, the order-creation handler writes two rows to \emph{one}
-database -- the \texttt{orders} row and a row in \texttt{order\_service.outbox\_events}
-recording that an \texttt{OrderPlaced} event needs to be published -- inside
-the exact same \texttt{SaveChangesAsync} call
-(\texttt{Controllers/}\allowbreak\texttt{OrdersController.cs}). Because both rows are ordinary
-rows in the same relational database, Postgres's own transaction guarantee
-applies to both simultaneously: either both commit, or neither does. This
-directly closes both failure orderings above --- there is no longer a window
-where the order exists without a corresponding pending event, or vice versa,
-because "the order exists" and "an event needs publishing" have been reduced
-to a single fact instead of two facts that could disagree.
+database in the same \texttt{SaveChangesAsync} call
+(\texttt{Controllers/}\allowbreak\texttt{OrdersController.cs}): the
+\texttt{orders} row, and a row in \texttt{order\_service.outbox\_events}
+recording that an \texttt{OrderPlaced} event needs to be published. Both are
+ordinary rows in the same relational database, so Postgres's transaction
+guarantee covers them together: either both commit, or neither does. That
+closes both failure orderings above. There is no window in which the order
+exists without a pending event, or the other way round, because ``the order
+exists'' and ``an event needs publishing'' are now one fact, not two facts
+that could disagree.
 
-This claim is verified directly in
-\nolinkurl{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs}: a real
-SQLite in-memory database (not a mock, and not EF Core's InMemory provider,
-which does not enforce relational constraints and so cannot demonstrate a
-rollback at all) is made to reject an outbox insert via a genuine primary-key
-collision, and the accompanying order insert is confirmed absent afterward
---- the whole transaction rolled back.
+\nolinkurl{tests/FlashSale.OrderService.Tests/OutboxAtomicityTests.cs} tests
+this claim. A real SQLite in-memory database (not a mock, and not EF Core's
+InMemory provider, which does not enforce relational constraints and so cannot
+show a rollback at all) is made to reject an outbox insert through a real
+primary-key collision. Afterwards the order insert is absent too: the whole
+transaction rolled back.
 
 \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize]
 Failed_outbox_insert_rolls_back_the_order_insert_too: PASS
@@ -2012,35 +2010,33 @@ closed when the stock results were added (TP-W03).
 
 The Outbox and the Inventory Service build one direction of the pipeline: an order becomes an
 \texttt{OrderPlaced} event, which Inventory Service reserves against Redis.
-This section builds the return direction -- Inventory Service telling Order
-Service what happened, and Order Service acting on it -- which is what
-actually lets an order leave \texttt{PendingStock}.
+This section builds the return direction: Inventory Service tells Order
+Service what happened, and Order Service acts on it. Only this lets an order
+leave \texttt{PendingStock}.
 
-\subsection{Inventory Service's own Outbox -- a harder dual-write problem}
+\subsection{Inventory Service's own Outbox: a harder dual-write problem}
 
 Order Service's Outbox writes a business row and an outbox row to the
 \emph{same} Postgres database in one transaction, so atomicity is free.
 Inventory Service cannot do that: the business fact (stock was reserved) is
 recorded in Redis by \texttt{reserve.lua}, and the outbox fact (tell Order
-Service) must be recorded in Postgres -- two different data stores that
-cannot share a transaction. Rather than accept a gap where a process crash
-between the two writes silently drops the notification, Inventory Service
-gets its own \texttt{outbox\_events} table (\texttt{inventory\_service}
-schema) with one deliberate difference from Order Service's: the unique
-index is on \texttt{OrderId}, not \texttt{Id}.
+Service) must be recorded in Postgres. The two data stores cannot share a
+transaction. So that a process crash between the two writes cannot drop the
+notification unnoticed, Inventory Service has its own \texttt{outbox\_events}
+table (\texttt{inventory\_service} schema) with one deliberate difference from
+Order Service's: the unique index is on \texttt{OrderId}, not \texttt{Id}.
 
-That difference is what makes the Lua script's \texttt{DUPLICATE} outcome
-safe. \texttt{DUPLICATE} means a \emph{previous} delivery of the same
-\texttt{OrderPlaced} message already reserved the stock in Redis -- so if
-the consumer treated it as a no-op, a redelivered message would never
-produce a \texttt{StockReserved} row, and that order would sit in
-\texttt{PendingStock} forever despite the reservation having genuinely
-succeeded. Instead, both \texttt{RESERVED} and \texttt{DUPLICATE} run the
+That difference makes the Lua script's \texttt{DUPLICATE} outcome safe.
+\texttt{DUPLICATE} means a \emph{previous} delivery of the same
+\texttt{OrderPlaced} message already reserved the stock in Redis. If the
+consumer treated it as a no-op, a redelivered message would never produce a
+\texttt{StockReserved} row, and the order would stay in \texttt{PendingStock}
+although the reservation succeeded. Instead, both \texttt{RESERVED} and \texttt{DUPLICATE} run the
 same step in \texttt{OrderPlacedProcessor}: check whether an outbox row
 for this \texttt{OrderId} already exists, and only insert if it doesn't. The
 unique index turns a possible race between two redeliveries into a unique
-violation, which is caught, rather than a duplicate row -- "ensure exists",
-not "insert unconditionally". The Inventory Service \texttt{RabbitMqOutboxPublisher}
+violation, which is caught, instead of a duplicate row. The step means
+``ensure it exists'', not ``insert unconditionally''. The Inventory Service \texttt{RabbitMqOutboxPublisher}
 and \texttt{OutboxPublisherWorker} use the same design as Order Service's
 versions (raw \texttt{RabbitMQ.Client}, routed confirmation, 2s poll
 interval).
@@ -2824,9 +2820,9 @@ to specify from the start.
 
 \texttt{FlashSale.ProcessWorker} is a third service: it consumes
 \texttt{StockReserved}, waits a deterministic delay, and publishes
-\texttt{OrderProcessed}. Per Proposal §3 it simulates downstream processing
-only -- there is no payment step, no failure injection and no compensation
-logic, all three being excluded by \nolinkurl{docs/00-scope-lock.md}. The delay
+\texttt{OrderProcessed}. Per Proposal §3 it only simulates downstream
+processing. It has no payment step, no failure injection and no compensation
+logic; \nolinkurl{docs/00-scope-lock.md} excludes all three. The delay
 is deterministic rather than randomised on purpose: with a fixed service
 time, any variance the experiments measure in end-to-end latency comes from
 queueing and contention in the architecture, not from the simulator adding
@@ -2897,10 +2893,9 @@ uses the time it is applied, instead of the year 0001.
 The unit tests that cover the state machine (TP-P02) are listed in Appendix~\ref{app:ver-worker}.
 
 \paragraph{Idempotency with no database.} The Process Worker is the only
-service here with no persistent store, and deliberately so: it holds no
-business state, so there is no local write that a publish could disagree
-with, and therefore no dual-write problem and no need for an Outbox -- the
-reasoning that forced Inventory Service to add one simply does not
+service here with no persistent store, by design. It holds no business state,
+so no local write can disagree with a publish. It therefore has no dual-write
+problem and needs no Outbox; the reason Inventory Service needed one does not
 apply. The brief's requirement that it ``use \texttt{order\_id} as its own
 idempotency key'' is met by deriving the published message's
 \texttt{MessageId} from the order id (they are set equal) instead of minting
@@ -2927,9 +2922,9 @@ header (generating one per request when absent), and
 \texttt{app.UseAbp}\allowbreak\texttt{SerilogEnrichers()} was already stamping that value onto
 every log line written during the request. Generating a second id in the
 controller would have made the HTTP log lines and the order row disagree
-about what the request is called -- the precise failure this step exists to
-prevent -- so the controller takes ABP's value and carries it onto the order
-and every event that follows. Across the message hops, where no HTTP
+about what the request is called, which is the failure this step exists to
+prevent. The controller therefore takes ABP's value and carries it onto the
+order and every event that follows. Across the message hops, where no HTTP
 middleware exists, each consumer re-establishes it with
 \texttt{LogContext.\allowbreak PushProperty}, which flows through the awaits into
 everything that logs downstream of it.\par\fussy
@@ -2947,10 +2942,10 @@ The trace of one order across the three services (TP-P03) is in Appendix~\ref{ap
 \paragraph{Logging.} Serilog was already configured in all services with
 \texttt{Enrich.}\allowbreak\texttt{FromLog\allowbreak Context()}; what changed is the file sink's format,
 from plain text to one JSON object per line
-(\texttt{Compact\allowbreak Json\allowbreak Formatter}). Structure is what makes the correlation id
-above actually \emph{queryable} -- the experiments need to filter thousands of
-lines by a field and read timestamps back as values, not regex them out of a
-rendered string. The console sink deliberately stays human-readable: it is
+(\texttt{Compact\allowbreak Json\allowbreak Formatter}). The structure makes the correlation id
+above \emph{queryable}: the experiments filter thousands of lines by a field
+and read timestamps back as values instead of extracting them from a rendered
+string with a regular expression. The console sink deliberately stays human-readable: it is
 watched live by a person, not parsed.
 
 \paragraph{Metrics.} Prometheus and Grafana were added to
@@ -3114,8 +3109,8 @@ Latency percentiles are deliberately \emph{not} computed in-process. JMeter
 measures client-observed latency directly, and end-to-end pipeline latency is
 reconstructed from the per-order timestamp schema below. A Prometheus
 histogram of the same quantity would be a third, bucketed copy that disagrees
-with both at the tail -- which is exactly where this project's research
-question lives.
+with both at the tail, and the tail is what this project's research question
+is about.
 
 \paragraph{Timestamp schema (Proposal §4d).} Table~\ref{tab:timestamp-schema}
 lists every stage time the experiments use, with the column it is read from
