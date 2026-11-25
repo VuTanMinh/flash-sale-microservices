@@ -7,6 +7,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +35,8 @@ jobs:
         run: dotnet test tests/FlashSale.OrderService.Tests/FlashSale.OrderService.Tests.csproj -c Release --no-build --logger "trx;LogFileName=order-service.trx"
 
       - name: Test InventoryService
+        env:
+          FLASHSALE_TEST_REDIS: localhost:6379
         run: dotnet test tests/FlashSale.InventoryService.Tests/FlashSale.InventoryService.Tests.csproj -c Release --no-build --logger "trx;LogFileName=inventory-service.trx"
 
       - name: Test ProcessWorker
