@@ -4033,6 +4033,76 @@ Redis is the mean time per Redis command. Cells: median of 3 runs (range).}
 \label{tab:results-resources}
 \end{table}
 
+\section{Broker Rates}
+\label{sec:results-broker}
+
+The brief lists the RabbitMQ publish, delivery and acknowledgement rate as a
+metric. The collector read the broker's Prometheus endpoint every 5\,s on the
+backend host and turned its global counters of received, delivered and
+acknowledged messages into per-second rates between samples (TP-L08). The
+values cover the whole run, the 60\,s load \emph{and} the drain until the drain
+check passed, so they are whole-broker rates over all queues
+(Table~\ref{tab:results-broker}; source: \texttt{collector.broker\_rates} in each
+run's \texttt{summary.json}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\adjustbox{max width=\linewidth}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+Cell & Publish mean & Deliver mean & Ack mean & Publish peak & Deliver peak & Ack peak \\
+\midrule
+C1 50/s & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) \\
+C1 100/s & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) \\
+C1 200/s & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) & 0 (0--0) \\
+C2 50/s & 153 (151--161) & 189 (188--201) & 189 (189--202) & 243 (225--252) & 301 (282--317) & 302 (280--311) \\
+C2 100/s & 204 (199--207) & 250 (246--266) & 250 (247--267) & 472 (428--476) & 513 (483--550) & 521 (485--577) \\
+C2 200/s & 211 (199--214) & 261 (247--262) & 261 (247--262) & 566 (458--841) & 452 (418--507) & 449 (418--507) \\
+C3 50/s & 153 (150--163) & 192 (189--203) & 192 (190--203) & 233 (231--244) & 341 (324--353) & 357 (324--361) \\
+C3 100/s & 193 (62--200) & 227 (75--237) & 227 (75--237) & 403 (378--441) & 487 (473--518) & 493 (473--517) \\
+C3 200/s & 40 (37--145) & 48 (44--173) & 48 (44--174) & 367 (343--404) & 456 (438--465) & 456 (438--467) \\
+C3 400/s & 34 (33--35) & 42 (40--42) & 42 (40--42) & 303 (293--351) & 457 (457--516) & 457 (457--516) \\
+C4, 1 cons. 50/s & 154 (146--164) & 191 (182--205) & 191 (183--204) & 243 (224--254) & 305 (282--305) & 300 (282--301) \\
+C4, 1 cons. 100/s & 64 (61--66) & 76 (71--77) & 76 (71--77) & 408 (398--473) & 509 (479--510) & 510 (485--510) \\
+C4, 1 cons. 200/s & 51 (40--138) & 61 (48--166) & 61 (48--167) & 358 (328--485) & 492 (491--533) & 497 (496--540) \\
+C4, 1 cons. 400/s & 35 (35--133) & 43 (42--164) & 43 (42--164) & 361 (323--389) & 469 (450--479) & 474 (450--479) \\
+C4, 2 cons. 50/s & 160 (154--166) & 202 (194--208) & 203 (195--209) & 277 (267--283) & 351 (346--363) & 341 (334--369) \\
+C4, 2 cons. 100/s & 198 (58--201) & 235 (68--236) & 235 (68--235) & 341 (299--375) & 454 (431--520) & 454 (436--524) \\
+C4, 2 cons. 200/s & 43 (42--149) & 49 (49--175) & 49 (49--175) & 340 (315--347) & 456 (429--483) & 462 (435--490) \\
+C4, 2 cons. 400/s & 123 (123--125) & 153 (143--162) & 153 (143--163) & 367 (327--478) & 552 (457--602) & 565 (463--602) \\
+C4, 4 cons. 50/s & 156 (149--160) & 201 (191--205) & 202 (192--205) & 252 (249--259) & 375 (313--388) & 379 (313--401) \\
+C4, 4 cons. 100/s & 57 (57--194) & 66 (65--224) & 66 (65--224) & 312 (302--344) & 444 (440--461) & 447 (444--469) \\
+C4, 4 cons. 200/s & 42 (36--42) & 49 (42--50) & 49 (42--50) & 316 (304--319) & 467 (444--469) & 473 (446--482) \\
+C4, 4 cons. 400/s & 32 (32--32) & 38 (38--39) & 39 (38--39) & 309 (295--322) & 483 (475--484) & 489 (482--491) \\
+\bottomrule
+\end{tabular}}
+\caption{RabbitMQ publish, deliver and acknowledge rates in messages per
+second, whole broker, over the load and the drain of each official run. Cells:
+median of 3 runs (range).}
+\label{tab:results-broker}
+\end{table}
+
+Four points follow from the table.
+\begin{itemize}
+  \item C1 does not use the broker, so its rates are 0.
+  \item Deliver and ack are above publish because one \texttt{StockReserved}
+    publish is routed to two queues, Order Service and the Process Worker, so
+    it is delivered twice.
+  \item Ack equals deliver within rounding in every cell: every delivered
+    message was acknowledged.
+  \item The mean includes the drain. Runs whose drain waited about 300\,s for
+    reconciliation (Section~\ref{sec:results-overload}) have a long quiet tail
+    that lowers the mean, which is why some cells have wide ranges. For C3 at
+    100/s, the repeat with a 302\,s drain had a mean of 62/s and the two with
+    40--49\,s drains 193--200/s.
+\end{itemize}
+The peak is the better measure of what the broker carried: 233 to 566 publishes
+per second, highest for C2 at 200/s. The broker was never the limit; the
+backlog sat in Order Service's Outbox before publication
+(Section~\ref{sec:results-overload}).
+
 \section{Supplementary Runs}
 \label{sec:results-supp}
 
