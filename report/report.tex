@@ -3703,7 +3703,13 @@ performance number is reported without that verdict.
 Each cell runs 3 times under the same conditions. For every run,
 latency is reported as p50, p95 and p99. A table cell gives the median of
 those values across runs, followed by the spread (range) across runs, for
-example ``412 (398--431)''.
+example ``412 (398--431)''. With three runs per cell the median and the range
+describe what was observed; they are not estimates of a population. No
+confidence intervals or significance tests are given, because three samples
+are too few for an interval to mean much without assuming a distribution the
+data cannot check. Rare events are not estimated
+either: a fault or a latency spike that did not occur in three 60\,s runs may
+still occur, and its probability is unknown.
 
 Latency comes from two sources that are kept apart. JMeter measures what the
 client sees. The stage timestamps (Section~\ref{sec:week11}) measure the
