@@ -1,6 +1,9 @@
 # Metrics and stage timestamps (Week 11)
 
-This is the metric dictionary the experiments will be measured with. It covers
+This is the metric dictionary the experiments were measured with (written in Week 11,
+before the runs; the status columns describe that time). The official runs used these
+definitions; their values are in the report's Results chapter and the frozen settings in
+`docs/week14-freeze.md`. It covers
 every metric in the teacher brief (§6) and in Notion 04 "Metric definitions".
 For each metric it gives the definition, where the raw value comes from, how it
 is extracted, and whether that source **exists now** or is still to be built.

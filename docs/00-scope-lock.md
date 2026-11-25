@@ -25,9 +25,9 @@ The target of approximately 2,000 reservation attempts per second is an experime
 - Process Worker consumes successful reservation events, publishes `OrderProcessingStarted` when it begins, waits a configured deterministic delay, and publishes a successful completion result (`OrderProcessed`).
 - Order states follow the teacher's six-state model; `ProcessingFailed` is declared but has no in-scope trigger (success-only). See `docs/order-state-machine.md`.
 - RabbitMQ carries asynchronous events. PostgreSQL is one instance with service-owned schemas and separate service credentials; services must not read another service's schema.
-- **Week 2 verification gap:** service connection strings now use separate roles and Compose initializes their schemas and grants, but the setup has not yet been exercised against a fresh and an existing PostgreSQL volume. Keep the infrastructure gate open until both paths are verified.
+- **Week 2 verification gap (closed):** service connection strings use separate roles and Compose initializes their schemas and grants; both a fresh and an existing PostgreSQL volume were verified afterwards (TP-E01, TP-E02 in `docs/evidence-index.md`).
 - Docker Compose is the local development environment. The experiment target is one AWS EC2 instance. JMeter runs on a separate machine.
-- Load shedding consists of Nginx rate limiting, application concurrency limiting, and a bounded RabbitMQ queue. It is planned for C3; do not report it as implemented until verified.
+- Load shedding consists of Nginx rate limiting, application concurrency limiting, and a bounded RabbitMQ queue. It is the C3 configuration, implemented and verified in Week 12 (TP-L01, TP-L02, TP-L04) and measured in the official runs.
 
 ## Comparison configurations
 

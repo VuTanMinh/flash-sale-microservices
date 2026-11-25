@@ -245,6 +245,8 @@ the switches off. C3 turns on any combination of:
 | `Admission:MaxInFlightOrders` | `0` (off) | set from the Week 13 pilot (case H: baseline + 30) |
 | `flashsale-c3-bounds` policy | absent | `max-length=<n>, overflow=reject-publish` |
 
+Values frozen after the Week 13 pilot and used in every official C3/C4 run (`docs/week14-freeze.md`, section 7): gateway 200 requests/s with burst 100; `MaxConcurrentNewOrders` 64; `MaxOutboxBacklog` 2000; `MaxInFlightOrders` 0 (off); queue bound 1000 messages with `reject-publish`.
+
 With every switch off, a POST that reaches Order Service behaves exactly as it
 does today in C2.
 

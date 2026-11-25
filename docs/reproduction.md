@@ -18,6 +18,7 @@ only the repository owner can run them, because they create AWS resources.
 | Apache JMeter + Java | 5.6.3 on Java 17+ (plans use no Groovy/JSR223) | load plans under `tests/jmeter/` (TP-L04, the smoke tests and section 8). Unpack it to `D:\tools\apache-jmeter-5.6.3`: `verify-ec2-stack.ps1` and the default of `run-matrix.ps1 -JMeterExe` expect that path |
 | Python 3 + matplotlib | 3.14 and matplotlib 3.10 used here | the Results tables and figures (section 7) |
 | TeX Live / MiKTeX | `latexmk` with `pdflatex` | only to rebuild the PDFs |
+| Node.js | 18 or later (24 used here) | only for the demo page server (`demo-results/ui/serve.mjs`) and for re-rendering the Appendix I diagrams (`report/figures/render_mmd.cjs`). In PowerShell, start it as `node.exe` if a stray file named `node` shadows it |
 
 If Windows refuses to run the scripts ("running scripts is disabled"), allow
 them for the current PowerShell window only:
