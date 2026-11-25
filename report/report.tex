@@ -4142,6 +4142,42 @@ number of runs measured is then given. Cells: median of 3 runs (range).}
 \label{tab:results-bp}
 \end{table}
 
+\section{Changes After the Freeze}
+\label{sec:post-freeze-changes}
+
+The official results describe the service code at \texttt{w14-official}. Four
+commits changed the service code after that tag
+(\texttt{git log w14-official..HEAD -- src}). None of them was re-measured on
+EC2, so no number in this chapter describes them except the back-pressure fix
+above. The full regression and every negative control were run on the final
+code on 25~November (\nolinkurl{tests/evidence/20261125T083042Z-full-check}).
+
+\begin{itemize}
+  \item \textbf{\texttt{035e599}, Process Worker back-pressure.} A broker nack
+    on a full queue is waited out instead of dead-lettered. It changes the
+    overload path and is measured in Section~\ref{sec:results-bp}.
+  \item \textbf{\texttt{1850b0f}, Worker shutdown timeout.} The host's
+    shutdown timeout is set to 15\,s instead of the 30\,s default. It acts
+    only when the Worker is stopped; no measured run stops a Worker under
+    load.
+  \item \textbf{\texttt{042e853}, certificate passphrase.} Order Service
+    reads the OpenIddict certificate passphrase from configuration instead
+    of a literal in code. The value is the same, and it is read once at
+    start-up; the request path is unchanged.
+  \item \textbf{\texttt{e4375f5}, stored result before \texttt{reserve.lua}.}
+    Inventory now looks up the order's stored result before it runs the
+    reservation script, which closes the \texttt{NOT\_OPEN} gap
+    (described after Table~\ref{tab:failure-modes}). This is on the measured path,
+    but it moves a query rather than adding one: the same lookup by order ID
+    on the unique index already ran after the script. For an order seen for
+    the first time the result, the rows written and the number of database
+    queries are the same as before. It was not re-measured.
+\end{itemize}
+
+Commits after the tag also added tests and tooling that do not run in the
+services: the Inventory unit tests, the CI workflow, a verifier update, the
+demo dashboard file and documentation.
+
 
 
 % ============================================================
