@@ -725,11 +725,35 @@ define the mechanisms and what they guarantee; they do not measure what the
 mechanisms cost on a small host against a synchronous baseline, which is what
 this study does.
 
+\paragraph{Data across services.} Garcia-Molina and Salem split a long-lived
+transaction into a sequence of local transactions, each with a compensating
+step, instead of holding one global transaction~\cite{garcia-molina-sagas}.
+Helland argues that at scale an application should update one entity per
+transaction and reach other entities only by messages, which must then be
+processed idempotently~\cite{helland-beyond}. The order workflow here follows
+both ideas: each step is a local transaction in one service's schema, the steps
+are linked by at-least-once events, and every consumer has an Inbox. It has no
+compensation step, because the Process Worker is success-only and a rejected
+order simply ends \texttt{Rejected}. Laigner et al.\ surveyed how microservice
+applications manage data, through a literature review, an analysis of
+open-source applications and a survey of over 120 practitioners and
+researchers; the challenges they report include keeping constraints across
+distributed service states and weak concurrency
+isolation~\cite{laigner-microservices}. The Outbox, the Inbox and the
+schema-per-service design address exactly these problems at application level,
+at the cost in complexity that the 22-row failure-mode table shows.
+
 \paragraph{Overload and latency.} Google's Site Reliability Engineering book
 argues that a service under overload should refuse excess requests early and
 cheaply, and that clients should back off and limit their retries, so that the
 service keeps doing useful work~\cite{sre-overload}; C3's 429 and 503 responses
-with \texttt{Retry-After} follow that advice. Dean and Barroso show that the tail
+with \texttt{Retry-After} follow that advice. Welsh, Culler and Brewer build
+a service as stages joined by explicit queues, with admission control on each
+queue so that it degrades gracefully instead of being
+overcommitted~\cite{welsh-seda}; C3 is close to this, with stages joined by
+bounded queues, a gateway rate limit and admission control. The replica results
+agree with their point that capacity is set by the shared resource, not by the
+number of workers in a stage. Dean and Barroso show that the tail
 of the latency distribution, not its mean, decides how a large system
 feels~\cite{dean-tail}, which is why the results report p95 and p99.
 
@@ -743,8 +767,10 @@ official runs therefore used JMeter's open mode and report the rate achieved.
 the same single host, a synchronous atomic update with an event-driven
 pipeline built from these patterns, measures latency, throughput, overload and
 recovery, and validates every run's correctness, including a deliberately
-unsafe design (C0) that shows the checks can fail. Published descriptions of
-production flash-sale systems were not reviewed for this study.
+unsafe design (C0) that shows the checks can fail. None of the works above
+measures a flash-sale workload, so they support the design choices, not the
+numbers. Published descriptions of production flash-sale systems were not
+reviewed for this study.
 
 % ============================================================
 \chapter{System Requirements}
@@ -4606,6 +4632,19 @@ HashiCorp.
 \newblock \url{https://github.com/hashicorp/terraform}. Accessed 5~November
 2026.
 
+\bibitem{garcia-molina-sagas}
+H.~Garcia-Molina and K.~Salem.
+\newblock Sagas.
+\newblock In \emph{Proceedings of the 1987 ACM SIGMOD International Conference
+on Management of Data}, pages 249--259, 1987.
+\newblock \url{https://doi.org/10.1145/38713.38742}.
+
+\bibitem{helland-beyond}
+P.~Helland.
+\newblock Life beyond distributed transactions: an apostate's opinion.
+\newblock In \emph{Proceedings of the 3rd Biennial Conference on Innovative
+Data Systems Research (CIDR)}, 2007.
+
 \bibitem{hohpe-eip}
 G.~Hohpe and B.~Woolf.
 \newblock \emph{Enterprise Integration Patterns: Designing, Building, and
@@ -4635,6 +4674,13 @@ Microsoft.
 \newblock \emph{What's new in .NET 10}. Microsoft Learn, 2025.
 \newblock \url{https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview}.
 Accessed 5~November 2026.
+
+\bibitem{laigner-microservices}
+R.~Laigner, Y.~Zhou, M.~A.~V. Salles, Y.~Liu, and M.~Kalinowski.
+\newblock Data management in microservices: state of the practice, challenges,
+and research directions.
+\newblock \emph{Proceedings of the VLDB Endowment}, 14(13):3348--3361, 2021.
+\newblock arXiv:2103.00170.
 
 \bibitem{nginx-limit-req}
 nginx.
@@ -4719,6 +4765,13 @@ B.~Schroeder, A.~Wierman, and M.~Harchol-Balter.
 \newblock In \emph{Proceedings of the 3rd USENIX Symposium on Networked
 Systems Design and Implementation (NSDI~'06)}, 2006.
 \newblock \url{https://www.usenix.org/conference/nsdi-06/open-versus-closed-cautionary-tale}. Accessed 7~November 2026.
+
+\bibitem{welsh-seda}
+M.~Welsh, D.~Culler, and E.~Brewer.
+\newblock SEDA: an architecture for well-conditioned, scalable Internet
+services.
+\newblock In \emph{Proceedings of the 18th ACM Symposium on Operating Systems
+Principles (SOSP)}, 2001.
 
 \end{thebibliography}
 
