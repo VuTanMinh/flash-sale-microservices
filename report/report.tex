@@ -269,9 +269,9 @@ This project asks how C0 (a deliberately unsafe demonstration), C1 (synchronous
 PostgreSQL atomic update), and C2 (RabbitMQ with Redis Lua reservation) behave under
 matched workloads. C3 adds load shedding; C4 compares 1, 2, and 4 Inventory Service
 replicas on the same EC2 host. C0 is only a race-condition demonstration; C1 is the
-correctness and performance baseline. The study measures the trade-offs rather than
-assuming that a relational database or a microservices architecture is inherently
-faster or safer.
+correctness and performance baseline. The study measures the trade-offs
+without assuming that a relational database or a microservices architecture is
+inherently faster or safer.
 
 % ============================================================
 \section{Objectives}
@@ -415,29 +415,28 @@ The results have the following limits:
     tested separately and at lower rates (TP-B02, TP-I02, TP-X04), and scarce
     stock again under load in the supplementary session (2,000 units at
     200/s, Section~\ref{sec:results-supp}), on another host pair.
-  \item Contention level was not varied in the official matrix:
-    \texttt{run-matrix.ps1} takes one \texttt{-Product}, so every official run
-    targets one hot product. The supplementary sell-out does not change this:
-    it also uses one product.
+  \item The official matrix kept contention fixed by targeting one hot product
+    in every run. The \texttt{run-matrix.ps1} script takes one
+    \texttt{-Product}. The supplementary sell-out also uses one product.
   \item The load-shedding limits were not calibrated to the measured capacity.
     The gateway admits 200 requests/s and the admission control holds the
     Outbox near 2,000 rows, while the pipeline keeps up only at about 50
     orders/s. At 100/s and above C3 and C4 therefore still accept faster than
-    they complete, and accepted orders wait 57--69\,s at p95 to complete: the
-    limits bound the backlog, not the wait.
+    they complete, and accepted orders wait 57--69\,s at p95 to complete. The
+    limits bound only the backlog.
   \item A stock decision of \texttt{REJECTED} is not recorded in Redis. After
     the official runs, Inventory was changed to look up its
     stored result before it runs the reservation script, so a re-sent message
     for an order that already has a result no longer reaches Redis. Only a
     retry after a crash between the script and the database save runs the
-    script again for a rejected order; it rejects again, so this is harmless
-    work, not a wrong result.
+    script again for a rejected order. The script rejects the order again,
+    which adds work without changing the result.
   \item The OpenIddict certificate passphrase and ABP's string-encryption
     passphrases are development values committed in \texttt{appsettings.json}
-    (they can be overridden by environment variables). The experiments did
-    not use authentication: the gateway routes only the order endpoints and
-    answers 404 for every other path, so the authentication endpoints were
-    not reachable.
+    (they can be overridden by environment variables). The experiments did not
+    use authentication because the gateway routes only the order endpoints and
+    answers 404 for every other path, so the authentication endpoints were not
+    reachable.
   \item The set of processed order IDs per product
     (\texttt{processed:\{product\}}) grows without bound; a long-running sale
     would need an expiry or a cleanup.
@@ -479,22 +478,23 @@ subtracts one only \texttt{WHERE stock >= 1}, takes a row-level lock on the
 row it changes, and a second writer to the same row waits until the first
 transaction ends~\cite{pg-locking}. Under the default Read Committed level the
 waiting writer then re-evaluates its \texttt{WHERE} condition against the
-newly committed row version, so it cannot take a unit that is no longer
-there~\cite{pg-isolation}. \texttt{SELECT ... FOR UPDATE} locks the row before
-the check instead~\cite{pg-select}. Both are correct, but every request for the
-hot product queues on the same row lock, so the row becomes a serialisation
-point whose cost grows with contention. This is the C1 baseline, and the
-reason the brief asks for it to be measured rather than assumed slow.
+newly committed row version. The recheck prevents it from taking a unit that
+is no longer there~\cite{pg-isolation}. \texttt{SELECT ... FOR UPDATE} locks
+the row before the check instead~\cite{pg-select}. Both are correct, but
+every request for the hot product queues on the same row lock. The row
+therefore becomes a serialisation point whose cost grows with contention.
+The conditional update is the C1 baseline, and the brief asks for a
+measurement before assuming it is slow.
 
 Redis can perform the check and the decrement inside the server. A Lua script
 sent with \texttt{EVAL} (or loaded once and called by its hash) runs
 atomically: while it runs, no other script or command is
 served~\cite{redis-lua,redis-eval}. A script that checks an idempotency key,
 checks the available stock, decrements it and records the result therefore
-has no window in which another request can interleave. The price is that the
-script blocks the server while it runs, so it must stay short. Redis also keeps
-the data in memory, so the durable record of each order still has to live in
-the relational database.
+has no window in which another request can interleave. The script must stay
+short because it blocks the server while it runs. Because Redis keeps the data
+in memory, the durable record of each order still has to live in the
+relational database.
 
 \section{Asynchronous messaging}
 \label{sec:bg-messaging}
@@ -516,9 +516,9 @@ responsibility for a message~\cite{rmq-confirms}. Together they give
 at-least-once delivery: a message is not lost, but it can arrive more than
 once. A message that cannot be processed can be \emph{dead-lettered}, for
 example when a consumer rejects it without requeueing, and routed to a separate
-exchange~\cite{rmq-dlx}. This is the Dead Letter Channel
-pattern~\cite{eip-dead-letter}: a poison message is moved aside instead of
-blocking the queue. The .NET client used here exposes these operations
+exchange~\cite{rmq-dlx}. The Dead Letter Channel
+pattern~\cite{eip-dead-letter} keeps poison messages from blocking the queue
+by moving them aside. The .NET client used here exposes these operations
 directly~\cite{rmq-dotnet}.
 
 \section{Transactional Outbox and idempotent consumers}
@@ -1270,10 +1270,10 @@ reason:
   \item \textbf{Schema-per-service on one PostgreSQL instance.} It gives
     ownership and isolation by account at the cost of a single shared server,
     which the brief accepts as a limitation (not physical isolation).
-  \item \textbf{Success-only Process Worker.} It keeps the downstream stage
-    deterministic, so latency variation in the results comes from the
-    architecture rather than from simulated failures. That is why
-    \texttt{ProcessingFailed} has no producer.
+  \item \textbf{Success-only Process Worker.} With a deterministic downstream
+    stage and no simulated failures, latency variation in the results comes
+    from the architecture. Because the Worker always succeeds, nothing
+    publishes \texttt{ProcessingFailed}.
 \end{itemize}
 
 The cost of these choices is complexity: three services, two Outboxes, two
@@ -1390,10 +1390,10 @@ window so it reproduces on every run. The captured result
 \end{Verbatim}
 
 All five requests believed they had reserved the single unit, and the
-database was left at \(-4\). This is the race condition C1 exists to
-eliminate. \texttt{order\_service.inventory} deliberately has no
-\texttt{CHECK (stock >= 0)} constraint, so that the bug shows up as overselling
-instead of being turned into an unhandled exception.
+database was left at \(-4\). C1 is designed to eliminate that read-then-write
+race. \texttt{order\_service.inventory} deliberately omits the
+\texttt{CHECK (stock >= 0)} constraint to expose overselling without turning
+the bug into an unhandled exception.
 
 \subsection{C1 -- the PostgreSQL atomic update}
 
@@ -1414,8 +1414,8 @@ The update and the outcome row in \texttt{baseline\_orders} commit in one
 transaction, so the log cannot disagree with the stock. A separate
 \texttt{SELECT ... FOR UPDATE}~\cite{pg-select} followed by an \texttt{UPDATE} was avoided,
 because it re-creates C0's two-statement window unless written very carefully.
-C1 lives on its own route; \texttt{/api/orders} belongs to the asynchronous
-design, so both configurations stay independently reachable for the
+C1 has its own route, while the asynchronous design uses \texttt{/api/orders}.
+The separate routes keep both configurations independently reachable for the
 experiments.
 
 \paragraph{Concurrent demand below, equal to and above stock.}
@@ -1521,14 +1521,14 @@ Request & Status & Meaning \\
 
 The request carries \texttt{productId} and \texttt{quantity}. Quantity must
 equal 1, because flash-sale orders are single-unit and the reservation script
-decrements exactly one unit. A product id with no stock is \emph{not} a
-validation error: the order is accepted, and Inventory Service rejects it
-asynchronously. The order row and its \texttt{OrderPlaced} Outbox row are
+decrements exactly one unit. An order for a product id with no stock passes
+validation and is accepted. Inventory Service rejects it asynchronously. The
+order row and its \texttt{OrderPlaced} Outbox row are
 written in one \texttt{SaveChangesAsync} call (Section~\ref{sec:outbox}). All
-timestamps are UTC with a \texttt{Z} suffix and are stored at microsecond
-precision, so a value read back from PostgreSQL equals the value returned at
-creation. Validation runs before any write, so a rejected
-request leaves no order and no Outbox row.
+timestamps are UTC with a \texttt{Z} suffix. They are stored at microsecond
+precision, so the value read back from PostgreSQL equals the
+value returned at creation. Because validation runs before any write, a
+rejected request leaves no order and no Outbox row.
 
 \subsection{Idempotency strategy}
 
@@ -1637,8 +1637,9 @@ systems (Postgres and RabbitMQ) that cannot be wrapped in one atomic
 transaction the way two SQL statements against the same database can. If
 they are run one after the other (write the order, then publish an
 event), two failure orderings are possible, and a system that handles only
-one of them is still broken. This is the dual-write problem that the
-Transactional Outbox pattern solves~\cite{richardson-outbox,richardson-patterns}:
+one of them is still broken. The Transactional Outbox pattern addresses both
+orderings of the dual-write
+problem~\cite{richardson-outbox,richardson-patterns}:
 
 \begin{enumerate}
   \item \textbf{The database commits but the publish fails.} The order now
@@ -1759,8 +1760,7 @@ Unroutable message & \texttt{PublishException} with \texttt{IsReturn = true} (br
 
 In every recoverable case the event arrived exactly once after the fault was
 removed, without manual intervention. A Process Worker event that cannot be
-published is not lost: it lands in the worker's dead-letter queue, and
-recovering it from there is the subject of the failure handling
+published goes to the worker's dead-letter queue for recovery
 (Section~\ref{sec:week10}). ABP's own RabbitMQ event bus
 was not used for publishing because its options expose no documented way to
 enable publisher confirms; the raw \texttt{RabbitMQ.Client} 7.1.2 package is
@@ -1772,11 +1772,11 @@ used instead.
 \subsection{Scaffolding}
 
 Inventory Service was scaffolded with a minimal ABP module set (MVC, Autofac,
-EntityFrameworkCore.PostgreSql, Swashbuckle, Serilog). It has none of the
-identity, account, permission, tenant, setting or OpenIddict modules that
-Order Service carries from the default template: the scope lock excludes user
-management, authentication and multi-tenancy, so Inventory Service never adds
-them. It owns only the \texttt{inventory\_service} schema
+EntityFrameworkCore.PostgreSql, Swashbuckle, Serilog). It omits the identity,
+account, permission, tenant, setting and OpenIddict modules that Order Service
+carries from the default template because the scope lock excludes user
+management, authentication and multi-tenancy. It owns only the
+\texttt{inventory\_service} schema
 (Section~\ref{sec:design-decisions}) and the Redis inventory keys. The
 behaviour below is specified in \nolinkurl{docs/inventory.md}. Every result in
 this section comes from saved runs on a fresh clone with throwaway Redis,
@@ -1928,15 +1928,15 @@ leave \texttt{PendingStock}.
 
 \subsection{Inventory Service's own Outbox: a harder dual-write problem}
 
-Order Service's Outbox writes a business row and an outbox row to the
-\emph{same} Postgres database in one transaction, so atomicity is free.
-Inventory Service cannot do that: the business fact (stock was reserved) is
-recorded in Redis by \texttt{reserve.lua}, and the outbox fact (tell Order
-Service) must be recorded in Postgres. The two data stores cannot share a
-transaction. So that a process crash between the two writes cannot drop the
-notification unnoticed, Inventory Service has its own \texttt{outbox\_events}
-table (\texttt{inventory\_service} schema) with one deliberate difference from
-Order Service's: the unique index is on \texttt{OrderId}, not \texttt{Id}.
+Order Service's Outbox gets atomicity by writing a business row and an outbox
+row to the \emph{same} Postgres database in one transaction. In Inventory
+Service, \texttt{reserve.lua} records the reservation in Redis, and Postgres
+must record the notification to Order Service. The two data stores cannot
+share a transaction. To keep a process crash between the two writes from
+dropping the notification unnoticed, Inventory Service has its own
+\texttt{outbox\_events} table (\texttt{inventory\_service} schema). Inventory
+Service deliberately puts the unique index on \texttt{OrderId}, whereas Order
+Service uses \texttt{Id}.
 
 That difference makes the Lua script's \texttt{DUPLICATE} outcome safe.
 \texttt{DUPLICATE} means a \emph{previous} delivery of the same
@@ -1975,8 +1975,8 @@ three ways:
 
 \begin{itemize}
   \item \textbf{Conflicting result.} For example, \texttt{StockReserved} for
-    a \texttt{Rejected} order. This is not transient, so it is dead-lettered
-    at once.
+    a \texttt{Rejected} order. The conflict will persist, so the message is
+    dead-lettered at once.
   \item \textbf{Database error.} It is retried after 1, 2 and 4 seconds, then
     dead-lettered. Only a unique violation counts as a concurrent duplicate
     (TP-W01, TP-W03).
@@ -2007,8 +2007,9 @@ this report were produced by that version, and their invariant 3 and 4
 lines are therefore not evidence.
 
 \paragraph{Rules.} For C1: stock $\ge 0$; Confirmed decisions $\le$ initial;
-units taken (initial $-$ stock) $=$ Confirmed decisions, so every deduction
-has exactly one logged decision. Invariant 4 is reported \texttt{NOT
+units taken (initial $-$ stock) $=$ Confirmed decisions. The last equality
+gives exactly one logged decision for every deduction. Invariant 4 is reported
+\texttt{NOT
 APPLICABLE} with its reason, because C1 has no broker messages. For C2: Redis
 stock $\ge 0$; both Redis reservations and successful orders $\le$ initial.
 The Redis reservation set and the successful orders must be exactly the same
@@ -2016,14 +2017,14 @@ order ids (one reservation per order). Units taken must equal distinct
 reserved orders (no double deduction), and the Inbox \texttt{MessageId}
 uniqueness must exist in both services. A run with no data, or with a reserved
 order still \texttt{PendingStock}, is \texttt{INCONCLUSIVE}; an unreachable
-store or a failed query is \texttt{SETUP ERROR}. Both exit non-zero, so nothing
-unchecked is ever reported as a pass. C3 is validated from the
+store or a failed query is \texttt{SETUP ERROR}. Both exit non-zero, so
+nothing unchecked is ever reported as a pass. C3 is validated from the
 same evidence as C2, and a fifth check accounts for every accepted order: each
 order row is either terminal (\texttt{Completed}, \texttt{Rejected}) or
 outstanding (\texttt{PendingStock}, \texttt{Confirmed}, \texttt{Processing}),
 and the two add up to the orders accepted. An outstanding order makes the
-check \texttt{INCONCLUSIVE} and is listed with its age and re-publish count, so
-no accepted order can go unnoticed. The broken-fixture test now also covers
+check \texttt{INCONCLUSIVE}. The check lists its age and re-publish count,
+so no accepted order goes unnoticed. The broken-fixture test now also covers
 check 5 under C3 (16 of 16 checks,
 \nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261020T030140Z-validator.log}).
 
@@ -2114,10 +2115,9 @@ The workflow run on a fresh clone (TP-W04), its code-check findings and its nega
 RabbitMQ delivers at-least-once~\cite{rmq-confirms}. A message is removed
 from its queue only when the consumer acknowledges it. If the consumer dies first, or its
 connection drops, the broker delivers the same message again. Duplicates
-therefore cannot be avoided at the transport. The system's goal is the next
-best thing: every side effect happens effectively once, however many times
-a message arrives. This is the Idempotent Consumer
-pattern~\cite{richardson-idempotent,eip-idempotent}.
+therefore cannot be avoided at the transport. The system uses the Idempotent
+Consumer pattern~\cite{richardson-idempotent,eip-idempotent} so each side
+effect happens effectively once, however many times a message arrives.
 
 Two kinds of duplicate have to be absorbed, by two different layers.
 
@@ -2237,8 +2237,8 @@ delivers it again.
 \paragraph{What the code check found.} An earlier draft of this section
 described a manual crash test. Its output was never saved, and it killed
 Inventory Service \emph{before} it processed the message. That shows an
-unprocessed message is redelivered. It does not test the case this step is
-about: a crash \emph{after} the commit.
+unprocessed message is redelivered. The case under test requires a crash
+\emph{after} the commit.
 
 \paragraph{Fault injection.} Each of the four consumers now calls a fault-injection hook,
 \texttt{CrashBeforeAckIfTargeted}, between its commit and its
@@ -2346,18 +2346,18 @@ Three ordering risks remain with the Inbox in Order Service and Inventory Servic
 \end{itemize}
 
 \paragraph{What the code check found.} The third case was the open gap of
-Section~\ref{sec:design-decisions}. The Process Worker and Order Service both
-consume \texttt{StockReserved} in parallel. So \texttt{OrderProcessed} could
-reach Order Service while the order was still \texttt{PendingStock}. The
-transition to \texttt{Completed} was then illegal, so the message was
-dead-lettered and the completion was lost.
+Section~\ref{sec:design-decisions}. Because the Process Worker and Order
+Service consume \texttt{StockReserved} in parallel, \texttt{OrderProcessed}
+could reach Order Service while the order was still \texttt{PendingStock}. The
+message was then dead-lettered because the transition to \texttt{Completed}
+was illegal. The completion was lost.
 \nolinkurl{scripts/verify-design-decisions.ps1} still asserted this defective
 behaviour, and \nolinkurl{docs/order-state-machine.md} described a retry that
 did not exist in the code.
 
 \paragraph{Fix.} \texttt{StockResultProcessor} has a new outcome,
-\texttt{NotYetApplicable}, for exactly this case. It writes nothing, not
-even an Inbox row, so the message can still be applied later.
+\texttt{NotYetApplicable}, for exactly this case. It leaves the database
+unchanged, including the Inbox, so the message can still be applied later.
 \texttt{OrderProcessedConsumer} then:
 \begin{enumerate}
   \item republishes the message onto a delayed retry queue
@@ -2720,11 +2720,12 @@ an order that already has a result never reaches Redis again. Three unit tests
 in \nolinkurl{tests/FlashSale.InventoryService.Tests} check this with a Redis
 connection that fails on any use; with the old order restored, the two
 stored-result tests fail. The full regression and the negative controls on the
-fixed code are in \nolinkurl{tests/evidence/20261125T083042Z-full-check}. One
-narrow window remains by design: after a crash between \texttt{reserve.lua}
-and the PostgreSQL save there is no stored result yet, so the retry runs the
-script again and relies on the order being in \texttt{processed:\{product\}}
-(it answers \texttt{DUPLICATE}); this case is verified (TP-M01, case 1b).
+fixed code are in \nolinkurl{tests/evidence/20261125T083042Z-full-check}. The
+design still leaves a narrow window between \texttt{reserve.lua} and the
+PostgreSQL save. After a crash in that window there is no stored result yet.
+The retry therefore runs the script again and relies on the order being in
+\texttt{processed:\{product\}} (it answers \texttt{DUPLICATE}). TP-M01, case
+1b, verifies this case.
 
 Two rules hold for every row:
 \begin{itemize}
@@ -2739,10 +2740,10 @@ Two rules hold for every row:
 \label{sec:week11}
 
 This section adds the last component of the pipeline and the instrumentation the
-experiments will read it through. It also closes the oldest open question in
-this project: the \texttt{Confirmed} $\to$ \texttt{Processing} $\to$
-\texttt{Completed} leg that \nolinkurl{docs/order-state-machine.md} had refused
-to specify from the start.
+experiments will read it through. It also specifies the \texttt{Confirmed}
+$\to$ \texttt{Processing} $\to$ \texttt{Completed} leg, the project's oldest
+open question, which \nolinkurl{docs/order-state-machine.md} had left
+unspecified from the start.
 
 \subsection{The Process Worker, and what it settled about the state machine}
 
@@ -2750,11 +2751,9 @@ to specify from the start.
 \texttt{StockReserved}, waits a deterministic delay, and publishes
 \texttt{OrderProcessed}. Per Proposal §3 it only simulates downstream
 processing. It has no payment step, no failure injection and no compensation
-logic; \nolinkurl{docs/00-scope-lock.md} excludes all three. The delay
-is deterministic rather than randomised on purpose: with a fixed service
-time, any variance the experiments measure in end-to-end latency comes from
-queueing and contention in the architecture, not from the simulator adding
-noise of its own.
+logic; \nolinkurl{docs/00-scope-lock.md} excludes all three. The delay is
+deliberately fixed so that any variance the experiments measure in end-to-end
+latency comes from queueing and contention in the architecture.
 
 It consumes from its \emph{own} queue
 (\texttt{ProcessWorker.StockReserved}), bound to the same exchange with the
@@ -2773,10 +2772,10 @@ code now implements them.
   \item \textbf{A real trigger for \texttt{Processing}.} When the Process
     Worker begins work on a reserved order, it publishes
     \texttt{OrderProcessingStarted} (routed, with publisher confirms). Its
-    \texttt{MessageId} is derived from the order id: a name-based UUID that
+    \texttt{MessageId} is a name-based UUID derived from the order id and
     differs from the \texttt{OrderProcessed} id (\texttt{MessageId =
-    OrderId}). This keeps the two events apart in the Inbox, and a replay
-    still regenerates the same id.
+    OrderId}). The distinct ids let the Inbox distinguish the two events, and
+    a replay still regenerates the same id.
   \item \textbf{A consumer like the others.} Order Service consumes the event
     on its own queue, with the Inbox, the 1/2/4\,s retry ladder, validation
     and a DLQ.
@@ -2828,10 +2827,10 @@ apply. The brief's requirement that it ``use \texttt{order\_id} as its own
 idempotency key'' is met by deriving the published message's
 \texttt{MessageId} from the order id (they are set equal) instead of minting
 a fresh one per hop as every other event does. A redelivered
-\texttt{StockReserved} therefore regenerates an \texttt{OrderProcessed}
-with the same \texttt{MessageId}, which Order Service's Inbox recognises
-and drops (only its start time can differ): the idempotency key travels in the message rather than living in a
-store.
+\texttt{StockReserved} therefore regenerates an \texttt{OrderProcessed} with
+the same \texttt{MessageId}, which Order Service's Inbox recognises and drops
+(only its start time can differ). The idempotency key travels in the message
+without a separate store.
 
 A restart defect found by the code check, its fix and the Worker verifier (TP-P01) are in Appendix~\ref{app:ver-worker}.
 
@@ -2857,8 +2856,8 @@ middleware exists, each consumer re-establishes it with
 \texttt{LogContext.\allowbreak PushProperty}, which flows through the awaits into
 everything that logs downstream of it.\par
 
-Every log line also carries a \texttt{Service} property, so one search over
-the three JSON logs shows which service wrote each line. The Process Worker's
+With a \texttt{Service} property on every log line, one search over the three
+JSON logs shows which service wrote each line. The Process Worker's
 \texttt{Received} line now names the incoming \texttt{MessageId}, so the
 \texttt{StockReserved} it consumed can be matched to the one Order Service
 consumed.
@@ -2873,8 +2872,8 @@ from plain text to one JSON object per line
 (\texttt{Compact\allowbreak Json\allowbreak Formatter}). The structure makes the correlation id
 above \emph{queryable}: the experiments filter thousands of lines by a field
 and read timestamps back as values instead of extracting them from a rendered
-string with a regular expression. The console sink deliberately stays human-readable: it is
-watched live by a person, not parsed.
+string with a regular expression. The console sink deliberately stays
+human-readable for live monitoring by a person and is never parsed.
 
 \paragraph{Metrics.} Prometheus and Grafana were added to
 \nolinkurl{infra/docker-compose.yml}, with the Grafana datasource provisioned
@@ -2950,11 +2949,13 @@ RabbitMQ publish, deliver, ack rates & Management API \texttt{message\_stats}
 \end{table}
 The exported metrics fall into five groups:
 \begin{itemize}\sloppy
-  \item \textbf{Business results.} \texttt{flashsale\_orders\_\allowbreak accepted\_total}
-    counts orders, and only after the commit, so it can be compared with
-    JMeter's request count. \texttt{flashsale\_orders\_\allowbreak outcome\_total\{outcome\}}
-    counts state changes that were actually applied, never an idempotent
-    no-op, so it cannot drift from the database under redelivery. Inventory's
+  \item \textbf{Business results.}
+    \texttt{flashsale\_orders\_\allowbreak accepted\_total} counts orders only
+    after the commit. Its total can therefore be compared with JMeter's
+    request count. Under redelivery,
+    \texttt{flashsale\_orders\_\allowbreak outcome\_total\{outcome\}} stays
+    consistent with the database because it counts only state changes that
+    were actually applied. Inventory's
     \texttt{flashsale\_stock\_\allowbreak decisions\_total\{outcome\}} has the values
     \texttt{reserved}, \texttt{rejected}, \texttt{not\_open} and
     \texttt{duplicate}. Each counts a business result, never an attempt.
@@ -3100,10 +3101,10 @@ the publish path of the very system whose throughput is being measured.
 order that has already completed is delivered again, the two consumers
 behave differently, and both are correct:
 \begin{itemize}
-  \item The Process Worker has no store, so it does the work again and
-    republishes \texttt{OrderProcessed} with the same message id. Order
-    Service's Inbox recognises that id, so the completion is not applied
-    twice. TP-P04 case H measures this: the Worker's attempt counter rises by
+  \item Without a store, the Process Worker repeats the work and republishes
+    \texttt{OrderProcessed} with the same message id. Order Service's Inbox
+    recognises that id and prevents the completion from being applied twice.
+    TP-P04 case H measures this: the Worker's attempt counter rises by
     one, and the order still has one completion Inbox row.
   \item Order Service's own consumer treats a copy with the same message id
     as a duplicate (TP-P04 case C: duplicates $+1$, confirmed count
@@ -3176,9 +3177,9 @@ when a queue is full or the broker is down, accepted orders wait in the
 Outbox, which could grow without limit. Order Service therefore also refuses a
 new order (503, \texttt{reason=backlog}) when the unpublished Outbox has
 reached \texttt{Admission:\allowbreak MaxOutboxBacklog}. The check runs after
-the idempotency lookup and before the concurrency gate. The backlog is not
-counted per request: the Outbox publisher measures it on every poll, and each
-order accepted since that measurement is added at once. The bound therefore
+the idempotency lookup and before the concurrency gate. The Outbox publisher
+measures the backlog on each poll, not per request. Each order accepted since that measurement
+is added at once. The bound therefore
 holds even while a poll is stuck retrying an unavailable broker. It can be
 overshot only by requests that pass the check at the same moment, which the
 concurrency gate caps.
@@ -3626,9 +3627,9 @@ completion rate (3.7/s at a requested 10/s and 6.5/s at 50/s on local Docker),
 so C1 and C2 would not have received equal load. A closed loop like that
 hides overload~\cite{schroeder-open-closed}. Each table states the rate
 achieved, read from the JTL, not the rate requested. After each run,
-\nolinkurl{scripts/validate-correctness.ps1} gives its correctness verdict. A
-configuration that is fast but over-sells has not won anything, so no
-performance number is reported without that verdict.
+\nolinkurl{scripts/validate-correctness.ps1} gives its correctness verdict.
+The report accompanies every performance number with the correctness verdict
+because speed alone is insufficient if a configuration over-sells.
 
 Each cell runs 3 times under the same conditions. For every run,
 latency is reported as p50, p95 and p99. A table cell gives the median of
@@ -3732,9 +3733,10 @@ C4 reach p50 0.8--1.1\,s.
 
 At 200/s C2 achieved only 168/s. The plan's open mode keeps 200 threads, and
 each thread waits for its response; at about 1.1\,s per response 200 threads
-can offer only about 180 requests a second. The shortfall is therefore part
-of the result, not a load-generator fault: the backend's latency limited the
-offered rate. The JMeter host itself had spare capacity (Section~\ref{sec:pilot}).
+can offer only about 180 requests a second. The backend's latency limited the
+offered rate. The shortfall therefore belongs in the results and does not
+indicate a load-generator fault. The JMeter host itself had spare capacity
+(Section~\ref{sec:pilot}).
 
 \begin{table}[tbp]
 \centering
@@ -3752,8 +3754,8 @@ decision is made inside the request, so its decision latency is its API
 latency, and it has no completion stage. For C2 to C4 the decision and the
 completion come much later than the acknowledgement. At 50/s the p95 decision
 is 2.0--3.6\,s and the p95 completion 3.7--15\,s; at 100/s and above, orders
-wait tens of seconds, and C2's p95 completion reaches 120\,s at 200/s. The
-backend accepts orders faster than it can complete them, so a backlog forms
+wait tens of seconds, and C2's p95 completion reaches 120\,s at 200/s. When
+the backend accepts orders faster than it can complete them, the backlog grows
 and is worked off after the load ends.
 
 \begin{table}[tbp]
@@ -3769,10 +3771,11 @@ no completion stage. Cells: median of 3 runs (range).}
 \end{table}
 
 \paragraph{Where the time goes.} Table~\ref{tab:results-stages} splits C2's
-pipeline. At 100 and 200/s the largest share is between acceptance and
-publication: the Order Service Outbox publisher cannot keep up, so unpublished
-rows pile up (peak about 8,200 at 200/s,
-Figure~\ref{fig:results-backlog-time}, Appendix~\ref{app:figures}). The publisher already batches: it
+pipeline. At 100 and 200/s the largest share of the time is between acceptance
+and publication. Unpublished rows accumulate because the Order Service Outbox
+publisher cannot keep up (peak about 8,200 at 200/s,
+Figure~\ref{fig:results-backlog-time}, Appendix~\ref{app:figures}). The
+publisher already batches: it
 claims 50 rows, sends them on one channel, waits for all their confirms
 together and claims the next batch at once while batches are full. But it is
 one serial loop per service, and it runs in the Order Service process, whose
@@ -3882,9 +3885,9 @@ and C4 runs: about 300--330\,s. The remaining orders are the handful whose
 run, Table~\ref{tab:results-reliability}). They are too few to see on the
 figure's scale, and each waits for the reconciliation of
 \texttt{Confirmed} orders after the frozen 300\,s timeout. The last column of
-Table~\ref{tab:results-recovery} counts those runs. So recovery has two
-parts: the bulk of the backlog clears in under a minute with load shedding,
-and a short tail of dead-lettered orders then waits for reconciliation. No
+Table~\ref{tab:results-recovery} counts those runs. With load shedding, the
+bulk of the backlog clears in under a minute. A short tail of dead-lettered
+orders then waits for reconciliation. No
 service restarted in any run, and every run ended with every accepted order
 in a terminal state.
 
@@ -3965,13 +3968,13 @@ consumers. More consumers did not help. At 100/s the accepted rate fell from
 four consumers raised the p95 completion from 3.7 to 15\,s. The one exception,
 two consumers at 400/s, drained in 25\,s instead of about 300\,s because none
 of its runs had dead letters; its 99\,\% backlog time (36\,s against 38\,s)
-shows no extra capacity. The reason is the host: its CPU was already at
-96--99\,\% during the load at 100/s and above,
-and at 85\,\% with one consumer at 50/s, rising to 99\,\% with four. Each
-extra consumer is another process competing for the same two vCPUs and the
-same database connections (peak 32--70 of 200), so on one host it adds
-contention, not capacity. This is the shared-resource contention the brief
-asks C4 to show; it says nothing about replicas on separate machines.
+shows no extra capacity. Host CPU usage explains the lack of extra capacity.
+It was already at 96--99\,\% during the load at 100/s and above, and at 85\,\%
+with one consumer at 50/s, rising to 99\,\% with four. Each extra consumer is
+another process competing for the same two vCPUs and the same database
+connections (peak 32--70 of 200). The added contention without extra capacity
+on one host is the effect the brief asks C4 to show. The results do not
+establish what happens with replicas on separate machines.
 
 \section{Resource Use}
 
@@ -4106,8 +4109,8 @@ host pair was slower (Appendix~\ref{app:supp-anchor}).
 
 \paragraph{C1's ceiling.} Offered 400/s, C1 accepted 194.5--203.8 requests a
 second, about what it accepted at 200/s. Each client thread waits for its
-answer, so the requests queued instead: the API p50 rose to 1.9--2.0\,s and the
-p95 to 2.8--3.0\,s, with the host CPU 96\,\% busy (Order Service 48--50\,\%, the
+answer, so requests queued. The API p50 rose to 1.9--2.0\,s and the p95 to
+2.8--3.0\,s, with the host CPU 96\,\% busy (Order Service 48--50\,\%, the
 infrastructure 46--47\,\%). On this host C1 stops at about 200 requests/s. The
 data cannot tell whether the row lock or the CPU sets that limit, because both
 saturate at the same point.
@@ -4119,8 +4122,9 @@ orders were rejected: 10,047--10,103 per run for C1, inside the request;
 7,716--8,251 for C2 and 403--835 for C3, through the asynchronous stock-rejected
 path, each order ending in \texttt{Rejected} (accepted-order accounting). C3
 admitted only 2,403--2,835 orders, because its admission control refused
-6,576--7,239 requests per run with 503. This is the scarce-stock case the
-official matrix could not show, under load.
+6,576--7,239 requests per run with 503. The supplementary runs show what
+happens under load when stock is scarce, a case the official matrix could not
+show.
 
 \paragraph{C2 at 400/s.} C2 accepted every request, at 180.2--184.2 a second,
 with an API p95 of 2.7--2.9\,s, and completed the orders with a p95 of
@@ -4232,9 +4236,10 @@ code (\nolinkurl{tests/evidence/20261125T083042Z-full-check}).
   \item \textbf{Stored result lookup before \texttt{reserve.lua}.}
     Inventory now looks up the order's stored result first and runs
     \texttt{reserve.lua} only if no result exists. This closes the
-    \texttt{NOT\_OPEN} gap (described after Table~\ref{tab:failure-modes}). This is on the measured path,
-    but it moves a query rather than adding one: the same lookup by order ID
-    on the unique index already ran after the script. For an order seen for
+    \texttt{NOT\_OPEN} gap (described after Table~\ref{tab:failure-modes}).
+    The fix changes the order of operations on the measured path without
+    adding a query. The same lookup by order ID on the unique index already
+    ran after the script. For an order seen for
     the first time the result, the rows written and the number of database
     queries are the same as before. It was not re-measured.
 \end{itemize}
@@ -4349,18 +4354,18 @@ infrastructure, but C2 does more work per order: PostgreSQL writes the order,
 its Outbox row, Inbox rows and status history; RabbitMQ carries several
 messages per order; and three .NET processes run instead of one. At 50/s,
 where both keep up, C2 used 90\,\% of the host against C1's 46\,\%, about
-twice the CPU per order. C1 also does less: it has no processing stage, so
-the Worker's 200\,ms step is not part of its path at all.
+twice the CPU per order. C1 has no processing stage and therefore omits the
+Worker's 200\,ms step.
 
 At 100/s and above the two vCPUs are saturated, and the asynchronous pipeline
 then starves itself. The API, the Outbox publisher and the result consumers
-share the Order Service process, and the infrastructure shares the rest. The
-API wins that contention, because every request waits for it: the API keeps
-accepting orders (C2 168 a second at a nominal 200/s, while C3 and C4 refuse
-the excess) and only 4--30 a second complete
-(Table~\ref{tab:results-throughput}), and the backlog clears only when the
-load stops. Decoupling acceptance from processing, which is the point of the
-design, here means that processing gets what is left.
+share the Order Service process, and the infrastructure shares the rest.
+Because every request waits for the API, the API takes priority as the
+components compete for CPU. It keeps accepting orders (C2 168 a second at a
+nominal 200/s, while C3 and C4 refuse the excess). Only 4--30 orders a second
+complete (Table~\ref{tab:results-throughput}), and the backlog clears only
+when the load stops. The design separates acceptance from processing. On this
+host, processing uses the CPU time left over after acceptance.
 
 None of the conditions under which the asynchronous design is expected to win
 was present in this study, so these are expectations, not findings:
@@ -4401,10 +4406,10 @@ bounded publish retries together dead-letter a few messages per run when a
 queue stays full longer than the retries last (2--27 per run). Those orders
 complete only through reconciliation, after its 300\,s timeout for
 \texttt{Confirmed} orders, so most C3 and C4 overload runs reach a fully
-stable state only after about 300--330\,s. Nothing is lost, but
-reconciliation became a routine recovery path, which the brief rules out: it
-is meant as a safety net, not a substitute for retries and the dead-letter
-queue. The fix belongs at the Worker, in order of preference:
+stable state only after about 300--330\,s. No work was lost, but
+reconciliation became a routine recovery path. The brief reserves
+reconciliation as a safety net when retries and the dead-letter queue do not
+resolve a failure. The fix belongs at the Worker, in order of preference:
 \begin{enumerate}
   \item \textbf{Back-pressure.} Treat a refused publish (a negative confirm
     from a full queue) as ``wait'', not as a failure: stop taking new
@@ -4436,12 +4441,12 @@ four (Table~\ref{tab:results-recovery}). At 100/s the accepted rate fell
 slightly as consumers were added (98 to 90 a second) and
 the p95 completion rose (57 to 64\,s); at 50/s four consumers made completion
 four times slower than one (3.7 to 15\,s at p95). The host's CPU was already
-96--99\,\% busy at 100/s and above, so each replica is one more process
-competing for the same two vCPUs. Inventory was not the stage that limited the
-pipeline (the Outbox and the Worker were), so more Inventory consumers had
-nothing to speed up. This is the shared-resource contention the brief asks C4
-to expose. It says nothing about replicas on separate machines, where the
-same change could behave differently.
+96--99\,\% busy at 100/s and above. Each replica added another process
+competing for the same two vCPUs. The Outbox and the Worker limited the
+pipeline, leaving no throughput gain for extra Inventory consumers on this
+host. Competition for the same vCPUs is the shared-resource contention the
+brief asks C4 to expose. The results do not address replicas on separate
+machines, where the same change could behave differently.
 
 \section{The 2,000 attempts per second target}
 
@@ -4449,27 +4454,26 @@ The brief sets an initial target of about 2,000 reservation attempts a second
 for the chosen hardware. The study reached about 200 requests a second at
 the API and 50 to 66 completed orders a second. These rates give an indirect
 comparison with the target because they count accepted requests and
-completed orders (Section~\ref{sec:capacity}). The measurements point to where
-the limit lies. Redis was never the limit: its commands took 0.04--0.06\,ms on
-average. The limits were the host's two vCPUs, shared by every component
+completed orders (Section~\ref{sec:capacity}). Redis commands took
+0.04--0.06\,ms on average, and Redis never limited the system. The limits were
+the host's two vCPUs, shared by every component
 (Table~\ref{tab:results-cpu}), and the Order Service process, which runs both
 the API and the Outbox publisher's serial batch loop. Reaching the target would
 need some combination of more cores or separate hosts for the database, the
 broker and the services, and a publisher that does not share its CPU with the
 API, or several publishers claiming in parallel (the claim already uses
-\texttt{SKIP LOCKED}). None of these was tested, so this is a direction, not
-a finding.
+\texttt{SKIP LOCKED}). These are possible changes that the study did not test.
 
 \section{Threats to validity}
 
 \begin{itemize}
-  \item \textbf{One session, one host pair.} All 66 runs ran on one backend and
-    one JMeter host on one day, so the comparison between configurations is
-    fair, but a different host or AMI could shift every number. The
-    supplementary session on another pair of the same type and AMI found the
-    same cell about 5\,\% slower in achieved rate and up to twice as slow in
-    latency (Appendix~\ref{app:supp-anchor}), so absolute numbers depend on
-    the host. That is why the supplementary runs are not pooled.
+  \item \textbf{One session, one host pair.} Using one backend and one JMeter
+    host on one day for all 66 runs makes the comparison between
+    configurations fair, although a different host or AMI could shift every
+    number. The supplementary session on another pair of the same type and AMI
+    found the same cell about 5\,\% slower in achieved rate and up to twice as
+    slow in latency (Appendix~\ref{app:supp-anchor}). Because absolute numbers
+    depend on the host, the supplementary runs are kept separate.
   \item \textbf{Three repeats, 60\,s each.} The ranges in the tables are
     narrow for most cells, but three runs cannot show rare events. The drain,
     in particular, is bimodal: a run either has dead letters or not, and three
@@ -4529,8 +4533,9 @@ The main findings, each limited to this hardware and workload:
     for room in a full queue.
     The runs with the fix had no dead letters and drained in 29 to 43\,s
     (Section~\ref{sec:results-bp}).
-  \item More Inventory consumers on the same host added contention, not
-    capacity. The one better cell, two consumers at 400/s, had no dead
+  \item More Inventory consumers on the same host increased contention without
+    increasing capacity. The one better cell, two consumers at 400/s, had no
+    dead
     letters, so it drained in 25\,s instead of about 300\,s; its 99\,\%
     backlog time (36\,s) was the same as with one consumer (38\,s).
 \end{enumerate}
@@ -4937,9 +4942,9 @@ as not implied fails two checks, and the script exits 1.
 \emph{graceful} shutdown of the Worker (Ctrl+C, or SIGTERM from
 \texttt{docker stop}) dead-lettered accepted work. Stopping the host cancels
 the processing delay. The cancellation was caught as a failed attempt, the
-retry wait then threw again, and the message was nacked to the DLQ. The
-broker had already pushed every queued message to the Worker, so each of
-those failed the same way. A throwaway prototype with 10 queued orders
+retry wait then threw again, and the message was nacked to the DLQ. Every
+queued message failed the same way because the broker had already pushed all
+of them to the Worker. A throwaway prototype with 10 queued orders
 dead-lettered 9 of them on one Ctrl+C. Now a cancellation caused by
 shutdown is not a failed attempt. The message is left unacknowledged, so
 the closing channel returns it to the queue, and one Information line names
@@ -4973,18 +4978,19 @@ all three services on a throwaway broker and Redis
 The fresh-clone run passed all 51 checks
 (\nolinkurl{tests/evidence/20261011T160720Z-worker.log}). With the shutdown fix reverted,
 the Worker logged 5 DLQ routings and 5 errors during shutdown, and the
-script exited 1. The dead-letter count alone was not a reliable signal: the
+script exited 1. The dead-letter count alone was unreliable because the
 reverted Worker's rejections sometimes reached the broker after the channel
-had closed, and those messages were requeued anyway. So the check reads what
-the Worker did, not only where the messages ended up.
+had closed and those messages were requeued anyway. The check therefore also
+considers the Worker's actions.
 
 \paragraph{A test defect found and fixed.} A later fresh-clone run failed the
 graceful-restart case although the Worker was correct. The cause was
 Windows: a script started from Git Bash or a background task runs with
 Ctrl+C ignored, and the Worker inherited that. The test's Ctrl+C call then
-succeeded, but no Ctrl+C reached the Worker. The same run exposed a second
-defect: the check for the Worker's shutdown line searched the whole log file,
-so a line from an earlier run made it pass. Now the script turns Ctrl+C back
+succeeded, but no Ctrl+C reached the Worker. The same run also exposed a flaw
+in the shutdown check. It searched the whole log file for the Worker's
+shutdown line and passed on a line from an earlier run. Now the script turns
+Ctrl+C back
 on before it starts the Worker. It proves delivery from the Worker's own
 ``Application is shutting down'' line, and it reads only the log lines
 written after the Ctrl+C. Started from Git Bash, the fixed script passed all
@@ -5037,9 +5043,10 @@ Three details in this trace are worth explaining:
   \item The \texttt{OrderProcessed} id is the order id, which is the
     idempotency design above.
   \item Order Service logs receiving \texttt{OrderProcessed} 20\,ms before
-    the Worker logs publishing it. This is not a clock error. The Worker
-    writes its line after the broker's confirm returns, but the broker
-    delivers the message as soon as it routes it. For the same reason, an
+    the Worker logs publishing it. The difference comes from when the two
+    events are logged. The Worker writes its line after the broker's confirm
+    returns, but the broker delivers the message as soon as it routes it. For
+    the same reason, an
     Outbox row is marked published only after the confirm. In the fault
     trace, taken while \texttt{PublishedAt} still held the confirm time, the
     \texttt{OrderPlaced} row's \texttt{PublishedAt} came 1.1\,ms after
@@ -5088,11 +5095,11 @@ with a three-phase JMeter plan
 (recovery). Every limit is on: Nginx at 20 requests/s with a burst of 1,
 admission at 8 concurrent new orders and an Outbox backlog of 20, and a
 queue bound of 5. These values are local and pre-pilot; the Week~13 pilot
-fixes the official ones. The baseline rate is deliberately below the slowest
-stage: the Process Worker spends a fixed 200\,ms per order, and the run
-measured it at about 3.7 orders/s. At 5 orders/s, an earlier run showed its
-in-flight backlog still growing during ``recovery'', so that phase could not
-show a return to a stable state.
+fixes the official ones. The baseline rate is deliberately below the
+throughput of the slowest stage. The Process Worker spends a fixed 200\,ms per
+order and ran at about 3.7 orders/s in this test. In an earlier run at 5
+orders/s, the Worker's in-flight backlog kept growing during ``recovery'',
+which prevented that phase from showing a return to a stable state.
 
 \paragraph{What is measured.} The Week~11 collector samples the queues, the
 Outbox and the services during the run, and the extraction script turns them
@@ -5114,13 +5121,13 @@ The first local run passed every check in use at the time. The 2,390
 refusals logged by Nginx and the 832 counted by the admission metric matched
 JMeter exactly, all 773 accepted orders completed with one unit of stock each,
 and no service restarted. Its 3.9\,s backlog drain, however, missed the
-Process Worker's backlog. Once every consumer set a prefetch and all queued
-work was counted (second run), the real picture showed: Order Service accepted
-about 13 orders/s during the overload while the Worker finishes about 3.7/s,
-orders took about 40\,s from acceptance to completion, and the backlog took
-105\,s to clear, failing the 60\,s target. The Worker's bounded queue also held
-back Inventory's result to Order Service, so orders sat in
-\texttt{PendingStock} for about 32\,s. With the in-flight bound at the
+Process Worker's backlog. In the second run, every consumer set a prefetch and
+the measurement counted all queued work. Order Service accepted about 13
+orders/s during the overload, while the Worker finishes about 3.7/s. Orders
+took about 40\,s from acceptance to completion, and the backlog took 105\,s to
+clear, failing the 60\,s target. Orders stayed in \texttt{PendingStock} for
+about 32\,s because the Worker's bounded queue also delayed Inventory's result
+to Order Service. With the in-flight bound at the
 database baseline plus 30 (third run), Order Service refuses what the Worker
 cannot finish (Figure~\ref{fig:overload-timeline}): 548 orders were accepted,
 each completed in about 6\,s (p95 6.8\,s), the backlog cleared in 6.9\,s, and
@@ -5161,11 +5168,11 @@ refused keys of each kind had no order row. All 898 accepted orders
 completed, stock fell from 10,000 to 9,102 and the validator passed C3.
 Everything had drained 48\,s after the last submission, the recovery phase had
 no errors (p95 19\,ms), and no container restarted. Every admission refusal
-came from the Outbox-backlog bound, including a few during the slow phases, so
-that threshold, like the others, must be set at the Week~13 pilot. This run
-used the code from before the review, and its raw JTL and samples were not
-copied back before the stack was destroyed, so it cannot be re-measured with
-the new definitions; its numbers describe the earlier code only.
+came from the Outbox-backlog bound, including a few during the slow phases.
+The Week~13 pilot must therefore set that threshold along with the others.
+This run's numbers describe only the code from before the review. The raw JTL
+and samples were not copied back before the stack was destroyed. Without them,
+the run cannot be re-measured with the new definitions.
 
 After the review, the same plan ran again on EC2 with the updated code
 (\texttt{main-test-bug-fix}, in-flight bound 30 on a fresh
@@ -5239,9 +5246,8 @@ Table~\ref{tab:pilot-errors} lists every run with its error counters. Dead
 letters are counted once per message. The first report counted each one twice,
 because the Process Worker increments two metric families for one dead letter;
 \texttt{extract-run-metrics.ps1} now reads one family.
-Retries, dead letters, duplicates and reconciliations are internal recovery
-events, not lost orders: every accepted order finished and every validator
-passed.
+Retries, dead letters, duplicates and reconciliations are part of internal
+recovery. Every accepted order finished and every validator passed.
 
 \begin{table}[tbp]
 \centering
