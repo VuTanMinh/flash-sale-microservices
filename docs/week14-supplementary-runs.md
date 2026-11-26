@@ -105,7 +105,7 @@ The same steps as [week14-manual-steps.md](week14-manual-steps.md):
 - then, when told the session is done, steps 9 and 10 (destroy, check nothing is
   left).
 
-Nothing else changes. Claude runs the session and reports after each round.
+Nothing else changes. The operator runs the session and reports after each round.
 
 ## Local dry run
 

@@ -1,8 +1,8 @@
 # Week 13 EC2 session: the steps only you can do
 
-Claude does everything on the servers: it deploys the stack over SSM, runs the
+The operator does everything on the servers: deploys the stack over SSM, runs the
 live check and the pilot, and copies the evidence back. You do the AWS account
-steps below, because Claude never runs `terraform apply` or `destroy`.
+steps below, because the operator never runs `terraform apply` or `destroy`.
 
 Allow one sitting for steps 1 to 7 (about 15 minutes), then stay reachable. The
 servers cost credits from step 6 until step 9, so do step 9 the same day.
@@ -13,7 +13,7 @@ Run every command in **PowerShell on your PC**. The full background is in
 ## Step 1. Say "push"
 
 The servers clone `main-test-bug-fix` from GitHub, so they only get what has been
-pushed. Tell Claude "push" and wait for the new hash before step 2.
+pushed. Tell the operator "push" and wait for the new hash before step 2.
 
 ## Step 2. Open a terminal in the Terraform folder
 
@@ -52,7 +52,7 @@ aws iam get-instance-profile --instance-profile-name flashsale-ec2-ssm --profile
 ```
 
 **You should see** a block of JSON naming `flashsale-ec2-ssm`. If you see
-`NoSuchEntity`, stop and tell Claude.
+`NoSuchEntity`, stop and tell the operator.
 
 ## Step 6. Create the servers
 
@@ -69,20 +69,20 @@ terraform apply "-var-file=terraform.tfvars" "-var=auto_terminate_minutes=480"
 The quotes matter in Windows PowerShell 5.1: without them it splits `-var-file=terraform.tfvars` at the dot, and Terraform stops with "Too many command line arguments".
 
 Read the plan. **It should say** `4 to add, 0 to change, 0 to destroy`. If it does,
-type `yes`. If it shows anything else, type `no` and tell Claude.
+type `yes`. If it shows anything else, type `no` and tell the operator.
 
-## Step 7. Send Claude the server details
+## Step 7. Send the operator the server details
 
 ```powershell
 terraform output
 ```
 
-Paste the whole output to Claude. It holds instance ids and private addresses,
-not secrets. Claude takes over from here.
+Paste the whole output to the operator. It holds instance ids and private addresses,
+not secrets. The operator takes over from here.
 
 ## Step 8. Sign off the pilot
 
-Claude reports the pilot results and the values it proposes to freeze: the shedding
+The operator reports the pilot results and the values they propose to freeze: the shedding
 limits, the Worker delay and the workload matrix. The Week 13 milestone needs your
 sign-off on these before any official run, so read them and answer yes or no.
 
@@ -91,7 +91,7 @@ achieved rate as a limitation against the 2,000/s target.
 
 ## Step 9. Destroy the servers
 
-**Wait until Claude says the evidence is copied back.** Anything still on the
+**Wait until the operator says the evidence is copied back.** Anything still on the
 servers is lost here.
 
 ```powershell
@@ -111,13 +111,13 @@ aws ec2 describe-security-groups --filters "Name=tag:Project,Values=flash-sale" 
 aws ec2 describe-volumes --filters "Name=tag:Project,Values=flash-sale" --query "Volumes[].VolumeId" --profile flashsale-deploy
 ```
 
-**Each command should print** `[]`. Paste the output to Claude. If any list is not
-empty, tell Claude before closing the terminal.
+**Each command should print** `[]`. Paste the output to the operator. If any list is not
+empty, tell the operator before closing the terminal.
 
 ## If something goes wrong
 
-- Stop at the failing step and paste the error to Claude.
+- Stop at the failing step and paste the error to the operator.
 - If a step fails after step 6, the servers are still costing credits, so tell
-  Claude soon. Step 9 is safe to run at any time once you accept losing what is on
+  the operator soon. Step 9 is safe to run at any time once you accept losing what is on
   them.
 - Never paste passwords, access keys or the contents of `infra/ec2.env`.

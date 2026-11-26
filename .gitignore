@@ -51,9 +51,6 @@ report/progress/*.pdf
 tests/jmeter/results/*.log
 tests/jmeter/*-results/
 
-# AI assistant files stay local and are never committed (owner, 2026-10-14)
-/.claude/
-/CLAUDE.md
 /AGENTS.md
 # Local plugin state (groundwork bypass records; contains an email address)
 /.groundwork/
@@ -81,8 +78,4 @@ setup-week1.ps1
 *.env
 !.env.example
 
-# Local DeepSeek tooling (not part of the project)
-deepseek-mcp-server/
 
-# Task briefs and run outputs exchanged with the coding agent (local only)
-.agent-tasks/

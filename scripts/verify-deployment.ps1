@@ -13,7 +13,7 @@
 # PowerShell 7 on the backend and verifies the JMeter SHA-512 before extracting.
 #
 #   - terraform validate requires `terraform init` to have been run first
-#     (Claude runs it); if the provider is missing, that one check fails.
+#     (run separately); if the provider is missing, that one check fails.
 #   - docker build / docker compose config need Docker (no AWS).
 #   - the LIVE checks (smoke from the JMeter host; internal ports closed from
 #     the JMeter host) are printed at the end but marked NOT RUN until the

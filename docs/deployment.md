@@ -29,7 +29,7 @@ password — a known value — so keeping that UI behind a 404 is intentional.
   temporary login session, ~12 h; there is no IAM Identity Center / SSO and no
   attached guardrail policy). The Session Manager plugin
   (`session-manager-plugin`) must be installed locally.
-- Terraform ≥ 1.9 (Claude validates with
+- Terraform ≥ 1.9 (validated with
   `E:\terraform_1.16.6_windows_amd64\terraform.exe`; use `-TerraformExe` in the
   verifier).
 - The instance profile `flashsale-ec2-ssm` already exists (owner-created).

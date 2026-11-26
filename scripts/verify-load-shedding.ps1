@@ -73,7 +73,7 @@
 #      the three service PIDs are unchanged (no restart); a bounded sample of
 #      refused keys has no order row.
 #
-# Negative controls (Claude runs them): admission disabled -> B fails; policy
+# Negative controls (run separately): admission disabled -> B fails; policy
 # not set -> C fails; Nginx rate set very high -> A fails; MaxOutboxBacklog=0
 # -> E fails; check 5 removed -> F's negative fixture passes wrongly (F fails);
 # MaxInFlightOrders=0 -> I fails (and H's backlog drain fails, as before the

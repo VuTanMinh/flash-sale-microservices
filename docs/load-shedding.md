@@ -207,7 +207,7 @@ input queues and never a `.dlq` or `.retry.N` queue:
 `ProcessWorker.StockReserved`, `OrderProcessingStarted`, `OrderProcessed`.
 
 It is a policy rather than queue arguments because a policy can be added and
-removed at runtime without re-declaring any queue (Claude's prototype: a
+removed at runtime without re-declaring any queue (the prototype: a
 `max-length=2, overflow=reject-publish` policy capped `OrderPlaced` at 2,
 rejected the 3rd/4th publish, and deleting the policy removed the bound with no
 redeclare). The services' queue declarations are unchanged.
@@ -290,7 +290,7 @@ order left PendingStock — INCONCLUSIVE with the order listed and exit 1), and 
 `flashsale_admission_rejected_total{reason="backlog"}` and a RabbitMQ queue
 depth, with the backlog rising above 0 while the broker is down), and H (box 4:
 overload, drain and recovery — the section below). Negative
-controls (Claude runs them): admission disabled → B fails; policy not set → C
+controls (run separately): admission disabled → B fails; policy not set → C
 fails; Nginx rate set very high → A fails; `MaxOutboxBacklog=0` → E fails; check
 5 removed → F's negative fixture passes wrongly (F fails).
 

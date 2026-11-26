@@ -15,10 +15,8 @@
 **/node_modules/
 **/wwwroot/libs/
 
-# Version control and agent-local files
+# Version control and local tool files
 .git/
-.agent-tasks/
-.claude/
 .groundwork/
 
 # Secrets and local configuration -- never baked into an image
