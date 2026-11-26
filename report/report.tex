@@ -1390,8 +1390,8 @@ window so it reproduces on every run. The captured result
 \end{Verbatim}
 
 All five requests believed they had reserved the single unit, and the
-database was left at \(-4\). C1 is designed to eliminate that read-then-write
-race. \texttt{order\_service.inventory} deliberately omits the
+database was left at \(-4\). C1 is designed to eliminate this read-then-write
+race condition. \texttt{order\_service.inventory} deliberately omits the
 \texttt{CHECK (stock >= 0)} constraint to expose overselling without turning
 the bug into an unhandled exception.
 
@@ -1931,7 +1931,7 @@ leave \texttt{PendingStock}.
 Order Service's Outbox gets atomicity by writing a business row and an outbox
 row to the \emph{same} Postgres database in one transaction. In Inventory
 Service, \texttt{reserve.lua} records the reservation in Redis, and Postgres
-must record the notification to Order Service. The two data stores cannot
+must record the Outbox entry that notifies Order Service. The two data stores cannot
 share a transaction. To keep a process crash between the two writes from
 dropping the notification unnoticed, Inventory Service has its own
 \texttt{outbox\_events} table (\texttt{inventory\_service} schema). Inventory
@@ -2752,7 +2752,7 @@ unspecified from the start.
 \texttt{OrderProcessed}. Per Proposal §3 it only simulates downstream
 processing. It has no payment step, no failure injection and no compensation
 logic; \nolinkurl{docs/00-scope-lock.md} excludes all three. The delay is
-deliberately fixed so that any variance the experiments measure in end-to-end
+deterministic and deliberately fixed so that any variance the experiments measure in end-to-end
 latency comes from queueing and contention in the architecture.
 
 It consumes from its \emph{own} queue
@@ -2955,7 +2955,7 @@ The exported metrics fall into five groups:
     request count. Under redelivery,
     \texttt{flashsale\_orders\_\allowbreak outcome\_total\{outcome\}} stays
     consistent with the database because it counts only state changes that
-    were actually applied. Inventory's
+    were actually applied, never an idempotent no-op. Inventory's
     \texttt{flashsale\_stock\_\allowbreak decisions\_total\{outcome\}} has the values
     \texttt{reserved}, \texttt{rejected}, \texttt{not\_open} and
     \texttt{duplicate}. Each counts a business result, never an attempt.
@@ -3973,7 +3973,7 @@ It was already at 96--99\,\% during the load at 100/s and above, and at 85\,\%
 with one consumer at 50/s, rising to 99\,\% with four. Each extra consumer is
 another process competing for the same two vCPUs and the same database
 connections (peak 32--70 of 200). The added contention without extra capacity
-on one host is the effect the brief asks C4 to show. The results do not
+on one host is the shared-resource contention the brief asks C4 to show. The results do not
 establish what happens with replicas on separate machines.
 
 \section{Resource Use}
@@ -4360,12 +4360,13 @@ Worker's 200\,ms step.
 At 100/s and above the two vCPUs are saturated, and the asynchronous pipeline
 then starves itself. The API, the Outbox publisher and the result consumers
 share the Order Service process, and the infrastructure shares the rest.
-Because every request waits for the API, the API takes priority as the
-components compete for CPU. It keeps accepting orders (C2 168 a second at a
+Because every request waits for the API, the API wins that CPU contention.
+It keeps accepting orders (C2 168 a second at a
 nominal 200/s, while C3 and C4 refuse the excess). Only 4--30 orders a second
 complete (Table~\ref{tab:results-throughput}), and the backlog clears only
-when the load stops. The design separates acceptance from processing. On this
-host, processing uses the CPU time left over after acceptance.
+when the load stops. Decoupling acceptance from processing is the point of
+the design. On this host it means that processing uses the CPU time left over
+after acceptance.
 
 None of the conditions under which the asynchronous design is expected to win
 was present in this study, so these are expectations, not findings:
