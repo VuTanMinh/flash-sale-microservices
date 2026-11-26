@@ -326,8 +326,8 @@ shedding refused excess requests early and kept the backlog bounded; a
 post-freeze back-pressure fix in the Process Worker removed the dead letters
 that overload had left for reconciliation. More Inventory consumers on the same
 host added contention and no extra capacity. On this hardware the asynchronous
-design is slower; its value is decoupling and the guarantee that accepted work
-is never lost.
+design is slower; its value is decoupling and the guarantee that, within the
+tested failure model, accepted work is never lost.
 
 \tableofcontents
 \listoffigures
@@ -474,6 +474,12 @@ and the Nginx, application and queue load-shedding controls of C3. The backend t
 is one AWS EC2 host; JMeter runs on a separate machine. C4 varies Inventory Service
 replicas as 1, 2, and 4 processes or containers on that same host.
 
+Customers are simulated by Apache JMeter load-test scenarios through the
+order-creation and status-lookup APIs, and the results are intended as a
+reference for students, developers and software architects interested in
+inventory consistency, event-driven processing and overload handling.
+Product catalog, shopping cart, promotion, user management and administration
+functions are outside the scope.
 The study excludes a frontend, authentication and authorization, real payment
 processing, payment-failure compensation, multi-node scaling, clusters, and
 multi-region deployment. It does not claim that one-host replication represents
@@ -2988,14 +2994,15 @@ definitions, denominators and extraction are in
 Metric & Source & Status \\
 \midrule
 API latency p50/p95/p99 & JMeter JTL (\texttt{elapsed}), submissions only & Extracted \\
-Stock-decision latency & Request start to Inventory's result
-  \texttt{CreatedAt} (C2--C4); JTL (C1) & Extracted \\
-End-to-end completion latency & Request start to \texttt{CompletedAt} & Extracted \\
+Stock-decision latency & Order acceptance to Inventory's result
+  \texttt{CreatedAt} (C2--C4); JTL API latency (C1) & Extracted \\
+End-to-end completion latency & Order acceptance to \texttt{CompletedAt} & Extracted \\
 Incoming, accepted, completed throughput & JTL; \texttt{orders\_accepted\_total};
   \texttt{orders\_outcome\_total\{Completed\}} & Extracted \\
 Rejected request rate (overload) & JTL 429/503 & Extracted; the
   limits that cause it are in Section~\ref{sec:load-shedding} \\
-Internal error rate & JTL 5xx & Extracted \\
+Internal error rate & JTL 5xx except 503 (a 503 is an admission refusal,
+  counted as overload) & Extracted \\
 Reservation success / rejection rate & \texttt{stock\_decisions\_total\{outcome\}};
   Inventory results & Extracted \\
 Queue depth & RabbitMQ management API & Collected \\
@@ -3533,7 +3540,10 @@ below were locked after that confirmation.
 The owner signed off these values on 4 November 2026
 (Table~\ref{tab:locked}). They are in \nolinkurl{infra/ec2.env.example} and in
 the defaults of \nolinkurl{scripts/run-matrix.ps1}, and section~5f of
-\nolinkurl{docs/deployment.md} applies them per configuration. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \nolinkurl{docs/week14-freeze.md}. \nolinkurl{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, Appendix~\ref{app:freeze}).
+\nolinkurl{docs/deployment.md} applies them per configuration. In the official runs
+every order request of the plan (\nolinkurl{tests/jmeter/workload.jmx}, product
+file \nolinkurl{tests/jmeter/products.csv}) has the same JSON body, \texttt{\{"productId": "flash-product-1", "quantity": 1\}}, which is
+47 bytes, and a fresh \texttt{Idempotency-Key} header. The full freeze manifest, with the frozen source commit, the Terraform file hashes, the tool and image versions, the workload, the retry limits and the metric definitions, is \nolinkurl{docs/week14-freeze.md}. \nolinkurl{scripts/verify-freeze.ps1} checks every value in it against its source file (TP-X09, Appendix~\ref{app:freeze}).
 
 \begin{table}[tbp]
 \centering
@@ -3774,7 +3784,7 @@ made, over the 66 official runs. ``n/a'' marks a check that does not apply:
 C1 is synchronous, so it has no broker duplicates (4), no asynchronous
 accounting (5) and no status history (7); check 6 is defined for C1 and C2
 only. Check 7 requires an unbroken chain of transitions ending at the order's
-state, and 	exttt{Completed} has no outgoing transition, so an order can
+state, and \texttt{Completed} has no outgoing transition, so an order can
 have only one: it also shows one applied downstream result per order.}
 \label{tab:results-correctness}
 \end{table}
