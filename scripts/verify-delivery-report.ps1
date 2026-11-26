@@ -3,6 +3,7 @@
 # "Reliability and Idempotency Layer (Week 9)" (sec:week9) matches the
 # saved delivery evidence (TP-M01), the ordering evidence (TP-M02), the
 # three negative controls and docs/test-plan.md. No Docker needed.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-delivery-report.ps1 `
 #       -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z
@@ -37,6 +38,8 @@ $s = $tex.IndexOf('\section{Reliability and Idempotency}')
 $e = $tex.IndexOf('\section{', $s + 1)
 Check "Week 9 chapter found" ($s -ge 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($sec -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 
 # --- 1. the four required subsection titles ----------------------------
 foreach ($t in 'Message delivery semantics', 'Idempotent consumer',
@@ -74,13 +77,13 @@ $m1 = ReadLog $deliveryLog
 $m1Pass = ([regex]::Matches($m1, '(?m)^PASS')).Count
 $m1Fail = ([regex]::Matches($m1, '(?m)^FAIL')).Count
 Check "delivery log: exit 0, $m1Pass PASS, $m1Fail FAIL" ($m1 -match 'exit code: 0' -and $m1Fail -eq 0)
-Check "report states $m1Pass of $m1Pass checks for TP-M01 and cites the delivery log" ($sec.Contains("passes $m1Pass of $m1Pass") -and $sec.Contains("$DeliveryStamp-delivery.log"))
+Check "report states $m1Pass of $m1Pass checks for TP-M01 and names TP-M01 without a path" ($sec.Contains("passes $m1Pass of $m1Pass") -and $sec.Contains("TP-M01") -and $noPath)
 
 $m2 = ReadLog $orderingLog
 $m2Pass = ([regex]::Matches($m2, '(?m)^PASS')).Count
 $m2Fail = ([regex]::Matches($m2, '(?m)^FAIL')).Count
 Check "ordering log: exit 0, $m2Pass PASS, $m2Fail FAIL" ($m2 -match 'exit code: 0' -and $m2Fail -eq 0)
-Check "report states $m2Pass of $m2Pass checks for TP-M02 and cites the ordering log" ($sec.Contains("passes $m2Pass of $m2Pass") -and $sec.Contains("$OrderingStamp-delivery-ordering.log"))
+Check "report states $m2Pass of $m2Pass checks for TP-M02 and names TP-M02 without a path" ($sec.Contains("passes $m2Pass of $m2Pass") -and $sec.Contains("TP-M02") -and $noPath)
 
 $negAckPath = $delNeg | Where-Object { $_ -match 'ack' } | Select-Object -First 1
 $negInboxPath = $delNeg | Where-Object { $_ -match 'inbox' } | Select-Object -First 1

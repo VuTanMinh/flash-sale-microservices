@@ -1,6 +1,7 @@
 ﻿# ============================================================
 # Checks the report's Order Service section (label sec:order-service)
 # against the saved Week 5 evidence and the test plan.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-order-report.ps1 -Stamp 20261001T123816Z
 # ============================================================
@@ -16,6 +17,8 @@ $s = $tex.IndexOf("\label{sec:order-service}")
 $e = $tex.IndexOf("\subsection{Event Publication Reliability", $s)
 Check "Order Service section found" ($s -gt 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($sec -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 
 # Unit-test evidence
 $trxPath = Join-Path $root "tests\evidence\$Stamp-unit-tests.trx"
@@ -25,7 +28,7 @@ $passed = [regex]::Match($trx, 'passed="(\d+)"').Groups[1].Value
 $failed = [regex]::Match($trx, 'failed="(\d+)"').Groups[1].Value
 Check "TRX: $passed of $total passed, $failed failed" ($failed -eq "0" -and $passed -eq $total)
 Check "report states $passed of $total unit tests" ($sec.Contains("passes, $passed of $total,") -and $sec.Contains("Passed: $passed, Skipped: 0, Total: $total"))
-Check "report cites the TRX file" ($sec.Contains("$Stamp-unit-tests.trx"))
+Check "report names the saved unit-test results, without a path" ($sec.Contains("saved unit-test results") -and $noPath)
 Check "TRX contains OrderStateBehaviourTests (TP-A06)" ($trx.Contains("OrderStateBehaviourTests"))
 
 # API evidence

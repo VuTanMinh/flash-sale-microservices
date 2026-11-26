@@ -1,6 +1,7 @@
 # ============================================================
 # Checks the report's Inventory Service section (label sec:inventory) against
 # the saved Week 7 evidence, the real reserve.lua and the test plan.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-inventory-report.ps1 -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z
 # ============================================================
@@ -19,6 +20,8 @@ $s = $tex.IndexOf("\label{sec:inventory}")
 $e = $tex.IndexOf("\section{Stock Results and Order State}", $s)
 Check "Inventory Service section found" ($s -gt 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($sec -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 
 # Lua listing matches the real script's statements
 $lua = Get-Content (Join-Path $root "scripts\redis\reserve.lua") -Raw
@@ -45,7 +48,7 @@ $xs = Get-Content (Join-Path $root "tests\evidence\$CrossStoreStamp-cross-store.
 $xsPass = ([regex]::Matches($xs, '(?m)^PASS')).Count
 Check "cross-store log: exit 0, $xsPass PASS" ($xs -match 'Exit code: 0' -and $xs -notmatch '(?m)^FAIL')
 Check "report states $xsPass of $xsPass cross-store checks and the old code failing 5" ($sec.Contains("($xsPass of $xsPass checks)") -and $sec.Contains("5 of the test's 11 checks failed"))
-Check "report cites both evidence logs" ($sec.Contains("$InventoryStamp-inventory.log") -and $sec.Contains("$CrossStoreStamp-cross-store.log"))
+Check "inventory section names no evidence path or file code" $noPath
 
 # Topics required by the roadmap box
 foreach ($t in "Redis key and data design", "Lua reservation logic", "Inventory warm-up and readiness", "Inventory invariants under concurrency", "OrderPlaced handling and the Redis/PostgreSQL boundary") {

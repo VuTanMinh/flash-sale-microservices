@@ -4,6 +4,7 @@
 # failure evidence (TP-F01), the reconciliation evidence (TP-F02),
 # their two negative controls, docs/failure-handling.md's failure-mode
 # table, docs/test-plan.md, and the consumer/config source. No Docker.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-failure-report.ps1 `
 #       -FailuresStamp 20261011T084521Z -ReconciliationStamp 20261011T102304Z
@@ -62,6 +63,8 @@ $e = $tex.IndexOf('\section{', $s + 1)
 Check "Week 10 chapter found" ($s -ge 0 -and $e -gt $s)
 $sec = ""
 if ($s -ge 0 -and $e -gt $s) { $sec = $tex.Substring($s, $e - $s) }
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($sec -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 
 # --- SelfTest: mutate one number BEFORE the checks run -------------------
 if ($SelfTest) {
@@ -128,8 +131,8 @@ Check "chapter states all $f02Pass checks for TP-F02" ($sec.Contains("all $f02Pa
 $f02NegText = ReadLog $f02Neg
 Check "reconciliation negative log has a FAIL mentioning 'A. lost result'" ($f02NegText -match '(?m)^FAIL.*A\. lost result')
 
-Check "chapter cites the failures log" ($sec.Contains($f01Log))
-Check "chapter cites the reconciliation log" ($sec.Contains($f02Log))
+Check "chapter names TP-F01, without a path" ($sec.Contains("TP-F01") -and $noPath)
+Check "chapter names TP-F02, without a path" ($sec.Contains("TP-F02") -and $noPath)
 
 # --- 3. configuration matches the text -----------------------------------
 $appsettings = Get-Content (Join-Path $root "src\FlashSale.OrderService\appsettings.json") -Raw -Encoding UTF8 | ConvertFrom-Json

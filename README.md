@@ -80,8 +80,11 @@ experiments).
   Its service code (`src/`) is identical to commit `d9eec66`, the last commit
   that changed service code or tests; later commits change only the report,
   the documentation, evidence files, the ignore files, comments in two
-  verification scripts and one table header written by the report's figure
-  script (`report/figures/analyze_official.py`).
+  verification scripts, one table header written by the report's figure
+  script (`report/figures/analyze_official.py`) and six report checks
+  (`scripts/verify-{baseline,order,inventory,delivery,publication,failure}-report.ps1`),
+  which now require the report to describe its evidence in words, with no
+  evidence path (`tests/evidence/20261126T182340Z-report-check-paths/`).
 - The official results come from the tag **`w14-official`** (`9d00bea`). The
   report's section "Changes After the Freeze" lists every service change
   between the two tags and whether it touches the measured path.

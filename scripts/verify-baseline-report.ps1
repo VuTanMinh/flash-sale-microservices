@@ -2,6 +2,7 @@
 # Checks that the report's C0/C1 section (report.tex, label sec:c0-c1)
 # states what the saved evidence actually shows -- no stale or invented
 # numbers. Reads tests/baseline/results/*.json and the C1 smoke JTL.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-baseline-report.ps1 -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z
 # ============================================================
@@ -15,6 +16,8 @@ $tex = Get-Content (Join-Path $repoRoot "report\report.tex") -Raw -Encoding UTF8
 $start = $tex.IndexOf("\label{sec:c0-c1}")
 $end = $tex.IndexOf("\section{Order Service}", $start)
 $section = $tex.Substring($start, $end - $start)
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($section -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 $results = Join-Path $repoRoot "tests\baseline\results"
 $failures = 0
 
@@ -28,7 +31,7 @@ $c0 = Get-Content (Join-Path $results "$Stamp-c0-race.json") -Raw | ConvertFrom-
 Check "C0 evidence verdict is RACE CAPTURED" ($c0.verdict -eq "RACE CAPTURED")
 Check "report states C0 $($c0.confirmed) of $($c0.attempts) Confirmed" (Has "Result: $($c0.confirmed) of $($c0.attempts) concurrent requests got 'Confirmed'")
 Check "report states C0 final stock $($c0.finalStock)" (Has "Final stock in database: $($c0.finalStock) (started at 1)")
-Check "report cites the C0 log file" (Has "$Stamp-c0-race.log")
+Check "report states where the raw baseline results are, without a path" (Has "results are in the submitted source package")
 
 # C1: every run must pass and match the table row for its scenario
 foreach ($scenario in "below", "equal", "above") {
@@ -41,7 +44,7 @@ foreach ($scenario in "below", "equal", "above") {
     $row = "& $n & $($r.confirmed) & $($r.rejected) & $($r.finalStock) & $n/$n & PASS (3/3 runs)"
     Check "report table row for C1 $scenario matches evidence ($row)" (Has $row)
 }
-Check "report cites the C1 evidence files" (Has "$Stamp-c1-*-run*.json")
+Check "baseline section names no evidence path or file code" $noPath
 
 # Smoke JTL
 $jtl = @(Import-Csv (Join-Path $repoRoot "tests\jmeter\results\$SmokeStamp-c1-smoke.jtl"))
@@ -49,7 +52,6 @@ $elapsed = @($jtl | ForEach-Object { [int]$_.elapsed } | Sort-Object)
 $median = if ($elapsed.Count % 2) { $elapsed[[int](($elapsed.Count - 1) / 2)] } else { ($elapsed[$elapsed.Count / 2 - 1] + $elapsed[$elapsed.Count / 2]) / 2 }
 Check "JTL: $($jtl.Count) samples, all success, all /api/c1/orders" ($jtl.Count -eq 10 -and @($jtl | Where-Object { $_.success -ne "true" -or $_.URL -notlike "*/api/c1/orders" }).Count -eq 0)
 Check "report states min/median/max $($elapsed[0])/$median/$($elapsed[-1]) ms" ((Has "$($elapsed[0])\,ms minimum") -and (Has "$median\,ms median") -and (Has "$($elapsed[-1])\,ms maximum"))
-Check "report cites the smoke JTL" (Has "$SmokeStamp-c1-smoke.jtl")
 
 # Stale claims that the new evidence replaced must be gone
 Check "no stale 'exactly 1 request Confirmed, 4 Rejected' claim" (-not (Has "exactly 1 request Confirmed"))

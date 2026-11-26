@@ -1,0 +1,6 @@
+﻿01-baseline-report                       exit 0   PASS 18   FAIL 0       0 min
+02-order-report                          exit 0   PASS 23   FAIL 0       0 min
+03-publication-report                    exit 0   PASS 25   FAIL 0       0 min
+04-inventory-report                      exit 0   PASS 29   FAIL 0       0 min
+05-delivery-report                       exit 0   PASS 38   FAIL 0       0 min
+06-failure-report                        exit 0   PASS 103  FAIL 0       0 min

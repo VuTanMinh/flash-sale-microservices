@@ -1,6 +1,7 @@
 # ============================================================
 # Checks the report's Event Publication Reliability section (label sec:outbox)
 # against the saved Week 6 evidence and the test plan.
+# Since 27 Nov 2026 the report describes evidence in words; this script checks that no evidence path is left.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\verify-publication-report.ps1 -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z
 # ============================================================
@@ -19,13 +20,15 @@ $s = $tex.IndexOf("\label{sec:outbox}")
 $e = $tex.IndexOf("\section{Inventory Service}", $s)
 Check "Event Publication Reliability section found" ($s -gt 0 -and $e -gt $s)
 $sec = $tex.Substring($s, $e - $s)
+# The report describes its evidence in words; no repository path or timestamped file code may appear.
+$noPath = -not ($sec -match 'tests/evidence|\d{8}T\d{6}Z|\.(log|trx|jtl)\b')
 
 foreach ($pair in @(@("outbox", $OutboxStamp), @("publication", $PublicationStamp))) {
     $log = Get-Content (Join-Path $root "tests\evidence\$($pair[1])-$($pair[0]).log") -Raw -Encoding UTF8
     $pass = ([regex]::Matches($log, '(?m)^PASS')).Count
     $fail = ([regex]::Matches($log, '(?m)^FAIL')).Count
     Check "$($pair[0]) log: exit 0, $pass PASS, $fail FAIL" ($log -match 'Exit code: 0' -and $fail -eq 0)
-    Check "report states $pass of $pass checks for $($pair[0]) and cites the log" ($sec.Contains("$pass of $pass checks") -and $sec.Contains("$($pair[1])-$($pair[0]).log"))
+    Check "report states $pass of $pass checks for $($pair[0]), without a path" ($sec.Contains("$pass of $pass checks") -and $noPath)
 }
 $pub = Get-Content (Join-Path $root "tests\evidence\$PublicationStamp-publication.log") -Raw -Encoding UTF8
 foreach ($case in "A valid route", "B queue missing", "C binding removed", "D broker", "E nack", "F return", "G both queues present", "H OrderProcessed queue missing") {
