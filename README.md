@@ -76,9 +76,10 @@ experiments).
 
 ## Final submitted code
 
-- The source code as submitted is the annotated tag **`code-lock-2026-11-27`**
-  (`d9eec66`). Later commits change no service code: only the report, the
-  documentation, evidence files, the ignore files and comments in two
+- The source code as submitted is the annotated tag **`code-lock-2026-11-27`**.
+  Its service code (`src/`) is identical to commit `d9eec66`, the last commit
+  that changed service code or tests; later commits change only the report,
+  the documentation, evidence files, the ignore files and comments in two
   verification scripts.
 - The official results come from the tag **`w14-official`** (`9d00bea`). The
   report's section "Changes After the Freeze" lists every service change
