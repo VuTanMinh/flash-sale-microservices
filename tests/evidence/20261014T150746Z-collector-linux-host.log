@@ -1,5 +1,5 @@
 # Linux host path of scripts/collect-run-metrics.ps1 (W11 milestone task B2)
-# Commit: e4cf2e5 plus the uncommitted B2 fix (DeepSeek); image mcr.microsoft.com/powershell:7.4-ubuntu-22.04 (pwsh 7.4)
+# Commit: e4cf2e5 plus the uncommitted B2 fix; image mcr.microsoft.com/powershell:7.4-ubuntu-22.04 (pwsh 7.4)
 # Stamp: 20261014T150746Z (UTC)
 # Command: docker run --rm -v D:\DACNTT\scripts:/repo/scripts:ro -v <out>:/out mcr.microsoft.com/powershell:7.4-ubuntu-22.04 pwsh -NoProfile -File /repo/scripts/collect-run-metrics.ps1 -RunId linux-check -OutDir /out -IntervalSeconds 5 -DurationSeconds 12 (broker, Redis, PostgreSQL and service URLs unreachable on purpose)
 # Expected: no IsWindows error; host rows every sample; first cpu_percent unavailable, later ones numeric; unreachable sources unavailable, never 0

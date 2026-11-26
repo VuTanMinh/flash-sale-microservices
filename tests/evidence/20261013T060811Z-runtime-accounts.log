@@ -31,7 +31,7 @@ PASS  Inventory Inbox grew by 3 (one OrderPlaced per order) -- delta=3
 PASS  Order Inbox rows landed in order_service.processed_messages -- delta=6
 == Cross-schema denial (credentials parsed from checked-in appsettings.json)
 PASS  order_service_user reading inventory_service.outbox_events is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema inventory_service
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
 rify-runtime-accounts.ps1:82 char:19
 + ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,7 +41,7 @@ rify-runtime-accounts.ps1:82 char:19
 LINE 1: SELECT count(*) FROM inventory_service.outbox_events
                              ^
 PASS  inventory_service_user reading order_service.orders is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema order_service
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
 rify-runtime-accounts.ps1:82 char:19
 + ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -51,7 +51,7 @@ rify-runtime-accounts.ps1:82 char:19
 LINE 1: SELECT count(*) FROM order_service.orders
                              ^
 PASS  inventory_service_user reading public."AbpUsers" is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema public
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1fix\scripts\ve
 rify-runtime-accounts.ps1:82 char:19
 + ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

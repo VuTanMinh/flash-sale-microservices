@@ -1,5 +1,5 @@
 # NEGATIVE CONTROL for TP-P05: one stale snake_case column and the number 412 in a Results cell
-# Clone: week1-2 at 7608703 plus the uncommitted TP-P05 script and test-plan row (DeepSeek, review round 1), run from Git Bash in a C: clone
+# Clone: week1-2 at 7608703 plus the uncommitted TP-P05 script and test-plan row, run from Git Bash in a C: clone
 # Report: temp copy of report.tex with those two changes
 # Stamp: 20261014T094153Z (UTC)
 # Command: powershell -NoProfile -File scripts/verify-observability-report.ps1 -ReportPath <copy>

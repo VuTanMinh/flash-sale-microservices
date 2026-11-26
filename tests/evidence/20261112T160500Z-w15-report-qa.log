@@ -35,7 +35,7 @@ NOTE  the report has a table of contents but no list of figures or list of table
 
 5. Appendices
 PASS  appendices A-H complete and each referenced from the main text
-PASS  no paragraph or reference about AI tools (the removed section stays removed)
+PASS  the section removed in 3747f44 stays removed
 
 6. Originality
 PASS  no quoted passage of 12 or more words; no quote environment; no Vietnamese text outside the title page

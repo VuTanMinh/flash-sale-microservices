@@ -3,7 +3,7 @@ Clean clone of main-test-bug-fix at commit 4777c41a24dc935be907414c764ef7887e87b
 == Environment
 == Build + up (project flashsale-ec2v)
 powershell.exe : docker.exe :  Image flashsale-inventory-service:10.0 Building 
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\bdf7f23c-5d79-5373-a4ec-c84a32a595e7\scratchpad\beta2.ps1:20 
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\bdf7f23c-5d79-5373-a4ec-c84a32a595e7\scratchpad\beta2.ps1:20 
 char:5
 +     & powershell -NoProfile -File $verifier @vArgs *> $tmp
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

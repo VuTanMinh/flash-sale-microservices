@@ -31,7 +31,7 @@ PASS  Inventory Inbox grew by 3 (one OrderPlaced per order) -- delta=3
 PASS  Order Inbox rows landed in order_service.processed_messages -- delta=6
 == Cross-schema denial (credentials parsed from checked-in appsettings.json)
 PASS  order_service_user reading inventory_service.outbox_events is denied -- postgres: docker : psql:<stdin>:1: ERROR:  permission denied for schema inventory_service
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1neg\scripts\ve
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\m1neg\scripts\ve
 rify-runtime-accounts.ps1:82 char:19
 + ... ut = $sql | docker exec -i -e "PGPASSWORD=$password" $pg psql -h loca ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

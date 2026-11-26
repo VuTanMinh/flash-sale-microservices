@@ -15,7 +15,7 @@ PASS  E recovery: after space frees up the row is published and delivered once
 PASS  F return: unroutable mandatory publish raises PublishException(IsReturn=true)
 PASS  G only StockReserved queue exists: row stays unpublished (Process Worker queue missing)
 ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta8b\scripts\v
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta8b\scripts\v
 erify-publication.ps1:78 char:99
 + ... Id) { @($msgs | Where-Object { ($_.payload | ConvertFrom-Json).OrderI ...
 +                                                  ~~~~~~~~~~~~~~~~

@@ -22,7 +22,7 @@ At line:1 char:736
     + CategoryInfo          : NotSpecified: (ConvertFrom-Jso...use it is null.:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
-At C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta-w6b2\script
+At C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\beta-w6b2\script
 s\verify-publication.ps1:78 char:99
 + ... Id) { @($msgs | Where-Object { ($_.payload | ConvertFrom-Json).OrderI ...
 +                                                  ~~~~~~~~~~~~~~~~

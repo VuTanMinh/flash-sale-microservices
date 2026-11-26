@@ -2,7 +2,7 @@
 # fresh clone at e98e4e8 with ONE deliberate break: Process Worker RequiredSubscriberQueues OrderProcessed = [NoSuchQueue]
 # expected: the static check for OrderProcessed and the live completion steps fail; exit code non-zero
 
-== Static: diagrams against code and configuration (C:\Users\Lenovo\AppData\Local\Temp\claude\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\neg8\docs\sequence-diagrams.md)
+== Static: diagrams against code and configuration (C:\Users\Lenovo\AppData\Local\Temp\work\D--DACNTT\aee8760d-1ee0-43c5-a87e-cb822dca2922\scratchpad\neg8\docs\sequence-diagrams.md)
 PASS  doc has a happy-path, a rejection and a planned diagram
 PASS  report/figures/seq-happy-path.mmd is identical to the diagram in the doc
 PASS  report/figures/seq-rejection.mmd is identical to the diagram in the doc

@@ -32,7 +32,4 @@ Left as they are, by judgement
   and the full diagrams are in docs/sequence-diagrams.md.
 - A few pages are part-empty where a float ends a chapter or section; no table or figure is cut or overflows.
 
-Content note for the owners (not a layout item, not changed): sec. 11.5.5, "How it was built", names the
-AI tools used to write and review the code.
-
 Exit code: 0
