@@ -54,15 +54,13 @@
 \renewcommand*\l@subsection{\@dottedtocline{2}{4.5em}{3.8em}}
 \renewcommand*\l@figure{\@dottedtocline{1}{1.5em}{3em}}
 \renewcommand*\l@table{\@dottedtocline{1}{1.5em}{3em}}
-% Template unnumbered chapter headings: bold, centred, 16 pt.
-\renewcommand{\@makeschapterhead}[1]{{\parindent\z@\centering\normalfont\fontsize{16}{20}\selectfont\bfseries #1\par\nobreak\vskip 30\p@}}
 \makeatother
 
 % Marks earlier manual runs whose output was not saved in the repository.
 \newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \nolinkurl{docs/test-plan.md}.]}}
 
 \hypersetup{
-  pdftitle   = {Thiết kế và Đánh giá hiệu năng hệ thống Microservices xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale},
+  pdftitle   = {Design and Performance Evaluation of an Event-Driven Microservices System for Flash-Sale Order Processing},
   pdfauthor  = {Vũ Đình Kiệt (523V0011); Vũ Tấn Minh (523V0012)},
 }
 
@@ -73,8 +71,7 @@
 % noted below. Budget time for this conversion step before each week's
 % report-writing task, not just at the end.
 
-\title{Thiết kế và Đánh giá hiệu năng hệ thống Microservices \\
-xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
+\title{Design and Performance Evaluation of an Event-Driven Microservices System for Flash-Sale Order Processing}
 \author{Vũ Đình Kiệt (523V0011) \\ Vũ Tấn Minh (523V0012) \\ Class 23K50201 \\ Ton Duc Thang University}
 \date{\today}
 % Lets a paragraph with long monospace names (metric names, paths) take a
@@ -88,9 +85,7 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 
 % Cover and inner cover laid out after TDTU's English thesis template
 % (Template_English.doc: Mau 1 and Mau 2).
-\newcommand{\projecttitleen}{DESIGN AND PERFORMANCE EVALUATION OF A
-MICROSERVICES SYSTEM FOR LARGE-SCALE CONCURRENT TRANSACTION PROCESSING IN A
-FLASH-SALE SCENARIO}
+\newcommand{\projecttitleen}{Design and Performance Evaluation of an Event-Driven Microservices System for Flash-Sale Order Processing}
 % The kind of report, as it appears on both covers (owner: "IT project", for now).
 \newcommand{\projectlabel}{IT PROJECT}
 \begin{titlepage}
@@ -123,7 +118,7 @@ FLASH-SALE SCENARIO}
   \vspace{0.9cm}
   {\fontsize{20}{24}\selectfont\bfseries \projectlabel\\[2pt] SOFTWARE ENGINEERING\par}
   \vspace{0.9cm}
-  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{MSc. \vietnamesetext{MAI VĂN MẠNH}}\par}
+  {\fontsize{14}{17}\selectfont Supervisor\\[4pt] \textbf{MSc.~Mai \vietnamesetext{Văn Mạnh}}\par}
   \vfill
   {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
@@ -137,7 +132,7 @@ FLASH-SALE SCENARIO}
 \chapter*{Acknowledgment}
 \addcontentsline{toc}{chapter}{Acknowledgment}
 
-We would like to express our sincere gratitude to our advisor,
+We would like to express our sincere gratitude to our supervisor,
 \textbf{MSc.~Mai \vietnamesetext{Văn Mạnh}}, for the guidance, the constructive feedback and the
 encouragement throughout this IT project.
 
@@ -146,14 +141,6 @@ at Ton Duc Thang University for the knowledge and the support that this work
 built on, and our classmates and friends for their discussions and help.
 
 Finally, we are grateful to our families for their patience and encouragement.
-
-\vspace{3em}
-\begin{flushright}
-  Ho Chi Minh City, \hspace{1.5em} day \hspace{2em} month \hspace{2em} year 2026\\[1.5em]
-  \textbf{Authors}\\
-  \textit{(Signature and full name)}\\[5em]
-  \vietnamesetext{Vũ Tấn Minh} \hspace{4em} \vietnamesetext{Vũ Đình Kiệt}
-\end{flushright}
 
 \chapter*{Certification}
 \addcontentsline{toc}{chapter}{Certification}
@@ -181,8 +168,8 @@ Faculty after receiving the revised report (if any).\\[3em]
   \dotfill
 \end{minipage}
 
-\chapter*{Declaration of Authorship}
-\addcontentsline{toc}{chapter}{Declaration of Authorship}
+\chapter*{Declaration}
+\addcontentsline{toc}{chapter}{Declaration}
 
 We hereby declare that this IT project was carried out by us under the
 guidance and supervision of \textbf{MSc.~Mai \vietnamesetext{Văn Mạnh}}, and that the work and
