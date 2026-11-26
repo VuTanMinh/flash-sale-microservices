@@ -14,159 +14,44 @@
 % not what SHOULD be approved) before this is considered final.
 % ============================================================
 
-% Switched from plain \documentclass{report} to KOMA-Script's scrreprt (Week
-% 10 visual redesign) specifically to use the `cleanthesis` package below --
-% cleanthesis calls KOMA-only chapter-heading hooks (e.g.
-% \chapterheadstartvskip) that don't exist under plain `report`. scrreprt
-% accepts the same \chapter/\section/\subsection/\maketitle used throughout
-% this file, so none of the existing content needed to change.
-%
-% Using KOMA's own typearea margin calculation (activated below, after
-% cleanthesis loads) instead of a flat margin -- necessary, not cosmetic: an
-% earlier attempt at \usepackage{geometry}\geometry{margin=2.5cm} computed a
-% bottom margin (2.5cm) smaller than the footskip cleanthesis's two-line
-% running footer actually needs (page number + section title), which pushed
-% the entire footer below the physical page and made it invisible.
-\documentclass[a4paper,12pt]{scrreprt}
+\documentclass[12pt,a4paper]{report}
 
-% Loaded BEFORE cleanthesis: cleanthesis pulls in csquotes internally, and
-% csquotes errors ("'inputenc' package loaded too late") if inputenc isn't
-% already active by the time it loads.
 \usepackage[utf8]{inputenc}
+\usepackage[T5,T1]{fontenc}
+\usepackage{lmodern}
+\newcommand{\vietnamesetext}[1]{{\fontencoding{T5}\selectfont #1}}
 
-% cleanthesis (CTAN, Ricardo Langner) -- a clean, distraction-free thesis/
-% report style: colored chapter/section headings, a running header+footer via
-% scrlayer-scrpage, refined caption/TOC typography (tocloft), and Charter/TeX
-% Gyre Heros fonts instead of Computer Modern. Options set here rather than
-% left at their defaults:
-%   - configurelistings=false: this document uses \begin{Verbatim}[breaklines=true,breakanywhere=true,fontsize=\footnotesize] for
-%     log/code excerpts, not lstlisting, so cleanthesis's own listings setup
-%     would configure a package we never invoke.
-%   - configurebiblatex=false: References is a manual thebibliography list
-%     (see the backmatter below); report/bib-refs.bib
-%     is an empty placeholder file only -- cleanthesis's own bibfile-exists
-%     check (its one quirk: it isn't actually gated behind this option,
-%     unlike the rest of the biblatex setup) would otherwise error even with
-%     biblatex disabled. Flip this to true and populate the real .bib once
-%     the report has actual citations.
-%   - colortheme=bluemagenta: cleanthesis's default; picked deliberately
-%     over bluegreen for better contrast against black body text at 12pt.
-\PassOptionsToPackage{
-  hangfigurecaption=false,
-  hangsection=true,
-  hangsubsection=true,
-  sansserif=false,
-  configurelistings=false,
-  configurebiblatex=false,
-  colorize=full,
-  colortheme=bluemagenta
-}{cleanthesis}
-\usepackage{cleanthesis}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\pagestyle{plain}
 
-% cleanthesis itself hardcodes \KOMAoption{DIV}{12} internally (not exposed
-% as one of its own package options) -- overriding it back here, AFTER the
-% package has already loaded, is the only way a wider choice actually takes
-% effect. DIV=15 widens the text column enough that this report's many
-% inline \texttt{longIdentifierNames} (C# method/class names quoted in
-% running prose) mostly fit on one line instead of overflowing the margin;
-% \usepackage[htt]{hyphenat} below covers the few that still don't.
-\KOMAoptions{DIV=15}
-
-% KOMA defaults chapter-opening pages to the "plain" pagestyle (a bare
-% centered page number), distinct from "scrheadings" (cleanthesis's own
-% styled running footer) used on every other page. cleanthesis never
-% overrides this, so a chapter-opening page rendered BOTH -- the plain
-% centered number and, immediately below it, the scrheadings running
-% footer/rule -- since scrlayer-scrpage keeps both styles' content defined
-% and simply switches which one is active per page. Forcing chapter pages
-% onto scrheadings too makes every page in the document use one consistent
-% footer style, matching the rest of this design rather than confusingly
-% doubling up in the one place two page styles were fighting.
-\renewcommand*{\chapterpagestyle}{scrheadings}
-% cleanthesis sets \cofoot{} for scrheadings only, so the "plain" variant kept
-% KOMA's centred page number and the first front-matter page showed its number
-% twice. Empty it for plain pages too.
-\cofoot[]{}
-
-% Loaded AFTER cleanthesis's own \RequirePackage[T1]{fontenc}: fontenc
-% accumulates encodings across repeated \usepackage calls, and the LAST one
-% loaded becomes the active default -- T5 has to load second so Vietnamese
-% text (the title/author below) still renders correctly under cleanthesis.
-\usepackage[T5]{fontenc}
 \usepackage{graphicx}
-\usepackage{listings}
+\usepackage[font=small,labelformat=simple,labelsep=colon]{caption}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{amsmath}
-% [H] for the Results chapter's tables: each one belongs to the section that
-% explains it, and LaTeX's default float placement was drifting them a page
-% away from their own headings, so a reader met the table before the text
-% telling them what it measures.
 \usepackage{float}
-% Marks a claim from an earlier manual run whose output was not saved in the
-% repository. Such claims are not evidence until the named test-plan case
-% (docs/test-plan.md) passes with committed evidence.
-\newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \nolinkurl{docs/test-plan.md}.]}}
-
-% fvextra's Verbatim (capital V) replaces every plain \begin{verbatim} in
-% this report -- some of its ~17 raw docker/psql/log excerpts contain single
-% lines too long to fit any reasonable column width (a long docker command,
-% a wide log line with several identifiers), and plain verbatim has no way
-% to wrap them: the line just runs off the page, silently truncated in the
-% rendered PDF with no warning in the log to catch it (found by actually
-% looking at the compiled PDF, not by trusting "0 errors"). breaklines=true
-% wraps instead of truncating; breakanywhere=true allows breaking inside a
-% single long unbroken run (e.g. a long file path) rather than only at
-% existing spaces, which plain line-wrapping would still overflow on. Plain
-% fancyvrb (fvextra's own base package, loaded transitively) does NOT
-% support either key -- confirmed by trying it first and getting "Package
-% xkeyval Error: breaklines undefined" -- fvextra specifically adds them.
 \usepackage{fvextra}
-
-% enumitem (already required by cleanthesis) -- \item[Long Label] in this
-% report's description lists (e.g. the Technology Selection chapter) was
-% overflowing the margin because a long label is set on the same line as
-% its text by default. style=nextline puts the label on its own line
-% instead, which is what actually fixes it (a wider column alone wouldn't,
-% since some labels are wrapped in \texttt{...} identifiers too).
+\usepackage{enumitem}
 \setlist[description]{style=nextline}
-
-% This report inlines a LOT of long C#/identifier names in running prose via
-% \texttt{...} (e.g. publisherConfirmationTrackingEnabled) -- ordinary
-% \texttt has no hyphenation, so any single such identifier wider than the
-% column simply overflows the margin instead of breaking. hyphenat's `htt`
-% option specifically enables hyphenation for \texttt content (breaking at
-% normal camelCase-friendly points), which fixes this without rewording
-% dozens of sentences across the report or wrapping every \texttt call site
-% individually.
 \usepackage[htt]{hyphenat}
-% hyperref and caption are NOT loaded here -- cleanthesis already requires
-% and configures both (caption with its own styled small/bold/colored label
-% settings); loading either again with different options risks LaTeX's
-% "option clash" error for a package already loaded.
+\usepackage{adjustbox}
+\usepackage[hidelinks]{hyperref}
 
-% Long evidence paths in \nolinkurl may break after / - . _ and inside the
-% UTC timestamps (yyyymmddThhmmssZ), so none runs into the margin.
+% Keep long evidence paths breakable at punctuation and within UTC stamps.
+\Urlmuskip=0mu plus 1mu\relax
 \makeatletter
 \g@addto@macro{\UrlBreaks}{\do\-\do\.\do\_\do\T\do\Z\do\0\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9}
-\makeatother
-% Generated Results tables are capped at the text width.
-\usepackage{adjustbox}
-% Table of contents: room for two-digit section numbers (10.10 and up) and a
-% right margin so long titles wrap before the page number.
-\makeatletter
-\@ifpackageloaded{tocloft}{%
-  \renewcommand{\cftsecnumwidth}{3em}%
-  \renewcommand{\cftsubsecnumwidth}{3.8em}%
-  \renewcommand{\@tocrmarg}{3.5em}%
-}{}
+% Allow for section and subsection numbers with two-digit components.
+\renewcommand*\l@section{\@dottedtocline{1}{1.5em}{3em}}
+\renewcommand*\l@subsection{\@dottedtocline{2}{4.5em}{3.8em}}
 \makeatother
 
+% Marks earlier manual runs whose output was not saved in the repository.
+\newcommand{\unverified}[2]{\textit{[Not re-verified: earlier manual run, output not saved in the repository; re-verification is test case #1 (#2) in \nolinkurl{docs/test-plan.md}.]}}
+
 \hypersetup{
-  colorlinks = true,
-  linkcolor  = ctcolormain,
-  citecolor  = ctcolormain,
-  urlcolor   = ctcolormain,
   pdftitle   = {Thiết kế và Đánh giá hiệu năng hệ thống Microservices xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale},
   pdfauthor  = {Vũ Đình Kiệt (523V0011); Vũ Tấn Minh (523V0012)},
 }
@@ -184,9 +69,12 @@ xử lý giao dịch song song quy mô lớn trong kịch bản Flash-sale}
 \date{\today}
 % Lets a paragraph with long monospace names (metric names, paths) take a
 % little extra inter-word space instead of running into the margin.
-\setlength{\emergencystretch}{2.5em}
+\setlength{\emergencystretch}{4em}
+% Long typewriter identifiers and evidence paths must not run into the margin.
+\sloppy
 
 \begin{document}
+\hypersetup{pageanchor=false}
 
 % Cover and inner cover laid out after TDTU's English thesis template
 % (Template_English.doc: Mau 1 and Mau 2).
@@ -203,7 +91,7 @@ FLASH-SALE SCENARIO}
   \vspace{1.2cm}
   \includegraphics[width=4.2cm]{figures/tdtu-logo.png}\par
   \vspace{2cm}
-  {\fontsize{14}{17}\selectfont\bfseries VŨ TẤN MINH\\ VŨ ĐÌNH KIỆT\par}
+  {\fontsize{14}{17}\selectfont\bfseries \vietnamesetext{VŨ TẤN MINH}\\ \vietnamesetext{VŨ ĐÌNH KIỆT}\par}
   \vspace{2cm}
   {\fontsize{24}{30}\selectfont\bfseries \projecttitleen\par}
   \vspace{1.6cm}
@@ -219,13 +107,13 @@ FLASH-SALE SCENARIO}
   \vspace{1.2cm}
   \includegraphics[width=4.2cm]{figures/tdtu-logo.png}\par
   \vspace{1.0cm}
-  {\fontsize{14}{17}\selectfont\bfseries VŨ TẤN MINH -- 523V0012\\ VŨ ĐÌNH KIỆT -- 523V0011\par}
+  {\fontsize{14}{17}\selectfont\bfseries \vietnamesetext{VŨ TẤN MINH} -- 523V0012\\ \vietnamesetext{VŨ ĐÌNH KIỆT} -- 523V0011\par}
   \vspace{1.0cm}
-  {\fontsize{20}{26}\selectfont\bfseries \projecttitleen\par}
+  {\fontsize{22}{27}\selectfont\bfseries \projecttitleen\par}
   \vspace{0.9cm}
-  {\fontsize{18}{23}\selectfont\bfseries \projectlabel\\[2pt] SOFTWARE ENGINEERING\par}
+  {\fontsize{20}{24}\selectfont\bfseries \projectlabel\\[2pt] SOFTWARE ENGINEERING\par}
   \vspace{0.9cm}
-  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{MSc. MAI VĂN MẠNH}\par}
+  {\fontsize{14}{17}\selectfont Advised by\\[4pt] \textbf{MSc. \vietnamesetext{MAI VĂN MẠNH}}\par}
   \vfill
   {\fontsize{14}{17}\selectfont\bfseries HO CHI MINH CITY, YEAR 2026\par}
 \end{titlepage}
@@ -234,12 +122,13 @@ FLASH-SALE SCENARIO}
 % certification, declaration, abstract, contents and lists, numbered i, ii, ...
 \clearpage
 \pagenumbering{roman}
+\hypersetup{pageanchor=true}
 
 \chapter*{Acknowledgment}
 \addcontentsline{toc}{chapter}{Acknowledgment}
 
 We would like to express our sincere gratitude to our advisor,
-\textbf{MSc.~Mai Văn Mạnh}, for the guidance, the constructive feedback and the
+\textbf{MSc.~Mai \vietnamesetext{Văn Mạnh}}, for the guidance, the constructive feedback and the
 encouragement throughout this IT project.
 
 We also thank the lecturers and staff of the Faculty of Information Technology
@@ -253,14 +142,14 @@ Finally, we are grateful to our families for their patience and encouragement.
   Ho Chi Minh City, \hspace{1.5em} day \hspace{2em} month \hspace{2em} year 2026\\[1.5em]
   \textbf{Authors}\\
   \textit{(Signature and full name)}\\[5em]
-  Vũ Tấn Minh \hspace{4em} Vũ Đình Kiệt
+  \vietnamesetext{Vũ Tấn Minh} \hspace{4em} \vietnamesetext{Vũ Đình Kiệt}
 \end{flushright}
 
 \chapter*{Certification}
 \addcontentsline{toc}{chapter}{Certification}
 
 This IT project was carried out at \textbf{Ton Duc Thang University}.\\[0.5em]
-\textbf{Advisor: MSc.~Mai Văn Mạnh}\\[3em]
+\textbf{Advisor: MSc.~Mai \vietnamesetext{Văn Mạnh}}\\[3em]
 \makebox[0.6\textwidth]{\dotfill}\\
 \textit{(Title, full name and signature)}\\[3em]
 
@@ -286,7 +175,7 @@ Faculty after receiving the revised report (if any).\\[3em]
 \addcontentsline{toc}{chapter}{Declaration of Authorship}
 
 We hereby declare that this IT project was carried out by us under the
-guidance and supervision of \textbf{MSc.~Mai Văn Mạnh}, and that the work and
+guidance and supervision of \textbf{MSc.~Mai \vietnamesetext{Văn Mạnh}}, and that the work and
 the results contained in it are original and have not been submitted anywhere
 for any previous purpose. The experimental data and figures in this report
 come from our own implementation and measurements; material, data and comments
@@ -302,7 +191,7 @@ our work (if any).
   Ho Chi Minh City, \hspace{1.5em} day \hspace{2em} month \hspace{2em} year 2026\\[1.5em]
   \textbf{Authors}\\
   \textit{(Signature and full name)}\\[5em]
-  Vũ Tấn Minh \hspace{4em} Vũ Đình Kiệt
+  \vietnamesetext{Vũ Tấn Minh} \hspace{4em} \vietnamesetext{Vũ Đình Kiệt}
 \end{flushright}
 
 \chapter*{Abstract}
@@ -1206,6 +1095,7 @@ exchange, \texttt{flashsale.\allowbreak order.\allowbreak exchange}, with the ev
 
 \begin{center}
 \small
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.8cm}@{}}
 \toprule
 Event & Publisher & Consumer(s) & Transition \\
@@ -1217,6 +1107,7 @@ Event & Publisher & Consumer(s) & Transition \\
 \texttt{OrderProcessedEto} & Process Worker & Order Service & \texttt{Processing} $\to$ \texttt{Completed} \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{center}
 
 Each event carries a \texttt{MessageId} assigned by its producer and a
@@ -1536,6 +1427,7 @@ scenario three times:
 \begin{center}
 \small
 \setlength{\tabcolsep}{3.4pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}lrrrrrl@{}}
 \toprule
 Scenario & Requests & Confirmed & Rejected & Final stock & HTTP 200 & Verdict \\
@@ -1545,6 +1437,7 @@ Equal to stock & 100 & 100 & 0 & 0 & 100/100 & PASS (3/3 runs) \\
 Above stock & 150 & 100 & 50 & 0 & 150/150 & PASS (3/3 runs) \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{center}
 
 In all nine runs, Confirmed equalled $\min(\text{demand}, 100)$, stock never
@@ -2152,7 +2045,7 @@ Each broken fixture fails the targeted invariant or is reported
     settled as exactly 30 orders: 20 \texttt{Completed} and 10
     \texttt{Rejected}. The Redis reservation set and the 20 successful orders
     were the same order ids, and stock was 0.
-\end{itemize}\par\fussy
+\end{itemize}\par
 While this script was being developed, a second run reused a product id
 whose orders were still in the database from the first run. The validator
 correctly failed it, because the successful orders exceeded the stock that
@@ -2174,6 +2067,7 @@ failure branches in the frozen code.
 \begin{table}[tbp]
 \centering
 \small
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.1cm}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{5.4cm}>{\raggedright\arraybackslash}p{1.6cm}@{}}
 \toprule
 Steps & What happens & If it fails & Test \\
@@ -2181,7 +2075,7 @@ Steps & What happens & If it fails & Test \\
 1--4 & Validate; look up the \texttt{Idempotency-Key}; insert the order and
 its \texttt{OrderPlaced} Outbox row in one transaction; answer \texttt{201}. &
 \texttt{400}/\texttt{409}, or a replay answered \texttt{200}; a refused
-Outbox insert leaves no order. & A01--A07, O01 \\
+Outbox insert leaves no order. & A01--\allowbreak A07, O01 \\
 5--9 & Every 2\,s, publish up to 50 unpublished rows (oldest first) after
 checking queue \texttt{OrderPlaced}; mark published after the routed
 confirm. & Not marked published; retried after 1, 2, 4\,s, then next poll;
@@ -2189,19 +2083,20 @@ same \texttt{MessageId}. & O01, O02 \\
 10--15 & Inventory checks its Inbox, runs \texttt{reserve.lua}, then writes
 the result's Outbox row and its Inbox row in one transaction, then acks. &
 Retried, then dead-lettered; a replay gets \texttt{DUPLICATE}, so there is
-no second deduction. & I01--I03 \\
+no second deduction. & I01--\allowbreak I03 \\
 16--20 & Publish \texttt{StockReserved} (queues \texttt{StockReserved} and
-\texttt{ProcessWorker.StockReserved}) or \texttt{StockRejected}. & As for
+\texttt{ProcessWorker.\allowbreak StockReserved}) or \texttt{StockRejected}. & As for
 steps 5--9. & O02 \\
 21--23 & Order Service: Inbox check, \texttt{PendingStock} to
-\texttt{Confirmed}/\texttt{Rejected} and the Inbox row in one transaction. &
+\texttt{Confirmed}/\allowbreak\texttt{Rejected} and the Inbox row in one transaction. &
 Retried, then dead-lettered; a conflict is dead-lettered at once. & W01,
 W03 \\
-24--28 & Process Worker: publish \texttt{OrderProcessingStarted} (\texttt{MessageId} derived from \texttt{OrderId}), wait a fixed 200\,ms, publish \texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId}, then ack. & Retried, then dead-lettered; a redelivery republishes the same two \texttt{MessageId}s. & P01, P02 \\
+24--28 & Process Worker: publish \texttt{OrderProcessing\allowbreak Started} (\texttt{MessageId} derived from \texttt{OrderId}), wait a fixed 200\,ms, publish \texttt{OrderProcessed} with \texttt{MessageId} = \texttt{OrderId}, then ack. & Retried, then dead-lettered; a redelivery republishes the same two \texttt{MessageId}s. & P01, P02 \\
 29--34 & Order Service: \texttt{Confirmed} to \texttt{Processing}, then \texttt{Processing} to \texttt{Completed}, each with its Inbox row in one transaction. & If the order is still \texttt{PendingStock}: requeued (2, 4, 8\,s), then applied; a completion while \texttt{Confirmed} applies both steps with an implied \texttt{Processing} row. & W04, M02, P02 \\
 35--36 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404} for an unknown id. & A01 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \caption{Steps of the main workflow in the frozen code (test case IDs without
 the \texttt{TP-} prefix). In the submitted code, Inventory first looks up
 the order's stored result and runs \texttt{reserve.lua} only if no result
@@ -2255,6 +2150,7 @@ acknowledged as done (TP-W03).
 \begin{table}[tbp]
 \centering
 \small
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{3.1cm}@{}}
 \toprule
 Consumer & Inbox & One local transaction & Acknowledged \\
@@ -2265,6 +2161,7 @@ Order: \texttt{OrderProcessed}\allowbreak\texttt{Consumer} & Order Service's & \
 Process Worker: \texttt{StockReserved}\allowbreak\texttt{Consumer} & no Inbox (no database) & none: it only publishes \texttt{OrderProcessed} with \texttt{MessageId} = order id & after the confirmed publish \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \caption{The consumers as of Week~9, their Inbox and local transaction where
 applicable, and when they acknowledge (\nolinkurl{docs/delivery-semantics.md}).}
 \label{tab:consumers}
@@ -2954,7 +2851,7 @@ prevent. The controller therefore takes ABP's value and carries it onto the
 order and every event that follows. Across the message hops, where no HTTP
 middleware exists, each consumer re-establishes it with
 \texttt{LogContext.\allowbreak PushProperty}, which flows through the awaits into
-everything that logs downstream of it.\par\fussy
+everything that logs downstream of it.\par
 
 Every log line also carries a \texttt{Service} property, so one search over
 the three JSON logs shows which service wrote each line. The Process Worker's
@@ -3470,7 +3367,7 @@ requests passed with 5 orders completed
 was the overload run in Table~\ref{tab:overload-local-ec2}
 (\nolinkurl{tests/evidence/20261022T163505Z-ec2-overload.log}), and the third
 its rerun on the reviewed code
-(\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par\fussy
+(\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload.log}).\par
 
 % ============================================================
 \section{Demonstration User Interface}
@@ -4624,8 +4521,8 @@ the brief defines and reports its limits as found.
 % Every entry below was opened and checked on its official page on
 % 5 November 2026. Entries whose page could not be read were left out.
 \renewcommand{\bibname}{References}
-\KOMAoptions{bibliography=totoc}
 \begin{thebibliography}{99}
+\addcontentsline{toc}{chapter}{\bibname}
 \raggedright
 
 \bibitem{abp-docs}
@@ -4931,7 +4828,7 @@ delayed retry queue (2, 4, then 8\,s) and applies it once the order is
 \sloppy\paragraph{Evidence} (TP-W04; fresh clone;
 \nolinkurl{tests/evidence/}\allowbreak\nolinkurl{20261002T152659Z-workflow.log}).
 The verifier passes its 35 static checks. Each check
-is tied to the code or configuration. For example:\par\fussy
+is tied to the code or configuration. For example:\par
 
 \begin{itemize}
   \item Each event's drawn required queues must equal the
@@ -5323,6 +5220,7 @@ load until no order or Outbox row is unfinished. DL = dead-lettered messages.
 Sources: \nolinkurl{tests/evidence/20261101T204940Z-ec2-pilot.log} and the
 per-run summaries in the pilot bundles.}
 \label{tab:pilot-errors}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}lrrrrrrrr@{}}
 \toprule
 Run & Req./s & Ach./s & Accepted & Drain (s) & Retries & DL & Dupl. & Reconcil. \\
@@ -5357,6 +5255,7 @@ C2 & 50 & 50.7 & 3,031 & 0 & 0 & 0 & 305 & 0 \\
 C4, 2 replicas & 50 & 49.6 & 2,974 & 303 & 351 & 6 & 2,053 & 26 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 Three things stood out. C1 and C2 both stopped near 180 accepted requests/s
@@ -5428,6 +5327,7 @@ concurrency 1, reconciliation 30\,s, Worker 32. Fixed: 4, 120\,s, 20. C4 uses 2
 Inventory replicas, the queue bound 1000 and the C3 limits. E2E = accepted to
 completed. DL = dead-lettered messages.}
 \label{tab:confirmation}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}llrrrrrr@{}}
 \toprule
 Setting & Run & Drain (s) & E2E p95 (s) & Retries & DL & Duplicates & Reconcil. \\
@@ -5443,6 +5343,7 @@ Fixed & C4, 50/s & 0 / 0 & 10.8 / 15.0 & 0 / 0 & 0 / 0 & 41 / 26 & 0 / 0 \\
 Fixed & C4, 100/s & 44 / 292 & 56.6 / 58.4 & 337 / 357 & 0 / 2 & 3,217 / 3,074 & 0 / 0 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 The fix holds on EC2. Reconciliation fell from 1,440--3,479 per run at 100/s to
@@ -5493,6 +5394,7 @@ pilot, 60\,s open-loop load, one run per row, before the fix. HTTP is the
 client latency of 2xx submissions (ms); E2E is accepted to completed (s). C1 is
 synchronous and has no E2E stage. Percentiles are nearest-rank.}
 \label{tab:pilot-latency}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}lrrrrrrrrr@{}}
 \toprule
  & & & & & \multicolumn{3}{c}{HTTP (ms)} & \multicolumn{2}{c}{E2E (s)} \\
@@ -5519,6 +5421,7 @@ C4, 4 repl. & 200 & 176.9 & 6,503 & 0 / 4,143 & 1,064 & 1,762 & 2,013 & 124.4 & 
 C4, 4 repl. & 400 & 295.0 & 4,284 & 5,881 / 7,926 & 1,848 & 3,148 & 3,344 & 94.1 & 113.1 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \begin{table}[tbp]
@@ -5528,6 +5431,7 @@ C4, 4 repl. & 400 & 295.0 & 4,284 & 5,881 / 7,926 & 1,848 & 3,148 & 3,344 & 94.1
 run's load and drain, from \texttt{docker stats} every 5\,s. Inventory sums its
 replicas. The backend has 2 vCPU, so 200\,\% is the whole host.}
 \label{tab:pilot-resource}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{@{}lrrrrrrr@{}}
 \toprule
 Run & Req./s & Order & Inventory & Worker & PostgreSQL & RabbitMQ & Redis \\
@@ -5552,6 +5456,7 @@ C4, 4 repl. & 200 & 93 & 77 & 20 & 43 & 76 & 3 \\
 C4, 4 repl. & 400 & 144 & 75 & 21 & 40 & 74 & 4 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \paragraph{What the pilot shows, before the fix.} No configuration oversold or
@@ -5703,7 +5608,7 @@ orders/s but answered in about 1.1\,s (JMeter's threads then offered it only
 Inventory consumer, which handles one message at a time, decided only about
 71/s, so decisions fell a minute behind. This single-machine, one-run result
 is preliminary; it names the bottleneck that C4 and the Week~13 EC2 pilot
-must measure.\par\fussy
+must measure.\par
 
 Still open: every limit is a pre-pilot value that the Week~13 pilot fixes,
 and each overload number is a single run. The raw data from the first EC2 run
