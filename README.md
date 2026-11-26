@@ -74,6 +74,22 @@ The full fresh-machine guide, prerequisites included, is
 [docs/reproduction.md](docs/reproduction.md) (sections 7 to 9 for the
 experiments).
 
+## Final submitted code
+
+- The source code as submitted is the annotated tag **`code-lock-2026-11-27`**
+  (`d9eec66`). Later commits on the branch change no code: only the report,
+  the documentation, evidence files and `.gitignore`.
+- The official results come from the tag **`w14-official`** (`9d00bea`). The
+  report's section "Changes After the Freeze" lists every service change
+  between the two tags and whether it touches the measured path.
+- GitHub Actions CI ([.github/workflows/ci.yml](.github/workflows/ci.yml))
+  builds the solution and runs the three unit-test projects on every push:
+  119 tests (Order Service 104, Inventory Service 8, Process Worker 7). The
+  PostgreSQL race tests and the Inventory tests that use a real Redis run
+  against service containers there. Locally they need `FLASHSALE_TEST_PG` and
+  `FLASHSALE_TEST_REDIS`, and are skipped, not passed, without them; see
+  [docs/reproduction.md](docs/reproduction.md).
+
 ## Quickstart
 
 For a full reproduction from a clean machine, follow [docs/reproduction.md](docs/reproduction.md). To run the local stack and the three services by hand, follow [Local infrastructure — Running the application on the local stack](docs/infrastructure.md#running-the-application-on-the-local-stack). In short: Compose up, apply the role script on an existing volume, migrate with each service's own account, create the certificate, warm up, then `dotnet run` each service. The own-account runtime is verified by `scripts/verify-runtime-accounts.ps1`. The AWS EC2 deployment required by the brief (one backend host, JMeter on a separate host) is in `infra/terraform/` with `infra/docker-compose.ec2.yml`; its runbook is [docs/deployment.md](docs/deployment.md).

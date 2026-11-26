@@ -67,6 +67,22 @@ dotnet test tests/FlashSale.OrderService.Tests
 It creates and drops its own database (`flashsale_race_<random>`); it never
 writes to the `flashsale` database.
 
+The Inventory Service tests work the same way. Their three processor tests
+need nothing; the five `ReserveLuaRedisTests` need a Redis and are skipped
+(not passed) without `FLASHSALE_TEST_REDIS`. Any throwaway Redis works, for
+example on a free port:
+
+```powershell
+docker run -d --rm --name test-redis -p 6421:6379 redis:7
+$env:FLASHSALE_TEST_REDIS = "localhost:6421"
+dotnet test tests/FlashSale.InventoryService.Tests
+docker stop test-redis
+```
+
+Each test uses its own product keys and deletes them afterwards. GitHub
+Actions (`.github/workflows/ci.yml`) runs all three test projects on every
+push with PostgreSQL and Redis service containers.
+
 ## 4. The verifier database
 
 Almost every runtime verifier needs a throwaway PostgreSQL on port 55432:
