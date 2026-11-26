@@ -14,17 +14,22 @@
 % not what SHOULD be approved) before this is considered final.
 % ============================================================
 
-\documentclass[12pt,a4paper]{report}
+\documentclass[a4paper]{report}
+% Body text 13 pt Times, as the faculty template (Template English.doc) requires.
+\usepackage[fontsize=13pt]{scrextend}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T5,T1]{fontenc}
 \usepackage{lmodern}
-\newcommand{\vietnamesetext}[1]{{\fontencoding{T5}\selectfont #1}}
+\usepackage{newtxtext,newtxmath}
+\newcommand{\vietnamesetext}[1]{{\fontencoding{T5}\fontfamily{ptm}\selectfont #1}}
 
 \usepackage[a4paper,margin=2.5cm]{geometry}
 \usepackage{setspace}
 \onehalfspacing
 \pagestyle{plain}
+% Template paragraphs: justified, 1.27 cm first-line indent.
+\setlength{\parindent}{1.27cm}
 
 \usepackage{graphicx}
 \usepackage[font=small,labelformat=simple,labelsep=colon]{caption}
@@ -46,6 +51,8 @@
 % Allow for section and subsection numbers with two-digit components.
 \renewcommand*\l@section{\@dottedtocline{1}{1.5em}{3em}}
 \renewcommand*\l@subsection{\@dottedtocline{2}{4.5em}{3.8em}}
+% Template unnumbered chapter headings: bold, centred, 16 pt.
+\renewcommand{\@makeschapterhead}[1]{{\parindent\z@\centering\normalfont\fontsize{16}{20}\selectfont\bfseries #1\par\nobreak\vskip 30\p@}}
 \makeatother
 
 % Marks earlier manual runs whose output was not saved in the repository.
