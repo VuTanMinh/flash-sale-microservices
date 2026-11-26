@@ -152,6 +152,15 @@
 \makeatother
 % Generated Results tables are capped at the text width.
 \usepackage{adjustbox}
+% Table of contents: room for two-digit section numbers (10.10 and up) and a
+% right margin so long titles wrap before the page number.
+\makeatletter
+\@ifpackageloaded{tocloft}{%
+  \renewcommand{\cftsecnumwidth}{3em}%
+  \renewcommand{\cftsubsecnumwidth}{3.8em}%
+  \renewcommand{\@tocrmarg}{3.5em}%
+}{}
+\makeatother
 
 \hypersetup{
   colorlinks = true,
