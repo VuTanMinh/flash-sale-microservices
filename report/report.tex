@@ -307,22 +307,27 @@ synchronous PostgreSQL baseline. Five configurations are studied: C0, a
 deliberately unsafe read-check-write demonstration; C1, one conditional atomic
 update in PostgreSQL; C2, an asynchronous design in which an Order Service
 accepts orders through a Transactional Outbox, RabbitMQ with publisher
-confirms carries the events, an Inventory Service reserves stock in one atomic
-Redis Lua script, and every consumer is idempotent through an Inbox; C3, C2
-with load shedding by the Nginx gateway (429), admission control in the Order
-Service (503) and bounded queues; and C4, C3 with one, two or four Inventory
-replicas on the same host.
+confirms carries the events, and an Inventory Service reserves stock in one
+atomic Redis Lua script. Order Service and Inventory Service each have an
+Outbox, and their consumers use an Inbox. The Process Worker has no database
+and relies on deterministic message IDs. The \texttt{OrderProcessed}
+\texttt{MessageId} equals the \texttt{OrderId}, so Order Service's Inbox
+absorbs duplicates. C3 adds load shedding to C2 through the Nginx gateway
+(429), admission control in Order Service (503) and bounded queues. C4 runs
+C3 with one, two or four Inventory replicas on the same host.
 
 The services run with Docker Compose on one AWS EC2 \texttt{m7i-flex.large}
 instance created with Terraform, and JMeter drives them from a separate EC2
 host. The frozen matrix of 22 cells was run three times each, and all 66
 official runs passed every check of the correctness validator. No unit was
-ever oversold and no accepted order was lost, including a sell-out of 2,000
-units at 200 orders a second. On this 2-vCPU host the synchronous baseline was
-faster for the client at every tested rate and kept up to 200 requests a
-second, while the asynchronous design accepted every request it received (about 168 a second when 200 were offered) but completed
-only 50--66 orders a second, using about twice C1's CPU per order. Load
-shedding refused excess requests early and kept the backlog bounded; a
+oversold and no accepted order was lost. The supplementary runs included a
+sell-out of 2,000 units at 200 orders a second. On this 2-vCPU host, C1
+answered faster than C2 at the official rates of 50, 100 and 200 requests a
+second and kept up at 200. In the supplementary runs at 400/s, C1's API
+p95 was slightly above C2's (2,909\,ms versus 2,856\,ms). C2 accepted every
+request it received (about 168 a second when 200 were offered) but completed
+only 50 to 66 orders a second, using about twice C1's CPU per order. Load
+shedding refused excess requests early and kept the backlog bounded. A
 post-freeze back-pressure fix in the Process Worker removed the dead letters
 that overload had left for reconciliation. More Inventory consumers on the same
 host added contention and no extra capacity. On this hardware the asynchronous
@@ -506,10 +511,9 @@ The results have the following limits:
     substitute for an authorization check.
   \item The backend is one \texttt{m7i-flex.large} host with two vCPUs, shared
     by every service, the broker, Redis and the database. The official runs
-    reached about 200 accepted requests and 50--66 completed orders a second,
-    far below the brief's initial target of about 2,000 reservation attempts a
-    second; the results describe this host, not the design's ceiling
-    (Section~\ref{sec:capacity}).
+    reached about 200 accepted requests and 50 to 66 completed orders a second.
+    These rates give an indirect comparison with the brief's initial target
+    of about 2,000 reservation attempts a second (Section~\ref{sec:capacity}).
   \item The official matrix is steady load on one hot product with more stock
     than any run can sell. Scarce stock and the other load profiles were
     tested separately and at lower rates (TP-B02, TP-I02, TP-X04), and scarce
@@ -736,11 +740,12 @@ transaction into a sequence of local transactions, each with a compensating
 step, instead of holding one global transaction~\cite{garcia-molina-sagas}.
 Helland argues that at scale an application should update one entity per
 transaction and reach other entities only by messages, which must then be
-processed idempotently~\cite{helland-beyond}. The order workflow here follows
-both ideas: each step is a local transaction in one service's schema, the steps
-are linked by at-least-once events, and every consumer has an Inbox. It has no
-compensation step, because the Process Worker is success-only and a rejected
-order ends \texttt{Rejected}. Laigner et al.\ surveyed how microservice
+processed idempotently~\cite{helland-beyond}. Here, Order Service and Inventory
+Service use local transactions and an Inbox, and the steps are linked by
+events delivered at least once. The Process Worker relies on deterministic
+message IDs that Order Service's Inbox recognises. The workflow has no
+compensation step because the Worker always succeeds in this model and a
+rejected order ends in \texttt{Rejected}. Laigner et al.\ surveyed how microservice
 applications manage data, through a literature review, an analysis of
 open-source applications and a survey of over 120 practitioners and
 researchers; the challenges they report include keeping constraints across
@@ -1205,9 +1210,9 @@ Event & Publisher & Consumer(s) & Transition \\
 \end{tabular}
 \end{center}
 
-Each event carries \texttt{MessageId}, regenerated at every hop because each
-consumer keeps its own Inbox, and \texttt{CorrelationId}, copied unchanged from
-the inbound request so one value traces the whole journey. The Process Worker has no database of its own, so it derives its \texttt{MessageId}s from \texttt{OrderId}: for \texttt{OrderProcessed} it sets \texttt{MessageId} equal to \texttt{OrderId}, and \texttt{OrderProcessingStarted} carries a name-based UUID made from it; a replay then carries the same \texttt{MessageId}, and the Inbox drops it.
+Each event carries a \texttt{MessageId} assigned by its producer and a
+\texttt{CorrelationId} copied unchanged from the inbound request so one value
+traces the whole journey. The Process Worker has no database of its own, so it derives its \texttt{MessageId}s from \texttt{OrderId}: for \texttt{OrderProcessed} it sets \texttt{MessageId} equal to \texttt{OrderId}, and \texttt{OrderProcessingStarted} carries a name-based UUID made from it; a replay then carries the same \texttt{MessageId}, and the Inbox drops it.
 \texttt{StockRejectedEto} has no \texttt{Reason} field, because insufficient
 stock is the only rejection cause in scope.
 
@@ -2151,9 +2156,11 @@ had been re-seeded into Redis.
 order, from the code. Its steps are the numbered arrows of
 Figure~\ref{fig:seq-happy}. The order is accepted when its row commits, so
 the client receives \texttt{201 Created} with \texttt{PendingStock}. All
-later steps run asynchronously, and every consumer acknowledges only after
-its own transaction commits.
-Table~\ref{tab:workflow} lists each step with its failure branch.
+later steps run asynchronously. Order Service and Inventory Service
+acknowledge after committing or finding an Inbox entry, and Order Service
+also acknowledges after confirming a requeue. The Process Worker acknowledges
+after its publish is confirmed. Table~\ref{tab:workflow} lists the steps and
+failure branches in the frozen code.
 
 \begin{table}[tbp]
 \centering
@@ -2186,8 +2193,10 @@ W03 \\
 35--36 & \texttt{GET /api/orders/\{id\}} returns the state. & \texttt{404} for an unknown id. & A01 \\
 \bottomrule
 \end{tabular}
-\caption{Steps of the main workflow (test case ids without the
-\texttt{TP-} prefix).}
+\caption{Steps of the main workflow in the frozen code (test case IDs without
+the \texttt{TP-} prefix). In the submitted code, Inventory first looks up
+the order's stored result and runs \texttt{reserve.lua} only if no result
+exists (Section~\ref{sec:post-freeze-changes}).}
 \label{tab:workflow}
 \end{table}
 
@@ -2247,8 +2256,8 @@ Order: \texttt{OrderProcessed}\allowbreak\texttt{Consumer} & Order Service's & \
 Process Worker: \texttt{StockReserved}\allowbreak\texttt{Consumer} & no Inbox (no database) & none: it only publishes \texttt{OrderProcessed} with \texttt{MessageId} = order id & after the confirmed publish \\
 \bottomrule
 \end{tabular}
-\caption{Every consumer, its Inbox, its local transaction and when it
-acknowledges (\nolinkurl{docs/delivery-semantics.md}).}
+\caption{The consumers as of Week~9, their Inbox and local transaction where
+applicable, and when they acknowledge (\nolinkurl{docs/delivery-semantics.md}).}
 \label{tab:consumers}
 \end{table}
 
@@ -2271,7 +2280,10 @@ reject. Each processor works in this order:
     reaches Redis.
   \item \textbf{Decide.}
     \begin{itemize}
-      \item Inventory runs the Lua reservation.
+      \item In the frozen code, Inventory runs the Lua reservation. In the
+        submitted code, Inventory first looks up the order's stored result
+        and runs \texttt{reserve.lua} only if no result exists
+        (Section~\ref{sec:post-freeze-changes}).
       \item Order Service compares the order's state with the result. A
         result for the same or an earlier state on the happy path (for
         example a late \texttt{StockReserved} after \texttt{Completed}) is a
@@ -2300,7 +2312,7 @@ the message was retried and then dead-lettered, and a replay applied it once.
 
 \subsection{Acknowledgement strategy, proven with a real crash}
 
-Every consumer follows the same rule (\nolinkurl{docs/delivery-semantics.md}):
+The consumers in Order Service and Inventory Service use the same Inbox procedure (\nolinkurl{docs/delivery-semantics.md}):
 
 \begin{enumerate}
   \item Check the Inbox.
@@ -2417,7 +2429,7 @@ withdrawn. The crash case is now covered by TP-M01 above.
 
 \subsection{Concurrent duplicates and out-of-order completion}
 
-Three ordering risks remain once each consumer has an Inbox:
+Three ordering risks remain with the Inbox in Order Service and Inventory Service:
 \begin{itemize}
   \item many copies of one message arriving at the same moment;
   \item the same business fact arriving again under a new
@@ -3618,12 +3630,11 @@ the 400/s overload as a steady load.
 
 On this hardware the asynchronous path sustains between 50 and 100 orders/s: at
 50/s it keeps up with no backlog, and at 100/s orders back up even with the fix.
-The API front end accepts up to about 180 requests/s. Both are far below the
-brief's initial target of about 2,000 reservation attempts/s, which the brief
-itself states for the chosen hardware. The backend stays on
-\texttt{m7i-flex.large} (the owner's decision), so this study reports the
-achieved rate with the hardware it ran on, as a limitation against that target,
-rather than scaling the hardware to reach it.
+The API front end accepts up to about 180 requests/s. These rates give an
+indirect comparison with the brief's initial target of about 2,000 reservation
+attempts/s because they count completed orders and accepted API requests.
+The study reports the rates measured on the chosen
+\texttt{m7i-flex.large} host.
 
 % ============================================================
 \section{Cost of the AWS sessions}
@@ -3941,9 +3952,11 @@ Without load shedding, C2 at 200/s ends the load with about 9,800 unfinished
 orders and 8,200 unpublished Outbox rows; the Outbox empties within about
 30\,s, the queues fill and drain behind it, and 99\,\% of the orders are done
 after 124\,s. With the C3 limits the system ends the load with only about
-3,000--3,700 unfinished orders, and 99\,\% of them are done after 36--51\,s
-in every C3 and C4 cell. The number of Inventory consumers makes no
-difference to how fast it recovers.
+3,000 to 3,700 unfinished orders, and the median time for 99\,\% of them to
+finish is 36 to 51\,s across the C3 and C4 cells in the table. For C4 at
+400/s, the median full drain was 303\,s with one Inventory consumer, 25\,s
+with two and 332\,s with four. Reconciliation was needed in 2 of 3 runs
+with one consumer, 0 of 3 with two and 3 of 3 with four.
 
 The stable point, where the matrix's drain check passes, is later in most C3
 and C4 runs: about 300--330\,s. The remaining orders are the handful whose
@@ -4190,8 +4203,8 @@ with an API p95 of 2.7--2.9\,s, and completed the orders with a p95 of
 140--147\,s; the backlog drained 134--148\,s after the load. No message was
 dead-lettered. But many orders waited past the 120\,s reconciliation timeout, so
 reconciliation re-triggered 190--971 orders per run, and every one completed.
-At 400/s C2 accepted fewer requests than C1, at about the same p95, so the
-asynchronous design did not overtake C1 at the higher rate either.
+At 400/s C2 accepted fewer requests than C1 and had a slightly lower median
+API p95 (2,856\,ms versus 2,909\,ms).
 
 \begin{table}[!hb]
 \centering
@@ -4201,8 +4214,9 @@ asynchronous design did not overtake C1 at the higher rate either.
 \caption{Supplementary runs, 6~November, on a second host pair (not pooled
 with the official tables). Accepted counts the 2xx responses, which equal the
 orders in the database in every run. Sold is the units reserved; Rejected is the
-accepted orders that got no unit; Stock left is the final stock. Completion is
-acceptance to the terminal state, for the asynchronous configurations. Checks
+accepted orders that got no unit; Stock left is the final stock. Completion
+latency is the time from acceptance to \texttt{CompletedAt} for orders that
+reach \texttt{Completed} in the asynchronous configurations. Checks
 counts the runs in which every validator check held. Cells: median of 3 runs
 (range); Achieved, Sold and Stock left show the median only. Source: \nolinkurl{tests/evidence/20261106T135523Z-supplementary/}.}
 \label{tab:results-supp}
@@ -4243,10 +4257,14 @@ runs with dead letters drained in 308--326\,s; the 2 runs without any drained in
 21--25\,s, so the long drain of the official C3 and C4 overload cells is this one
 defect. The fixed Worker dead-lettered nothing in 9 of 9 runs and triggered no
 reconciliation; it waited 181--276 times per run instead, and every run drained
-in 29--43\,s. The bulk of the backlog cleared as fast as before (99\,\% done
-30--48\,s after the load on the frozen Worker and 38--51\,s on the fix, where
-measured), the completion p95 was 56--65\,s on both, and the refusals were the
-same. The fix removes the tail; it does not make the pipeline faster.
+in 29 to 43\,s. The time to finish 99\,\% of the backlog ranged from 30 to
+48\,s with the frozen Worker and from 38 to 51\,s in the fixed runs with
+that measurement. The median completion p95 rose from 59.7 to 61.6\,s
+for C3 at 200/s, from 59.8 to 61.3\,s for C3 at 400/s and from 59.6
+to 62.2\,s for C4 at 400/s. Median totals for 429 and 503 refusals
+also differed. They went from 7,031 to 7,046, from 19,012 to 18,965
+and from 18,250 to 19,055 in those same cells
+(\nolinkurl{report/figures/backpressure/runs.csv}).
 
 \begin{table}[H]
 \centering
@@ -4286,9 +4304,9 @@ code on 25~November (\nolinkurl{tests/evidence/20261125T083042Z-full-check}).
     of a literal in code. The value is the same, and it is read once at
     start-up; the request path is unchanged.
   \item \textbf{\texttt{e4375f5}, stored result before \texttt{reserve.lua}.}
-    Inventory now looks up the order's stored result before it runs the
-    reservation script, which closes the \texttt{NOT\_OPEN} gap
-    (described after Table~\ref{tab:failure-modes}). This is on the measured path,
+    Inventory now looks up the order's stored result first and runs
+    \texttt{reserve.lua} only if no result exists. This closes the
+    \texttt{NOT\_OPEN} gap (described after Table~\ref{tab:failure-modes}). This is on the measured path,
     but it moves a query rather than adding one: the same lookup by order ID
     on the unique index already ran after the script. For an order seen for
     the first time the result, the rows written and the number of database
@@ -4343,9 +4361,9 @@ stock. The conclusion is limited to the failure modes those tests cover
 and complexity?} On this one 2-vCPU host the comparison favours C1 more than
 the usual argument for asynchronous designs would suggest.
 
-\paragraph{Request latency.} C1 acknowledged faster at every rate it was run
-at: p95 30--39\,ms at 50 and 100/s against 199--739\,ms for C2. The
-asynchronous path does not avoid the database: it still writes the order and
+\paragraph{Request latency.} C1 answered faster at the official rates of
+50, 100 and 200/s. At 50 and 100/s its p95 was 30 to 39\,ms, compared with
+199 to 739\,ms for C2. The asynchronous path still writes the order and
 its Outbox row in one transaction before it answers. And it runs four more
 processes (Inventory Service, the Worker, RabbitMQ and Redis) on the same two
 vCPUs, which were 90--99\,\% busy during C2's load
@@ -4375,16 +4393,19 @@ The supplementary runs found that limit on a second, somewhat slower host
 (Section~\ref{sec:results-supp}). Offered 400/s, C1 still accepted about 200
 requests a second, at a p50 of about 2\,s, with the host CPU 96\,\% busy. The
 row lock and the CPU cannot be told apart as the cause there. C2, offered the
-same 400/s on that host, accepted about 183 a second at the same p95, so a
-higher rate did not turn the comparison either.
+same 400/s on that host, accepted about 183 requests a second. C1's median
+API p95 was slightly above C2's (2,909\,ms versus 2,856\,ms).
 
 \paragraph{Complexity.} C1 is one service and one table. C2 adds two more
-services, a broker, Redis, an Outbox and an Inbox in each service, bounded
-retries, dead-letter queues and a reconciliation job; the failure-mode table
-lists 22 cases it has to handle (Table~\ref{tab:failure-modes}). What C2 buys
-for that is decoupling: an order is accepted when Inventory or the Worker is
-slow or down, and the work is done later without being lost, which C1 cannot
-do. The official runs show that guarantee holding under load (every accepted
+services, a broker, Redis, bounded retries, dead letter queues and a
+reconciliation job. Order Service and Inventory Service each have an Outbox,
+and their consumers use an Inbox. The Process Worker has no database and
+relies on deterministic message IDs. Its \texttt{OrderProcessed}
+\texttt{MessageId} equals the \texttt{OrderId}, so Order Service's Inbox
+absorbs duplicate completions. The failure mode table lists 22 cases
+(Table~\ref{tab:failure-modes}). C2 lets an order be accepted when Inventory
+or the Worker is slow or down, and the work is done later without being lost.
+The official runs show that guarantee holding under load (every accepted
 order completed), and they also show its price in latency and CPU.
 
 \section{Why C1 wins on this host, and when the asynchronous design would}
@@ -4467,14 +4488,19 @@ None was implemented in the frozen code, which the 66 runs describe
 implemented and measured against the frozen Worker on one host pair
 (Section~\ref{sec:results-bp}). Worker dead letters fell from 0--11 per run to
 none in 9 of 9 runs, reconciliation stopped firing, and the overload drain fell
-from 308--326\,s in 7 of 9 runs to 29--43\,s in all of them. The bulk recovery and
-the completion p95 did not change. Reconciliation is back to being a safety net.
+from 308 to 326\,s in 7 of 9 frozen runs to 29 to 43\,s in all fixed runs.
+The median completion p95 rose slightly in each cell, and the median refusal
+totals differed. The time to finish 99\,\% of the backlog was available for
+only some fixed runs. None of the fixed runs needed reconciliation.
 
 \section{Consumer replicas on one host}
 
 \emph{How do 1, 2 and 4 Inventory consumers on one host affect throughput,
-drain and contention?} They did not improve anything measured. At 100/s the
-accepted rate fell slightly as consumers were added (98 to 90 a second) and
+drain and contention?} At 400/s, the median full drain was 303\,s with one
+Inventory consumer, 25\,s with two and 332\,s with four. Reconciliation was
+needed in 2 of 3 runs with one consumer, 0 of 3 with two and 3 of 3 with
+four (Table~\ref{tab:results-recovery}). At 100/s the accepted rate fell
+slightly as consumers were added (98 to 90 a second) and
 the p95 completion rose (57 to 64\,s); at 50/s four consumers made completion
 four times slower than one (3.7 to 15\,s at p95). The host's CPU was already
 96--99\,\% busy at 100/s and above, so each replica is one more process
@@ -4488,10 +4514,10 @@ same change could behave differently.
 
 The brief sets an initial target of about 2,000 reservation attempts a second
 for the chosen hardware. The study reached about 200 requests a second at
-the API and 50--66 completed orders a second, an order of magnitude below
-it, and reports that as a result with its hardware rather than scaling the
-hardware (Section~\ref{sec:capacity}). The measurements point to where the
-limit lies. Redis was never the limit: its commands took 0.04--0.06\,ms on
+the API and 50 to 66 completed orders a second. These rates give an indirect
+comparison with the target because they count accepted requests and
+completed orders (Section~\ref{sec:capacity}). The measurements point to where
+the limit lies. Redis was never the limit: its commands took 0.04--0.06\,ms on
 average. The limits were the host's two vCPUs, shared by every component
 (Table~\ref{tab:results-cpu}), and the Order Service process, which runs both
 the API and the Outbox publisher's serial batch loop. Reaching the target would
@@ -4539,10 +4565,10 @@ a finding.
 
 This project built and measured an event-driven flash-sale backend against a
 synchronous PostgreSQL baseline, as the brief asks. The asynchronous design
-uses a Transactional Outbox, an atomic Redis Lua reservation, RabbitMQ with
-publisher confirms, idempotent consumers with an Inbox, bounded retries,
-dead-letter queues, reconciliation and three layers of load shedding. Both
-designs were deployed on AWS EC2 with Terraform and measured with JMeter from
+uses Transactional Outboxes and Inbox tables in Order Service and Inventory
+Service, an atomic Redis Lua reservation, RabbitMQ with publisher confirms,
+bounded retries, dead letter queues, reconciliation and three layers of load
+shedding. Both designs were deployed on AWS EC2 with Terraform and measured with JMeter from
 a separate host, in 66 validated runs of a frozen matrix.
 
 The main findings, each limited to this hardware and workload:
@@ -4551,28 +4577,32 @@ The main findings, each limited to this hardware and workload:
     the separate scarce-stock and duplicate-message tests, including a sell-out
     of 2,000 units at 200/s; no unit was ever over-sold and no accepted order
     was lost.
-  \item On one 2-vCPU host the synchronous atomic update was faster for the
-    client at every tested rate and kept up to 200 requests a second, which is
-    also where it stopped when offered 400. The
-    asynchronous design accepted every request it received (about 168 a second when 200 were offered) but completed only 50--66 orders
+  \item On one 2-vCPU host C1 answered faster than C2 at the official rates of
+    50, 100 and 200 requests a second. C1 kept up at 200/s. In the
+    supplementary runs at 400/s, C1 accepted about 200 requests a second.
+    Its API p95 was slightly above C2's (2,909\,ms versus 2,856\,ms).
+    C2 accepted every request it received (about 168 a second when 200 were
+    offered) but completed only 50 to 66 orders
     a second: it spent about twice C1's CPU per order, and once the host was
     saturated its Outbox publisher, sharing the Order Service process with the
     API, completed only 4--30 orders a second during the load.
-  \item Load shedding worked as designed: excess requests were refused early
-    with 429 or 503, the backlog stayed bounded, and 99\,\% of it cleared
-    within a minute after the load. A few dead-lettered orders per overload
-    run then waited about 300\,s for reconciliation, a defect found by the
-    experiment. A post-freeze fix, back-pressure on a full queue instead of a
-    short retry ladder, removed it: no dead letters and drains of 29--43\,s
+  \item Load shedding refused excess requests early with 429 or 503,
+    bounded the backlog and let 99\,\% of it clear within a minute after the
+    load. In most frozen overload runs, some orders waited about 300\,s for
+    reconciliation after the Worker sent their messages to the dead letter
+    queue. Reconciliation became a routine recovery path in those runs. After
+    the freeze, the Worker was changed to wait for room in a full queue.
+    The runs with the fix had no dead letters and drained in 29 to 43\,s
     (Section~\ref{sec:results-bp}).
   \item More Inventory consumers on the same host added contention, not
     capacity.
 \end{enumerate}
 
-The asynchronous design's value here is decoupling and the guarantee that
-accepted work is never lost, not speed. Its speed would need more hardware
-than one small host, a publisher that does not share the API's CPU, and
-replicas on separate machines.
+The asynchronous design's value here is decoupling and the guarantee that,
+within the tested failure model, accepted work is never lost. Higher
+throughput would need more hardware than one small host, a publisher that
+does not share the API's CPU, and replicas on separate
+machines.
 Those are the natural next steps; this study measured the single-host case
 the brief defines and reports its limits as found.
 
@@ -4810,19 +4840,17 @@ Baseline (C0, C1) & TP-B01--B05 & 5 & 0 \\
 Documentation consistency & TP-D01--D04 & 4 & 0 \\
 Order API (Week 5) & TP-A01--A07 & 7 & 0 \\
 Outbox and publication (Week 6) & TP-O01--O03 & 3 & 0 \\
-Inventory reservation (Week 7) & TP-I01--I03 & 3 & 0 \\
+Inventory reservation & TP-I01--I04 & 4 & 0 \\
 Workflow and correctness (Week 8) & TP-W01--W05 & 5 & 0 \\
 Delivery semantics (Week 9) & TP-M01--M03 & 3 & 0 \\
 Failure handling (Week 10) & TP-F01--F03 & 3 & 0 \\
 Worker and observability (Week 11) & TP-P01--P08 & 8 & 0 \\
 Overload, deployment and experiments (Weeks 12--14) & TP-L01--L08, TP-X01--X14 & 22 & 0 \\
 \midrule
-Total & 67 & 67 & 0 \\
+Total & 68 & 68 & 0 \\
 \bottomrule
 \end{tabular}
-\caption{Test cases by area. Every case has passed with committed evidence;
-the last are the post-freeze Worker back-pressure A/B on EC2 (TP-X14) and
-the write-failure cases TP-B05, TP-W05 and TP-O03, all on 7~November 2026.}
+\caption{Test cases by area. Every case has passed with committed evidence.}
 \label{tab:app-tests}
 \end{table}
 
