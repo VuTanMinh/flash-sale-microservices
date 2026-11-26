@@ -1,4 +1,4 @@
-﻿# verify-inventory-report.ps1 -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z; repo E:\Agent_Memory\DACNTT\negpaths at neg6; started 2026-11-26T18:23:28.2119653Z
+﻿# verify-inventory-report.ps1 -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z; repo: a separate checkout of b265ade (previous report); started 2026-11-26T18:23:28.2119653Z
 PASS  Inventory Service section found
 PASS  Lua statement in both script and report: SISMEMBER', KEYS[2], ARGV[1]) == 1
 PASS  Lua statement in both script and report: EXISTS', KEYS[3]) == 0

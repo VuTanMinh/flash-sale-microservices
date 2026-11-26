@@ -1,4 +1,4 @@
-﻿# verify-publication-report.ps1 -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z; repo E:\Agent_Memory\DACNTT\negpaths at neg6; started 2026-11-26T18:23:27.5908856Z
+﻿# verify-publication-report.ps1 -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z; repo: a separate checkout of b265ade (previous report); started 2026-11-26T18:23:27.5908856Z
 PASS  Event Publication Reliability section found
 PASS  outbox log: exit 0, 11 PASS, 0 FAIL
 FAIL  report states 11 of 11 checks for outbox, without a path

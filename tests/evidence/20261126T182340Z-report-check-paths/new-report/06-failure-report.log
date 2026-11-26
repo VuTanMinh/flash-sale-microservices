@@ -1,4 +1,4 @@
-﻿# verify-failure-report.ps1 -FailuresStamp 20261011T084521Z -ReconciliationStamp 20261011T102304Z; repo D:\DACNTT at new6; started 2026-11-26T18:23:11.4107065Z
+﻿# verify-failure-report.ps1 -FailuresStamp 20261011T084521Z -ReconciliationStamp 20261011T102304Z; repo: this repository, new report; started 2026-11-26T18:23:11.4107065Z
 PASS  Week 10 chapter found
 PASS  subsection title present: Classify, then retry a bounded number of times
 PASS  subsection title present: A dead-letter queue per service, and replay

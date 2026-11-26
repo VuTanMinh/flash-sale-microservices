@@ -1,4 +1,4 @@
-﻿# verify-publication-report.ps1 -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z; repo D:\DACNTT at new6; started 2026-11-26T18:23:09.1442322Z
+﻿# verify-publication-report.ps1 -OutboxStamp 20261001T163530Z -PublicationStamp 20261001T163055Z; repo: this repository, new report; started 2026-11-26T18:23:09.1442322Z
 PASS  Event Publication Reliability section found
 PASS  outbox log: exit 0, 11 PASS, 0 FAIL
 PASS  report states 11 of 11 checks for outbox, without a path

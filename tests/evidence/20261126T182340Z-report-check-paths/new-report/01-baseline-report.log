@@ -1,4 +1,4 @@
-﻿# verify-baseline-report.ps1 -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z; repo D:\DACNTT at new6; started 2026-11-26T18:23:07.7289176Z
+﻿# verify-baseline-report.ps1 -Stamp 20261001T085538Z -SmokeStamp 20261001T090632Z; repo: this repository, new report; started 2026-11-26T18:23:07.7289176Z
 PASS  C0 evidence verdict is RACE CAPTURED
 PASS  report states C0 5 of 5 Confirmed
 PASS  report states C0 final stock -4

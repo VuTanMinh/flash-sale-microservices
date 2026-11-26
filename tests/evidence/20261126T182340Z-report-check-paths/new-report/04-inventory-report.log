@@ -1,4 +1,4 @@
-﻿# verify-inventory-report.ps1 -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z; repo D:\DACNTT at new6; started 2026-11-26T18:23:09.8220415Z
+﻿# verify-inventory-report.ps1 -InventoryStamp 20261002T051418Z -CrossStoreStamp 20261002T052244Z; repo: this repository, new report; started 2026-11-26T18:23:09.8220415Z
 PASS  Inventory Service section found
 PASS  Lua statement in both script and report: SISMEMBER', KEYS[2], ARGV[1]) == 1
 PASS  Lua statement in both script and report: EXISTS', KEYS[3]) == 0

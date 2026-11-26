@@ -1,4 +1,4 @@
-﻿# verify-delivery-report.ps1 -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z; repo E:\Agent_Memory\DACNTT\negpaths at neg6; started 2026-11-26T18:23:28.8411560Z
+﻿# verify-delivery-report.ps1 -DeliveryStamp 20261002T183238Z -OrderingStamp 20261003T181814Z; repo: a separate checkout of b265ade (previous report); started 2026-11-26T18:23:28.8411560Z
 PASS  Week 9 chapter found
 PASS  subsection title present: Message delivery semantics
 PASS  subsection title present: Idempotent consumer
