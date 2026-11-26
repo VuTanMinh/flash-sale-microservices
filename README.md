@@ -79,8 +79,9 @@ experiments).
 - The source code as submitted is the annotated tag **`code-lock-2026-11-27`**.
   Its service code (`src/`) is identical to commit `d9eec66`, the last commit
   that changed service code or tests; later commits change only the report,
-  the documentation, evidence files, the ignore files and comments in two
-  verification scripts.
+  the documentation, evidence files, the ignore files, comments in two
+  verification scripts and one table header written by the report's figure
+  script (`report/figures/analyze_official.py`).
 - The official results come from the tag **`w14-official`** (`9d00bea`). The
   report's section "Changes After the Freeze" lists every service change
   between the two tags and whether it touches the measured path.

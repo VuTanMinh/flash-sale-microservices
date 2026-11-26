@@ -581,7 +581,7 @@ if SUPP:
     rows = [("Achieved rate (/s)", "achieved", 1, 1.0), ("Done/s in load", "done_load_per_s", 1, 1.0),
             ("API p95 (ms)", "api_p95", 0, 1.0), ("Completion p95 (s)", "comp_p95", 1, 1000.0),
             ("Drain (s)", "drain_s", 0, 1.0), ("Host CPU in load (\\%)", "cpu_load_mean", 0, 1.0)]
-    lines = [r"\begin{tabular}{lrr}", r"\toprule", r"C2 at 100/s & 5 November (official) & 6 November (supplementary) \\", r"\midrule"]
+    lines = [r"\begin{tabular}{lrr}", r"\toprule", r"C2 at 100/s & Official runs & Supplementary runs \\", r"\midrule"]
     for nm, f, dec, sc_ in rows:
         lines.append(f"{nm} & {ofmt(f, dec, sc_)} & {fmt(sc, f, dec, True, sc_)} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
