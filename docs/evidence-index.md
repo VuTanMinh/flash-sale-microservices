@@ -2,7 +2,7 @@
 
 Generated from `docs/test-plan.md` and the logs in `tests/evidence/`. For each
 requirement of the brief (`docs/teacher-brief.md` §4), the test cases that cover
-it, their status, and two log paths: the evidence the test plan names, and a later saved run of the same verifier (mostly the 24 October re-runs; the 14 November regression re-ran the runtime verifiers again, `tests/evidence/20261114T123000Z-regression/`). The test plan holds the inputs, expected
+it, their status, and two log paths: the evidence the test plan names, and a later saved run of the same verifier (mostly the 24 October re-runs; the 14 November regression re-ran the runtime verifiers again, `tests/evidence/20261114T123000Z-regression/`). Later full checks: `tests/evidence/20261122T134701Z-full-check/` (22 November, the code of `b451b4c`), `tests/evidence/20261123T153620Z-report-template/` (23 November, the report checks after the template change) and `tests/evidence/20261125T083042Z-full-check/` (25 November, the final code: every runtime and static verifier, the unit tests and both passes of the negative controls). The Inventory tests against a real Redis are in `tests/evidence/20261125T162658Z-redis-lua-tests/`. The test plan holds the inputs, expected
 results and negative controls of each case.
 
 Kinds of evidence: **offline** checks read code, documents and configuration;
@@ -26,6 +26,7 @@ half of TP-L04: the 24 Oct rerun on the reviewed code, raw data archived).
 |  | TP-I01 | PASS | `tests/evidence/20261002T051418Z-inventory.log` | `tests/evidence/20261024T082310Z-inventory.log` |
 |  | TP-I02 | PASS | `tests/evidence/20261002T051418Z-inventory.log` | `tests/evidence/20261024T082310Z-inventory.log` |
 |  | TP-I03 | PASS | `tests/evidence/20261002T052244Z-cross-store.log` | `tests/evidence/20261024T082358Z-cross-store.log` |
+|  | TP-I04 | PASS | `tests/evidence/20261125T083042Z-full-check/unit-InventoryService.trx` | `tests/evidence/20261125T162658Z-redis-lua-tests/README.md` |
 |  | TP-W02 | PASS | `tests/evidence/20261002T062442Z-validator.log` | `tests/evidence/20261024T082949Z-validator.log`, `tests/evidence/20261024T082913Z-real-runs.log` |
 | Update order status from the stock result | TP-W01 | PASS | `tests/evidence/20261002T061249Z-stock-results.log` | `tests/evidence/20261024T120357Z-stock-results.log` |
 |  | TP-W03 | PASS | `tests/evidence/20261002T063611Z-db-exceptions.log` | `tests/evidence/20261024T082450Z-db-exceptions.log` |
