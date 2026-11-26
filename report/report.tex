@@ -529,8 +529,8 @@ The results have the following limits:
     orders/s. At 100/s and above C3 and C4 therefore still accept faster than
     they complete, and accepted orders wait 57--69\,s at p95 to complete: the
     limits bound the backlog, not the wait.
-  \item A stock decision of \texttt{REJECTED} is not recorded in Redis. Since
-    commit \texttt{e4375f5} (after the official runs) Inventory looks up its
+  \item A stock decision of \texttt{REJECTED} is not recorded in Redis. After
+    the official runs, Inventory was changed to look up its
     stored result before it runs the reservation script, so a re-sent message
     for an order that already has a result no longer reaches Redis. Only a
     retry after a crash between the script and the database save runs the
@@ -987,12 +987,12 @@ whole solution. It runs both services' migrations, each with its own database
 account, and applies the baseline schema. Finally it checks account isolation:
 each service can use its own schema, cannot read the other's, and only Order
 Service can use \texttt{public}. It also checks the schema against the ERD.
-On 2026-10-01 it passed from a fresh clone with 0 build errors and 0 warnings.
+The check passed from a fresh clone with 0 build errors and 0 warnings.
 With \texttt{-Mode Existing}, the same checks run on a copy of an existing
 database after the role script is applied twice.
 
 \paragraph{Runtime check on the local stack (TP-E04).} The checks above use
-temporary databases. A 2026-10-13 audit found that the project's own local
+temporary databases. An audit found that the project's own local
 Compose database had never had the role script applied: it had no service
 accounts, and every table was owned by the admin account. The documented
 existing-database procedure was re-run on a copy (49/49), then applied to the
@@ -1046,7 +1046,7 @@ The data model (Figures~\ref{fig:erd-order}--\ref{fig:erd-baseline}) is taken fr
 raw baseline SQL and the role/schema initialisation script, not drawn by hand.
 \nolinkurl{docs/erd.md} holds the same diagrams plus a machine-readable manifest,
 and \nolinkurl{scripts/verify-erd.ps1} compares that manifest with a live
-database. On 2026-10-01 a database built from scratch (role initialisation,
+database. A database built from scratch (role initialisation,
 then both services' migrations, then the baseline schema) passed all 29 checks.
 
 \paragraph{Architecture of the data layer.} One PostgreSQL instance holds one
@@ -1163,7 +1163,7 @@ The code has the six-state model, with \texttt{OrderState.\allowbreak Processing
 
 \section{API Contract}
 ABP generates the OpenAPI document from the running controllers; it is
-exported to \nolinkurl{docs/api-contract-v1.json}. Since 2026-10-01 each order
+exported to \nolinkurl{docs/api-contract-v1.json}. Each order
 endpoint declares its outcomes with \texttt{[ProducesResponseType]}, so the
 export lists every status code the code can return. The alignment check
 compares the committed file with the live export of the same build.
@@ -1219,7 +1219,7 @@ stock is the only rejection cause in scope.
 \section{Order State Machine}
 \label{sec:order-state-machine}
 Figure~\ref{fig:state-machine} shows the model, and
-\nolinkurl{docs/order-state-machine.md} has the full diagram and transition table. The adopted model (decided 2026-10-01) uses the teacher's
+\nolinkurl{docs/order-state-machine.md} has the full diagram and transition table. The adopted model uses the teacher's
 six named states: \texttt{PendingStock}, \texttt{Confirmed},
 \texttt{Rejected}, \texttt{Processing}, \texttt{Completed} and
 \texttt{ProcessingFailed}. \texttt{Processing} is reachable through a
@@ -1409,7 +1409,7 @@ Overload & Nginx rate limit, application concurrency limit, bounded queue; rejec
 \end{tabular}
 \end{center}
 
-\paragraph{Known gaps in the supported model.} None remains open. The last one, a \texttt{NOT\_OPEN} result re-sent after warm-up that could undersell by one unit (never oversell), was closed after the official runs (commit \texttt{e4375f5}); it is described after Table~\ref{tab:failure-modes}. Two earlier gaps are closed as well. An \texttt{OrderProcessed} that arrives while the order is still
+\paragraph{Known gaps in the supported model.} None remains open. The last one, a \texttt{NOT\_OPEN} result re-sent after warm-up that could undersell by one unit (never oversell), was closed after the official runs. The fix is described after Table~\ref{tab:failure-modes}. Two earlier gaps are closed as well. An \texttt{OrderProcessed} that arrives while the order is still
 \texttt{PendingStock} used to be dead-lettered. It is now requeued
 onto delayed retry queues and applied once the order is \texttt{Confirmed}
 (TP-M02). The
@@ -1440,7 +1440,7 @@ Inventory Service involved. Both use one raw-SQL table,
 \texttt{order\_service.inventory}. It is deliberately \emph{not}
 EF Core-migrated (see \nolinkurl{docs/erd.md}), because C0 and C1 are baseline
 scaffolding, not the final design. Every result in this section was produced
-on 2026-10-01 from a fresh clone of the repository and a brand-new PostgreSQL
+from a fresh clone of the repository and a brand-new PostgreSQL
 database built by \nolinkurl{scripts/verify-environment.ps1}, with Order Service
 connecting under its own account (\texttt{order\_service\_user}). The method
 and pass rules are in \nolinkurl{docs/baseline-c0-c1.md}; the raw evidence is in
@@ -2464,7 +2464,7 @@ early after three requeues, it goes to the DLQ instead of waiting forever.
 The 1, 2, 4\,s in-process retry for database errors is unchanged and kept
 separate.
 
-\paragraph{Evidence} (fresh clone of \texttt{b0b9d51} and fresh database;
+\paragraph{Evidence} (fresh clone with the delivery ordering changes and a fresh database,
 saved as \nolinkurl{20261003T181814Z-delivery-ordering.log} in
 \nolinkurl{tests/evidence/}). The verifier,
 \texttt{verify-delivery-\allowbreak ordering.ps1} in \nolinkurl{scripts/}, passes 44 of 44
@@ -2663,7 +2663,7 @@ re-triggered \texttt{OrderPlaced} for an order whose result was already
 published re-sends that \emph{same stored result}: the same payload and the
 same \texttt{MessageId}. There is no second deduction and no new row. In
 the code of the official runs \texttt{reserve.lua} ran first and answered
-\texttt{DUPLICATE}; since commit \texttt{e4375f5} Inventory finds the stored
+\texttt{DUPLICATE}. With the fix made after the official runs, Inventory finds the stored
 result first and does not call Redis at all. Order
 Service's Inbox applies the result once, or ignores it if it was already
 applied. A reserved order therefore stays reserved and is never rewritten as
@@ -2804,8 +2804,8 @@ looked for a stored result. An order rejected with \texttt{NOT\_OPEN} before
 warm-up, whose result was delayed past the reconciliation timeout and re-sent
 after the sale opened, therefore took one unit while the order stayed
 \texttt{Rejected}: an undersell of one unit, never an oversell. It could not
-occur in the official runs, where warm-up precedes every order. Commit
-\texttt{e4375f5} moves the lookup of the stored result before the script, so
+occur in the official runs, where warm-up precedes every order. The fix
+moves the lookup of the stored result before the script, so
 an order that already has a result never reaches Redis again. Three unit tests
 in \nolinkurl{tests/FlashSale.InventoryService.Tests} check this with a Redis
 connection that fails on any use; with the old order restored, the two
@@ -3549,7 +3549,7 @@ below were locked after that confirmation.
 \section{Values locked for the official runs}
 \label{sec:locked}
 
-The owner signed off these values on 4 November 2026
+The owner signed off these values before the official runs
 (Table~\ref{tab:locked}). They are in \nolinkurl{infra/ec2.env.example} and in
 the defaults of \nolinkurl{scripts/run-matrix.ps1}, and section~5f of
 \nolinkurl{docs/deployment.md} applies them per configuration. In the official runs
@@ -3658,10 +3658,10 @@ the destroy time where the evidence records it.
 \toprule
 Session & Servers up & Estimate (USD) \\
 \midrule
-Official matrix, 5 Nov & from about 10:29 UTC (720-minute timer due at 22:29); the last
+Official matrix & from about 10:29 UTC (720-minute timer due at 22:29); the last
   run started at 18:06 and the destroy time was not logged, so 7.6 to 12\,h & 1.75--2.76 \\
-Supplementary, 6 Nov & about 13:44 to 16:20 UTC (destroy logged), 2.6\,h & 0.60 \\
-Back-pressure A/B, 7 Nov & about 05:47 to 09:29 UTC (session end logged), 3.7\,h & 0.85 \\
+Supplementary & about 13:44 to 16:20 UTC (destroy logged), 2.6\,h & 0.60 \\
+Back-pressure A/B & about 05:47 to 09:29 UTC (session end logged), 3.7\,h & 0.85 \\
 \midrule
 Total & about 14 to 18\,h & 3.20--4.21 \\
 \bottomrule
@@ -3671,9 +3671,9 @@ uses: hours from \nolinkurl{tests/evidence/20261105T104832Z-official},
 \nolinkurl{20261106T135523Z-supplementary} and
 \nolinkurl{20261107T060310Z-backpressure-ab}, times USD~0.2304 an hour. Not
 included: the two 30\,GB EBS volumes, public IPv4 addresses, data transfer, and
-the earlier deployment, pilot and confirmation sessions (22~October to
-4~November), whose hours were not totalled. An estimate, not the billed amount;
-the sessions ran on the account's AWS Free-plan credits.}
+the earlier deployment, pilot and confirmation sessions, whose hours were not
+totalled. The estimate covers instance costs.
+The sessions ran on the account's AWS Free-plan credits.}
 \label{tab:cost}
 \end{table}
 
@@ -3750,12 +3750,12 @@ other workload profiles of the brief were run as coverage (Section~\ref{sec:prof
 \section{Official Runs}
 \label{sec:results-official}
 
-The official matrix ran on 5~November 2026 on one pair of EC2 hosts
-(backend \texttt{m7i-flex.large}, JMeter \texttt{c7i-flex.large}) with every
-value frozen in \nolinkurl{docs/week14-freeze.md} (frozen commit \texttt{9d00bea},
-tagged \texttt{w14-official};
-both hosts ran \texttt{a37f082}, whose service code and settings are
-identical). The plan is \nolinkurl{docs/week14-official-runs.md}. There are 22
+The official matrix ran on one pair of EC2 hosts
+(backend \texttt{m7i-flex.large}, JMeter \texttt{c7i-flex.large}) using every
+value in \nolinkurl{docs/week14-freeze.md}. Both hosts ran service code
+and settings identical to those of the frozen code (tag
+\texttt{w14-official}). The plan is in
+\nolinkurl{docs/week14-official-runs.md}. There are 22
 cells (C1, C2 and C3 at 50, 100 and 200/s, C3 also at 400/s, and C4 with 1, 2
 and 4 Inventory consumers at 50, 100, 200 and 400/s), each run 3 times: 66
 runs, in repeat-major order (repeat~1 of every cell, then repeat~2, then
@@ -4170,7 +4170,7 @@ backlog sat in Order Service's Outbox before publication
 \section{Supplementary Runs}
 \label{sec:results-supp}
 
-After the official matrix, one more session on 6~November ran 18 runs with the
+After the official matrix, a supplementary session completed 18 runs with the
 same frozen code and only command-line values changed
 (\nolinkurl{docs/week14-supplementary-runs.md}): C1 at 400/s; a sell-out of
 2,000 units at 200/s for C1, C2 and C3; the official C2 100/s cell as an anchor;
@@ -4211,7 +4211,7 @@ API p95 (2,856\,ms versus 2,909\,ms).
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \adjustbox{max width=\linewidth}{\input{figures/supplementary/tab-supplementary.tex}}
-\caption{Supplementary runs, 6~November, on a second host pair (not pooled
+\caption{Supplementary runs on a second host pair (not pooled
 with the official tables). Accepted counts the 2xx responses, which equal the
 orders in the database in every run. Sold is the units reserved; Rejected is the
 accepted orders that got no unit; Stock left is the final stock. Completion
@@ -4228,7 +4228,7 @@ counts the runs in which every validator check held. Cells: median of 3 runs
 The official and supplementary results describe the frozen code
 (\texttt{w14-official}). After the freeze was closed, the defect of
 Section~\ref{sec:results-overload} was fixed in the Process Worker and measured
-on 7~November (\nolinkurl{docs/week14-backpressure-fix.md}). These runs are
+in a separate experiment (\nolinkurl{docs/week14-backpressure-fix.md}). These runs are
 labelled post-freeze and are never pooled with the official or supplementary
 ones.
 
@@ -4272,7 +4272,7 @@ and from 18,250 to 19,055 in those same cells
 \setlength{\tabcolsep}{3pt}
 \adjustbox{max width=\linewidth}{\input{figures/backpressure/tab-backpressure.tex}}
 \caption{Process Worker back-pressure fix, frozen against fixed Worker on one
-host pair, 7~November (post-freeze; not pooled with the official tables).
+host pair after the freeze. The official tables exclude these runs.
 Dead-lettered and back-pressure waits are the Worker's counters over the run.
 Reconciliation counts the re-triggers Order Service logged; in every run it equals
 the Worker's dead letters. The frozen Worker exports no back-pressure counter. A
@@ -4289,21 +4289,21 @@ commits changed the service code after that tag
 (\texttt{git log w14-official..HEAD -- src}). None of them was re-measured on
 EC2, so no number in this chapter describes them except the back-pressure fix
 above. The full regression and every negative control were run on the final
-code on 25~November (\nolinkurl{tests/evidence/20261125T083042Z-full-check}).
+code (\nolinkurl{tests/evidence/20261125T083042Z-full-check}).
 
 \begin{itemize}
-  \item \textbf{\texttt{035e599}, Process Worker back-pressure.} A broker nack
+  \item \textbf{Process Worker back-pressure.} A broker nack
     on a full queue is waited out instead of dead-lettered. It changes the
     overload path and is measured in Section~\ref{sec:results-bp}.
-  \item \textbf{\texttt{1850b0f}, Worker shutdown timeout.} The host's
+  \item \textbf{Worker shutdown timeout.} The host's
     shutdown timeout is set to 15\,s instead of the 30\,s default. It acts
     only when the Worker is stopped; no measured run stops a Worker under
     load.
-  \item \textbf{\texttt{042e853}, certificate passphrase.} Order Service
+  \item \textbf{Certificate passphrase.} Order Service
     reads the OpenIddict certificate passphrase from configuration instead
     of a literal in code. The value is the same, and it is read once at
     start-up; the request path is unchanged.
-  \item \textbf{\texttt{e4375f5}, stored result before \texttt{reserve.lua}.}
+  \item \textbf{Stored result lookup before \texttt{reserve.lua}.}
     Inventory now looks up the order's stored result first and runs
     \texttt{reserve.lua} only if no result exists. This closes the
     \texttt{NOT\_OPEN} gap (described after Table~\ref{tab:failure-modes}). This is on the measured path,
@@ -4872,7 +4872,7 @@ final code after the review fixes. Each was checked, when it was built, with a
 negative control that must make it fail, and every fix in
 Section~\ref{sec:review-fixes} has one too.
 
-Since 25~November a GitHub Actions workflow
+A GitHub Actions workflow
 (\nolinkurl{.github/workflows/ci.yml}) builds the solution and runs the three
 unit-test projects on every push, with a PostgreSQL service container for the
 race tests and a Redis service container for the Inventory tests that use a
@@ -5173,7 +5173,7 @@ refused everything as recovered.
 
 \paragraph{Preliminary observations (local PC, one run each).}
 Table~\ref{tab:overload-local-ec2} compares three local runs and two EC2 runs.
-The first local run (22 October) passed every check of the time: the 2,390
+The first local run passed every check in use at the time. The 2,390
 refusals logged by Nginx and the 832 counted by the admission metric matched
 JMeter exactly, all 773 accepted orders completed with one unit of stock each,
 and no service restarted. Its 3.9\,s backlog drain, however, missed the
@@ -5230,8 +5230,8 @@ used the code from before the review, and its raw JTL and samples were not
 copied back before the stack was destroyed, so it cannot be re-measured with
 the new definitions; its numbers describe the earlier code only.
 
-On 24 October the same plan ran again on EC2 on the code after the review
-(\texttt{main-test-bug-fix} \texttt{45486aa}, in-flight bound 30 on a fresh
+After the review, the same plan ran again on EC2 with the updated code
+(\texttt{main-test-bug-fix}, in-flight bound 30 on a fresh
 database), and every raw file was copied back over SSM with its sha256 checked
 (\nolinkurl{tests/evidence/20261024T104902Z-ec2-overload-*}). Of 4,069 order
 submissions, Nginx refused 2,445 with 429 and admission 1,042 with 503 (30
@@ -5251,7 +5251,7 @@ port.
 \setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{lrrrrr}
 \toprule
-TP-L04 run (pre-pilot) & Local 22 Oct & Local 23 Oct & Local 23 Oct & EC2 22 Oct & EC2 24 Oct \\
+TP-L04 run (pre-pilot) & Local & Local & Local & EC2 & EC2 \\
  & (before) & (+ prefetch) & (+ in-flight) & (before) & (after) \\
 \midrule
 Order submissions (3 phases) & 3,995 & 4,027 & 4,084 & 4,029 & 4,069 \\
@@ -5270,8 +5270,8 @@ Service restarts & 0 & 0 & 0 & 0 & 0 \\
 \caption{The same overload plan, one run each. Counts match JMeter, the Nginx
 log and the admission metric in every run. \textsuperscript{a}The earlier,
 narrower measure that missed messages already delivered to the Worker; not
-comparable with the other three. The 22 October local run was re-extracted with
-the current extractor; the 22 October EC2 run could not be.
+comparable with the other three. The first local run was re-extracted with
+the current extractor. The raw files from the first EC2 run were unavailable.
 \textsuperscript{b}With the second-pass definition (p95 of accepted responses
 only, no 1\,s gap in the window).}
 \label{tab:overload-local-ec2}
@@ -5301,7 +5301,7 @@ validator, and no container restarted
 Table~\ref{tab:pilot-errors} lists every run with its error counters. Dead
 letters are counted once per message. The first report counted each one twice,
 because the Process Worker increments two metric families for one dead letter;
-\texttt{extract-run-metrics.ps1} now reads one family (commit \texttt{c6280c6}).
+\texttt{extract-run-metrics.ps1} now reads one family.
 Retries, dead letters, duplicates and reconciliations are internal recovery
 events, not lost orders: every accepted order finished and every validator
 passed.
@@ -5396,8 +5396,8 @@ setting (default 1, unchanged behaviour), and all five consumers now serialise
 their acknowledgements and requeue publishes, because the client does not allow
 concurrent use of one channel for those operations. The consumer verifiers pass
 at concurrency 1 and 4, and the unit tests give the same result as before
-(\nolinkurl{tests/evidence/20261103T235000Z-consumer-concurrency/summary.log},
-commit \texttt{54548db}). Locally, Order Service concurrency 4 with
+(\nolinkurl{tests/evidence/20261103T235000Z-consumer-concurrency/summary.log}).
+Locally, Order Service concurrency 4 with
 reconciliation at 120\,s drained the all-limits C4 run in 98\,s in both repeats,
 with no dead letters and no reconciliation, against 363 and 245\,s without the
 fix.
@@ -5407,7 +5407,7 @@ fix.
 \label{sec:confirmation}
 
 Table~\ref{tab:confirmation} compares the settings before and after the fix on
-EC2, on commit \texttt{54548db}, two repeats per cell. Every run passed the
+EC2, with two repeats per cell. Both settings used the consumer concurrency fix. Every run passed the
 validator, and each run read its settings back from the running containers
 (\nolinkurl{summary.log} in\\ \nolinkurl{tests/evidence/20261104T132500Z-ec2-confirmation/}).
 
@@ -5589,7 +5589,7 @@ supplementary runs only.
 \small
 \input{figures/supplementary/tab-supp-anchor.tex}
 \caption{The same cell (C2, 100/s, 100,000 units, three runs each) on the
-official host pair (5~November) and the supplementary one (6~November). Cells:
+official and supplementary host pairs. Cells:
 median of 3 runs (range).}
 \label{tab:supp-anchor}
 \end{table}
@@ -5670,7 +5670,7 @@ finding (\nolinkurl{docs/midterm-review-disposition.md}):
     scraped there; the Compose file now overrides it. The queue policy and the
     collector work through \texttt{docker exec} with no published management
     port and no password on the command line. All three were checked on EC2
-    on 24 October (Section~\ref{sec:ec2-deployment}).
+    in the overload rerun after the review (Section~\ref{sec:ec2-deployment}).
   \item The extractor judges recovery latency on accepted responses only,
     needs submissions in every second of the window, never reads a missing
     backlog series as 0, and exits 2 with every database-derived value
@@ -5697,8 +5697,8 @@ is preliminary; it names the bottleneck that C4 and the Week~13 EC2 pilot
 must measure.\par\fussy
 
 Still open: every limit is a pre-pilot value that the Week~13 pilot fixes,
-and each overload number is a single run. The 22 October EC2 run's raw data
-remains lost; the 24 October run on the reviewed code replaces it.
+and each overload number is a single run. The raw data from the first EC2 run
+remains lost. The rerun on the reviewed code replaces it.
 
 \chapter{Additional Result Figures}
 \label{app:figures}
@@ -5755,11 +5755,11 @@ The official runs use the values fixed in \nolinkurl{docs/week14-freeze.md},
 which also records the frozen source commit and the SHA-256 hash of each
 Terraform file. \nolinkurl{scripts/verify-freeze.ps1} checks every value against
 its source file (TP-X09, \nolinkurl{tests/evidence/20261105T100509Z-freeze.log}). The
-manifest was frozen again on 5~November at the commit that adds check~7 to the
-validator and sums the extractor's gauges across replicas, with no change to
-the services, the infrastructure or any value below. On 6~November the owner
-closed the freeze for a post-freeze Process Worker fix: the official runs' code is
-the annotated tag \texttt{w14-official} (\texttt{9d00bea}), and
+manifest was frozen again after the validator gained check~7 and the
+extractor began summing gauges across replicas. This left the services,
+the infrastructure and every value below unchanged. The owner then
+closed the freeze before the Process Worker fix. The frozen code uses
+the annotated tag \texttt{w14-official}, and
 \nolinkurl{scripts/verify-freeze.ps1} now checks the manifest against that tagged
 tree and checks that the official and supplementary runs' commits are
 byte-identical to it on every run path
@@ -5874,33 +5874,33 @@ names start with the UTC time of the run, so a later run never overwrites an
 earlier one. \nolinkurl{docs/evidence-index.md} maps every requirement of the
 brief to its test cases, their status and their logs, and
 \nolinkurl{docs/test-plan.md} gives each case's full file names.
-Table~\ref{tab:app-evidence} lists the evidence behind the experiment chapters
-by date and name.
+Table~\ref{tab:app-evidence} lists the evidence files and the claims they
+support in the experiment chapters.
 
 \begin{table}[H]
 \centering
 \scriptsize
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.32\textwidth}ll>{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.32\textwidth}l>{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
 \toprule
-Claim & Case & Date (2026) & Evidence in \nolinkurl{tests/evidence/} \\
+Claim & Case & Evidence in \nolinkurl{tests/evidence/} \\
 \midrule
-Pilot of C1 to C4 on EC2 & TP-X01 & 1 Nov & \nolinkurl{ec2-pilot.log}, \nolinkurl{ec2-pilot-results.csv} \\
-Slowdown cause & --- & 3 Nov & \nolinkurl{slowdown-diagnosis.log} \\
-Consumer concurrency is safe & TP-X08 & 3 Nov & \nolinkurl{consumer-concurrency/} \\
-EC2 confirmation of the fix & TP-X07 & 4 Nov & \nolinkurl{ec2-confirmation/} \\
-Workload profiles & TP-X04 & 31 Oct & \nolinkurl{ec2-stack.log} (first run) \\
-Open-loop load mode & TP-X05 & 31 Oct & \nolinkurl{ec2-stack.log} (second run) \\
-Matrix runner and queue-bound gate & TP-X06 & 1 Nov & \nolinkurl{ec2-stack-matrix.log} \\
-Freeze manifest matches the repository (first freeze) & TP-X09 & 4 Nov & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
-Re-freeze at 9d00bea & TP-X09 & 5 Nov & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
-Freeze closed, official code tagged \texttt{w14-official} & TP-X09 & 6 Nov & \nolinkurl{freeze-tag/} \\
-Validator run filter (check 0b) & TP-X10 & 5 Nov & \nolinkurl{validator-run-filter.log} \\
-Status history (check 7), missing parameters & TP-X11 & 5 Nov & \nolinkurl{validator.log}, \nolinkurl{validator-negative.log} \\
-Extractor sums gauges across replicas & TP-X12 & 5 Nov & \nolinkurl{extract.log}, \nolinkurl{extract-negative.log} \\
-Official runs: 66 of 66 pass & TP-X02 & 5 Nov & \nolinkurl{official/} (bundles, manifests, \nolinkurl{summary.log}) \\
-README reproduction from a GitHub clone & TP-X03 & 6 Nov & \nolinkurl{reproduction/} (\nolinkurl{summary.log}) \\
-Supplementary EC2 runs (not pooled) & TP-X13 & 6 Nov & \nolinkurl{supplementary/} (\nolinkurl{summary.log}) \\
-Post-freeze Worker back-pressure A/B & TP-X14 & 7 Nov & \nolinkurl{backpressure-ab/} (\nolinkurl{README.md}) \\
+Pilot of C1 to C4 on EC2 & TP-X01 & \nolinkurl{ec2-pilot.log}, \nolinkurl{ec2-pilot-results.csv} \\
+Slowdown cause & --- & \nolinkurl{slowdown-diagnosis.log} \\
+Consumer concurrency is safe & TP-X08 & \nolinkurl{consumer-concurrency/} \\
+EC2 confirmation of the fix & TP-X07 & \nolinkurl{ec2-confirmation/} \\
+Workload profiles & TP-X04 & \nolinkurl{ec2-stack.log} (first run) \\
+Open-loop load mode & TP-X05 & \nolinkurl{ec2-stack.log} (second run) \\
+Matrix runner and queue-bound gate & TP-X06 & \nolinkurl{ec2-stack-matrix.log} \\
+Freeze manifest matches the repository (first freeze) & TP-X09 & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
+Manifest frozen again after validator and extractor updates & TP-X09 & \nolinkurl{freeze.log}, \nolinkurl{freeze-negative.log} \\
+Freeze closed, official code tagged \texttt{w14-official} & TP-X09 & \nolinkurl{freeze-tag/} \\
+Validator run filter (check 0b) & TP-X10 & \nolinkurl{validator-run-filter.log} \\
+Status history (check 7), missing parameters & TP-X11 & \nolinkurl{validator.log}, \nolinkurl{validator-negative.log} \\
+Extractor sums gauges across replicas & TP-X12 & \nolinkurl{extract.log}, \nolinkurl{extract-negative.log} \\
+Official runs: 66 of 66 pass & TP-X02 & \nolinkurl{official/} (bundles, manifests, \nolinkurl{summary.log}) \\
+README reproduction from a GitHub clone & TP-X03 & \nolinkurl{reproduction/} (\nolinkurl{summary.log}) \\
+Supplementary EC2 runs (not pooled) & TP-X13 & \nolinkurl{supplementary/} (\nolinkurl{summary.log}) \\
+Post-freeze Worker back-pressure A/B & TP-X14 & \nolinkurl{backpressure-ab/} (\nolinkurl{README.md}) \\
 \bottomrule
 \end{tabular}
 \caption{Evidence for the Experimental Design and Results chapters. The
